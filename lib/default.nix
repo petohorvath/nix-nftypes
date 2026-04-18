@@ -16,6 +16,7 @@ let
   };
   commands = import ./commands.nix { inherit lib objects; };
   render = import ./render.nix { inherit lib; };
+  dsl = import ./dsl { inherit lib; };
 in
 {
   # Primitive enum types, portNumber, prefixLength, nullType.
@@ -45,4 +46,8 @@ in
   toJSON = render.toJSON;
   toPretty = render.toPretty;
   cleanValue = render.clean;
+
+  # DSL sugar layer — combinators and context-threading builders that produce
+  # the same attrsets accepted by the types above.
+  inherit dsl;
 }

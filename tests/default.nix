@@ -4,6 +4,8 @@ let
   inherit (pkgs) lib;
   inherit (nftlib) toJSON;
 
+  dslTests = import ./dsl-parity.nix { inherit lib nftlib; };
+
   # Validate a value against an nftables type by evaluating it through a module
   # option. If the value fails to type-check, this will throw.
   validate =
@@ -19,7 +21,7 @@ let
 
   roundtrip = valueType: value: toJSON (validate valueType value);
 
-  tests = {
+  tests = dslTests // {
     # ------------------------------------------------------------------
     # Verdicts
     # ------------------------------------------------------------------

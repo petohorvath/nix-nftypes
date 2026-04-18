@@ -3,6 +3,10 @@
 # A realistic inet-family firewall demonstrating: table/chain, named set of
 # IPv4 prefixes, named map for port forwarding, SNAT+DNAT, reject with icmp
 # code, logging, and a vmap dispatching on input interface.
+#
+# Hand-written form, kept as the reference for the byte-identical DSL parity
+# test (tests/dsl-parity.nix::testDslExampleParity). For DSL-style authoring
+# see examples/basic-firewall-dsl.nix.
 let
   tableName = "main";
 
