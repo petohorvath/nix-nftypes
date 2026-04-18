@@ -2,11 +2,10 @@
 
 let
   inherit (lib) types mkOption;
+  inherit (objects) tagOpt;
 
   # The list-object bodies accepted at top level (bare, no command wrapper).
   bareListObject = objects.listObject;
-
-  tagOpt = type: mkOption { inherit type; };
 
   # attrTag for the command wrappers themselves. Each command wraps one of the
   # object-type unions.

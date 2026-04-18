@@ -292,12 +292,7 @@ let
   listOrSingleton = elemType: types.either elemType (types.listOf elemType);
 in
 {
-  inherit
-    nullType
-    portNumber
-    prefixLength
-    listOrSingleton
-    ;
+  inherit listOrSingleton;
 
   types = {
     inherit

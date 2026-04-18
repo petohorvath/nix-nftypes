@@ -7,7 +7,7 @@
 
 let
   inherit (lib) types mkOption;
-  inherit (primitives) listOrSingleton nullType;
+  inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     familyType
     hookType
@@ -22,6 +22,8 @@ let
     perUnitType
     rtFamilyType
     synproxyFlagType
+    portNumber
+    nullType
     ;
   expr = expressions.expression;
   stmt = statements.statement;
@@ -517,7 +519,7 @@ let
           description = "layer-4 protocol (tcp/udp)";
         };
         dport = mkOption {
-          type = types.nullOr primitives.portNumber;
+          type = types.nullOr portNumber;
           default = null;
           description = "destination port of expected connection";
         };
@@ -684,12 +686,12 @@ let
           description = "IPv6 destination address";
         };
         sport = mkOption {
-          type = types.nullOr primitives.portNumber;
+          type = types.nullOr portNumber;
           default = null;
           description = "source port";
         };
         dport = mkOption {
-          type = types.nullOr primitives.portNumber;
+          type = types.nullOr portNumber;
           default = null;
           description = "destination port";
         };
@@ -754,47 +756,29 @@ let
     ruleset = wrap "ruleset" bodies.rulesetBody;
   };
 
-  addObject = types.attrTag (
-    lib.mapAttrs (_: tagOpt) {
-      table = bodies.tableBody;
-      chain = bodies.chainBody;
-      rule = bodies.ruleBody;
-      set = bodies.setObjectBody;
-      map = bodies.mapObjectBody;
-      element = bodies.elementBody;
-      flowtable = bodies.flowtableBody;
-      counter = bodies.counterObjectBody;
-      quota = bodies.quotaObjectBody;
-      "ct helper" = bodies.ctHelperObjectBody;
-      limit = bodies.limitObjectBody;
-      "ct timeout" = bodies.ctTimeoutObjectBody;
-      "ct expectation" = bodies.ctExpectationObjectBody;
-      secmark = bodies.secmarkObjectBody;
-      synproxy = bodies.synproxyObjectBody;
-      tunnel = bodies.tunnelObjectBody;
-    }
-  );
+  addObjectBodies = {
+    table = bodies.tableBody;
+    chain = bodies.chainBody;
+    rule = bodies.ruleBody;
+    set = bodies.setObjectBody;
+    map = bodies.mapObjectBody;
+    element = bodies.elementBody;
+    flowtable = bodies.flowtableBody;
+    counter = bodies.counterObjectBody;
+    quota = bodies.quotaObjectBody;
+    "ct helper" = bodies.ctHelperObjectBody;
+    limit = bodies.limitObjectBody;
+    "ct timeout" = bodies.ctTimeoutObjectBody;
+    "ct expectation" = bodies.ctExpectationObjectBody;
+    secmark = bodies.secmarkObjectBody;
+    synproxy = bodies.synproxyObjectBody;
+    tunnel = bodies.tunnelObjectBody;
+  };
+
+  addObject = types.attrTag (lib.mapAttrs (_: tagOpt) addObjectBodies);
 
   listObject = types.attrTag (
-    lib.mapAttrs (_: tagOpt) {
-      table = bodies.tableBody;
-      chain = bodies.chainBody;
-      rule = bodies.ruleBody;
-      set = bodies.setObjectBody;
-      map = bodies.mapObjectBody;
-      element = bodies.elementBody;
-      flowtable = bodies.flowtableBody;
-      counter = bodies.counterObjectBody;
-      quota = bodies.quotaObjectBody;
-      "ct helper" = bodies.ctHelperObjectBody;
-      limit = bodies.limitObjectBody;
-      "ct timeout" = bodies.ctTimeoutObjectBody;
-      "ct expectation" = bodies.ctExpectationObjectBody;
-      secmark = bodies.secmarkObjectBody;
-      synproxy = bodies.synproxyObjectBody;
-      tunnel = bodies.tunnelObjectBody;
-      metainfo = bodies.metainfoBody;
-    }
+    lib.mapAttrs (_: tagOpt) (addObjectBodies // { metainfo = bodies.metainfoBody; })
   );
 
   flushObject = types.attrTag (
@@ -822,6 +806,7 @@ in
 {
   all = bodies // wrappers;
   inherit
+    tagOpt
     addObject
     listObject
     flushObject

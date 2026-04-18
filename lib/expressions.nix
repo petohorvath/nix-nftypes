@@ -2,9 +2,8 @@
 
 let
   inherit (lib) types mkOption;
-  inherit (primitives) listOrSingleton prefixLength;
+  inherit (primitives) listOrSingleton;
   inherit (primitives.types)
-    familyType
     metaKeyType
     rtKeyType
     rtFamilyType
@@ -20,6 +19,7 @@ let
     xfrmKeyType
     tunnelKeyType
     nullType
+    prefixLength
     ;
 
   # Fixed-point recursion so bodies and the top-level `expression` type can
@@ -473,10 +473,9 @@ let
   };
 in
 {
-  inherit (exprs) expression;
+  inherit (exprs) expression verdictTargetBody;
   all = removeAttrs exprs [
     "expression"
     "taggedExpression"
   ];
-  inherit (exprs) taggedExpression;
 }

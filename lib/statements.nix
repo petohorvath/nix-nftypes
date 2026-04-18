@@ -24,13 +24,7 @@ let
     nullType
     ;
   expr = expressions.expression;
-
-  verdictTargetBody = types.submodule {
-    options.target = mkOption {
-      type = types.str;
-      description = "target chain name";
-    };
-  };
+  inherit (expressions) verdictTargetBody;
 
   bodies = rec {
     matchBody = types.submodule {
