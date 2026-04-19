@@ -1,12 +1,12 @@
 { lib }:
 
 let
-  primitives = import ./primitives.nix { inherit lib; };
-  expressions = import ./expressions.nix { inherit lib primitives; };
-  statements = import ./statements.nix {
+  primitives = import ./schema/primitives.nix { inherit lib; };
+  expressions = import ./schema/expressions.nix { inherit lib primitives; };
+  statements = import ./schema/statements.nix {
     inherit lib primitives expressions;
   };
-  objects = import ./objects.nix {
+  objects = import ./schema/objects.nix {
     inherit
       lib
       primitives
@@ -14,9 +14,10 @@ let
       statements
       ;
   };
-  commands = import ./commands.nix { inherit lib objects; };
-  render = import ./render.nix { inherit lib; };
-  text = import ./text { inherit lib render; };
+  commands = import ./schema/commands.nix { inherit lib objects; };
+  clean = import ./clean.nix { inherit lib; };
+  json = import ./json { inherit lib clean; };
+  text = import ./text { inherit lib clean; };
   dsl = import ./dsl { inherit lib; };
 in
 {
@@ -44,9 +45,9 @@ in
   inherit (commands) command ruleset;
 
   # Render a value to libnftables-json.
-  toJSON = render.toJSON;
-  toPretty = render.toPretty;
-  cleanValue = render.clean;
+  toJSON = json.toJSON;
+  toPretty = json.toPretty;
+  cleanValue = clean;
 
   # Render a value to nftables text syntax (the `.nft` form `nft -f`
   # consumes). Both renderers consume the same validated attrset.

@@ -4,7 +4,7 @@
   objects,
 }:
 
-# Renderer for the top-level command attrTag (lib/commands.nix).
+# Renderer for the top-level command attrTag (lib/schema/commands.nix).
 #
 # Each command is `{ <verb>: { <kind>: <body> } }`. The verbs:
 #   add / create / delete / destroy — body is an addObject (any kind)

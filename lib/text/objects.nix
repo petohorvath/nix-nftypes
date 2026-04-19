@@ -6,7 +6,7 @@
   statements,
 }:
 
-# Renderer for the object kinds in lib/objects.nix.
+# Renderer for the object kinds in lib/schema/objects.nix.
 #
 # Each object kind renders as the body of an `add <kind>` command (or
 # `flush <kind>`, `delete <kind>`, etc — the command renderer in

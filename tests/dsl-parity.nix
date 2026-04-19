@@ -1200,7 +1200,7 @@ in
   # Note: the schema's `setObjectBody` / `mapObjectBody` / `limitObjectBody`
   # etc. require certain fields (`type`, `rate`/`per`, …) that nftables
   # doesn't actually need for delete/destroy by name. Tests here provide
-  # full bodies to satisfy the schema; see lib/objects.nix.
+  # full bodies to satisfy the schema; see lib/schema/objects.nix.
   testCmdDeleteSet = pc
     (dsl.delete.set { family = "inet"; table = "t"; name = "blocked"; type = "ipv4_addr"; })
     { delete = { set = {

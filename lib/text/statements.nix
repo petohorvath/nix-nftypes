@@ -5,7 +5,7 @@
   expressions,
 }:
 
-# Renderer for the `statement` attrTag union (lib/statements.nix).
+# Renderer for the `statement` attrTag union (lib/schema/statements.nix).
 #
 # Statements appear inside a rule body, separated by `; ` in compact mode
 # or newline+indent in pretty mode (the join is done by the rule renderer

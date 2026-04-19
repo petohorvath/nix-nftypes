@@ -1,4 +1,4 @@
-{ lib, render }:
+{ lib, clean }:
 
 # Public entry for the nftables-text renderer.
 #
@@ -10,8 +10,8 @@
 # (`{ nftables = [ <command>, ... ]; }`); the ruleset envelope is unwrapped
 # and each command is rendered then joined by newlines.
 #
-# Internally we run `render.clean` once at the entry, mirroring `toJSON`'s
-# contract: nested renderers trust their input is already cleaned.
+# Internally we run `clean` (from lib/clean.nix) once at the entry, mirroring
+# `toJSON`'s contract: nested renderers trust their input is already cleaned.
 
 let
   context = import ./context.nix { inherit lib; };
@@ -45,7 +45,7 @@ let
   renderRuleset =
     ctx: ruleset:
     let
-      cleaned = render.clean ruleset;
+      cleaned = clean ruleset;
       cmds =
         if cleaned ? nftables then cleaned.nftables else throw "text: ruleset must have a `nftables` key";
     in

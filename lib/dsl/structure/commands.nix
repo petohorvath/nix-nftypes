@@ -2,8 +2,8 @@
 
 # Namespaced builders for commands that don't fit the declarative table
 # tree: create, delete, destroy, list, rename, reset. Each command's schema
-# accepts a specific subset of object kinds (see `lib/commands.nix` and
-# `lib/objects.nix`), so one namespace per command enumerates exactly the
+# accepts a specific subset of object kinds (see `lib/schema/commands.nix` and
+# `lib/schema/objects.nix`), so one namespace per command enumerates exactly the
 # kinds the schema allows.
 #
 # Usage:

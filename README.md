@@ -156,7 +156,7 @@ Examples:
 
 ## How this was built
 
-The canonical "libnftables-json spec" is `doc/libnftables-json.adoc`, rendered as the `libnftables-json(5)` man page. The first pass built the types directly from that document: every JSON key, enum value, family, hook, meta-key, and operator became a Nix enum (`lib/primitives.nix`); each structural form became a `types.submodule` (`lib/expressions.nix`, `lib/statements.nix`, `lib/objects.nix`); tagged unions used `types.attrTag`. A `toJSON` renderer stripped `null` defaults while preserving semantically-meaningful nulls. The library passed its own test suite and matched the adoc.
+The canonical "libnftables-json spec" is `doc/libnftables-json.adoc`, rendered as the `libnftables-json(5)` man page. The first pass built the types directly from that document: every JSON key, enum value, family, hook, meta-key, and operator became a Nix enum (`lib/schema/primitives.nix`); each structural form became a `types.submodule` (`lib/schema/expressions.nix`, `lib/schema/statements.nix`, `lib/schema/objects.nix`); tagged unions used `types.attrTag`. A `toJSON` renderer stripped `null` defaults while preserving semantically-meaningful nulls. The library passed its own test suite and matched the adoc.
 
 Verifying output against `nft -c` surfaced failures the adoc did not predict. Walking the nftables C source revealed the adoc to be genuinely incomplete. Statements (`last`, `flow`, `tproxy`, `synproxy`, `reset`, `secmark`, `tunnel`), expressions (`ipsec`/xfrm, `tunnel` metadata, `ip option`), and named object types (`secmark`, `synproxy`, `tunnel`) were entirely absent from the documentation but fully supported by the parser. Other sections were actively wrong: `ct timeout` is documented with flat `state` + `value` fields but `parser_json.c:3550` reads a nested `policy` object mapping state names to timeout seconds; `ct timeout` and `ct expectation` are documented as accepting 8 protocols but the parser only branches on `tcp` and `udp`. Enum values (`netmap` NAT flag, `dynamic` set flag, `egress` hook, `arp`/`bridge`/`netdev` families), fields (`comment` on tables/chains/named objects, `stmt` on sets and set/map statements, `type_flags` on NAT, `size` on meters, `rate_unit`/`burst_unit` on limits, `ih` inner-header payload base, socket `mark`/`wildcard`, ~14 missing meta keys), and structural types (`chain.dev` accepts string or array-of-strings) were missing. Raw `tcp option` and tunneled `payload` forms exist in the parser and are not mentioned at all.
 
@@ -189,12 +189,16 @@ For anything in this list: the JSON path is the supported target. When a text-gr
 
 ```
 lib/
-  primitives.nix          enums: family, hook, operator, meta-key, etc.
-  expressions.nix         recursive `expression` type
-  statements.nix          `statement` attrTag union
-  objects.nix             tables/chains/rules/sets/named objects + union types
-  commands.nix            add/replace/create/insert/delete/destroy/list/reset/flush/rename + ruleset envelope
-  render.nix              toJSON / toPretty (null-stripping)
+  default.nix             entry point, wires schema → renderers + DSL
+  clean.nix               shared null-stripping recursion (used by both renderers)
+  schema/                 type-checked libnftables-json schema
+    primitives.nix          enums: family, hook, operator, meta-key, etc.
+    expressions.nix         recursive `expression` type
+    statements.nix          `statement` attrTag union
+    objects.nix             tables/chains/rules/sets/named objects + union types
+    commands.nix            add/replace/create/insert/delete/destroy/list/reset/flush/rename + ruleset envelope
+  json/                   toJSON / toPretty (null-stripping via clean)
+    default.nix             entry point
   text/                   toText / toTextPretty — pure-Nix nftables text renderer
     context.nix             pretty/compact mode, indent depth, parent-precedence threading
     primitives.nix          identifier quoting, string escape, flag joining
@@ -203,7 +207,6 @@ lib/
     objects.nix             ~16 object kinds, base/regular chain split, per-kind body grammar
     commands.nix            10 verbs + positional `create` for stateful objects
     default.nix             entry: clean → render commands → join with newlines
-  default.nix             entry point
   dsl/                    DSL — declarative table tree + path-based field access
     default.nix             top-level entry aggregating every sub-module
     fields/                 pre-built payload and meta/ct/rt/socket/fib/ipsec/tunnelMeta leaves

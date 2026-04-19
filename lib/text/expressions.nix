@@ -5,7 +5,7 @@
 }:
 
 # Renderer for the recursive `expression` type. Mirrors the schema layout
-# in lib/expressions.nix:
+# in lib/schema/expressions.nix:
 #   - scalar fallbacks: string, int, bool;
 #   - bare list (used inside set/concat/range bodies);
 #   - tagged union (taggedExpression) dispatched by single key.
