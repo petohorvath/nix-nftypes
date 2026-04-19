@@ -16,6 +16,7 @@ let
   };
   commands = import ./commands.nix { inherit lib objects; };
   render = import ./render.nix { inherit lib; };
+  text = import ./text { inherit lib render; };
   dsl = import ./dsl { inherit lib; };
 in
 {
@@ -46,6 +47,11 @@ in
   toJSON = render.toJSON;
   toPretty = render.toPretty;
   cleanValue = render.clean;
+
+  # Render a value to nftables text syntax (the `.nft` form `nft -f`
+  # consumes). Both renderers consume the same validated attrset.
+  toText = text.toText;
+  toTextPretty = text.toTextPretty;
 
   # DSL — path-based field access, top-level operators, variant namespaces,
   # declarative table structure. Produces the same attrsets accepted by

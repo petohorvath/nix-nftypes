@@ -28,6 +28,15 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          textParity = import ./tests/text-parity.nix { inherit pkgs nftlib; };
+          textIntegration = import ./tests/text-integration.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
+          renderEquivalence = import ./tests/render-equivalence.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
         in
         {
           schema-tests = tests.runTests pkgs;
@@ -36,6 +45,18 @@
           # private network namespace). Catches any divergence between the
           # DSL's JSON output and what nftables actually accepts.
           integration-tests = integration.runIntegrationTests pkgs integration.cases;
+          # Text-renderer parity tests: compact-form expected-string
+          # assertions per construct.
+          text-parity-tests = textParity.runTests pkgs;
+          # Text-renderer live-parser tests: same case set as
+          # integration-tests, but rendered to text and piped through
+          # `unshare -rn nft -c -f -` (no `-j`).
+          text-integration-tests = textIntegration.runIntegrationTests pkgs textIntegration.textCases;
+          # Render-equivalence: render each case via JSON and via text,
+          # load both into separate netns, diff `nft list ruleset`. The
+          # binding 1:1 contract — both renderers agree on what they
+          # build inside the kernel.
+          render-equivalence-tests = renderEquivalence.runEquivalenceTests pkgs renderEquivalence.equivalenceCases;
         }
       );
 
