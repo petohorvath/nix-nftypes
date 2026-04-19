@@ -24,9 +24,18 @@
         let
           nftlib = mkLib pkgs.lib;
           tests = import ./tests { inherit pkgs nftlib; };
+          integration = import ./tests/dsl-integration.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
         in
         {
           schema-tests = tests.runTests pkgs;
+          # End-to-end: each case is rendered and piped through
+          # `unshare -rn nft -c -j -f` (the real libnftables parser inside a
+          # private network namespace). Catches any divergence between the
+          # DSL's JSON output and what nftables actually accepts.
+          integration-tests = integration.runIntegrationTests pkgs integration.cases;
         }
       );
 

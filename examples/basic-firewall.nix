@@ -4,9 +4,8 @@
 # IPv4 prefixes, named map for port forwarding, SNAT+DNAT, reject with icmp
 # code, logging, and a vmap dispatching on input interface.
 #
-# Hand-written form, kept as the reference for the byte-identical DSL parity
-# test (tests/dsl-parity.nix::testDslExampleParity). For DSL-style authoring
-# see examples/basic-firewall-dsl.nix.
+# Hand-written raw-attrset form — kept as a reference for users who prefer
+# to bypass the DSL. For DSL-style authoring see examples/basic-firewall-nft.nix.
 let
   tableName = "main";
 

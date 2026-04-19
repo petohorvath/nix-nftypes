@@ -1,144 +1,139 @@
 { nftlib }:
 
-# basic-firewall.nix rewritten against the DSL. Renders byte-identical JSON
-# to the hand-written form (the parity test in tests/default.nix asserts
-# this).
+# Realistic inet-family firewall written against the `dsl` layer.
+# Demonstrates: path-based field access, top-level operators, variant
+# namespaces (counter, log, reject), and the declarative table structure
+# (no context threading, chains live under `chains.<name>`).
+#
+# Compare with `examples/basic-firewall.nix` for the hand-written raw-attrset
+# equivalent, and `examples/home-router-dsl.nix` for a more comprehensive DSL
+# showcase.
 
 let
-  inherit (nftlib.dsl) expr stmt;
   inherit (nftlib.dsl)
-    mkRuleset
-    mkTable
-    mkChain
-    declareChain
-    mkRule
-    mkSet
-    mkMap
-    inChain
-    flushRuleset
+    ruleset
+    flush
+    table
+    eq
+    inSet
+    accept
+    counter
+    limit
+    log
+    reject
+    dnat
+    snat
     ;
-
-  tableName = "main";
+  inherit (nftlib.dsl.fields)
+    tcp
+    ip
+    ct
+    meta
+    ;
+  inherit (nftlib.dsl.expr) prefix map;
 in
-mkRuleset [
-  flushRuleset
+ruleset [
+  flush
 
-  (mkTable { family = "inet"; name = tableName; } [
-    # Named set of trusted IPv4 subnets
-    (mkSet {
-      name = "trusted_v4";
+  (table "inet" "main" {
+    sets.trusted_v4 = {
       type = "ipv4_addr";
       flags = [ "interval" ];
-      elem = [
-        (expr.prefix "10.0.0.0" 8)
-        (expr.prefix "192.168.0.0" 16)
+      elements = [
+        (prefix "10.0.0.0" 8)
+        (prefix "192.168.0.0" 16)
       ];
-    })
+    };
 
-    # Named map: external-port → internal-port (same host)
-    (mkMap {
-      name = "port_forward";
+    maps.port_forward = {
       type = "inet_service";
       map = "inet_service";
-      elem = [
+      elements = [
         [ 80 8080 ]
         [ 443 8443 ]
       ];
-    })
+    };
 
-    # Input chain with all its rules
-    (mkChain
-      {
-        name = "input";
-        type = "filter";
-        hook = "input";
-        prio = 0;
-        policy = "drop";
-      }
-      [
+    chains.input = {
+      type = "filter";
+      hook = "input";
+      prio = 0;
+      policy = "drop";
+      rules = [
         # Established connections bypass everything
-        (mkRule [
-          (stmt.matchIn (expr.ct { key = "state"; }) (expr.set [
-            "established"
-            "related"
-          ]))
-          stmt.accept
-        ])
+        [
+          (inSet ct.state [ "established" "related" ])
+          accept
+        ]
 
-        # Trusted subnets → accept
-        (mkRule [
-          (stmt.matchEq (expr.payload "ip" "saddr") "@trusted_v4")
-          (stmt.counter {
+        # Trusted subnets → accept (with a counter)
+        [
+          (eq ip.saddr "@trusted_v4")
+          (counter {
             packets = 0;
             bytes = 0;
           })
-          stmt.accept
-        ])
+          accept
+        ]
 
         # Rate-limited SSH
-        (mkRule [
-          (stmt.matchEq (expr.payload "tcp" "dport") 22)
-          (stmt.limit {
+        [
+          (eq tcp.dport 22)
+          (limit {
             rate = 10;
             per = "minute";
             burst = 5;
           })
-          stmt.accept
-        ])
+          accept
+        ]
 
-        # Reject everything else from the outside with an icmp code
-        (mkRule [
-          (stmt.log {
+        # Log and reject everything else
+        [
+          (log {
             prefix = "DROPPED: ";
             level = "info";
           })
-          (stmt.rejectIcmpx "admin-prohibited")
-        ])
-      ]
-    )
+          (reject.icmpx "admin-prohibited")
+        ]
+      ];
+    };
 
-    # NAT chains declared up-front; rules appended below so the emitted order
-    # matches the hand-written example (chain adds, then rule adds).
-    (declareChain {
-      name = "prerouting";
+    chains.prerouting = {
       type = "nat";
       hook = "prerouting";
       prio = -100;
       policy = "accept";
-    })
+      rules = [
+        # DNAT: forward external port → internal port via map lookup
+        [
+          (eq ip.daddr "203.0.113.1")
+          (dnat {
+            family = "ip";
+            addr = "10.0.0.10";
+            port = map {
+              key = tcp.dport;
+              data = "@port_forward";
+            };
+          })
+        ]
+      ];
+    };
 
-    (declareChain {
-      name = "postrouting";
+    chains.postrouting = {
       type = "nat";
       hook = "postrouting";
       prio = 100;
       policy = "accept";
-    })
-
-    # DNAT: forward external port → internal port via map lookup
-    (inChain "prerouting" [
-      (mkRule [
-        (stmt.matchEq (expr.payload "ip" "daddr") "203.0.113.1")
-        (stmt.dnat {
-          family = "ip";
-          addr = "10.0.0.10";
-          port = expr.map {
-            key = expr.payload "tcp" "dport";
-            data = "@port_forward";
-          };
-        })
-      ])
-    ])
-
-    # SNAT on egress
-    (inChain "postrouting" [
-      (mkRule [
-        (stmt.matchEq (expr.meta "oifname") "eth0")
-        (stmt.snat {
-          family = "ip";
-          addr = "203.0.113.1";
-        })
-      ])
-    ])
-  ])
+      rules = [
+        # SNAT on egress
+        [
+          (eq meta.oifname "eth0")
+          (snat {
+            family = "ip";
+            addr = "203.0.113.1";
+          })
+        ]
+      ];
+    };
+  })
 ]

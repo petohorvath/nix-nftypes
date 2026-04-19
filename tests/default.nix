@@ -208,7 +208,10 @@ let
     };
 
     # ------------------------------------------------------------------
-    # Map with concatenated key: ipv4_addr . inet_service → ipv4_addr . inet_service
+    # Map with concatenated key AND value: both sides are tuple types.
+    # The nftables JSON parser (parser_json.c:3365) accepts datatype lists
+    # for `type`/`map`; the dot-separated string form the adoc suggests
+    # ("ipv4_addr . inet_service") is rejected at runtime.
     # ------------------------------------------------------------------
     testMapConcatenated = {
       expr = roundtrip nftlib.objects.map {
@@ -220,11 +223,14 @@ let
             "ipv4_addr"
             "inet_service"
           ];
-          map = "ipv4_addr . inet_service";
+          map = [
+            "ipv4_addr"
+            "inet_service"
+          ];
           flags = [ "interval" ];
         };
       };
-      expected = ''{"map":{"family":"ip","flags":["interval"],"map":"ipv4_addr . inet_service","name":"port_forward","table":"nat","type":["ipv4_addr","inet_service"]}}'';
+      expected = ''{"map":{"family":"ip","flags":["interval"],"map":["ipv4_addr","inet_service"],"name":"port_forward","table":"nat","type":["ipv4_addr","inet_service"]}}'';
     };
 
     # ------------------------------------------------------------------

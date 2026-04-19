@@ -47,7 +47,8 @@ in
   toPretty = render.toPretty;
   cleanValue = render.clean;
 
-  # DSL sugar layer — combinators and context-threading builders that produce
-  # the same attrsets accepted by the types above.
+  # DSL — path-based field access, top-level operators, variant namespaces,
+  # declarative table structure. Produces the same attrsets accepted by
+  # the types above.
   inherit dsl;
 }
