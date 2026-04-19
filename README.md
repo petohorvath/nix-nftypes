@@ -16,7 +16,7 @@ This library closes that gap: a full, strict, source-of-truth type system for nf
 - **Complete coverage.** Every statement, expression, object type, family, hook, meta key, ct key, operator, and flag the 1.1.6 JSON parser accepts is exposed. No "happy path" subset; no quietly missing fields.
 - **Composable.** Rules, chains, sets, maps, named objects, and commands are plain typed attrsets, composed and reused through ordinary Nix `let` bindings and function arguments.
 - **Round-trip safe.** The same types that produce the JSON also describe what `nft -j list ruleset` emits, so reading existing state back into the same model is a possibility, not a rewrite.
-- **Declarative DSL on top of the type layer.** Path-based field access, flat operators, variant namespaces, and `chains.<name>.rules = [...]` table trees. Produces the same validated attrsets as the raw type layer and can be mixed with hand-written commands in a single ruleset.
+- **Declarative DSL on top of the nft-types layer.** Path-based field access, flat operators, variant namespaces, and `chains.<name>.rules = [...]` table trees. Produces the same validated attrsets as the nft-types layer and can be mixed with hand-written commands in a single ruleset.
 - **Auditable.** Every field and enum value is derived directly from the nftables C source, and the derivation is documented below. "1:1 with the spec" here means the implementation, not the man page.
 
 ## What it does
@@ -33,7 +33,16 @@ Coverage:
 - `statement` type for every rule building block (match, counter, nat, log, limit, meter, queue, last, flow, tproxy, synproxy, reset, secmark, tunnel, …).
 - Ruleset object types — table, chain, rule, set, map, element, flowtable, counter, quota, ct helper, ct timeout, ct expectation, limit, secmark, synproxy, tunnel, metainfo — with discriminated unions for add/replace/create/insert/delete/destroy/list/reset/flush/rename commands.
 - `toJSON` renderer that strips unset option defaults but preserves significant nulls.
-- 240+ round-trip tests wired into `nix flake check`, plus a live-parser integration suite that pipes generated rulesets through `unshare -rn nft -c -j -f` to catch any divergence from what real nftables accepts.
+- 240+ Nix-level tests (schema, DSL parity, renderer, error cases) wired into `nix flake check`, plus a live-parser integration suite that pipes generated rulesets through `unshare -rn nft -c -j -f` to catch any divergence from what real nftables accepts.
+
+## Two layers
+
+Two layers that share one renderer:
+
+1. **nft-types layer** (`lib/`) — `types.submodule` + `types.attrTag` modules that mirror the shapes `parser_json.c` accepts. Input is plain typed attrsets matching the libnftables JSON shape, e.g. `{ add = { rule = { family = "inet"; chain = "input"; expr = [ … ]; }; }; }`. This is the layer the project is named after.
+2. **DSL** (`lib/dsl/`) — a declarative tree on top of the nft-types layer: path-based field access (`tcp.dport`, `ct.state`), flat operators (`eq`, `inSet`), variant namespaces (`counter.auto`, `reject.tcp-reset`), and a `chains.<name>.rules = [ … ]` table tree. Every DSL value reduces to a validated nft-types attrset — nothing bypasses the schema.
+
+Both layers are reachable under `nftlib`; raw nft-types commands and DSL children can appear side-by-side in a single `ruleset`.
 
 ## Usage
 
@@ -97,7 +106,7 @@ Emission order inside a `dsl.table` expansion is deterministic: `add table` → 
 
 ### Raw attrsets
 
-The typed layer is directly usable if the DSL's conventions don't fit — every command is a plain attrset matching the JSON shape:
+The nft-types layer is directly usable if the DSL's conventions don't fit — every command is a plain attrset matching the JSON shape:
 
 ```nix
 {
@@ -171,7 +180,7 @@ lib/
     structure/              ruleset envelope, declarative `table` node, renderer that expands the tree into commands
     internal/               compact, rename, variant (__functor helper), markers
 tests/
-  default.nix             schema tests for the raw type layer
+  default.nix             schema tests for the nft-types layer
   dsl-parity.nix          parity tests for the DSL + renderer tests + error-case tests
   dsl-integration.nix     live-parser tests: each ruleset is piped through `unshare -rn nft -c -j -f`
 examples/
