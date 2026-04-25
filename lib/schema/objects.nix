@@ -1,5 +1,6 @@
 {
   lib,
+  internal,
   primitives,
   expressions,
   statements,
@@ -7,6 +8,7 @@
 
 let
   inherit (lib) types mkOption;
+  inherit (internal) discriminatedSubmodule tagOpt wrap;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     familyType
@@ -18,7 +20,6 @@ let
     setPolicyType
     ctHelperProtoType
     ctTimeoutProtoType
-    limitUnitType
     perUnitType
     rtFamilyType
     synproxyFlagType
@@ -44,24 +45,62 @@ let
   # A set element is either a bare expression or a list of expressions.
   setElem = types.either expr (types.listOf expr);
 
-  commonObjectOptions = {
+  # ----- Identity-options fragments -----
+  # Composable building blocks for the family/table/name/handle/comment fields
+  # that appear (in slightly different combinations) on every object kind.
+  # Composition: identityCore ⊂ inTableOptions ⊂ namedInTableOptions ⊂
+  # commonObjectOptions. Specialised shapes (tableContainerOptions for tables,
+  # ruleContainerOptions for rules, elementContainerOptions for elements) are
+  # built from the same core.
+
+  identityCore = {
     family = mkOption {
       type = familyType;
       description = "table family";
-    };
-    table = mkOption {
-      type = types.str;
-      description = "containing table name";
-    };
-    name = mkOption {
-      type = types.str;
-      description = "object name";
     };
     handle = mkOption {
       type = types.nullOr types.ints.unsigned;
       default = null;
       description = "kernel-assigned handle (delete-by-handle only on input)";
     };
+  };
+
+  # Tables have no `table` field of their own.
+  tableContainerOptions = identityCore // {
+    name = mkOption {
+      type = types.str;
+      description = "table name";
+    };
+  };
+
+  # Objects nested inside a table; no `name` of their own (rules use `chain`).
+  inTableOptions = identityCore // {
+    table = mkOption {
+      type = types.str;
+      description = "containing table";
+    };
+  };
+
+  # The common case: in a table, has a name.
+  namedInTableOptions = inTableOptions // {
+    name = mkOption {
+      type = types.str;
+      description = "object name";
+    };
+  };
+
+  # Rules have `chain` instead of `name`.
+  ruleContainerOptions = inTableOptions // {
+    chain = mkOption {
+      type = types.str;
+      description = "containing chain";
+    };
+  };
+
+  # Elements have no `handle` field on the JSON path.
+  elementContainerOptions = removeAttrs namedInTableOptions [ "handle" ];
+
+  commentOption = {
     comment = mkOption {
       type = types.nullOr types.str;
       default = null;
@@ -69,58 +108,76 @@ let
     };
   };
 
+  # Used by every named object (counter/quota/limit/ct helper/ct timeout/ct
+  # expectation/secmark/synproxy/tunnel) — the original `commonObjectOptions`.
+  commonObjectOptions = namedInTableOptions // commentOption;
+
+  # Shared by sets and maps (parser_json.c:3307-3436 — both routed to
+  # json_parse_cmd_add_set, the only difference is the `map` field).
+  setMapCommonOptions = namedInTableOptions // {
+    type = mkOption {
+      type = setDatatype;
+      description = "set datatype";
+    };
+    policy = mkOption {
+      type = types.nullOr setPolicyType;
+      default = null;
+      description = "set policy";
+    };
+    flags = mkOption {
+      type = types.nullOr (listOrSingleton setFlagType);
+      default = null;
+      description = "set flags";
+    };
+    elem = mkOption {
+      type = types.nullOr setElem;
+      default = null;
+      description = "initial elements";
+    };
+    timeout = mkOption {
+      type = types.nullOr types.ints.unsigned;
+      default = null;
+      description = "element timeout in seconds";
+    };
+    "gc-interval" = mkOption {
+      type = types.nullOr types.ints.unsigned;
+      default = null;
+      description = "GC interval in seconds";
+    };
+    size = mkOption {
+      type = types.nullOr types.ints.unsigned;
+      default = null;
+      description = "maximum number of elements";
+    };
+    "auto-merge" = mkOption {
+      type = types.nullOr types.bool;
+      default = null;
+      description = "auto-merge adjacent intervals";
+    };
+    stmt = mkOption {
+      type = types.nullOr (types.listOf stmt);
+      default = null;
+      description = "stateful statements (counter/limit/quota/…) attached to elements";
+    };
+  };
+
   bodies = rec {
     tableBody = types.submodule {
-      options = {
-        family = mkOption {
-          type = familyType;
-          description = "table family";
-        };
-        name = mkOption {
-          type = types.str;
-          description = "table name";
-        };
-        handle = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "kernel-assigned handle";
-        };
+      options = tableContainerOptions // {
         flags = mkOption {
           type = types.nullOr (listOrSingleton tableFlagType);
           default = null;
           description = "table flags";
         };
-        comment = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "table comment";
-        };
-      };
+      } // commentOption;
     };
 
     chainBody = types.submodule {
-      options = {
-        family = mkOption {
-          type = familyType;
-          description = "table family";
-        };
-        table = mkOption {
-          type = types.str;
-          description = "containing table";
-        };
-        name = mkOption {
-          type = types.str;
-          description = "chain name";
-        };
+      options = namedInTableOptions // {
         newname = mkOption {
           type = types.nullOr types.str;
           default = null;
           description = "new name (rename command only)";
-        };
-        handle = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "kernel-assigned handle";
         };
         type = mkOption {
           type = types.nullOr chainTypeType;
@@ -148,135 +205,30 @@ let
           default = null;
           description = "default policy for base chains";
         };
-        comment = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "chain comment";
-        };
-      };
+      } // commentOption;
     };
 
     ruleBody = types.submodule {
-      options = {
-        family = mkOption {
-          type = familyType;
-          description = "table family";
-        };
-        table = mkOption {
-          type = types.str;
-          description = "containing table";
-        };
-        chain = mkOption {
-          type = types.str;
-          description = "containing chain";
-        };
+      options = ruleContainerOptions // {
         expr = mkOption {
           type = types.listOf stmt;
           description = "rule body — list of statements";
-        };
-        handle = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "rule handle (for replace/delete, or positioning)";
         };
         index = mkOption {
           type = types.nullOr types.ints.unsigned;
           default = null;
           description = "rule index";
         };
-        comment = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "rule comment";
-        };
-      };
+      } // commentOption;
     };
 
     setObjectBody = types.submodule {
-      options = {
-        family = mkOption {
-          type = familyType;
-          description = "table family";
-        };
-        table = mkOption {
-          type = types.str;
-          description = "containing table";
-        };
-        name = mkOption {
-          type = types.str;
-          description = "set name";
-        };
-        handle = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "kernel-assigned handle";
-        };
-        type = mkOption {
-          type = setDatatype;
-          description = "set datatype";
-        };
-        policy = mkOption {
-          type = types.nullOr setPolicyType;
-          default = null;
-          description = "set policy";
-        };
-        flags = mkOption {
-          type = types.nullOr (listOrSingleton setFlagType);
-          default = null;
-          description = "set flags";
-        };
-        elem = mkOption {
-          type = types.nullOr setElem;
-          default = null;
-          description = "initial elements";
-        };
-        timeout = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "element timeout in seconds";
-        };
-        "gc-interval" = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "GC interval in seconds";
-        };
-        size = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "maximum number of elements";
-        };
-        "auto-merge" = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "auto-merge adjacent intervals";
-        };
-        stmt = mkOption {
-          type = types.nullOr (types.listOf stmt);
-          default = null;
-          description = "stateful statements (counter/limit/quota/…) attached to elements";
-        };
-      };
+      options = setMapCommonOptions;
     };
 
     mapObjectBody = types.submodule {
-      options = {
-        family = mkOption {
-          type = familyType;
-          description = "table family";
-        };
-        table = mkOption {
-          type = types.str;
-          description = "containing table";
-        };
-        name = mkOption {
-          type = types.str;
-          description = "map name";
-        };
-        handle = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "kernel-assigned handle";
-        };
+      options = setMapCommonOptions // {
+        # Override `type`'s description: same shape, slightly different intent.
         type = mkOption {
           type = setDatatype;
           description = "map key datatype";
@@ -287,63 +239,11 @@ let
           type = setDatatype;
           description = "map value datatype or object-type name";
         };
-        policy = mkOption {
-          type = types.nullOr setPolicyType;
-          default = null;
-          description = "map policy";
-        };
-        flags = mkOption {
-          type = types.nullOr (listOrSingleton setFlagType);
-          default = null;
-          description = "map flags";
-        };
-        elem = mkOption {
-          type = types.nullOr setElem;
-          default = null;
-          description = "initial elements";
-        };
-        timeout = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "element timeout in seconds";
-        };
-        "gc-interval" = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "GC interval in seconds";
-        };
-        size = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "maximum number of elements";
-        };
-        "auto-merge" = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "auto-merge adjacent intervals";
-        };
-        stmt = mkOption {
-          type = types.nullOr (types.listOf stmt);
-          default = null;
-          description = "stateful statements attached to elements";
-        };
       };
     };
 
     elementBody = types.submodule {
-      options = {
-        family = mkOption {
-          type = familyType;
-          description = "table family";
-        };
-        table = mkOption {
-          type = types.str;
-          description = "containing table";
-        };
-        name = mkOption {
-          type = types.str;
-          description = "set/map name";
-        };
+      options = elementContainerOptions // {
         elem = mkOption {
           type = setElem;
           description = "element(s)";
@@ -352,24 +252,7 @@ let
     };
 
     flowtableBody = types.submodule {
-      options = {
-        family = mkOption {
-          type = familyType;
-          description = "table family";
-        };
-        table = mkOption {
-          type = types.str;
-          description = "containing table";
-        };
-        name = mkOption {
-          type = types.str;
-          description = "flowtable name";
-        };
-        handle = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "kernel-assigned handle";
-        };
+      options = namedInTableOptions // {
         hook = mkOption {
           type = types.nullOr hookType;
           default = null;
@@ -470,11 +353,6 @@ let
           type = types.nullOr types.str;
           default = null;
           description = "unit of burst; defaults to bytes";
-        };
-        unit = mkOption {
-          type = types.nullOr limitUnitType;
-          default = null;
-          description = "(derived from rate_unit; kept for symmetry)";
         };
         inv = mkOption {
           type = types.nullOr types.bool;
@@ -584,15 +462,18 @@ let
 
     # --- Tunnel nested encapsulation variants ---
     # VXLAN: { gbp: <uint> }
-    tunnelVxlanNested = types.addCheck (types.submodule {
+    tunnelVxlanNested = discriminatedSubmodule {
+      requireKeys = [ "gbp" ];
+      forbidKeys = [ "version" ];
       options.gbp = mkOption {
         type = types.ints.unsigned;
         description = "VXLAN group-based policy ID";
       };
-    }) (v: builtins.isAttrs v && v ? gbp && !(v ? version));
+    };
 
     # ERSPAN v1: { version: 1, index: <uint> }
-    tunnelErspanV1Nested = types.addCheck (types.submodule {
+    tunnelErspanV1Nested = discriminatedSubmodule {
+      extraCheck = v: (v.version or null) == 1;
       options = {
         version = mkOption {
           type = types.enum [ 1 ];
@@ -603,10 +484,11 @@ let
           description = "ERSPAN index";
         };
       };
-    }) (v: builtins.isAttrs v && (v.version or null) == 1);
+    };
 
     # ERSPAN v2: { version: 2, dir: "ingress"|"egress", hwid: <uint> }
-    tunnelErspanV2Nested = types.addCheck (types.submodule {
+    tunnelErspanV2Nested = discriminatedSubmodule {
+      extraCheck = v: (v.version or null) == 2;
       options = {
         version = mkOption {
           type = types.enum [ 2 ];
@@ -624,7 +506,7 @@ let
           description = "hardware ID";
         };
       };
-    }) (v: builtins.isAttrs v && (v.version or null) == 2);
+    };
 
     # GENEVE: [ { class, opt-type, data }, … ]
     tunnelGeneveOpt = types.submodule {
@@ -728,13 +610,17 @@ let
         };
       })
     ];
+
+    # Meter object body: meters are anonymous sets internally
+    # (parser_json.c routes meter to json_parse_cmd_add_set), so the
+    # only fields meaningful for a `flush meter` / `list meter` command
+    # are family + table + name (+ handle on listed output).
+    meterObjectBody = types.submodule {
+      options = namedInTableOptions;
+    };
   };
 
-  tagOpt = type: mkOption { inherit type; };
-
   # Single-tag wrappers for each object kind (convenience).
-  wrap = key: body: types.attrTag { ${key} = tagOpt body; };
-
   wrappers = {
     table = wrap "table" bodies.tableBody;
     chain = wrap "chain" bodies.chainBody;
@@ -781,13 +667,17 @@ let
     lib.mapAttrs (_: tagOpt) (addObjectBodies // { metainfo = bodies.metainfoBody; })
   );
 
+  # parser_json.c:4297-4304 (json_parse_cmd_flush dispatch table):
+  # table, chain, set, map, meter, ruleset. `flowtable` is intentionally
+  # absent — the parser rejects `flush flowtable` ("Unknown object passed
+  # to flush command.").
   flushObject = types.attrTag (
     lib.mapAttrs (_: tagOpt) {
       table = bodies.tableBody;
       chain = bodies.chainBody;
       set = bodies.setObjectBody;
       map = bodies.mapObjectBody;
-      flowtable = bodies.flowtableBody;
+      meter = bodies.meterObjectBody;
       ruleset = bodies.rulesetBody;
     }
   );
@@ -806,7 +696,6 @@ in
 {
   all = bodies // wrappers;
   inherit
-    tagOpt
     addObject
     listObject
     flushObject

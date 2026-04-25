@@ -362,6 +362,122 @@ let
     };
 
     # ------------------------------------------------------------------
+    # FIB result "check" — predicate form (parser_json.c:1181, special
+    # NFT_FIB_F_PRESENT branch).
+    # ------------------------------------------------------------------
+    testFibResultCheck = {
+      expr = roundtrip nftlib.expression {
+        fib = {
+          result = "check";
+          flags = [ "saddr" ];
+        };
+      };
+      expected = ''{"fib":{"flags":["saddr"],"result":"check"}}'';
+    };
+
+    # ------------------------------------------------------------------
+    # rt key "ipsec" — NFT_RT_XFRM token (parser_json.c:993-997).
+    # ------------------------------------------------------------------
+    testRtIpsecKey = {
+      expr = roundtrip nftlib.expression {
+        rt = {
+          key = "ipsec";
+          family = "ip";
+        };
+      };
+      expected = ''{"rt":{"family":"ip","key":"ipsec"}}'';
+    };
+
+    # ------------------------------------------------------------------
+    # osf key "version" — second branch in parser_json.c:486-489 that
+    # was missed when the schema was first derived (only "name" present).
+    # ------------------------------------------------------------------
+    testOsfVersionKey = {
+      expr = roundtrip nftlib.expression {
+        osf = {
+          key = "version";
+          ttl = "loose";
+        };
+      };
+      expected = ''{"osf":{"key":"version","ttl":"loose"}}'';
+    };
+
+    # ------------------------------------------------------------------
+    # `flush meter` — accepted by parser_json.c:4302 but previously
+    # missing from the schema's `flushObject` union.
+    # ------------------------------------------------------------------
+    testFlushMeter = {
+      expr = roundtrip nftlib.command {
+        flush = {
+          meter = {
+            family = "inet";
+            table = "filter";
+            name = "rate_meter";
+          };
+        };
+      };
+      expected = ''{"flush":{"meter":{"family":"inet","name":"rate_meter","table":"filter"}}}'';
+    };
+
+    # ------------------------------------------------------------------
+    # `flush flowtable` — rejected by parser_json.c (no `flowtable` row
+    # in `cmd_obj_table[]` at line 4297-4304). Schema previously
+    # accepted it; this asserts that's no longer the case.
+    # ------------------------------------------------------------------
+    testFlushFlowtableRejected = {
+      expr =
+        (builtins.tryEval (
+          roundtrip nftlib.command {
+            flush = {
+              flowtable = {
+                family = "inet";
+                table = "filter";
+                name = "ft";
+              };
+            };
+          }
+        )).success;
+      expected = false;
+    };
+
+    # ------------------------------------------------------------------
+    # Limit object: only fields the JSON parser actually reads
+    # (parser_json.c:3863-3884). The previously-exposed `unit` field was
+    # vestigial — the limit type is derived from `rate_unit`. Asserts
+    # that a `unit` key is now rejected so future re-additions get caught.
+    # ------------------------------------------------------------------
+    testLimitObjectMinimal = {
+      expr = roundtrip nftlib.objects.limit {
+        limit = {
+          family = "inet";
+          table = "filter";
+          name = "slow";
+          rate = 5;
+          per = "second";
+          burst = 10;
+        };
+      };
+      expected = ''{"limit":{"burst":10,"family":"inet","name":"slow","per":"second","rate":5,"table":"filter"}}'';
+    };
+
+    testLimitObjectUnitRejected = {
+      expr =
+        (builtins.tryEval (
+          roundtrip nftlib.objects.limit {
+            limit = {
+              family = "inet";
+              table = "filter";
+              name = "slow";
+              rate = 5;
+              per = "second";
+              unit = "packets";
+            };
+          }
+        )).success;
+      expected = false;
+    };
+
+    # ------------------------------------------------------------------
     # Numgen
     # ------------------------------------------------------------------
     testNumgen = {

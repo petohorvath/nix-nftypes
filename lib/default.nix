@@ -1,20 +1,22 @@
 { lib }:
 
 let
+  internal = import ./schema/internal.nix { inherit lib; };
   primitives = import ./schema/primitives.nix { inherit lib; };
-  expressions = import ./schema/expressions.nix { inherit lib primitives; };
+  expressions = import ./schema/expressions.nix { inherit lib internal primitives; };
   statements = import ./schema/statements.nix {
     inherit lib primitives expressions;
   };
   objects = import ./schema/objects.nix {
     inherit
       lib
+      internal
       primitives
       expressions
       statements
       ;
   };
-  commands = import ./schema/commands.nix { inherit lib objects; };
+  commands = import ./schema/commands.nix { inherit lib internal objects; };
   clean = import ./clean.nix { inherit lib; };
   json = import ./json { inherit lib clean; };
   text = import ./text { inherit lib clean; };

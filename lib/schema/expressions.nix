@@ -1,7 +1,8 @@
-{ lib, primitives }:
+{ lib, internal, primitives }:
 
 let
   inherit (lib) types mkOption;
+  inherit (internal) discriminatedSubmodule listOfLen listOfMinLen;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     metaKeyType
@@ -57,15 +58,15 @@ let
       };
     };
 
-    rangeBody = types.addCheck (types.listOf expression) (xs: builtins.length xs == 2);
+    rangeBody = listOfLen 2 expression;
 
     # Three disjoint payload forms from parser_json.c:660-733:
     #   1. raw:           { base, offset, len }
     #   2. inner-tunnel:  { tunnel, protocol, field }
     #   3. named:         { protocol, field }
-    # Each branch uses types.addCheck to discriminate by key presence so
-    # types.oneOf routes correctly and submodule merge rejects foreign keys.
-    rawPayloadSubmodule = types.submodule {
+    # Discriminated by key presence so `types.oneOf` routes correctly.
+    rawPayloadBody = discriminatedSubmodule {
+      requireKeys = [ "base" "offset" "len" ];
       options = {
         base = mkOption {
           type = payloadBaseType;
@@ -81,11 +82,9 @@ let
         };
       };
     };
-    rawPayloadBody = types.addCheck rawPayloadSubmodule (
-      v: builtins.isAttrs v && v ? base && v ? offset && v ? len
-    );
 
-    tunnelPayloadSubmodule = types.submodule {
+    tunnelPayloadBody = discriminatedSubmodule {
+      requireKeys = [ "tunnel" "protocol" "field" ];
       options = {
         tunnel = mkOption {
           type = types.str;
@@ -101,11 +100,10 @@ let
         };
       };
     };
-    tunnelPayloadBody = types.addCheck tunnelPayloadSubmodule (
-      v: builtins.isAttrs v && v ? tunnel && v ? protocol && v ? field
-    );
 
-    namedPayloadSubmodule = types.submodule {
+    namedPayloadBody = discriminatedSubmodule {
+      requireKeys = [ "protocol" "field" ];
+      forbidKeys = [ "tunnel" ];
       options = {
         protocol = mkOption {
           type = types.str;
@@ -117,9 +115,6 @@ let
         };
       };
     };
-    namedPayloadBody = types.addCheck namedPayloadSubmodule (
-      v: builtins.isAttrs v && !(v ? tunnel) && v ? protocol && v ? field
-    );
 
     payloadBody = types.oneOf [
       rawPayloadBody
@@ -149,7 +144,8 @@ let
     # TCP option has two forms (parser_json.c:745-785):
     #   raw:   { base, offset, len }  — base is tcp option kind (0-255)
     #   named: { name, field? }
-    rawTcpOptionSubmodule = types.submodule {
+    rawTcpOptionBody = discriminatedSubmodule {
+      requireKeys = [ "base" "offset" "len" ];
       options = {
         base = mkOption {
           type = types.ints.between 0 255;
@@ -165,11 +161,10 @@ let
         };
       };
     };
-    rawTcpOptionBody = types.addCheck rawTcpOptionSubmodule (
-      v: builtins.isAttrs v && v ? base && v ? offset && v ? len
-    );
 
-    namedTcpOptionSubmodule = types.submodule {
+    namedTcpOptionBody = discriminatedSubmodule {
+      requireKeys = [ "name" ];
+      forbidKeys = [ "base" ];
       options = {
         name = mkOption {
           type = types.str;
@@ -182,9 +177,6 @@ let
         };
       };
     };
-    namedTcpOptionBody = types.addCheck namedTcpOptionSubmodule (
-      v: builtins.isAttrs v && v ? name && !(v ? base)
-    );
 
     tcpOptionBody = types.either rawTcpOptionBody namedTcpOptionBody;
 
@@ -416,7 +408,7 @@ let
       };
     };
 
-    binaryOpBody = types.addCheck (types.listOf expression) (xs: builtins.length xs >= 2);
+    binaryOpBody = listOfMinLen 2 expression;
 
     # Tagged union of everything that's represented as `{ <key>: <body> }`.
     taggedExpression = types.attrTag (

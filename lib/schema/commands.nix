@@ -1,8 +1,8 @@
-{ lib, objects }:
+{ lib, internal, objects }:
 
 let
   inherit (lib) types mkOption;
-  inherit (objects) tagOpt;
+  inherit (internal) tagOpt;
 
   # The list-object bodies accepted at top level (bare, no command wrapper).
   bareListObject = objects.listObject;

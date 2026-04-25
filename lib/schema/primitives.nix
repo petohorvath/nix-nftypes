@@ -191,16 +191,27 @@ let
     "secpath"
   ];
 
+  # parser_json.c:993-997 rt_key_tbl[]: classid (NFT_RT_CLASSID), nexthop
+  # (NFT_RT_NEXTHOP4, swapped to NEXTHOP6 when family=ip6), mtu (NFT_RT_TCPMSS),
+  # ipsec (NFT_RT_XFRM — boolean: skb->dst->xfrm != NULL).
   rtKeyType = types.enum [
     "classid"
     "nexthop"
     "mtu"
+    "ipsec"
   ];
 
-  rtFamilyType = types.enum [
+  # `ip`/`ip6` family enum, used wherever the parser restricts a `family`
+  # field to IPv4/IPv6 (rt expression, ipsec/xfrm expression, ct expression's
+  # l3-specific keys, NAT statement, and named-object l3proto fields).
+  ipFamilyType = types.enum [
     "ip"
     "ip6"
   ];
+
+  # Backwards-compat aliases — kept so existing references continue to work.
+  # Slated for removal in a follow-up release once callers migrate.
+  rtFamilyType = ipFamilyType;
 
   ctDirectionType = types.enum [
     "original"
@@ -212,10 +223,14 @@ let
     "random"
   ];
 
+  # parser_json.c:1176-1182. "check" is the predicate form: result resolves
+  # to NFT_FIB_RESULT_OIF with NFT_FIB_F_PRESENT flag set ("does this route
+  # exist?" rather than a value lookup).
   fibResultType = types.enum [
     "oif"
     "oifname"
     "type"
+    "check"
   ];
 
   fibFlagType = types.enum [
@@ -240,8 +255,11 @@ let
     "concat"
   ];
 
+  # parser_json.c:484-489 accepts "name" (default OSF lookup) and "version"
+  # (sets NFT_OSF_F_VERSION).
   osfKeyType = types.enum [
     "name"
+    "version"
   ];
 
   osfTtlType = types.enum [
@@ -255,15 +273,19 @@ let
     "wildcard"
   ];
 
-  ctHelperProtoType = types.enum [
+  # parser_json.c uses identical tcp/udp branching for ct helper
+  # (parser_json.c:3795-3802), ct timeout (parser_json.c:3815-3823), and ct
+  # expectation (parser_json.c:3844-3852) `protocol` fields. Adoc lists more
+  # protocols for ct timeout but those aren't honoured by the JSON path.
+  tcpUdpProtoType = types.enum [
     "tcp"
     "udp"
   ];
 
-  # ct timeout and ct expectation objects: parser_json.c accepts only tcp/udp
-  # (lines 3815-3823 for timeout, 3844-3852 for expectation). Adoc lists more
-  # but those aren't honored by the JSON path.
-  ctTimeoutProtoType = ctHelperProtoType;
+  # Backwards-compat aliases — kept so existing references continue to work.
+  # Slated for removal in a follow-up release once callers migrate.
+  ctHelperProtoType = tcpUdpProtoType;
+  ctTimeoutProtoType = tcpUdpProtoType;
 
   xtTypeType = types.enum [
     "match"
@@ -284,10 +306,7 @@ let
     "week"
   ];
 
-  natFamilyType = types.enum [
-    "ip"
-    "ip6"
-  ];
+  natFamilyType = ipFamilyType;
 
   listOrSingleton = elemType: types.either elemType (types.listOf elemType);
 in
@@ -318,6 +337,7 @@ in
       setOpType
       metaKeyType
       rtKeyType
+      ipFamilyType
       rtFamilyType
       ctDirectionType
       ngModeType
@@ -327,6 +347,7 @@ in
       osfKeyType
       osfTtlType
       socketKeyType
+      tcpUdpProtoType
       ctHelperProtoType
       ctTimeoutProtoType
       xtTypeType
