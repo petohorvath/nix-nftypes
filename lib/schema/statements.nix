@@ -1,11 +1,13 @@
 {
   lib,
+  internal,
   primitives,
   expressions,
 }:
 
 let
   inherit (lib) types mkOption;
+  inherit (internal) refOrInline;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     operatorType
@@ -13,7 +15,7 @@ let
     logFlagType
     natFlagType
     natTypeFlagType
-    natFamilyType
+    ipFamilyType
     synproxyFlagType
     flowOpType
     queueFlagType
@@ -45,11 +47,11 @@ let
     };
 
     # Counter: parser_json.c:1914 accepts null (emitted by stateless output),
-    # inline {packets, bytes}, or a named-reference string.
+    # inline {packets, bytes}, or a named-reference string. Wraps `nullType`
+    # around the standard ref-or-inline pattern.
     counterRefOrBody = types.oneOf [
       nullType
-      types.str
-      (types.submodule {
+      (refOrInline (types.submodule {
         options = {
           packets = mkOption {
             type = types.nullOr types.ints.unsigned;
@@ -62,7 +64,7 @@ let
             description = "initial byte counter";
           };
         };
-      })
+      }))
     ];
 
     mangleBody = types.submodule {
@@ -78,7 +80,7 @@ let
       };
     };
 
-    quotaRefOrBody = types.either types.str (
+    quotaRefOrBody = refOrInline (
       types.submodule {
         options = {
           val = mkOption {
@@ -110,7 +112,7 @@ let
     );
 
     # Inline limit: `rate` and `per` are required together (parser_json.c:2084).
-    limitRefOrBody = types.either types.str (
+    limitRefOrBody = refOrInline (
       types.submodule {
         options = {
           rate = mkOption {
@@ -152,7 +154,7 @@ let
           description = "interface to forward on";
         };
         family = mkOption {
-          type = types.nullOr natFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "address family of addr";
         };
@@ -186,7 +188,7 @@ let
           description = "address to translate to";
         };
         family = mkOption {
-          type = types.nullOr natFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "family of addr (required in inet)";
         };
@@ -424,7 +426,7 @@ let
     tproxyBody = types.submodule {
       options = {
         family = mkOption {
-          type = types.nullOr natFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "address family";
         };

@@ -209,10 +209,6 @@ let
     "ip6"
   ];
 
-  # Backwards-compat aliases — kept so existing references continue to work.
-  # Slated for removal in a follow-up release once callers migrate.
-  rtFamilyType = ipFamilyType;
-
   ctDirectionType = types.enum [
     "original"
     "reply"
@@ -282,11 +278,6 @@ let
     "udp"
   ];
 
-  # Backwards-compat aliases — kept so existing references continue to work.
-  # Slated for removal in a follow-up release once callers migrate.
-  ctHelperProtoType = tcpUdpProtoType;
-  ctTimeoutProtoType = tcpUdpProtoType;
-
   xtTypeType = types.enum [
     "match"
     "target"
@@ -305,8 +296,6 @@ let
     "day"
     "week"
   ];
-
-  natFamilyType = ipFamilyType;
 
   listOrSingleton = elemType: types.either elemType (types.listOf elemType);
 in
@@ -338,7 +327,6 @@ in
       metaKeyType
       rtKeyType
       ipFamilyType
-      rtFamilyType
       ctDirectionType
       ngModeType
       fibResultType
@@ -348,12 +336,9 @@ in
       osfTtlType
       socketKeyType
       tcpUdpProtoType
-      ctHelperProtoType
-      ctTimeoutProtoType
       xtTypeType
       limitUnitType
       perUnitType
-      natFamilyType
       portNumber
       prefixLength
       nullType

@@ -8,7 +8,6 @@ Related docs:
 
 - [`docs/spec-coverage.md`](docs/spec-coverage.md) — file-by-file audit of `lib/schema/` against `parser_json.c`. Coverage matrix, enum verification, every adoc-vs-parser deviation the schema captures, edge cases where schema and parser deliberately diverge.
 - [`docs/dsl-coverage.md`](docs/dsl-coverage.md) — DSL audit against the schema. Confirms every shape the schema accepts is reachable from `lib/dsl/`, either via pre-built constructors or escape hatches.
-- [`docs/code-review.md`](docs/code-review.md) — schema layer code review. Helper hierarchy, identity-options fragments, applied refactorings and deferred follow-ups.
 - [`docs/text-coverage.md`](docs/text-coverage.md) — text renderer (`lib/text/`) coverage notes and known limitations.
 
 ## Why this exists
@@ -212,7 +211,6 @@ examples/
 docs/
   spec-coverage.md        file-by-file audit of lib/schema/ vs parser_json.c
   dsl-coverage.md         DSL coverage audit against the schema layer
-  code-review.md          schema-layer code review (helper hierarchy, applied refactorings, deferred follow-ups)
   text-coverage.md        text renderer coverage notes and known limitations
 ```
 

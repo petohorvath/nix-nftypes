@@ -5,7 +5,7 @@ let
   primitives = import ./schema/primitives.nix { inherit lib; };
   expressions = import ./schema/expressions.nix { inherit lib internal primitives; };
   statements = import ./schema/statements.nix {
-    inherit lib primitives expressions;
+    inherit lib internal primitives expressions;
   };
   objects = import ./schema/objects.nix {
     inherit

@@ -45,6 +45,14 @@ in
   # (e.g. binary-op expressions need ≥ 2 operands).
   listOfMinLen = n: t: types.addCheck (types.listOf t) (xs: builtins.length xs >= n);
 
+  # "Named reference (string) OR inline body" union — the shape used by
+  # quota and limit statements where the user either points at a
+  # pre-declared object by name (`{quota = "name"}`) or inlines the
+  # body (`{quota = {val;val_unit;…}}`). Counter (parser_json.c:1914-1915)
+  # also accepts `null` and is built as `oneOf [nullType (refOrInline …)]`
+  # at the call site rather than parameterising this helper.
+  refOrInline = inlineBody: types.either types.str inlineBody;
+
   # Trivial mkOption with just a `type` set — used as the leaf option for
   # `types.attrTag` discriminated unions.
   tagOpt = type: mkOption { inherit type; };

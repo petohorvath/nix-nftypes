@@ -7,7 +7,7 @@ let
   inherit (primitives.types)
     metaKeyType
     rtKeyType
-    rtFamilyType
+    ipFamilyType
     ctDirectionType
     ngModeType
     fibResultType
@@ -230,7 +230,7 @@ let
           description = "routing data key";
         };
         family = mkOption {
-          type = types.nullOr rtFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "address family; defaults to unspecified";
         };
@@ -244,7 +244,7 @@ let
           description = "conntrack key (e.g. \"state\", \"saddr\")";
         };
         family = mkOption {
-          type = types.nullOr rtFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "address family; required for l3-specific keys";
         };
@@ -353,7 +353,7 @@ let
           description = "xfrm key (saddr/daddr/reqid/spi)";
         };
         family = mkOption {
-          type = types.nullOr rtFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "address family (required for saddr/daddr)";
         };

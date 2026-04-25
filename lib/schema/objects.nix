@@ -18,10 +18,9 @@ let
     tableFlagType
     setFlagType
     setPolicyType
-    ctHelperProtoType
-    ctTimeoutProtoType
+    tcpUdpProtoType
     perUnitType
-    rtFamilyType
+    ipFamilyType
     synproxyFlagType
     portNumber
     nullType
@@ -316,12 +315,12 @@ let
           description = "helper type (e.g. ftp, tftp)";
         };
         protocol = mkOption {
-          type = types.nullOr ctHelperProtoType;
+          type = types.nullOr tcpUdpProtoType;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr rtFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "layer-3 protocol";
         };
@@ -366,12 +365,12 @@ let
     ctTimeoutObjectBody = types.submodule {
       options = commonObjectOptions // {
         protocol = mkOption {
-          type = types.nullOr ctTimeoutProtoType;
+          type = types.nullOr tcpUdpProtoType;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr rtFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "layer-3 protocol";
         };
@@ -387,12 +386,12 @@ let
     ctExpectationObjectBody = types.submodule {
       options = commonObjectOptions // {
         l3proto = mkOption {
-          type = types.nullOr rtFamilyType;
+          type = types.nullOr ipFamilyType;
           default = null;
           description = "layer-3 protocol";
         };
         protocol = mkOption {
-          type = types.nullOr ctTimeoutProtoType;
+          type = types.nullOr tcpUdpProtoType;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
