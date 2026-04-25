@@ -30,30 +30,84 @@ let
   # (which uses plural keys for the table tree); here singular DSL names
   # match the command-builder surface.
   addObjectKinds = {
-    table = { tag = "table"; body = lib.id; };
-    chain = { tag = "chain"; body = lib.id; };
-    rule = { tag = "rule"; body = lib.id; };
-    set = { tag = "set"; body = rename.set; };
-    map = { tag = "map"; body = rename.set; };
-    element = { tag = "element"; body = rename.element; };
-    flowtable = { tag = "flowtable"; body = lib.id; };
-    counter = { tag = "counter"; body = lib.id; };
-    quota = { tag = "quota"; body = lib.id; };
-    ctHelper = { tag = "ct helper"; body = lib.id; };
-    limit = { tag = "limit"; body = lib.id; };
-    ctTimeout = { tag = "ct timeout"; body = lib.id; };
-    ctExpectation = { tag = "ct expectation"; body = lib.id; };
-    secmark = { tag = "secmark"; body = lib.id; };
-    synproxy = { tag = "synproxy"; body = lib.id; };
-    tunnel = { tag = "tunnel"; body = rename.tunnel; };
+    table = {
+      tag = "table";
+      body = lib.id;
+    };
+    chain = {
+      tag = "chain";
+      body = lib.id;
+    };
+    rule = {
+      tag = "rule";
+      body = lib.id;
+    };
+    set = {
+      tag = "set";
+      body = rename.set;
+    };
+    map = {
+      tag = "map";
+      body = rename.set;
+    };
+    element = {
+      tag = "element";
+      body = rename.element;
+    };
+    flowtable = {
+      tag = "flowtable";
+      body = lib.id;
+    };
+    counter = {
+      tag = "counter";
+      body = lib.id;
+    };
+    quota = {
+      tag = "quota";
+      body = lib.id;
+    };
+    ctHelper = {
+      tag = "ct helper";
+      body = lib.id;
+    };
+    limit = {
+      tag = "limit";
+      body = lib.id;
+    };
+    ctTimeout = {
+      tag = "ct timeout";
+      body = lib.id;
+    };
+    ctExpectation = {
+      tag = "ct expectation";
+      body = lib.id;
+    };
+    secmark = {
+      tag = "secmark";
+      body = lib.id;
+    };
+    synproxy = {
+      tag = "synproxy";
+      body = lib.id;
+    };
+    tunnel = {
+      tag = "tunnel";
+      body = rename.tunnel;
+    };
   };
 
   # `meter` listing (parser_json.c:4191) is supported even though there's no
   # `add meter` command — meters are anonymous sets created via the `meter`
   # *statement*. Listed via `dsl.list.meter { family; table; name; }`.
   listObjectKinds = addObjectKinds // {
-    metainfo = { tag = "metainfo"; body = lib.id; };
-    meter = { tag = "meter"; body = lib.id; };
+    metainfo = {
+      tag = "metainfo";
+      body = lib.id;
+    };
+    meter = {
+      tag = "meter";
+      body = lib.id;
+    };
   };
 
   # `create rule` is explicitly rejected by the nftables parser with
@@ -77,10 +131,11 @@ let
   # Build a namespace `{ dslKey = body: { cmdTag = { jsonTag = rename body; }; }; … }`.
   mkNamespace =
     cmdTag: kinds:
-    lib.mapAttrs (
-      _: cfg:
-      body: { ${cmdTag} = { ${cfg.tag} = cfg.body body; }; }
-    ) kinds;
+    lib.mapAttrs (_: cfg: body: {
+      ${cmdTag} = {
+        ${cfg.tag} = cfg.body body;
+      };
+    }) kinds;
 in
 {
   create = mkNamespace "create" createObjectKinds;
@@ -98,13 +153,25 @@ in
   # so the API mirrors create/delete/… and tab completion surfaces the
   # single valid object kind.
   rename = {
-    chain = body: { rename = { chain = body; }; };
+    chain = body: {
+      rename = {
+        chain = body;
+      };
+    };
   };
 
   # replace / insert accept only rule bodies per the schema, and the
   # nftables JSON parser expects `{ replace: { rule: <ruleBody> } }`
   # (tagged). Implemented as plain body-taking functions since the object
   # kind is fixed.
-  replace = body: { replace = { rule = body; }; };
-  insert = body: { insert = { rule = body; }; };
+  replace = body: {
+    replace = {
+      rule = body;
+    };
+  };
+  insert = body: {
+    insert = {
+      rule = body;
+    };
+  };
 }

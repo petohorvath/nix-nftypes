@@ -12,4 +12,6 @@ let
     "version"
   ];
 in
-lib.genAttrs keys (key: { osf = { inherit key; }; })
+lib.genAttrs keys (key: {
+  osf = { inherit key; };
+})

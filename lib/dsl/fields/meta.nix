@@ -51,4 +51,6 @@ let
     "secpath"
   ];
 in
-lib.genAttrs keys (key: { meta = { inherit key; }; })
+lib.genAttrs keys (key: {
+  meta = { inherit key; };
+})

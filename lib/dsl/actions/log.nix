@@ -13,30 +13,35 @@ let
   rename = import ../internal/rename.nix { inherit lib; };
 in
 {
-  log = variant
-    (
+  log =
+    variant
+      (
+        {
+          prefix ? null,
+          group ? null,
+          snaplen ? null,
+          queueThreshold ? null,
+          level ? null,
+          flags ? null,
+        }:
+        {
+          log = compact (
+            rename.log {
+              inherit
+                prefix
+                group
+                snaplen
+                queueThreshold
+                level
+                flags
+                ;
+            }
+          );
+        }
+      )
       {
-        prefix ? null,
-        group ? null,
-        snaplen ? null,
-        queueThreshold ? null,
-        level ? null,
-        flags ? null,
-      }:
-      {
-        log = compact (rename.log {
-          inherit
-            prefix
-            group
-            snaplen
-            queueThreshold
-            level
-            flags
-            ;
-        });
-      }
-    )
-    {
-      plain = { log = { }; };
-    };
+        plain = {
+          log = { };
+        };
+      };
 }

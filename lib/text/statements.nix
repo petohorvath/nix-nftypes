@@ -251,7 +251,9 @@ let
         lib.optional ((body."queue-threshold" or null) != null)
           "queue-threshold ${toString body."queue-threshold"}"
       ++ lib.optional ((body.level or null) != null) "level ${body.level}"
-      ++ lib.optional ((body.flags or null) != null) "flags ${primitives.flags { sep = " "; } body.flags}";
+      ++
+        lib.optional ((body.flags or null) != null)
+          "flags ${primitives.flags { sep = " "; } body.flags}";
     in
     lib.concatStringsSep " " parts;
 

@@ -28,14 +28,9 @@ in
     let
       sub = types.submodule { inherit options; };
       base =
-        v:
-        builtins.isAttrs v
-        && lib.all (k: v ? ${k}) requireKeys
-        && lib.all (k: !(v ? ${k})) forbidKeys;
+        v: builtins.isAttrs v && lib.all (k: v ? ${k}) requireKeys && lib.all (k: !(v ? ${k})) forbidKeys;
     in
-    types.addCheck sub (
-      v: base v && (if extraCheck == null then true else extraCheck v)
-    );
+    types.addCheck sub (v: base v && (if extraCheck == null then true else extraCheck v));
 
   # Like `types.listOf t` but constrained to exactly `n` elements
   # (e.g. range expressions are 2-element lists).

@@ -10,4 +10,6 @@ let
     "wildcard"
   ];
 in
-lib.genAttrs keys (key: { socket = { inherit key; }; })
+lib.genAttrs keys (key: {
+  socket = { inherit key; };
+})

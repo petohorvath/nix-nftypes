@@ -471,8 +471,7 @@ let
 
   # ruleset envelope: null → bare; { family } → `<verb> ruleset <family>`.
   renderRulesetHeader =
-    _ctx: body:
-    if body == null then "" else (if body ? family then body.family else "");
+    _ctx: body: if body == null then "" else (if body ? family then body.family else "");
 
   # ---- dispatch: kind → { header, body } -----------------------------
   #

@@ -9,13 +9,27 @@
 {
   payload =
     { protocol, field }:
-    { payload = { inherit protocol field; }; };
+    {
+      payload = { inherit protocol field; };
+    };
 
   payloadRaw =
-    { base, offset, len }:
-    { payload = { inherit base offset len; }; };
+    {
+      base,
+      offset,
+      len,
+    }:
+    {
+      payload = { inherit base offset len; };
+    };
 
   payloadTunnel =
-    { tunnel, protocol, field }:
-    { payload = { inherit tunnel protocol field; }; };
+    {
+      tunnel,
+      protocol,
+      field,
+    }:
+    {
+      payload = { inherit tunnel protocol field; };
+    };
 }

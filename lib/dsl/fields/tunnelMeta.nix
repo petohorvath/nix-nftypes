@@ -10,4 +10,6 @@ let
     "id"
   ];
 in
-lib.genAttrs keys (key: { tunnel = { inherit key; }; })
+lib.genAttrs keys (key: {
+  tunnel = { inherit key; };
+})

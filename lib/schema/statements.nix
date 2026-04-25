@@ -51,20 +51,22 @@ let
     # around the standard ref-or-inline pattern.
     counterRefOrBody = types.oneOf [
       nullType
-      (refOrInline (types.submodule {
-        options = {
-          packets = mkOption {
-            type = types.nullOr types.ints.unsigned;
-            default = null;
-            description = "initial packet counter";
+      (refOrInline (
+        types.submodule {
+          options = {
+            packets = mkOption {
+              type = types.nullOr types.ints.unsigned;
+              default = null;
+              description = "initial packet counter";
+            };
+            bytes = mkOption {
+              type = types.nullOr types.ints.unsigned;
+              default = null;
+              description = "initial byte counter";
+            };
           };
-          bytes = mkOption {
-            type = types.nullOr types.ints.unsigned;
-            default = null;
-            description = "initial byte counter";
-          };
-        };
-      }))
+        }
+      ))
     ];
 
     mangleBody = types.submodule {

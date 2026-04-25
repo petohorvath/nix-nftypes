@@ -10,13 +10,21 @@ let
   variant = import ../internal/variant.nix { inherit lib; };
 in
 {
-  counter = variant
-    (
-      { packets ? null, bytes ? null }:
-      { counter = compact { inherit packets bytes; }; }
-    )
-    {
-      auto = { counter = null; };
-      ref = name: { counter = name; };
-    };
+  counter =
+    variant
+      (
+        {
+          packets ? null,
+          bytes ? null,
+        }:
+        {
+          counter = compact { inherit packets bytes; };
+        }
+      )
+      {
+        auto = {
+          counter = null;
+        };
+        ref = name: { counter = name; };
+      };
 }

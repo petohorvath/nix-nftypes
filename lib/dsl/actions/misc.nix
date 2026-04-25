@@ -59,6 +59,12 @@ in
 
   # `last` is a bare value; `lastUsed t` is the {used = t} form. Kept separate
   # because a single-key attrset `{ last = null; }` can't also expose sub-attrs.
-  last = { last = null; };
-  lastUsed = t: { last = { used = t; }; };
+  last = {
+    last = null;
+  };
+  lastUsed = t: {
+    last = {
+      used = t;
+    };
+  };
 }

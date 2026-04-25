@@ -6,15 +6,17 @@
 let
   load = path: import path { inherit lib; };
 in
-lib.foldl' (acc: m: acc // m) { } (map load [
-  ./counter.nix
-  ./reject.nix
-  ./log.nix
-  ./rate.nix
-  ./nat.nix
-  ./synproxy.nix
-  ./queue.nix
-  ./ct.nix
-  ./flow.nix
-  ./misc.nix
-])
+lib.foldl' (acc: m: acc // m) { } (
+  map load [
+    ./counter.nix
+    ./reject.nix
+    ./log.nix
+    ./rate.nix
+    ./nat.nix
+    ./synproxy.nix
+    ./queue.nix
+    ./ct.nix
+    ./flow.nix
+    ./misc.nix
+  ]
+)

@@ -162,63 +162,72 @@ let
 
   bodies = rec {
     tableBody = types.submodule {
-      options = tableContainerOptions // {
-        flags = mkOption {
-          type = types.nullOr (listOrSingleton tableFlagType);
-          default = null;
-          description = "table flags";
-        };
-      } // commentOption;
+      options =
+        tableContainerOptions
+        // {
+          flags = mkOption {
+            type = types.nullOr (listOrSingleton tableFlagType);
+            default = null;
+            description = "table flags";
+          };
+        }
+        // commentOption;
     };
 
     chainBody = types.submodule {
-      options = namedInTableOptions // {
-        newname = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "new name (rename command only)";
-        };
-        type = mkOption {
-          type = types.nullOr chainTypeType;
-          default = null;
-          description = "base chain type (required for base chains)";
-        };
-        hook = mkOption {
-          type = types.nullOr hookType;
-          default = null;
-          description = "hook point (required for base chains)";
-        };
-        prio = mkOption {
-          type = types.nullOr types.int;
-          default = null;
-          description = "priority (required for base chains)";
-        };
-        dev = mkOption {
-          # parser_json.c:3143 → json_parse_devs accepts string | [string].
-          type = types.nullOr (listOrSingleton types.str);
-          default = null;
-          description = "bound interface(s) for netdev-family base chains";
-        };
-        policy = mkOption {
-          type = types.nullOr policyType;
-          default = null;
-          description = "default policy for base chains";
-        };
-      } // commentOption;
+      options =
+        namedInTableOptions
+        // {
+          newname = mkOption {
+            type = types.nullOr types.str;
+            default = null;
+            description = "new name (rename command only)";
+          };
+          type = mkOption {
+            type = types.nullOr chainTypeType;
+            default = null;
+            description = "base chain type (required for base chains)";
+          };
+          hook = mkOption {
+            type = types.nullOr hookType;
+            default = null;
+            description = "hook point (required for base chains)";
+          };
+          prio = mkOption {
+            type = types.nullOr types.int;
+            default = null;
+            description = "priority (required for base chains)";
+          };
+          dev = mkOption {
+            # parser_json.c:3143 → json_parse_devs accepts string | [string].
+            type = types.nullOr (listOrSingleton types.str);
+            default = null;
+            description = "bound interface(s) for netdev-family base chains";
+          };
+          policy = mkOption {
+            type = types.nullOr policyType;
+            default = null;
+            description = "default policy for base chains";
+          };
+        }
+        // commentOption;
     };
 
     ruleBody = types.submodule {
-      options = ruleContainerOptions // {
-        expr = mkOption {
-          type = types.listOf stmt;
-          description = "rule body — list of statements";
-        };
-        index = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "rule index";
-        };
-      } // commentOption;
+      options =
+        ruleContainerOptions
+        // {
+          expr = mkOption {
+            type = types.listOf stmt;
+            description = "rule body — list of statements";
+          };
+          index = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "rule index";
+          };
+        }
+        // commentOption;
     };
 
     setObjectBody = types.submodule {
@@ -667,10 +676,13 @@ let
   # plural list-multiple forms are intentionally not modelled — see
   # docs/spec-coverage.md E11).
   listObject = types.attrTag (
-    lib.mapAttrs (_: tagOpt) (addObjectBodies // {
-      metainfo = bodies.metainfoBody;
-      meter = bodies.meterObjectBody;
-    })
+    lib.mapAttrs (_: tagOpt) (
+      addObjectBodies
+      // {
+        metainfo = bodies.metainfoBody;
+        meter = bodies.meterObjectBody;
+      }
+    )
   );
 
   # parser_json.c:4297-4304 (json_parse_cmd_flush dispatch table):

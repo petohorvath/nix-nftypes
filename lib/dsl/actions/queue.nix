@@ -9,12 +9,20 @@ let
   variant = import ../internal/variant.nix { inherit lib; };
 in
 {
-  queue = variant
-    (
-      { num ? null, flags ? null }:
-      { queue = compact { inherit num flags; }; }
-    )
-    {
-      plain = { queue = { }; };
-    };
+  queue =
+    variant
+      (
+        {
+          num ? null,
+          flags ? null,
+        }:
+        {
+          queue = compact { inherit num flags; };
+        }
+      )
+      {
+        plain = {
+          queue = { };
+        };
+      };
 }

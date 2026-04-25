@@ -47,11 +47,11 @@ in
     ;
   inherit reset;
 }
-// payload               # payload, payloadRaw, payloadTunnel
-// ops                   # eq, ne, lt, gt, le, ge, inSet, notInSet, within, match
-// verdicts              # accept, drop, continue, return, notrack, jump, goto
-// actionsWithoutReset   # counter, log, limit, snat, … (reset handled above)
-// ruleset               # ruleset, rule, flush, flushTable, flushChain, flushSet, flushMap, flushRuleset
+// payload # payload, payloadRaw, payloadTunnel
+// ops # eq, ne, lt, gt, le, ge, inSet, notInSet, within, match
+// verdicts # accept, drop, continue, return, notrack, jump, goto
+// actionsWithoutReset # counter, log, limit, snat, … (reset handled above)
+// ruleset # ruleset, rule, flush, flushTable, flushChain, flushSet, flushMap, flushRuleset
 # create / delete / destroy / list / rename / replace / insert / reset are
 # exposed above via `inherit (commands) …` so they live at the top of the
 # attrset (not lost among `//` layers).

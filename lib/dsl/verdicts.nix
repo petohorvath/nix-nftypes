@@ -5,11 +5,21 @@
 # `goto` take a target chain name.
 
 {
-  accept = { accept = null; };
-  drop = { drop = null; };
-  continue = { continue = null; };
-  return = { return = null; };
-  notrack = { notrack = null; };
+  accept = {
+    accept = null;
+  };
+  drop = {
+    drop = null;
+  };
+  continue = {
+    continue = null;
+  };
+  return = {
+    return = null;
+  };
+  notrack = {
+    notrack = null;
+  };
   jump = target: { jump = { inherit target; }; };
   goto = target: { goto = { inherit target; }; };
 }

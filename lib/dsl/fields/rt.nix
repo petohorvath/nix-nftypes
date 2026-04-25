@@ -14,4 +14,6 @@ let
     "ipsec"
   ];
 in
-lib.genAttrs keys (key: { rt = { inherit key; }; })
+lib.genAttrs keys (key: {
+  rt = { inherit key; };
+})

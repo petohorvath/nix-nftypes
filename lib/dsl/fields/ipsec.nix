@@ -13,4 +13,6 @@ let
     "spi"
   ];
 in
-lib.genAttrs keys (key: { ipsec = { inherit key; }; })
+lib.genAttrs keys (key: {
+  ipsec = { inherit key; };
+})

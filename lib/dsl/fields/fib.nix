@@ -18,4 +18,6 @@ let
     "check"
   ];
 in
-lib.genAttrs results (result: { fib = { inherit result; }; })
+lib.genAttrs results (result: {
+  fib = { inherit result; };
+})

@@ -46,8 +46,14 @@ let
     flushMap
     ;
 
-  tbl = { family = "ip"; table = "t"; };
-  tbl4 = { family = "ip"; name = "t"; };
+  tbl = {
+    family = "ip";
+    table = "t";
+  };
+  tbl4 = {
+    family = "ip";
+    name = "t";
+  };
 in
 {
   cases = [
@@ -60,57 +66,101 @@ in
       ruleset = ruleset [
         flush
         (create.table tbl4)
-        (create.chain (tbl // {
-          name = "c";
-          type = "filter";
-          hook = "input";
-          prio = 0;
-        }))
+        (create.chain (
+          tbl
+          // {
+            name = "c";
+            type = "filter";
+            hook = "input";
+            prio = 0;
+          }
+        ))
         (create.counter (tbl // { name = "ctr"; }))
-        (create.quota (tbl // { name = "q"; bytes = 1000000; }))
-        (create.limit (tbl // {
-          name = "lim";
-          rate = 5;
-          per = "second";
-        }))
-        (create.set (tbl // { name = "s"; type = "ipv4_addr"; }))
-        (create.map (tbl // {
-          name = "m";
-          type = "inet_service";
-          map = "inet_service";
-        }))
-        (create.element (tbl // { name = "s"; elements = [ "1.2.3.4" ]; }))
-        (create.flowtable (tbl // {
-          name = "ft";
-          hook = "ingress";
-          prio = 0;
-          dev = [ "lo" ];
-        }))
-        (create.ctHelper (tbl // {
-          name = "h";
-          type = "ftp";
-          protocol = "tcp";
-          l3proto = "ip";
-        }))
-        (create.ctTimeout (tbl // {
-          name = "cto";
-          protocol = "tcp";
-          l3proto = "ip";
-          policy = { established = 300; };
-        }))
-        (create.ctExpectation (tbl // {
-          name = "cte";
-          protocol = "tcp";
-          l3proto = "ip";
-          dport = 8080;
-          timeout = 60;
-          size = 1;
-        }))
-        (create.synproxy (tbl // {
-          name = "sp";
-          mss = 1460;
-          wscale = 7;
-        }))
+        (create.quota (
+          tbl
+          // {
+            name = "q";
+            bytes = 1000000;
+          }
+        ))
+        (create.limit (
+          tbl
+          // {
+            name = "lim";
+            rate = 5;
+            per = "second";
+          }
+        ))
+        (create.set (
+          tbl
+          // {
+            name = "s";
+            type = "ipv4_addr";
+          }
+        ))
+        (create.map (
+          tbl
+          // {
+            name = "m";
+            type = "inet_service";
+            map = "inet_service";
+          }
+        ))
+        (create.element (
+          tbl
+          // {
+            name = "s";
+            elements = [ "1.2.3.4" ];
+          }
+        ))
+        (create.flowtable (
+          tbl
+          // {
+            name = "ft";
+            hook = "ingress";
+            prio = 0;
+            dev = [ "lo" ];
+          }
+        ))
+        (create.ctHelper (
+          tbl
+          // {
+            name = "h";
+            type = "ftp";
+            protocol = "tcp";
+            l3proto = "ip";
+          }
+        ))
+        (create.ctTimeout (
+          tbl
+          // {
+            name = "cto";
+            protocol = "tcp";
+            l3proto = "ip";
+            policy = {
+              established = 300;
+            };
+          }
+        ))
+        (create.ctExpectation (
+          tbl
+          // {
+            name = "cte";
+            protocol = "tcp";
+            l3proto = "ip";
+            dport = 8080;
+            timeout = 60;
+            size = 1;
+          }
+        ))
+        (create.synproxy (
+          tbl
+          // {
+            name = "sp";
+            mss = 1460;
+            wscale = 7;
+          }
+        ))
       ];
     }
 
@@ -153,66 +203,120 @@ in
         (create.table tbl4)
         (create.chain (tbl // { name = "c"; }))
         (create.counter (tbl // { name = "ctr"; }))
-        (create.quota (tbl // { name = "q"; bytes = 1; }))
-        (create.limit (tbl // {
-          name = "lim";
-          rate = 1;
-          per = "second";
-        }))
-        (create.set (tbl // { name = "s"; type = "ipv4_addr"; }))
-        (create.map (tbl // {
-          name = "m";
-          type = "inet_service";
-          map = "inet_service";
-        }))
-        (create.flowtable (tbl // {
-          name = "ft";
-          hook = "ingress";
-          prio = 0;
-          dev = [ "lo" ];
-        }))
-        (create.ctHelper (tbl // {
-          name = "h";
-          type = "ftp";
-          protocol = "tcp";
-          l3proto = "ip";
-        }))
-        (create.synproxy (tbl // {
-          name = "sp";
-          mss = 1460;
-          wscale = 7;
-        }))
+        (create.quota (
+          tbl
+          // {
+            name = "q";
+            bytes = 1;
+          }
+        ))
+        (create.limit (
+          tbl
+          // {
+            name = "lim";
+            rate = 1;
+            per = "second";
+          }
+        ))
+        (create.set (
+          tbl
+          // {
+            name = "s";
+            type = "ipv4_addr";
+          }
+        ))
+        (create.map (
+          tbl
+          // {
+            name = "m";
+            type = "inet_service";
+            map = "inet_service";
+          }
+        ))
+        (create.flowtable (
+          tbl
+          // {
+            name = "ft";
+            hook = "ingress";
+            prio = 0;
+            dev = [ "lo" ];
+          }
+        ))
+        (create.ctHelper (
+          tbl
+          // {
+            name = "h";
+            type = "ftp";
+            protocol = "tcp";
+            l3proto = "ip";
+          }
+        ))
+        (create.synproxy (
+          tbl
+          // {
+            name = "sp";
+            mss = 1460;
+            wscale = 7;
+          }
+        ))
         # Now delete. set/map still need `type` per the shared schema.
         (delete.counter (tbl // { name = "ctr"; }))
-        (delete.quota (tbl // { name = "q"; bytes = 1; }))
-        (delete.limit (tbl // {
-          name = "lim";
-          rate = 1;
-          per = "second";
-        }))
-        (delete.set (tbl // { name = "s"; type = "ipv4_addr"; }))
-        (delete.map (tbl // {
-          name = "m";
-          type = "inet_service";
-          map = "inet_service";
-        }))
-        (delete.flowtable (tbl // {
-          name = "ft";
-          hook = "ingress";
-          prio = 0;
-          dev = [ "lo" ];
-        }))
-        (delete.ctHelper (tbl // {
-          name = "h";
-          type = "ftp";
-          protocol = "tcp";
-          l3proto = "ip";
-        }))
-        (delete.synproxy (tbl // {
-          name = "sp";
-          mss = 1460;
-          wscale = 7;
-        }))
+        (delete.quota (
+          tbl
+          // {
+            name = "q";
+            bytes = 1;
+          }
+        ))
+        (delete.limit (
+          tbl
+          // {
+            name = "lim";
+            rate = 1;
+            per = "second";
+          }
+        ))
+        (delete.set (
+          tbl
+          // {
+            name = "s";
+            type = "ipv4_addr";
+          }
+        ))
+        (delete.map (
+          tbl
+          // {
+            name = "m";
+            type = "inet_service";
+            map = "inet_service";
+          }
+        ))
+        (delete.flowtable (
+          tbl
+          // {
+            name = "ft";
+            hook = "ingress";
+            prio = 0;
+            dev = [ "lo" ];
+          }
+        ))
+        (delete.ctHelper (
+          tbl
+          // {
+            name = "h";
+            type = "ftp";
+            protocol = "tcp";
+            l3proto = "ip";
+          }
+        ))
+        (delete.synproxy (
+          tbl
+          // {
+            name = "sp";
+            mss = 1460;
+            wscale = 7;
+          }
+        ))
         (delete.chain (tbl // { name = "c"; }))
         (delete.table tbl4)
       ];
@@ -248,19 +352,37 @@ in
         flush
         (create.table tbl4)
         (create.chain (tbl // { name = "c"; }))
-        (create.set (tbl // { name = "s"; type = "ipv4_addr"; }))
-        (create.map (tbl // {
-          name = "m";
-          type = "inet_service";
-          map = "inet_service";
-        }))
+        (create.set (
+          tbl
+          // {
+            name = "s";
+            type = "ipv4_addr";
+          }
+        ))
+        (create.map (
+          tbl
+          // {
+            name = "m";
+            type = "inet_service";
+            map = "inet_service";
+          }
+        ))
         (flushChain (tbl // { name = "c"; }))
-        (flushSet (tbl // { name = "s"; type = "ipv4_addr"; }))
-        (flushMap (tbl // {
-          name = "m";
-          type = "inet_service";
-          map = "inet_service";
-        }))
+        (flushSet (
+          tbl
+          // {
+            name = "s";
+            type = "ipv4_addr";
+          }
+        ))
+        (flushMap (
+          tbl
+          // {
+            name = "m";
+            type = "inet_service";
+            map = "inet_service";
+          }
+        ))
         (flushTable tbl4)
       ];
     }
@@ -295,9 +417,21 @@ in
         flush
         (create.table tbl4)
         (create.counter (tbl // { name = "ctr"; }))
-        (create.quota (tbl // { name = "q"; bytes = 1; }))
+        (create.quota (
+          tbl
+          // {
+            name = "q";
+            bytes = 1;
+          }
+        ))
         (reset.counter (tbl // { name = "ctr"; }))
-        (reset.quota (tbl // { name = "q"; bytes = 1; }))
+        (reset.quota (
+          tbl
+          // {
+            name = "q";
+            bytes = 1;
+          }
+        ))
       ];
     }
 
@@ -312,7 +446,10 @@ in
       # The home-router flowtable binds to eth0/eth1; nft -c validates
       # those device references against the netns's link table, so the
       # runner pre-creates dummy interfaces of those names.
-      interfaces = [ "eth0" "eth1" ];
+      interfaces = [
+        "eth0"
+        "eth1"
+      ];
     }
   ];
 

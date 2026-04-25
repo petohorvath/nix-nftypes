@@ -89,21 +89,24 @@ in
   ];
 
   # -- Layer 3 ---------------------------------------------------------------
-  ip = protoMapped "ip" [
-    "version"
-    "hdrlength"
-    "dscp"
-    "ecn"
-    "length"
-    "id"
-    "ttl"
-    "protocol"
-    "checksum"
-    "saddr"
-    "daddr"
-  ] {
-    fragOff = "frag-off";
-  };
+  ip =
+    protoMapped "ip"
+      [
+        "version"
+        "hdrlength"
+        "dscp"
+        "ecn"
+        "length"
+        "id"
+        "ttl"
+        "protocol"
+        "checksum"
+        "saddr"
+        "daddr"
+      ]
+      {
+        fragOff = "frag-off";
+      };
 
   ip6 = proto "ip6" [
     "version"
@@ -127,18 +130,21 @@ in
     "gateway"
   ];
 
-  icmpv6 = protoMapped "icmpv6" [
-    "type"
-    "code"
-    "checksum"
-    "id"
-    "sequence"
-    "mtu"
-  ] {
-    paramProblem = "parameter-problem";
-    packetTooBig = "packet-too-big";
-    maxDelay = "max-delay";
-  };
+  icmpv6 =
+    protoMapped "icmpv6"
+      [
+        "type"
+        "code"
+        "checksum"
+        "id"
+        "sequence"
+        "mtu"
+      ]
+      {
+        paramProblem = "parameter-problem";
+        packetTooBig = "packet-too-big";
+        maxDelay = "max-delay";
+      };
 
   # -- Layer 2 ---------------------------------------------------------------
   ether = proto "ether" [

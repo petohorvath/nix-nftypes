@@ -49,8 +49,14 @@ ruleset [
       type = "inet_service";
       map = "inet_service";
       elements = [
-        [ 80 8080 ]
-        [ 443 8443 ]
+        [
+          80
+          8080
+        ]
+        [
+          443
+          8443
+        ]
       ];
     };
 
@@ -62,7 +68,10 @@ ruleset [
       rules = [
         # Established connections bypass everything
         [
-          (inSet ct.state [ "established" "related" ])
+          (inSet ct.state [
+            "established"
+            "related"
+          ])
           accept
         ]
 

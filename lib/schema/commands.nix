@@ -1,4 +1,8 @@
-{ lib, internal, objects }:
+{
+  lib,
+  internal,
+  objects,
+}:
 
 let
   inherit (lib) types mkOption;

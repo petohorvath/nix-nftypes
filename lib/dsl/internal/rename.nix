@@ -20,11 +20,7 @@
 let
   # Apply a { dslName = "jsonName"; } map to an attrset's keys. Keys
   # not in the map pass through unchanged.
-  applyMap =
-    map: attrs:
-    lib.mapAttrs' (
-      k: v: lib.nameValuePair (map.${k} or k) v
-    ) attrs;
+  applyMap = map: attrs: lib.mapAttrs' (k: v: lib.nameValuePair (map.${k} or k) v) attrs;
 in
 {
   log = applyMap {

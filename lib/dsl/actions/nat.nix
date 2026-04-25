@@ -31,19 +31,28 @@ let
 
   masqBase =
     tag:
-    { port ? null, flags ? null }:
-    { ${tag} = compact { inherit port flags; }; };
+    {
+      port ? null,
+      flags ? null,
+    }:
+    {
+      ${tag} = compact { inherit port flags; };
+    };
 in
 {
   snat = natBase "snat";
   dnat = natBase "dnat";
 
   masquerade = variant (masqBase "masquerade") {
-    plain = { masquerade = { }; };
+    plain = {
+      masquerade = { };
+    };
   };
 
   redirect = variant (masqBase "redirect") {
-    plain = { redirect = { }; };
+    plain = {
+      redirect = { };
+    };
   };
 
   fwd =
@@ -52,11 +61,18 @@ in
       family ? null,
       addr ? null,
     }:
-    { fwd = compact { inherit dev family addr; }; };
+    {
+      fwd = compact { inherit dev family addr; };
+    };
 
   dup =
-    { addr, dev ? null }:
-    { dup = compact { inherit addr dev; }; };
+    {
+      addr,
+      dev ? null,
+    }:
+    {
+      dup = compact { inherit addr dev; };
+    };
 
   tproxy =
     {
@@ -64,5 +80,7 @@ in
       addr ? null,
       port ? null,
     }:
-    { tproxy = compact { inherit family addr port; }; };
+    {
+      tproxy = compact { inherit family addr port; };
+    };
 }

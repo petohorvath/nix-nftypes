@@ -31,14 +31,42 @@ in
   # the nftables parser rejects it ("Unknown object passed to flush
   # command").
 
-  flush = { flush = { ruleset = null; }; };
+  flush = {
+    flush = {
+      ruleset = null;
+    };
+  };
 
-  flushRuleset = body: { flush = { ruleset = body; }; };
-  flushTable = body: { flush = { table = body; }; };
-  flushChain = body: { flush = { chain = body; }; };
-  flushSet = body: { flush = { set = rename.set body; }; };
-  flushMap = body: { flush = { map = rename.set body; }; };
-  flushMeter = body: { flush = { meter = body; }; };
+  flushRuleset = body: {
+    flush = {
+      ruleset = body;
+    };
+  };
+  flushTable = body: {
+    flush = {
+      table = body;
+    };
+  };
+  flushChain = body: {
+    flush = {
+      chain = body;
+    };
+  };
+  flushSet = body: {
+    flush = {
+      set = rename.set body;
+    };
+  };
+  flushMap = body: {
+    flush = {
+      map = rename.set body;
+    };
+  };
+  flushMeter = body: {
+    flush = {
+      meter = body;
+    };
+  };
 
   # -- Standalone rule ------------------------------------------------------
   # For use outside a table tree — typically with an explicit handle or

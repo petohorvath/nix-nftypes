@@ -1,4 +1,8 @@
-{ lib, internal, primitives }:
+{
+  lib,
+  internal,
+  primitives,
+}:
 
 let
   inherit (lib) types mkOption;
@@ -66,7 +70,11 @@ let
     #   3. named:         { protocol, field }
     # Discriminated by key presence so `types.oneOf` routes correctly.
     rawPayloadBody = discriminatedSubmodule {
-      requireKeys = [ "base" "offset" "len" ];
+      requireKeys = [
+        "base"
+        "offset"
+        "len"
+      ];
       options = {
         base = mkOption {
           type = payloadBaseType;
@@ -84,7 +92,11 @@ let
     };
 
     tunnelPayloadBody = discriminatedSubmodule {
-      requireKeys = [ "tunnel" "protocol" "field" ];
+      requireKeys = [
+        "tunnel"
+        "protocol"
+        "field"
+      ];
       options = {
         tunnel = mkOption {
           type = types.str;
@@ -102,7 +114,10 @@ let
     };
 
     namedPayloadBody = discriminatedSubmodule {
-      requireKeys = [ "protocol" "field" ];
+      requireKeys = [
+        "protocol"
+        "field"
+      ];
       forbidKeys = [ "tunnel" ];
       options = {
         protocol = mkOption {
@@ -145,7 +160,11 @@ let
     #   raw:   { base, offset, len }  — base is tcp option kind (0-255)
     #   named: { name, field? }
     rawTcpOptionBody = discriminatedSubmodule {
-      requireKeys = [ "base" "offset" "len" ];
+      requireKeys = [
+        "base"
+        "offset"
+        "len"
+      ];
       options = {
         base = mkOption {
           type = types.ints.between 0 255;

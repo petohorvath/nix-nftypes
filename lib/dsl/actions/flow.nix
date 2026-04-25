@@ -7,8 +7,13 @@ let
 in
 {
   flow =
-    { op ? "add", flowtable }:
-    { flow = { inherit op flowtable; }; };
+    {
+      op ? "add",
+      flowtable,
+    }:
+    {
+      flow = { inherit op flowtable; };
+    };
 
   meter =
     {

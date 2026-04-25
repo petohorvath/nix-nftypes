@@ -13,6 +13,11 @@ in
   ctExpectation = e: { "ct expectation" = e; };
 
   ctCount =
-    { val, inv ? null }:
-    { "ct count" = compact { inherit val inv; }; };
+    {
+      val,
+      inv ? null,
+    }:
+    {
+      "ct count" = compact { inherit val inv; };
+    };
 }

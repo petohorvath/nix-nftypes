@@ -13,16 +13,43 @@ let
   variant = import ../internal/variant.nix { inherit lib; };
 in
 {
-  reject = variant
-    (
-      { type ? null, expr ? null }:
-      { reject = compact { inherit type expr; }; }
-    )
-    {
-      plain = { reject = { }; };
-      icmp = code: { reject = { type = "icmp"; expr = code; }; };
-      icmpv6 = code: { reject = { type = "icmpv6"; expr = code; }; };
-      icmpx = code: { reject = { type = "icmpx"; expr = code; }; };
-      tcpReset = { reject = { type = "tcp reset"; }; };
-    };
+  reject =
+    variant
+      (
+        {
+          type ? null,
+          expr ? null,
+        }:
+        {
+          reject = compact { inherit type expr; };
+        }
+      )
+      {
+        plain = {
+          reject = { };
+        };
+        icmp = code: {
+          reject = {
+            type = "icmp";
+            expr = code;
+          };
+        };
+        icmpv6 = code: {
+          reject = {
+            type = "icmpv6";
+            expr = code;
+          };
+        };
+        icmpx = code: {
+          reject = {
+            type = "icmpx";
+            expr = code;
+          };
+        };
+        tcpReset = {
+          reject = {
+            type = "tcp reset";
+          };
+        };
+      };
 }

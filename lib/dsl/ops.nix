@@ -10,9 +10,7 @@
 # For the nftables `in` operator (bitwise flag-testing), use `match.in`.
 
 let
-  mkMatch =
-    op: left: right:
-    { match = { inherit op left right; }; };
+  mkMatch = op: left: right: { match = { inherit op left right; }; };
 
   # Wrap a right-hand-side for set membership: list → anonymous set expression,
   # anything else → pass through (covers "@name" references, pre-built set

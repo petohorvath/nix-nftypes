@@ -10,13 +10,22 @@ let
   variant = import ../internal/variant.nix { inherit lib; };
 in
 {
-  synproxy = variant
-    (
-      { mss, wscale, flags ? null }:
-      { synproxy = compact { inherit mss wscale flags; }; }
-    )
-    {
-      auto = { synproxy = null; };
-      ref = e: { synproxy = e; };
-    };
+  synproxy =
+    variant
+      (
+        {
+          mss,
+          wscale,
+          flags ? null,
+        }:
+        {
+          synproxy = compact { inherit mss wscale flags; };
+        }
+      )
+      {
+        auto = {
+          synproxy = null;
+        };
+        ref = e: { synproxy = e; };
+      };
 }

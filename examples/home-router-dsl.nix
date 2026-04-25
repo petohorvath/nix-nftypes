@@ -112,7 +112,10 @@ ruleset [
     flowtables.offload = {
       hook = "ingress";
       prio = 0;
-      dev = [ "eth0" "eth1" ];
+      dev = [
+        "eth0"
+        "eth1"
+      ];
     };
 
     # Verdict map: iifname → per-zone sub-chain ---------------------------
@@ -121,8 +124,14 @@ ruleset [
       type = "ifname";
       map = "verdict";
       elements = [
-        [ "eth0" (jump "zone_wan") ]
-        [ "eth1" (jump "zone_lan") ]
+        [
+          "eth0"
+          (jump "zone_wan")
+        ]
+        [
+          "eth1"
+          (jump "zone_lan")
+        ]
       ];
     };
 
@@ -216,7 +225,10 @@ ruleset [
 
         # Public web
         [
-          (inSet tcp.dport [ 80 443 ])
+          (inSet tcp.dport [
+            80
+            443
+          ])
           accept
         ]
       ];
@@ -271,12 +283,24 @@ ruleset [
       flags = [ "interval" ];
       elements = [
         [
-          (concat [ "203.0.113.1" 80 ])
-          (concat [ "192.168.1.10" 8080 ])
+          (concat [
+            "203.0.113.1"
+            80
+          ])
+          (concat [
+            "192.168.1.10"
+            8080
+          ])
         ]
         [
-          (concat [ "203.0.113.1" 443 ])
-          (concat [ "192.168.1.10" 8443 ])
+          (concat [
+            "203.0.113.1"
+            443
+          ])
+          (concat [
+            "192.168.1.10"
+            8443
+          ])
         ]
       ];
     };
