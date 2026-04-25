@@ -16,6 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
+      - name: Allow unshare to create user namespaces
+        run: |
+          sudo cp .github/apparmor/nix-unshare /etc/apparmor.d/nix-unshare
+          sudo apparmor_parser -r /etc/apparmor.d/nix-unshare
       - run: nix flake check -L
 
   format:

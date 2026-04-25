@@ -1,0 +1,19 @@
+# Allow user-namespace creation for `unshare` binaries from Nix builds and
+# from the system util-linux package. Matches Ubuntu 24.04's AppArmor 4.0
+# `userns` rule, which gates unprivileged user-namespace creation when
+# kernel.apparmor_restrict_unprivileged_userns=1 (the default).
+#
+# CI installs this via .github/workflows/ci.yml. For local installation:
+#   sudo cp .github/apparmor/nix-unshare /etc/apparmor.d/nix-unshare
+#   sudo apparmor_parser -r /etc/apparmor.d/nix-unshare
+# Verify:
+#   unshare -rn echo ok    # should print "ok"
+
+abi <abi/4.0>,
+include <tunables/global>
+
+profile nix-unshare /{usr/bin,nix/store/*/bin}/unshare flags=(unconfined) {
+  userns,
+
+  include if exists <local/nix-unshare>
+}
