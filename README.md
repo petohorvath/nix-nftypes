@@ -2,7 +2,7 @@
 
 Typed Nix bindings for nftables. Rulesets are built as structured Nix values, type-checked at evaluation time, then rendered either to libnftables-JSON for `nft -j -f` or to nftables text syntax for `nft -f`.
 
-Authoritative reference: **nftables 1.1.6** (upstream commit `f7dc8269ddaed49fe643423a3a403b91ab1e50db`, 2026-04-22). Every field, enum, and structural decision in this library is derived from that revision.
+Authoritative reference: **nftables post-1.1.6 development** (upstream commit `f7dc8269ddaed49fe643423a3a403b91ab1e50db`, `v1.1.6-105-gf7dc8269`, 2026-04-22). Every field, enum, and structural decision in this library is derived from that revision; the released `v1.1.6` tag is 2025-12-03 and predates several schema-relevant parser changes the audit covers.
 
 Related docs:
 
@@ -20,7 +20,7 @@ This library closes that gap: a full, strict, source-of-truth type system for nf
 ## What it brings
 
 - **Evaluation-time errors.** Unknown fields, wrong types, missing required keys, invalid enum values, malformed statement tags — all fail during `nix eval`, before `nft` is ever invoked.
-- **Complete coverage.** Every statement, expression, object type, family, hook, meta key, ct key, operator, and flag the 1.1.6 JSON parser accepts is exposed. No "happy path" subset; no quietly missing fields.
+- **Complete coverage.** Every statement, expression, object type, family, hook, meta key, ct key, operator, and flag the audited JSON parser accepts is exposed. No "happy path" subset; no quietly missing fields.
 - **Composable.** Rules, chains, sets, maps, named objects, and commands are plain typed attrsets, composed and reused through ordinary Nix `let` bindings and function arguments.
 - **Round-trip safe.** The same types that produce the JSON also describe what `nft -j list ruleset` emits, so reading existing state back into the same model is a possibility, not a rewrite.
 - **Two renderers, one schema.** The validated attrsets render either to libnftables-JSON (`toJSON`/`toPretty`) or to nftables text syntax (`toText`/`toTextPretty`). A `render-equivalence` test suite loads both into separate netns and diffs `nft list ruleset` output to enforce the 1:1 contract.
