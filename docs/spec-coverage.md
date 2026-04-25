@@ -353,7 +353,7 @@ enforce, or where parser/serializer behaviour is non-obvious.
 
 - VXLAN/ERSPAN v1/ERSPAN v2/GENEVE — schema discriminates by key presence in
   the nested body but does not cross-validate against the sibling `type`
-  field. Already documented in README "Caveats".
+  field. Restated here from the original audit notes.
 
 ### E14. Upstream bug: `parser_json.c:3913` writes `dport` into `obj->tunnel.sport`
 

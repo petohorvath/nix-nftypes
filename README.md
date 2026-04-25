@@ -4,13 +4,11 @@ Typed Nix bindings for nftables. Rulesets are built as structured Nix values, ty
 
 Authoritative reference: **nftables 1.1.6** (upstream commit `f7dc8269ddaed49fe643423a3a403b91ab1e50db`, 2026-04-22). Every field, enum, and structural decision in this library is derived from that revision.
 
-For a full file-by-file audit of the schema layer against `parser_json.c` —
-including every confirmed gap, every enum verification, and every edge case
-where the schema chooses a different posture from the parser — see
-[`docs/spec-coverage.md`](docs/spec-coverage.md). For the schema layer's
-internal structure (helper hierarchy, identity-options fragments,
-discriminated-submodule helper, applied refactorings and deferred ones),
-see [`docs/code-review.md`](docs/code-review.md).
+Related docs:
+
+- [`docs/spec-coverage.md`](docs/spec-coverage.md) — file-by-file audit of `lib/schema/` against `parser_json.c`. Coverage matrix, enum verification, every adoc-vs-parser deviation the schema captures, edge cases where schema and parser deliberately diverge.
+- [`docs/code-review.md`](docs/code-review.md) — schema layer code review. Helper hierarchy, identity-options fragments, applied refactorings and deferred follow-ups.
+- [`docs/text-coverage.md`](docs/text-coverage.md) — text renderer (`lib/text/`) coverage notes and known limitations.
 
 ## Why this exists
 
@@ -164,35 +162,7 @@ Examples:
 
 ## How this was built
 
-The canonical "libnftables-json spec" is `doc/libnftables-json.adoc`, rendered as the `libnftables-json(5)` man page. The first pass built the types directly from that document: every JSON key, enum value, family, hook, meta-key, and operator became a Nix enum (`lib/schema/primitives.nix`); each structural form became a `types.submodule` (`lib/schema/expressions.nix`, `lib/schema/statements.nix`, `lib/schema/objects.nix`); tagged unions used `types.attrTag`. A `toJSON` renderer stripped `null` defaults while preserving semantically-meaningful nulls. The library passed its own test suite and matched the adoc.
-
-Verifying output against `nft -c` surfaced failures the adoc did not predict. Walking the nftables C source revealed the adoc to be genuinely incomplete. Statements (`last`, `flow`, `tproxy`, `synproxy`, `reset`, `secmark`, `tunnel`), expressions (`ipsec`/xfrm, `tunnel` metadata, `ip option`), and named object types (`secmark`, `synproxy`, `tunnel`) were entirely absent from the documentation but fully supported by the parser. Other sections were actively wrong: `ct timeout` is documented with flat `state` + `value` fields but `parser_json.c:3550` reads a nested `policy` object mapping state names to timeout seconds; `ct timeout` and `ct expectation` are documented as accepting 8 protocols but the parser only branches on `tcp` and `udp`. Enum values (`netmap` NAT flag, `dynamic` set flag, `egress` hook, `arp`/`bridge`/`netdev` families), fields (`comment` on tables/chains/named objects, `stmt` on sets and set/map statements, `type_flags` on NAT, `size` on meters, `rate_unit`/`burst_unit` on limits, `ih` inner-header payload base, socket `mark`/`wildcard`, ~14 missing meta keys), and structural types (`chain.dev` accepts string or array-of-strings) were missing. Raw `tcp option` and tunneled `payload` forms exist in the parser and are not mentioned at all.
-
-The source of truth was therefore pivoted from the adoc to `src/parser_json.c` (plus `src/meta.c`, `src/ct.c`, `src/xfrm.c`, `src/tunnel.c`, `src/rule.c`). Every `json_parse_*_stmt`, `json_parse_*_expr`, and each branch of `json_parse_cmd_add_object` was walked field-by-field: keys read via `json_unpack_err` (required) or `json_unpack` (optional) were listed with their format char (`s:s`/`s:i`/`s:I`/`s:b`/`s:o`) driving the Nix type; the Nix body was diffed against that list; every enum was cross-referenced with its parser lookup table to confirm exhaustiveness. The output side (`src/json.c`) was then audited for round-trip compatibility with `nft -j list` output — this caught one more gap (`{counter: null}` emitted in stateless mode, which the parser accepts but the Nix type had rejected).
-
-### What "1:1 with the spec" means here
-
-- **1:1 with `parser_json.c`** on the input side: every field the parser reads is exposed, with matching type and required/optional semantics.
-- **Round-trip compatible with `json.c`** on the output side: every key and enum value `nft -j list` emits is readable by the input side.
-- **Not 1:1 with the adoc.** The library is strictly broader than the adoc because the adoc is outdated and has documented errors. Claims of `libnftables-json` compliance are accurate only if compliance is defined against the implementation, not the documentation.
-
-## Caveats
-
-- The `tunnel` named object's nested `tunnel` field has type-dependent shape (VXLAN vs ERSPAN v1 vs ERSPAN v2 vs GENEVE). These are modeled with the shared `discriminatedSubmodule` helper from `lib/schema/internal.nix` (key-presence + `extraCheck` predicates), then combined under `types.oneOf` — strict but not cross-validated against the sibling `type` field.
-- An upstream bug (`parser_json.c:3913`) writes the `dport` JSON field into `obj->tunnel.sport`. The Nix types correctly expose both fields; the fix has to happen upstream.
-- The schema is intentionally broader than the parser on the `xt` statement: the type accepts `{ xt = { type = …; name = …; }; }` so `nft -j list ruleset` output containing legacy xt blocks round-trips, but `parser_json.c:2942-2944` rejects xt as input. See `docs/spec-coverage.md` (E2) for the full list of edge cases where schema and parser deliberately diverge.
-
-### Text renderer — coverage gaps
-
-The text renderer is new and less battle-tested than the JSON path. The common-path coverage is solid (the `render-equivalence-tests` suite enforces JSON↔text parity for ~9 integration cases including the full basic-firewall-dsl example, and ~30 parity tests cover the most-used constructs). But the following are written from the nft docs without live-parser coverage — real usage may surface issues:
-
-- **Tunnel objects** (`add tunnel` with vxlan/erspan v1/erspan v2/geneve nested bodies) have parity tests but no live-parser integration — the sandboxed netns typically lacks the required kernel features. The byte-level output follows the nft man page but isn't validated by `nft -c -f`.
-- **Rare statements** — `xt` (deprecated escape hatch), `last`, `mangle`, `meter`, `tproxy`, the `synproxy` statement form, and the `reset tcp option` form — have schema-level parity tests but no live-parser integration.
-- **Reserved-word name collisions** — `offload` as a flowtable name is known-broken in text (documented in `tests/text-integration.nix::knownTextLimitations`); other nftables keywords (`route`, `filter`, `nat`, …) may hit the same class of issue if used as object names.
-- **`in` with named-set refs** — exercised with anonymous sets; behaviour with `meta iif in @named` is untested.
-- **Comment emission position** — `comment "..."` is emitted at the canonical position for each kind per the docs, but not cross-checked byte-for-byte against `nft list ruleset` output.
-
-For anything in this list: the JSON path is the supported target. When a text-grammar issue is hit, please add a test before patching the renderer.
+The library was first written against the `libnftables-json(5)` adoc, then re-derived against `src/parser_json.c` after `nft -c` validation surfaced gaps the adoc didn't predict. The parser is the source of truth for both sides: every field it reads on input is exposed; every key and enum `nft -j list ruleset` emits on output is accepted on the input side. See [`docs/spec-coverage.md`](docs/spec-coverage.md) for the file-by-file audit (every adoc-vs-parser deviation the schema captures and every edge case where it deliberately diverges).
 
 ## Layout
 
@@ -241,6 +211,7 @@ examples/
 docs/
   spec-coverage.md        file-by-file audit of lib/schema/ vs parser_json.c
   code-review.md          schema-layer code review (helper hierarchy, applied refactorings, deferred follow-ups)
+  text-coverage.md        text renderer coverage notes and known limitations
 ```
 
 ## Running the tests
