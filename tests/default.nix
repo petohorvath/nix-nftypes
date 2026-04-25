@@ -1364,6 +1364,29 @@ let
       };
       expected = ''{"counter":{"comment":"HTTP hits","family":"ip","name":"pkts","table":"filter"}}'';
     };
+
+    # ------------------------------------------------------------------
+    # `_type` tag stripping — libraries built on top of nftypes (e.g.
+    # nix-nftzones, matching nix-libnet's convention) tag values with
+    # `_type = "<lib>.<kind>"` for boundary checks. clean drops the tag
+    # so rendered output stays accepted by `nft -j -f` (which rejects
+    # unknown top-level keys).
+    # ------------------------------------------------------------------
+    testCleanStripsTypeRuleset = {
+      expr = toJSON {
+        _type = "x.y";
+        nftables = [ ];
+      };
+      expected = ''{"nftables":[]}'';
+    };
+
+    testCleanStripsTypeArbitraryAttrset = {
+      expr = toJSON {
+        _type = "x.y";
+        foo = 1;
+      };
+      expected = ''{"foo":1}'';
+    };
   };
 
   runTests =
