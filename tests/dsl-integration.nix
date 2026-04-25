@@ -309,6 +309,10 @@ in
     {
       name = "example-home-router-dsl";
       ruleset = import ../examples/home-router-dsl.nix { inherit nftlib; };
+      # The home-router flowtable binds to eth0/eth1; nft -c validates
+      # those device references against the netns's link table, so the
+      # runner pre-creates dummy interfaces of those names.
+      interfaces = [ "eth0" "eth1" ];
     }
   ];
 
@@ -323,6 +327,7 @@ in
         nativeBuildInputs = [
           pkgs.nftables
           pkgs.util-linux
+          pkgs.iproute2
         ];
       }
       ''
@@ -336,9 +341,19 @@ in
           ${nftlib.toJSON c.ruleset}
           RULESET_EOF
           )
+          # Per-case dummy interfaces. `nft -c` resolves device names in
+          # flowtable.dev / chain.dev against the netns's link table, so
+          # rules referencing real-NIC names need stand-ins. Cases without
+          # the field expand to an empty for-loop.
+          ifaces=${lib.escapeShellArg (lib.concatStringsSep " " (c.interfaces or [ ]))}
           # `$out` is Nix's output path — use a different name for the
           # captured stderr.
-          if nft_err=$(unshare -rn nft -c -j -f - <<<"$ruleset" 2>&1); then
+          if nft_err=$(unshare -rn bash -c "
+            for dev in $ifaces; do
+              ip link add \"\$dev\" type dummy 2>/dev/null || true
+            done
+            exec nft -c -j -f -
+          " <<<"$ruleset" 2>&1); then
             echo "PASS"
           else
             echo "FAIL:"
