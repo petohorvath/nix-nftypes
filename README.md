@@ -2,7 +2,15 @@
 
 Typed Nix bindings for nftables. Rulesets are built as structured Nix values, type-checked at evaluation time, then rendered either to libnftables-JSON for `nft -j -f` or to nftables text syntax for `nft -f`.
 
-Authoritative reference: **nftables 1.1.6** (upstream commit `0960e9001ed372140dee853733ca2c7464bdb1c7`, 2026-04-18). Every field, enum, and structural decision in this library is derived from that revision.
+Authoritative reference: **nftables 1.1.6** (upstream commit `f7dc8269ddaed49fe643423a3a403b91ab1e50db`, 2026-04-22). Every field, enum, and structural decision in this library is derived from that revision.
+
+For a full file-by-file audit of the schema layer against `parser_json.c` —
+including every confirmed gap, every enum verification, and every edge case
+where the schema chooses a different posture from the parser — see
+[`docs/spec-coverage.md`](docs/spec-coverage.md). For the schema layer's
+internal structure (helper hierarchy, identity-options fragments,
+discriminated-submodule helper, applied refactorings and deferred ones),
+see [`docs/code-review.md`](docs/code-review.md).
 
 ## Why this exists
 
@@ -170,8 +178,9 @@ The source of truth was therefore pivoted from the adoc to `src/parser_json.c` (
 
 ## Caveats
 
-- The `tunnel` named object's nested `tunnel` field has type-dependent shape (VXLAN vs ERSPAN v1 vs ERSPAN v2 vs GENEVE). These are modeled as `types.oneOf` with `addCheck` discriminators — strict but not cross-validated against the sibling `type` field.
+- The `tunnel` named object's nested `tunnel` field has type-dependent shape (VXLAN vs ERSPAN v1 vs ERSPAN v2 vs GENEVE). These are modeled with the shared `discriminatedSubmodule` helper from `lib/schema/internal.nix` (key-presence + `extraCheck` predicates), then combined under `types.oneOf` — strict but not cross-validated against the sibling `type` field.
 - An upstream bug (`parser_json.c:3913`) writes the `dport` JSON field into `obj->tunnel.sport`. The Nix types correctly expose both fields; the fix has to happen upstream.
+- The schema is intentionally broader than the parser on the `xt` statement: the type accepts `{ xt = { type = …; name = …; }; }` so `nft -j list ruleset` output containing legacy xt blocks round-trips, but `parser_json.c:2942-2944` rejects xt as input. See `docs/spec-coverage.md` (E2) for the full list of edge cases where schema and parser deliberately diverge.
 
 ### Text renderer — coverage gaps
 
@@ -192,6 +201,7 @@ lib/
   default.nix             entry point, wires schema → renderers + DSL
   clean.nix               shared null-stripping recursion (used by both renderers)
   schema/                 type-checked libnftables-json schema
+    internal.nix            private helpers (discriminatedSubmodule, listOfLen, tagOpt, wrap)
     primitives.nix          enums: family, hook, operator, meta-key, etc.
     expressions.nix         recursive `expression` type
     statements.nix          `statement` attrTag union
@@ -228,6 +238,9 @@ examples/
   basic-firewall.nix      hand-written raw attrsets (reference for users bypassing the DSL)
   basic-firewall-dsl.nix  same firewall via the DSL
   home-router-dsl.nix     comprehensive DSL showcase
+docs/
+  spec-coverage.md        file-by-file audit of lib/schema/ vs parser_json.c
+  code-review.md          schema-layer code review (helper hierarchy, applied refactorings, deferred follow-ups)
 ```
 
 ## Running the tests
