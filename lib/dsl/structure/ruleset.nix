@@ -20,23 +20,25 @@ in
 
   # -- Flush commands -------------------------------------------------------
   # Schema (objects.nix `flushObject`) accepts: table, chain, set, map,
-  # flowtable, ruleset. `flush` bare is the ubiquitous "flush everything"
-  # form. The sibling helpers take the object body so callers can supply
-  # whatever fields the schema demands — notably, `set`/`map` bodies still
-  # require `type` (and `map` for maps) even for a flush-by-name, since
-  # the submodule is shared with add-object commands.
+  # meter, ruleset (parser_json.c:4297-4304). `flush` bare is the
+  # ubiquitous "flush everything" form. The sibling helpers take the
+  # object body so callers can supply whatever fields the schema demands —
+  # notably, `set`/`map` bodies still require `type` (and `map` for maps)
+  # even for a flush-by-name, since the submodule is shared with add-object
+  # commands.
+  #
+  # `flush flowtable` is intentionally absent from both schema and DSL —
+  # the nftables parser rejects it ("Unknown object passed to flush
+  # command").
 
   flush = { flush = { ruleset = null; }; };
 
-  # nftables only supports `flush` for table / chain / set / map / ruleset.
-  # `flush flowtable` is rejected by the parser ("Unknown object passed to
-  # flush command"), even though the library's schema accepts it — omit it
-  # from the DSL to make the failure a DSL-level error.
   flushRuleset = body: { flush = { ruleset = body; }; };
   flushTable = body: { flush = { table = body; }; };
   flushChain = body: { flush = { chain = body; }; };
   flushSet = body: { flush = { set = rename.set body; }; };
   flushMap = body: { flush = { map = rename.set body; }; };
+  flushMeter = body: { flush = { meter = body; }; };
 
   # -- Standalone rule ------------------------------------------------------
   # For use outside a table tree — typically with an explicit handle or

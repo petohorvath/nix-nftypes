@@ -13,6 +13,7 @@ let
   rt = import ./rt.nix { inherit lib; };
   socket = import ./socket.nix { inherit lib; };
   fib = import ./fib.nix { inherit lib; };
+  osf = import ./osf.nix { inherit lib; };
   ipsec = import ./ipsec.nix { inherit lib; };
   tunnelMeta = import ./tunnelMeta.nix { inherit lib; };
 in
@@ -24,6 +25,7 @@ payloadFields
     rt
     socket
     fib
+    osf
     ipsec
     tunnelMeta
     ;

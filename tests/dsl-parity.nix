@@ -67,10 +67,14 @@ in
   testFieldCtState = pe dsl.fields.ct.state { ct = { key = "state"; }; };
   testFieldCtProtoSrc = pe dsl.fields.ct.protoSrc { ct = { key = "proto-src"; }; };
   testFieldRtMtu = pe dsl.fields.rt.mtu { rt = { key = "mtu"; }; };
+  testFieldRtIpsec = pe dsl.fields.rt.ipsec { rt = { key = "ipsec"; }; };
   testFieldSocketTransparent = pe dsl.fields.socket.transparent {
     socket = { key = "transparent"; };
   };
   testFieldFibOif = pe dsl.fields.fib.oif { fib = { result = "oif"; }; };
+  testFieldFibCheck = pe dsl.fields.fib.check { fib = { result = "check"; }; };
+  testFieldOsfName = pe dsl.fields.osf.name { osf = { key = "name"; }; };
+  testFieldOsfVersion = pe dsl.fields.osf.version { osf = { key = "version"; }; };
   testFieldIpsecReqid = pe dsl.fields.ipsec.reqid { ipsec = { key = "reqid"; }; };
   testFieldTunnelMetaId = pe dsl.fields.tunnelMeta.id { tunnel = { key = "id"; }; };
 
@@ -1289,9 +1293,18 @@ in
         family = "ip"; table = "nat"; name = "port_forward";
         type = "inet_service"; map = "inet_service";
       }; }; };
-  # `flushFlowtable` is intentionally omitted from the DSL — the nftables
-  # parser rejects `flush flowtable` with "Unknown object passed to flush
-  # command". See lib/dsl/structure/ruleset.nix for the rationale.
+  # `flushFlowtable` is intentionally omitted from both DSL and schema —
+  # the nftables parser rejects `flush flowtable` with "Unknown object
+  # passed to flush command". See lib/dsl/structure/ruleset.nix for the
+  # rationale.
+
+  testCmdFlushMeter = pc
+    (dsl.flushMeter { family = "inet"; table = "filter"; name = "rate_meter"; })
+    { flush = { meter = { family = "inet"; table = "filter"; name = "rate_meter"; }; }; };
+
+  testCmdListMeter = pc
+    (dsl.list.meter { family = "inet"; table = "filter"; name = "rate_meter"; })
+    { list = { meter = { family = "inet"; table = "filter"; name = "rate_meter"; }; }; };
 
   # Full ruleset integration: several new command kinds mixed together.
   testCmdRulesetIntegration = pr

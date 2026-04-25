@@ -48,8 +48,12 @@ let
     tunnel = { tag = "tunnel"; body = rename.tunnel; };
   };
 
+  # `meter` listing (parser_json.c:4191) is supported even though there's no
+  # `add meter` command — meters are anonymous sets created via the `meter`
+  # *statement*. Listed via `dsl.list.meter { family; table; name; }`.
   listObjectKinds = addObjectKinds // {
     metainfo = { tag = "metainfo"; body = lib.id; };
+    meter = { tag = "meter"; body = lib.id; };
   };
 
   # `create rule` is explicitly rejected by the nftables parser with

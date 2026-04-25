@@ -663,8 +663,15 @@ let
 
   addObject = types.attrTag (lib.mapAttrs (_: tagOpt) addObjectBodies);
 
+  # parser_json.c:4174-4192 (json_parse_cmd_list dispatch): every add-object
+  # kind plus `metainfo` (read-back-only shape) plus `meter` (singular form;
+  # plural list-multiple forms are intentionally not modelled — see
+  # docs/spec-coverage.md E11).
   listObject = types.attrTag (
-    lib.mapAttrs (_: tagOpt) (addObjectBodies // { metainfo = bodies.metainfoBody; })
+    lib.mapAttrs (_: tagOpt) (addObjectBodies // {
+      metainfo = bodies.metainfoBody;
+      meter = bodies.meterObjectBody;
+    })
   );
 
   # parser_json.c:4297-4304 (json_parse_cmd_flush dispatch table):
