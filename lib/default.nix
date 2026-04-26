@@ -48,7 +48,7 @@ in
 {
   /*
     All schema types in one namespace, mirroring `lib.types`. Primitive
-    enums (familyType, hookType, portNumber, …) sit alongside composable
+    enums (family, hook, portNumber, …) sit alongside composable
     submodule types (expression, statement, command, …) and per-variant
     body namespaces (expressions, statements, objects).
   */

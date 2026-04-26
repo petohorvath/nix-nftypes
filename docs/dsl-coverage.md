@@ -31,14 +31,14 @@ A DSL surface is **complete** for a schema body if either path can produce every
 
 ### D1. `fields/rt.nix` missing `ipsec` leaf
 
-- **Schema**: `rtKeyType = enum [ "classid" "nexthop" "mtu" "ipsec" ]` after the spec-coverage G1 fix.
+- **Schema**: `rtKey = enum [ "classid" "nexthop" "mtu" "ipsec" ]` after the spec-coverage G1 fix.
 - **DSL pre-built**: `fields/rt.nix` only exposed `classid`, `nexthop`, `mtu`.
 - **Escape hatch**: `dsl.expr.rt {key = "ipsec"; family = "ip";}` already worked.
 - **Fix**: add `"ipsec"` to the keys list in `fields/rt.nix`. Now `dsl.fields.rt.ipsec == { rt = { key = "ipsec"; }; }`.
 
 ### D2. `fields/fib.nix` missing `check` leaf
 
-- **Schema**: `fibResultType = enum [ "oif" "oifname" "type" "check" ]` after the spec-coverage G3 fix.
+- **Schema**: `fibResult = enum [ "oif" "oifname" "type" "check" ]` after the spec-coverage G3 fix.
 - **DSL pre-built**: `fields/fib.nix` only exposed `oif`, `oifname`, `type`.
 - **Escape hatch**: `dsl.expr.fib {result = "check"; flags = [...];}` already worked.
 - **Fix**: add `"check"` to the results list in `fields/fib.nix`. `parser_json.c:1213-1230` enforces flag combinations (saddr⊕daddr exactly one, iif⊕oif mutually exclusive), so a bare `dsl.fields.fib.check` is rejected by `nft -c` for everything but flag-using callers — the leaf is mostly useful in combination with the escape hatch's `flags`. Documented in the field file.
@@ -62,7 +62,7 @@ A DSL surface is **complete** for a schema body if either path can produce every
 
 ### D6. No `fields/osf.nix` (small consistency improvement)
 
-- **Schema**: `osfKeyType = enum [ "name" "version" ]` after the spec-coverage G2 fix.
+- **Schema**: `osfKey = enum [ "name" "version" ]` after the spec-coverage G2 fix.
 - **DSL pre-built**: no `osf` namespace under `fields/`.
 - **Escape hatch**: `dsl.expr.osf {key = "version"; ttl = "loose";}` works.
 - **Fix**: add a tiny `lib/dsl/fields/osf.nix` exposing both keys, mirroring the rt/fib/socket pattern. Keeps the field tree symmetric.
@@ -71,14 +71,14 @@ A DSL surface is **complete** for a schema body if either path can produce every
 
 For every DSL constructor, verify the produced attrset is accepted by the schema. Walked module-by-module:
 
-- `actions/counter.nix`: emits `{counter = null}`, `{counter = "name"}`, or `{counter = {packets?; bytes?;}}`. Schema's `counterRefOrBody = oneOf [nullType str submodule{packets,bytes}]` accepts all three. ✓
+- `actions/counter.nix`: emits `{counter = null}`, `{counter = "name"}`, or `{counter = {packets?; bytes?;}}`. Schema's `counterRefOrBody = oneOf [nullLiteral str submodule{packets,bytes}]` accepts all three. ✓
 - `actions/rate.nix` (limit, quota): emits ref-or-inline forms matching `limitRefOrBody` / `quotaRefOrBody`. Crucially, **does not emit the vestigial `unit` field** that the schema removed in spec-coverage F6. Verified by `grep '\bunit\b' lib/dsl/`. ✓
 - `actions/log.nix`: applies `rename.log` (`queueThreshold` → `queue-threshold`) before emission. ✓
 - `actions/synproxy.nix`: anonymous form requires both `mss` and `wscale`, matching the schema's `synproxyAnonBody`. (Spec-coverage E10 notes the schema is stricter than the parser here; the DSL inherits that posture.)
 - `actions/nat.nix`, `actions/queue.nix`, `actions/reject.nix`, `actions/ct.nix`, `actions/flow.nix`, `actions/misc.nix`: each constructor emits the exact body shape the corresponding schema body accepts.
-- `actions/flow.nix`: `flow {flowtable;}` defaults `op = "add"` — matches the schema's `flowOpType = ["add"]` (parser only accepts "add").
+- `actions/flow.nix`: `flow {flowtable;}` defaults `op = "add"` — matches the schema's `flowOp = ["add"]` (parser only accepts "add").
 - `verdicts.nix`: emits `{accept = null;}` etc. and `{jump = {target = …;};}` matching the schema's verdict tags. ✓
-- `ops.nix`: every operator emits `{match = {left; right; op;};}` with `op` drawn from the schema's `operatorType` enum. ✓
+- `ops.nix`: every operator emits `{match = {left; right; op;};}` with `op` drawn from the schema's `operator` enum. ✓
 - `exprs.nix`: every constructor emits a tag listed in `expressions.nix:taggedExpression`. ✓
 - `fields/*.nix`: every leaf is `{TAG = {key|result|… = "...";};}` shaped for its schema body.
 - `structure/render.nix`: object-tree expansion emits per-kind `{add = {<TAG> = body;};}` with the right rename map applied. ✓
@@ -102,7 +102,7 @@ Validate accepts a `prefix` argument (a list of path components) which evalModul
 - Inside a table tree, `chains.c = { prio = "filter"; }` → ``A definition for option `chains.c.prio' is not of type `null or signed integer'.``
 - `dsl.flushTable { family = "wireguard"; name = "t"; }` → ``A definition for option `flushTable.family' is not of type `one of "ip", "ip6", "inet", "arp", "bridge", "netdev"'.``
 
-For schema submodule types (every body in `lib/schema/objects.nix` except `rulesetBody`), validate extracts the inner options via `getSubOptions [ ]` and passes them directly to `evalModules`, so errors show the field name without indirection. For `rulesetBody` (which is `oneOf [ nullType, submodule { family; } ]` and therefore not a flat submodule) it falls back to wrapping in a top-level `value` option; `rulesetBody` is shallow enough that this indirection isn't burdensome.
+For schema submodule types (every body in `lib/schema/objects.nix` except `rulesetBody`), validate extracts the inner options via `getSubOptions [ ]` and passes them directly to `evalModules`, so errors show the field name without indirection. For `rulesetBody` (which is `oneOf [ nullLiteral, submodule { family; } ]` and therefore not a flat submodule) it falls back to wrapping in a top-level `value` option; `rulesetBody` is shallow enough that this indirection isn't burdensome.
 
 Action constructors (`actions/*.nix`), verdicts, expressions, payload helpers, ops, and field trees are not validated directly. They produce statement/expression-shaped attrsets that get embedded in rule bodies; the `ruleBody` submodule has `expr = listOf statement`, so the recursive type-check covers them transitively. The existing parity tests in `dsl-parity.nix` already prove these constructors emit schema-accepted shapes — no separate wiring required.
 

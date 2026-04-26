@@ -10,20 +10,20 @@ let
   inherit (internal) refOrInline;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
-    operatorType
-    logLevelType
-    logFlagType
-    natFlagType
-    natTypeFlagType
-    ipFamilyType
-    synproxyFlagType
-    flowOpType
-    queueFlagType
-    rejectTypeType
-    setOpType
-    xtTypeType
-    perUnitType
-    nullType
+    operator
+    logLevel
+    logFlag
+    natFlag
+    natTypeFlag
+    ipFamily
+    synproxyFlag
+    flowOp
+    queueFlag
+    rejectType
+    setOp
+    xtType
+    perUnit
+    nullLiteral
     ;
   expr = expressions.expression;
   inherit (expressions) verdictTargetBody;
@@ -40,17 +40,17 @@ let
           description = "right-hand expression";
         };
         op = mkOption {
-          type = operatorType;
+          type = operator;
           description = "comparison operator";
         };
       };
     };
 
     # Counter: parser_json.c:1914 accepts null (emitted by stateless output),
-    # inline {packets, bytes}, or a named-reference string. Wraps `nullType`
+    # inline {packets, bytes}, or a named-reference string. Wraps `nullLiteral`
     # around the standard ref-or-inline pattern.
     counterRefOrBody = types.oneOf [
-      nullType
+      nullLiteral
       (refOrInline (
         types.submodule {
           options = {
@@ -122,7 +122,7 @@ let
             description = "rate value";
           };
           per = mkOption {
-            type = perUnitType;
+            type = perUnit;
             description = "time unit (required for inline form)";
           };
           rate_unit = mkOption {
@@ -156,7 +156,7 @@ let
           description = "interface to forward on";
         };
         family = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "address family of addr";
         };
@@ -190,7 +190,7 @@ let
           description = "address to translate to";
         };
         family = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "family of addr (required in inet)";
         };
@@ -200,12 +200,12 @@ let
           description = "port to translate to";
         };
         flags = mkOption {
-          type = types.nullOr (listOrSingleton natFlagType);
+          type = types.nullOr (listOrSingleton natFlag);
           default = null;
           description = "NAT mapping flags (random/fully-random/persistent/netmap)";
         };
         type_flags = mkOption {
-          type = types.nullOr (listOrSingleton natTypeFlagType);
+          type = types.nullOr (listOrSingleton natTypeFlag);
           default = null;
           description = "NAT range semantics (interval/prefix/concat)";
         };
@@ -220,7 +220,7 @@ let
           description = "masquerade/redirect to port";
         };
         flags = mkOption {
-          type = types.nullOr (listOrSingleton natFlagType);
+          type = types.nullOr (listOrSingleton natFlag);
           default = null;
           description = "masquerade/redirect flags";
         };
@@ -230,7 +230,7 @@ let
     rejectBody = types.submodule {
       options = {
         type = mkOption {
-          type = types.nullOr rejectTypeType;
+          type = types.nullOr rejectType;
           default = null;
           description = "reject mechanism";
         };
@@ -245,7 +245,7 @@ let
     setStatementBody = types.submodule {
       options = {
         op = mkOption {
-          type = setOpType;
+          type = setOp;
           description = "operation on the set (add/update/delete)";
         };
         elem = mkOption {
@@ -268,7 +268,7 @@ let
     mapStatementBody = types.submodule {
       options = {
         op = mkOption {
-          type = setOpType;
+          type = setOp;
           description = "operation (add/update/delete)";
         };
         elem = mkOption {
@@ -314,12 +314,12 @@ let
           description = "queue threshold";
         };
         level = mkOption {
-          type = types.nullOr logLevelType;
+          type = types.nullOr logLevel;
           default = null;
           description = "log level; defaults to warn";
         };
         flags = mkOption {
-          type = types.nullOr (listOrSingleton logFlagType);
+          type = types.nullOr (listOrSingleton logFlag);
           default = null;
           description = "log flags";
         };
@@ -356,7 +356,7 @@ let
           description = "queue number or range (optional — parser_json.c:2831)";
         };
         flags = mkOption {
-          type = types.nullOr (listOrSingleton queueFlagType);
+          type = types.nullOr (listOrSingleton queueFlag);
           default = null;
           description = "queue flags";
         };
@@ -393,7 +393,7 @@ let
     xtBody = types.submodule {
       options = {
         type = mkOption {
-          type = xtTypeType;
+          type = xtType;
           description = "xtables kind";
         };
         name = mkOption {
@@ -403,7 +403,7 @@ let
       };
     };
 
-    lastBody = types.either nullType (
+    lastBody = types.either nullLiteral (
       types.submodule {
         options.used = mkOption {
           type = types.int;
@@ -415,7 +415,7 @@ let
     flowBody = types.submodule {
       options = {
         op = mkOption {
-          type = flowOpType;
+          type = flowOp;
           description = "flow offload operation (only \"add\" accepted)";
         };
         flowtable = mkOption {
@@ -428,7 +428,7 @@ let
     tproxyBody = types.submodule {
       options = {
         family = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "address family";
         };
@@ -456,7 +456,7 @@ let
           description = "window scale";
         };
         flags = mkOption {
-          type = types.nullOr (listOrSingleton synproxyFlagType);
+          type = types.nullOr (listOrSingleton synproxyFlag);
           default = null;
           description = "synproxy option flags";
         };
@@ -464,7 +464,7 @@ let
     };
     # synproxy statement: null (empty), anonymous config, or named reference string/expr.
     synproxyStatementBody = types.oneOf [
-      nullType
+      nullLiteral
       synproxyAnonBody
       expr
     ];
@@ -475,11 +475,11 @@ let
     statement = types.attrTag (
       lib.mapAttrs (_: type: mkOption { inherit type; }) {
         # Verdicts
-        accept = nullType;
-        drop = nullType;
-        continue = nullType;
-        return = nullType;
-        notrack = nullType;
+        accept = nullLiteral;
+        drop = nullLiteral;
+        continue = nullLiteral;
+        return = nullLiteral;
+        notrack = nullLiteral;
         jump = verdictTargetBody;
         goto = verdictTargetBody;
         # Core statements

@@ -315,7 +315,7 @@ let
       expected = false;
     };
 
-    # flowtableBody.hook accepts `nullOr hookType`, and flowtable.dev is
+    # flowtableBody.hook accepts `nullOr hook`, and flowtable.dev is
     # required to be a string list — pass a number to force a clean failure.
     testTreeFlowtableBadDevRejected = {
       expr = renders [

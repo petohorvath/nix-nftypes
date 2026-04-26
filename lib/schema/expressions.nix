@@ -9,21 +9,21 @@ let
   inherit (internal) discriminatedSubmodule listOfLen listOfMinLen;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
-    metaKeyType
-    rtKeyType
-    ipFamilyType
-    ctDirectionType
-    ngModeType
-    fibResultType
-    fibFlagType
-    payloadBaseType
-    osfKeyType
-    osfTtlType
-    socketKeyType
-    xfrmDirType
-    xfrmKeyType
-    tunnelKeyType
-    nullType
+    metaKey
+    rtKey
+    ipFamily
+    ctDirection
+    ngMode
+    fibResult
+    fibFlag
+    payloadBase
+    osfKey
+    osfTtl
+    socketKey
+    xfrmDir
+    xfrmKey
+    tunnelKey
+    nullLiteral
     prefixLength
     ;
 
@@ -77,7 +77,7 @@ let
       ];
       options = {
         base = mkOption {
-          type = payloadBaseType;
+          type = payloadBase;
           description = "payload base reference";
         };
         offset = mkOption {
@@ -237,7 +237,7 @@ let
 
     metaBody = types.submodule {
       options.key = mkOption {
-        type = metaKeyType;
+        type = metaKey;
         description = "meta key";
       };
     };
@@ -245,11 +245,11 @@ let
     rtBody = types.submodule {
       options = {
         key = mkOption {
-          type = rtKeyType;
+          type = rtKey;
           description = "routing data key";
         };
         family = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "address family; defaults to unspecified";
         };
@@ -263,12 +263,12 @@ let
           description = "conntrack key (e.g. \"state\", \"saddr\")";
         };
         family = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "address family; required for l3-specific keys";
         };
         dir = mkOption {
-          type = types.nullOr ctDirectionType;
+          type = types.nullOr ctDirection;
           default = null;
           description = "direction; omit for direction-less keys";
         };
@@ -278,7 +278,7 @@ let
     numgenBody = types.submodule {
       options = {
         mode = mkOption {
-          type = ngModeType;
+          type = ngMode;
           description = "number generator mode";
         };
         mod = mkOption {
@@ -333,11 +333,11 @@ let
     fibBody = types.submodule {
       options = {
         result = mkOption {
-          type = fibResultType;
+          type = fibResult;
           description = "FIB lookup result kind";
         };
         flags = mkOption {
-          type = types.nullOr (listOrSingleton fibFlagType);
+          type = types.nullOr (listOrSingleton fibFlag);
           default = null;
           description = "FIB lookup flags";
         };
@@ -346,7 +346,7 @@ let
 
     socketBody = types.submodule {
       options.key = mkOption {
-        type = socketKeyType;
+        type = socketKey;
         description = "socket key";
       };
     };
@@ -354,11 +354,11 @@ let
     osfBody = types.submodule {
       options = {
         key = mkOption {
-          type = osfKeyType;
+          type = osfKey;
           description = "OS fingerprint key";
         };
         ttl = mkOption {
-          type = types.nullOr osfTtlType;
+          type = types.nullOr osfTtl;
           default = null;
           description = "TTL matching strategy";
         };
@@ -368,16 +368,16 @@ let
     ipsecBody = types.submodule {
       options = {
         key = mkOption {
-          type = xfrmKeyType;
+          type = xfrmKey;
           description = "xfrm key (saddr/daddr/reqid/spi)";
         };
         family = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "address family (required for saddr/daddr)";
         };
         dir = mkOption {
-          type = types.nullOr xfrmDirType;
+          type = types.nullOr xfrmDir;
           default = null;
           description = "policy direction (in/out)";
         };
@@ -391,7 +391,7 @@ let
 
     tunnelExprBody = types.submodule {
       options.key = mkOption {
-        type = tunnelKeyType;
+        type = tunnelKey;
         description = "tunnel metadata key (path/id)";
       };
     };
@@ -459,10 +459,10 @@ let
         tunnel = tunnelExprBody;
         elem = elemBody;
         # Verdicts (valid in vmap data)
-        accept = nullType;
-        drop = nullType;
-        continue = nullType;
-        return = nullType;
+        accept = nullLiteral;
+        drop = nullLiteral;
+        continue = nullLiteral;
+        return = nullLiteral;
         jump = verdictTargetBody;
         goto = verdictTargetBody;
         # Binary operators

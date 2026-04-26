@@ -14,7 +14,7 @@
 #     `rulesetBody`): extract the inner options via `getSubOptions` and
 #     run evalModules directly against them, so errors show the field
 #     name without indirection.
-#   - other types (only `rulesetBody`, which is `oneOf [ nullType,
+#   - other types (only `rulesetBody`, which is `oneOf [ nullLiteral,
 #     submodule { family; } ]`): wrap in a top-level `value` option.
 #     Errors look like "<prefix>.value: …"; rulesetBody is shallow enough
 #     that the indirection isn't burdensome.

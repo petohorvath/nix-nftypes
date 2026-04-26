@@ -11,19 +11,20 @@ let
   inherit (internal) discriminatedSubmodule tagOpt wrap;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
-    familyType
-    hookType
-    policyType
-    chainTypeType
-    tableFlagType
-    setFlagType
-    setPolicyType
-    tcpUdpProtoType
-    perUnitType
-    ipFamilyType
-    synproxyFlagType
+    family
+    hook
+    policy
+    chainType
+    tableFlag
+    setFlag
+    setPolicy
+    tcpUdpProto
+    perUnit
+    ipFamily
+    synproxyFlag
+    tunnelType
     portNumber
-    nullType
+    nullLiteral
     ;
   expr = expressions.expression;
   stmt = statements.statement;
@@ -54,7 +55,7 @@ let
 
   identityCore = {
     family = mkOption {
-      type = familyType;
+      type = family;
       description = "table family";
     };
     handle = mkOption {
@@ -119,12 +120,12 @@ let
       description = "set datatype";
     };
     policy = mkOption {
-      type = types.nullOr setPolicyType;
+      type = types.nullOr setPolicy;
       default = null;
       description = "set policy";
     };
     flags = mkOption {
-      type = types.nullOr (listOrSingleton setFlagType);
+      type = types.nullOr (listOrSingleton setFlag);
       default = null;
       description = "set flags";
     };
@@ -166,7 +167,7 @@ let
         tableContainerOptions
         // {
           flags = mkOption {
-            type = types.nullOr (listOrSingleton tableFlagType);
+            type = types.nullOr (listOrSingleton tableFlag);
             default = null;
             description = "table flags";
           };
@@ -184,12 +185,12 @@ let
             description = "new name (rename command only)";
           };
           type = mkOption {
-            type = types.nullOr chainTypeType;
+            type = types.nullOr chainType;
             default = null;
             description = "base chain type (required for base chains)";
           };
           hook = mkOption {
-            type = types.nullOr hookType;
+            type = types.nullOr hook;
             default = null;
             description = "hook point (required for base chains)";
           };
@@ -205,7 +206,7 @@ let
             description = "bound interface(s) for netdev-family base chains";
           };
           policy = mkOption {
-            type = types.nullOr policyType;
+            type = types.nullOr policy;
             default = null;
             description = "default policy for base chains";
           };
@@ -262,7 +263,7 @@ let
     flowtableBody = types.submodule {
       options = namedInTableOptions // {
         hook = mkOption {
-          type = types.nullOr hookType;
+          type = types.nullOr hook;
           default = null;
           description = "hook point";
         };
@@ -324,12 +325,12 @@ let
           description = "helper type (e.g. ftp, tftp)";
         };
         protocol = mkOption {
-          type = types.nullOr tcpUdpProtoType;
+          type = types.nullOr tcpUdpProto;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "layer-3 protocol";
         };
@@ -344,7 +345,7 @@ let
           description = "rate value";
         };
         per = mkOption {
-          type = perUnitType;
+          type = perUnit;
           description = "time unit";
         };
         rate_unit = mkOption {
@@ -374,12 +375,12 @@ let
     ctTimeoutObjectBody = types.submodule {
       options = commonObjectOptions // {
         protocol = mkOption {
-          type = types.nullOr tcpUdpProtoType;
+          type = types.nullOr tcpUdpProto;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "layer-3 protocol";
         };
@@ -395,12 +396,12 @@ let
     ctExpectationObjectBody = types.submodule {
       options = commonObjectOptions // {
         l3proto = mkOption {
-          type = types.nullOr ipFamilyType;
+          type = types.nullOr ipFamily;
           default = null;
           description = "layer-3 protocol";
         };
         protocol = mkOption {
-          type = types.nullOr tcpUdpProtoType;
+          type = types.nullOr tcpUdpProto;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
@@ -461,7 +462,7 @@ let
           description = "window scale";
         };
         flags = mkOption {
-          type = types.nullOr (listOrSingleton synproxyFlagType);
+          type = types.nullOr (listOrSingleton synproxyFlag);
           default = null;
           description = "synproxy option flags";
         };
@@ -541,12 +542,6 @@ let
       (types.listOf tunnelGeneveOpt)
     ];
 
-    tunnelTypeType = types.enum [
-      "vxlan"
-      "erspan"
-      "geneve"
-    ];
-
     # Tunnel named object.
     tunnelObjectBody = types.submodule {
       options = commonObjectOptions // {
@@ -596,7 +591,7 @@ let
           description = "IP TOS";
         };
         type = mkOption {
-          type = types.nullOr tunnelTypeType;
+          type = types.nullOr tunnelType;
           default = null;
           description = "tunnel encapsulation (vxlan/erspan/geneve)";
         };
@@ -610,10 +605,10 @@ let
 
     # `ruleset` body is `null` (operate on all) OR `{ family = "ip"; }`.
     rulesetBody = types.oneOf [
-      nullType
+      nullLiteral
       (types.submodule {
         options.family = mkOption {
-          type = familyType;
+          type = family;
           description = "limit scope to this family";
         };
       })

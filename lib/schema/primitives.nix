@@ -3,7 +3,7 @@
 let
   inherit (lib) types mkOptionType;
 
-  nullType = mkOptionType {
+  nullLiteral = mkOptionType {
     name = "null";
     description = "null literal";
     descriptionClass = "noun";
@@ -14,7 +14,7 @@ let
   portNumber = types.ints.between 0 65535;
   prefixLength = types.ints.between 0 128;
 
-  familyType = types.enum [
+  family = types.enum [
     "ip"
     "ip6"
     "inet"
@@ -23,7 +23,7 @@ let
     "netdev"
   ];
 
-  hookType = types.enum [
+  hook = types.enum [
     "prerouting"
     "input"
     "forward"
@@ -33,18 +33,18 @@ let
     "egress"
   ];
 
-  policyType = types.enum [
+  policy = types.enum [
     "accept"
     "drop"
   ];
 
-  chainTypeType = types.enum [
+  chainType = types.enum [
     "filter"
     "nat"
     "route"
   ];
 
-  operatorType = types.enum [
+  operator = types.enum [
     "=="
     "!="
     "<"
@@ -54,25 +54,25 @@ let
     "in"
   ];
 
-  tableFlagType = types.enum [
+  tableFlag = types.enum [
     "dormant"
     "owner"
     "persist"
   ];
 
-  setFlagType = types.enum [
+  setFlag = types.enum [
     "constant"
     "interval"
     "timeout"
     "dynamic"
   ];
 
-  setPolicyType = types.enum [
+  setPolicy = types.enum [
     "performance"
     "memory"
   ];
 
-  logLevelType = types.enum [
+  logLevel = types.enum [
     "emerg"
     "alert"
     "crit"
@@ -84,7 +84,7 @@ let
     "audit"
   ];
 
-  logFlagType = types.enum [
+  logFlag = types.enum [
     "tcp sequence"
     "tcp options"
     "ip options"
@@ -93,45 +93,45 @@ let
     "all"
   ];
 
-  natFlagType = types.enum [
+  natFlag = types.enum [
     "random"
     "fully-random"
     "persistent"
     "netmap"
   ];
 
-  synproxyFlagType = types.enum [
+  synproxyFlag = types.enum [
     "timestamp"
     "sack-perm"
   ];
 
-  flowOpType = types.enum [
+  flowOp = types.enum [
     "add"
   ];
 
-  xfrmDirType = types.enum [
+  xfrmDir = types.enum [
     "in"
     "out"
   ];
 
-  xfrmKeyType = types.enum [
+  xfrmKey = types.enum [
     "saddr"
     "daddr"
     "reqid"
     "spi"
   ];
 
-  tunnelKeyType = types.enum [
+  tunnelKey = types.enum [
     "path"
     "id"
   ];
 
-  queueFlagType = types.enum [
+  queueFlag = types.enum [
     "bypass"
     "fanout"
   ];
 
-  rejectTypeType = types.enum [
+  rejectType = types.enum [
     "tcp reset"
     "icmpx"
     "icmp"
@@ -139,7 +139,7 @@ let
   ];
 
   # parser_json.c:2494-2502 accepts add/update/delete.
-  setOpType = types.enum [
+  setOp = types.enum [
     "add"
     "update"
     "delete"
@@ -147,7 +147,7 @@ let
 
   # Meta keys — matches meta_templates[] in src/meta.c plus the backcompat
   # aliases accepted by meta_key_parse (ibriport, obriport, secpath).
-  metaKeyType = types.enum [
+  metaKey = types.enum [
     "length"
     "protocol"
     "nfproto"
@@ -194,7 +194,7 @@ let
   # parser_json.c:993-997 rt_key_tbl[]: classid (NFT_RT_CLASSID), nexthop
   # (NFT_RT_NEXTHOP4, swapped to NEXTHOP6 when family=ip6), mtu (NFT_RT_TCPMSS),
   # ipsec (NFT_RT_XFRM — boolean: skb->dst->xfrm != NULL).
-  rtKeyType = types.enum [
+  rtKey = types.enum [
     "classid"
     "nexthop"
     "mtu"
@@ -204,17 +204,17 @@ let
   # `ip`/`ip6` family enum, used wherever the parser restricts a `family`
   # field to IPv4/IPv6 (rt expression, ipsec/xfrm expression, ct expression's
   # l3-specific keys, NAT statement, and named-object l3proto fields).
-  ipFamilyType = types.enum [
+  ipFamily = types.enum [
     "ip"
     "ip6"
   ];
 
-  ctDirectionType = types.enum [
+  ctDirection = types.enum [
     "original"
     "reply"
   ];
 
-  ngModeType = types.enum [
+  ngMode = types.enum [
     "inc"
     "random"
   ];
@@ -222,14 +222,14 @@ let
   # parser_json.c:1176-1182. "check" is the predicate form: result resolves
   # to NFT_FIB_RESULT_OIF with NFT_FIB_F_PRESENT flag set ("does this route
   # exist?" rather than a value lookup).
-  fibResultType = types.enum [
+  fibResult = types.enum [
     "oif"
     "oifname"
     "type"
     "check"
   ];
 
-  fibFlagType = types.enum [
+  fibFlag = types.enum [
     "saddr"
     "daddr"
     "mark"
@@ -237,7 +237,7 @@ let
     "oif"
   ];
 
-  payloadBaseType = types.enum [
+  payloadBase = types.enum [
     "ll"
     "nh"
     "th"
@@ -245,7 +245,7 @@ let
   ];
 
   # NAT statement `type_flags` (parser_json.c:2274-2283).
-  natTypeFlagType = types.enum [
+  natTypeFlag = types.enum [
     "interval"
     "prefix"
     "concat"
@@ -253,17 +253,17 @@ let
 
   # parser_json.c:484-489 accepts "name" (default OSF lookup) and "version"
   # (sets NFT_OSF_F_VERSION).
-  osfKeyType = types.enum [
+  osfKey = types.enum [
     "name"
     "version"
   ];
 
-  osfTtlType = types.enum [
+  osfTtl = types.enum [
     "loose"
     "skip"
   ];
 
-  socketKeyType = types.enum [
+  socketKey = types.enum [
     "transparent"
     "mark"
     "wildcard"
@@ -273,28 +273,35 @@ let
   # (parser_json.c:3795-3802), ct timeout (parser_json.c:3815-3823), and ct
   # expectation (parser_json.c:3844-3852) `protocol` fields. Adoc lists more
   # protocols for ct timeout but those aren't honoured by the JSON path.
-  tcpUdpProtoType = types.enum [
+  tcpUdpProto = types.enum [
     "tcp"
     "udp"
   ];
 
-  xtTypeType = types.enum [
+  xtType = types.enum [
     "match"
     "target"
     "watcher"
   ];
 
-  limitUnitType = types.enum [
+  limitUnit = types.enum [
     "packets"
     "bytes"
   ];
 
-  perUnitType = types.enum [
+  perUnit = types.enum [
     "second"
     "minute"
     "hour"
     "day"
     "week"
+  ];
+
+  # Tunnel encapsulation kind for the tunnel named object's `type` field.
+  tunnelType = types.enum [
+    "vxlan"
+    "erspan"
+    "geneve"
   ];
 
   listOrSingleton = elemType: types.either elemType (types.listOf elemType);
@@ -304,44 +311,45 @@ in
 
   types = {
     inherit
-      familyType
-      hookType
-      policyType
-      chainTypeType
-      operatorType
-      tableFlagType
-      setFlagType
-      setPolicyType
-      logLevelType
-      logFlagType
-      natFlagType
-      natTypeFlagType
-      synproxyFlagType
-      flowOpType
-      xfrmDirType
-      xfrmKeyType
-      tunnelKeyType
-      queueFlagType
-      rejectTypeType
-      setOpType
-      metaKeyType
-      rtKeyType
-      ipFamilyType
-      ctDirectionType
-      ngModeType
-      fibResultType
-      fibFlagType
-      payloadBaseType
-      osfKeyType
-      osfTtlType
-      socketKeyType
-      tcpUdpProtoType
-      xtTypeType
-      limitUnitType
-      perUnitType
+      family
+      hook
+      policy
+      chainType
+      operator
+      tableFlag
+      setFlag
+      setPolicy
+      logLevel
+      logFlag
+      natFlag
+      natTypeFlag
+      synproxyFlag
+      flowOp
+      xfrmDir
+      xfrmKey
+      tunnelKey
+      tunnelType
+      queueFlag
+      rejectType
+      setOp
+      metaKey
+      rtKey
+      ipFamily
+      ctDirection
+      ngMode
+      fibResult
+      fibFlag
+      payloadBase
+      osfKey
+      osfTtl
+      socketKey
+      tcpUdpProto
+      xtType
+      limitUnit
+      perUnit
       portNumber
       prefixLength
-      nullType
+      nullLiteral
       ;
   };
 }

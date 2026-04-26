@@ -36,14 +36,14 @@ Every accepted string-equality branch (`if (!strcmp(key, "..."))`) and every ent
 
 These are cases where the parser accepts something the schema rejects.
 
-### G1. `rtKeyType` missing `"ipsec"`
+### G1. `rtKey` missing `"ipsec"`
 
 - **Parser**: `parser_json.c:993-997` — `rt_key_tbl[]` includes `{ "ipsec", NFT_RT_XFRM }`. JSON `{ "rt": { "key": "ipsec", "family": "ip" } }` is accepted.
-- **Schema**: `lib/schema/primitives.nix:194-198` — `rtKeyType = enum [ "classid" "nexthop" "mtu" ]`. `"ipsec"` is rejected at evaluation time.
+- **Schema**: `lib/schema/primitives.nix:194-198` — `rtKey = enum [ "classid" "nexthop" "mtu" ]`. `"ipsec"` is rejected at evaluation time.
 - **Origin**: NFT_RT_XFRM has been in `parser_json.c`'s `rt_key_tbl` since the table was introduced; the schema's enum was derived against `src/rt.c`'s `RT_TEMPLATE` table, which uses the same `"ipsec"` token (`src/rt.c:87`), but it was missed.
-- **Fix in this work**: add `"ipsec"` to `rtKeyType`.
+- **Fix in this work**: add `"ipsec"` to `rtKey`.
 
-### G2. `osfKeyType` missing `"version"`
+### G2. `osfKey` missing `"version"`
 
 - **Parser**: `parser_json.c:486-489` —
   ```c
@@ -53,16 +53,16 @@ These are cases where the parser accepts something the schema rejects.
       …
   }
   ```
-- **Schema**: `lib/schema/primitives.nix:243-245` — `osfKeyType = enum [ "name" ]`.
+- **Schema**: `lib/schema/primitives.nix:243-245` — `osfKey = enum [ "name" ]`.
 - **Origin**: not derived from a lookup table; parser uses string-equality branches and the second branch was missed.
-- **Fix in this work**: add `"version"` to `osfKeyType`.
+- **Fix in this work**: add `"version"` to `osfKey`.
 
-### G3. `fibResultType` missing `"check"`
+### G3. `fibResult` missing `"check"`
 
 - **Parser**: `parser_json.c:1176-1182` — `fib_result_tbl[]` ends with `[__NFT_FIB_RESULT_MAX] = "check"` (a special form mapping to `NFT_FIB_RESULT_OIF` + `NFTA_FIB_F_PRESENT` flag). JSON `{ "fib": { "result": "check", "flags": ["saddr"] } }` is accepted.
-- **Schema**: `lib/schema/primitives.nix:215-219` — `fibResultType = enum [ "oif" "oifname" "type" ]`.
+- **Schema**: `lib/schema/primitives.nix:215-219` — `fibResult = enum [ "oif" "oifname" "type" ]`.
 - **Note**: the `"check"` form is semantically a "does this route exist?" predicate, not a value lookup. Useful in the wild (`tests/py/inet/fib.t`).
-- **Fix in this work**: add `"check"` to `fibResultType`.
+- **Fix in this work**: add `"check"` to `fibResult`.
 
 ### G4. `flushObject` includes `flowtable` but parser does not
 
@@ -124,7 +124,7 @@ Items the README "How this was built" section already notes are restated here in
 | `set.flag = "dynamic"` | `parser_json.c:3296` | constant/interval/timeout only | `primitives.nix:63-68` ✓ |
 | `family = "egress"` hook | `chain_hookname_lookup`, kernel `nf_inet_hooks` | absent or partial | `primitives.nix:26-34` ✓ |
 | `family = "arp"`, `"bridge"`, `"netdev"` | `parse_family` | partial in adoc | `primitives.nix:17-24` ✓ |
-| Counter accepts `null` (stateless mode emit) | `parser_json.c:1914-1915` | not noted | `statements.nix:49-66` (`oneOf [nullType …]`) ✓ |
+| Counter accepts `null` (stateless mode emit) | `parser_json.c:1914-1915` | not noted | `statements.nix:49-66` (`oneOf [nullLiteral …]`) ✓ |
 | Raw `tcp option` form (`{ base, offset, len }`) | `parser_json.c:745-765` | named only | `expressions.nix:152-189` ✓ |
 | Tunnelled `payload` form (`{ tunnel, protocol, field }`) | `parser_json.c:686-712` | not mentioned | `expressions.nix:88-106` ✓ |
 | Meta keys: `iifkind`, `oifkind`, `ibrpvid`, `ibrvproto`, `time`, `day`, `hour`, `secmark`, `sdif`, `sdifname`, `broute`, `ibrhwaddr`, `cgroup`, `ipsec` (=SECPATH), backwards-compat `ibriport`, `obriport`, `secpath` | `meta_templates[]` (`src/meta.c:617-708`) + `meta_key_parse` aliases (`src/meta.c:1020-1030`) | partial | `primitives.nix:150-192` (37 canonical + 3 aliases = 40) ✓ |
@@ -146,42 +146,42 @@ Items the README "How this was built" section already notes are restated here in
 
 | Schema enum | Authoritative source | Status |
 |---|---|---|
-| `familyType` | `parse_family` | ✓ |
-| `hookType` | `chain_hookname_lookup` (kernel `nf_inet_hooks` + `egress`) | ✓ |
-| `policyType` | `parse_policy` (`parser_json.c:3006-3019`) | ✓ |
-| `chainTypeType` | parser stores arbitrary string; valid set is `filter`/`nat`/`route` from kernel | ✓ |
-| `operatorType` | `match` op `expr_op_symbols` for `OP_EQ..OP_NEG` + `"in"` (`parser_json.c:1873-1888`) | ✓ |
-| `tableFlagType` | `parse_table_flag` → `table_flags_name[]` (`src/rule.c:1230-1234`: dormant/owner/persist) | ✓ |
-| `setFlagType` | `string_to_set_flag` (`parser_json.c:3287-3305`: constant/interval/timeout/dynamic) | ✓ |
-| `setPolicyType` | `parser_json.c:3385-3395` (performance/memory) | ✓ |
-| `logLevelType` | `log_level_parse` (covers emerg…audit) | ✓ |
-| `logFlagType` | `json_parse_log_flag` (`parser_json.c:2592-2604`) | ✓ |
-| `natFlagType` | `json_parse_nat_flag` (`parser_json.c:2254-2272`) | ✓ |
-| `natTypeFlagType` | `json_parse_nat_type_flag` (`parser_json.c:2274-2291`) | ✓ |
-| `synproxyFlagType` | `json_parse_synproxy_flag` (`parser_json.c:2660-2676`) | ✓ |
-| `flowOpType` | only `"add"` accepted (`parser_json.c:2169-2172`) | ✓ |
-| `xfrmDirType` | `parser_json.c:1611-1620` | ✓ |
-| `xfrmKeyType` | `xfrm_templates[]` (`src/xfrm.c`) | ✓ |
-| `tunnelKeyType` | `tunnel_key_parse` (path/id) | ✓ |
-| `queueFlagType` | `queue_flag_parse` (`parser_json.c:2815-2822`) | ✓ |
-| `rejectTypeType` | `parser_json.c:2412-2429` | ✓ |
-| `setOpType` | `parser_json.c:2494-2502, 2545-2553` | ✓ |
-| `metaKeyType` | `meta_templates[]` + `meta_key_parse` aliases | ✓ |
-| `rtKeyType` | `rt_key_tbl[]` (`parser_json.c:993-998`) | **G1 — missing `ipsec`** |
+| `family` | `parse_family` | ✓ |
+| `hook` | `chain_hookname_lookup` (kernel `nf_inet_hooks` + `egress`) | ✓ |
+| `policy` | `parse_policy` (`parser_json.c:3006-3019`) | ✓ |
+| `chainType` | parser stores arbitrary string; valid set is `filter`/`nat`/`route` from kernel | ✓ |
+| `operator` | `match` op `expr_op_symbols` for `OP_EQ..OP_NEG` + `"in"` (`parser_json.c:1873-1888`) | ✓ |
+| `tableFlag` | `parse_table_flag` → `table_flags_name[]` (`src/rule.c:1230-1234`: dormant/owner/persist) | ✓ |
+| `setFlag` | `string_to_set_flag` (`parser_json.c:3287-3305`: constant/interval/timeout/dynamic) | ✓ |
+| `setPolicy` | `parser_json.c:3385-3395` (performance/memory) | ✓ |
+| `logLevel` | `log_level_parse` (covers emerg…audit) | ✓ |
+| `logFlag` | `json_parse_log_flag` (`parser_json.c:2592-2604`) | ✓ |
+| `natFlag` | `json_parse_nat_flag` (`parser_json.c:2254-2272`) | ✓ |
+| `natTypeFlag` | `json_parse_nat_type_flag` (`parser_json.c:2274-2291`) | ✓ |
+| `synproxyFlag` | `json_parse_synproxy_flag` (`parser_json.c:2660-2676`) | ✓ |
+| `flowOp` | only `"add"` accepted (`parser_json.c:2169-2172`) | ✓ |
+| `xfrmDir` | `parser_json.c:1611-1620` | ✓ |
+| `xfrmKey` | `xfrm_templates[]` (`src/xfrm.c`) | ✓ |
+| `tunnelKey` | `tunnel_key_parse` (path/id) | ✓ |
+| `queueFlag` | `queue_flag_parse` (`parser_json.c:2815-2822`) | ✓ |
+| `rejectType` | `parser_json.c:2412-2429` | ✓ |
+| `setOp` | `parser_json.c:2494-2502, 2545-2553` | ✓ |
+| `metaKey` | `meta_templates[]` + `meta_key_parse` aliases | ✓ |
+| `rtKey` | `rt_key_tbl[]` (`parser_json.c:993-998`) | **G1 — missing `ipsec`** |
 | `rtFamilyType` | `parse_family` restricted | ✓ |
-| `ctDirectionType` | `parser_json.c:1077-1085` | ✓ |
-| `ngModeType` | `parser_json.c:1107-1114` | ✓ |
-| `fibResultType` | `fib_result_tbl[]` (`parser_json.c:1176-1182`) | **G3 — missing `check`** |
-| `fibFlagType` | `fib_flag_parse` (`parser_json.c:1155-1170`) | ✓ |
-| `payloadBaseType` | `parser_json.c:662-672` | ✓ (`ih` included) |
-| `osfKeyType` | `parser_json.c:484-489` | **G2 — missing `version`** |
-| `osfTtlType` | `parser_json.c:474-481` | ✓ |
-| `socketKeyType` | `parser_json.c:504-510` (transparent/mark/wildcard) | ✓ — see E1 below |
+| `ctDirection` | `parser_json.c:1077-1085` | ✓ |
+| `ngMode` | `parser_json.c:1107-1114` | ✓ |
+| `fibResult` | `fib_result_tbl[]` (`parser_json.c:1176-1182`) | **G3 — missing `check`** |
+| `fibFlag` | `fib_flag_parse` (`parser_json.c:1155-1170`) | ✓ |
+| `payloadBase` | `parser_json.c:662-672` | ✓ (`ih` included) |
+| `osfKey` | `parser_json.c:484-489` | **G2 — missing `version`** |
+| `osfTtl` | `parser_json.c:474-481` | ✓ |
+| `socketKey` | `parser_json.c:504-510` (transparent/mark/wildcard) | ✓ — see E1 below |
 | `ctHelperProtoType` | `parser_json.c:3795-3802` | ✓ |
 | `ctTimeoutProtoType` | `parser_json.c:3815-3823, 3844-3852` (alias of `ctHelperProtoType` since the parser only branches tcp/udp for both) | ✓ |
-| `xtTypeType` | schema models (match/target/watcher); parser **rejects all `xt`** (`parser_json.c:2942-2944`) | E2 below |
-| `limitUnitType` | `rate_to_bytes` (kbytes/mbytes) + special `"packets"` | ✓ |
-| `perUnitType` | `seconds_from_unit` (`parser_json.c:2063-2074`) | ✓ |
+| `xtType` | schema models (match/target/watcher); parser **rejects all `xt`** (`parser_json.c:2942-2944`) | E2 below |
+| `limitUnit` | `rate_to_bytes` (kbytes/mbytes) + special `"packets"` | ✓ |
+| `perUnit` | `seconds_from_unit` (`parser_json.c:2063-2074`) | ✓ |
 | `natFamilyType` | `parse_family` restricted | ✓ |
 
 ---
@@ -194,7 +194,7 @@ Items where the parser does something the schema cannot or chooses not to enforc
 
 - `src/socket.c:37-40` defines `NFT_SOCKET_CGROUPV2 = "cgroupv2"`.
 - `parser_json.c:495-518` (`json_parse_socket_expr`) only accepts `transparent`, `mark`, `wildcard`. `cgroupv2` is never read by the JSON path; it's reachable only via the `nft` text grammar (`parser_bison.y:5540-5542`).
-- **Schema is correct** to omit `cgroupv2` from `socketKeyType` — parser fidelity wins. If/when upstream updates `json_parse_socket_expr`, this becomes a gap; tracked here to prompt a re-check on each version bump.
+- **Schema is correct** to omit `cgroupv2` from `socketKey` — parser fidelity wins. If/when upstream updates `json_parse_socket_expr`, this becomes a gap; tracked here to prompt a re-check on each version bump.
 
 ### E2. `xt` statement modelled but parser always rejects
 
@@ -209,7 +209,7 @@ Items where the parser does something the schema cannot or chooses not to enforc
 
 ### E4. `ct.dir` always optional in schema but parser-conditional
 
-- `parser_json.c:1077-1090` only accepts `dir` when `ct_key_is_dir(keyval)` is true. Schema marks `dir = nullOr ctDirectionType` unconditionally.
+- `parser_json.c:1077-1090` only accepts `dir` when `ct_key_is_dir(keyval)` is true. Schema marks `dir = nullOr ctDirection` unconditionally.
 - **Reasoning**: schema can't easily encode the conditional without duplicating the entire `ct_dir_keys[]` table. Documented as permissive.
 
 ### E5. Mangle key MUST be exthdr/payload/meta/ct in parser
@@ -229,7 +229,7 @@ Items where the parser does something the schema cannot or chooses not to enforc
 
 ### E8. FIB flags have mutual-exclusion sanity checks
 
-- `parser_json.c:1213-1230`: `(saddr,daddr)` pair must be set with exactly one; `(iif,oif)` pair if both set is rejected. Schema's `fibBody.flags = listOrSingleton fibFlagType` doesn't enforce these.
+- `parser_json.c:1213-1230`: `(saddr,daddr)` pair must be set with exactly one; `(iif,oif)` pair if both set is rejected. Schema's `fibBody.flags = listOrSingleton fibFlag` doesn't enforce these.
 - **Schema permissive**.
 
 ### E9. Concat expression requires size >= 2
@@ -313,7 +313,7 @@ Schema correctly exposes both `sport` and `dport`; the fix has to land upstream.
 
 The serializer was spot-checked for cases where output uses keys not on the input side (which would be parser-fidelity gaps from the `nft -j list ruleset` direction). Key findings:
 
-- **`{counter: null}` stateless output**: `src/json.c` emits `null` for counter statements when the rule didn't carry counter values. Parser accepts (`parser_json.c:1914-1915`). Schema accepts via `counterRefOrBody` `oneOf [nullType …]`. Round-trip safe.
+- **`{counter: null}` stateless output**: `src/json.c` emits `null` for counter statements when the rule didn't carry counter values. Parser accepts (`parser_json.c:1914-1915`). Schema accepts via `counterRefOrBody` `oneOf [nullLiteral …]`. Round-trip safe.
 - **`metainfo` first object**: emitted as `{ "metainfo": { "version": "...", "release_name": "...", "json_schema_version": int } }`. Schema's `metainfoBody` matches.
 - **`handle` echoed back on every object**: schema's nullable `handle` on every body type accepts these. Round-trip safe.
 - **`elem` array entries**: emitted as either the bare value or `{ "elem": { "val": …, "timeout"?: int, "expires"?: int, "comment"?: str } }`. Schema handles both via `setElem = either expr (listOf expr)` for the container and `elemBody` for the tagged form.

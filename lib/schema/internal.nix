@@ -44,7 +44,7 @@ in
   # quota and limit statements where the user either points at a
   # pre-declared object by name (`{quota = "name"}`) or inlines the
   # body (`{quota = {val;val_unit;…}}`). Counter (parser_json.c:1914-1915)
-  # also accepts `null` and is built as `oneOf [nullType (refOrInline …)]`
+  # also accepts `null` and is built as `oneOf [nullLiteral (refOrInline …)]`
   # at the call site rather than parameterising this helper.
   refOrInline = inlineBody: types.either types.str inlineBody;
 
