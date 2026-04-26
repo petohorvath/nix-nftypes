@@ -191,6 +191,205 @@ let
         }))).success;
       expected = false;
     };
+
+    # ----- table-tree leaves (render.nix path) ----------------------------
+    # One per plural-keyed object container, each picking a clearly-bad
+    # value for the matching schema submodule. Asserts the leaf-validation
+    # in render.nix routes every kind through the right body type.
+
+    testTreeTableBadFlagsRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          flags = [ "no-such-flag" ];
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeRuleBadHandleRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          chains.c = {
+            rules = [
+              {
+                expr = [ ];
+                handle = "abc";
+              }
+            ];
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeSetBadTypeRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          sets.s = {
+            type = 42;
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeMapMissingMapRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          maps.m = {
+            type = "ipv4_addr";
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    # `setElem` (the type behind `elem`) accepts string/int/bool/list as
+    # bare expressions, so we exercise the schema via a different field —
+    # `family` is a strict enum, easy to violate cleanly.
+    testTreeElementBadFamilyRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          elements.s = {
+            family = "wireguard";
+            elements = [ "1.2.3.4" ];
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    # flowtableBody.hook accepts `nullOr hookType`, and flowtable.dev is
+    # required to be a string list — pass a number to force a clean failure.
+    testTreeFlowtableBadDevRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          flowtables.ft = {
+            hook = "ingress";
+            prio = 0;
+            dev = 42;
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeCounterBadPacketsRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          counters.c = {
+            packets = "lots";
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeQuotaBadBytesRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          quotas.q = {
+            bytes = "infinity";
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeLimitMissingPerRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          limits.l = {
+            rate = 100;
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeCtHelperBadProtocolRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          ctHelpers.h = {
+            protocol = "icmp";
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeCtTimeoutBadL3protoRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          ctTimeouts.t = {
+            l3proto = "ipx";
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeCtExpectationBadDportRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          ctExpectations.e = {
+            dport = 99999;
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeSecmarkBadContextRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          secmarks.s = {
+            context = 42;
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeSynproxyMissingMssRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          synproxies.sp = {
+            wscale = 7;
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    testTreeTunnelBadTypeRejected = {
+      expr = renders [
+        (dsl.table "ip" "t" {
+          tunnels.tn = {
+            type = "wireguard";
+          };
+        })
+      ];
+      expected = false;
+    };
+
+    # ----- happy path: a complete, valid ruleset still renders -----------
+
+    testTreeAcceptedRulesetSucceeds = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.ruleset [
+          (dsl.table "ip" "t" {
+            chains.c = {
+              type = "filter";
+              hook = "input";
+              prio = 0;
+              policy = "accept";
+              rules = [ [ dsl.accept ] ];
+            };
+          })
+        ]))).success;
+      expected = true;
+    };
   };
 
   runTests =
