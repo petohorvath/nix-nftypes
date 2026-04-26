@@ -37,6 +37,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          validation = import ./tests/dsl-validation.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
         in
         {
           schema-tests = tests.runTests pkgs;
@@ -57,6 +61,11 @@
           # binding 1:1 contract — both renderers agree on what they
           # build inside the kernel.
           render-equivalence-tests = renderEquivalence.runEquivalenceTests pkgs renderEquivalence.equivalenceCases;
+          # DSL-level validation: each constructor that takes a user body
+          # must route it through the matching schema submodule before
+          # emitting JSON. Catches the silent-data-loss bug (where a bad
+          # field rendered to JSON and `nft -j -f` dropped the section).
+          dsl-validation-tests = validation.runTests pkgs;
         }
       );
 
