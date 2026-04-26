@@ -25,11 +25,21 @@
   prefix ? [ ],
 }:
 
-if type ? getSubOptions then
+let
+  # `getSubOptions` exists on submodules and on composite types like
+  # `either`/`oneOf` that wrap them. Submodules return their declared
+  # options (plus `_module`); composites return an empty set unless the
+  # composite happens to be a single submodule. Distinguish by whether
+  # any user-declared option survives the `_module` strip.
+  rawSubOpts = if type ? getSubOptions then type.getSubOptions [ ] else { };
+  subOpts = builtins.removeAttrs rawSubOpts [ "_module" ];
+  isFlatSubmodule = subOpts != { };
+in
+if isFlatSubmodule then
   (lib.evalModules {
     inherit prefix;
     modules = [
-      { options = builtins.removeAttrs (type.getSubOptions [ ]) [ "_module" ]; }
+      { options = subOpts; }
       value
     ];
   }).config

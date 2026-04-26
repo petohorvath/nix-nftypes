@@ -4,6 +4,10 @@
 # (create, delete, destroy, list, rename, reset, replace, insert) see
 # ./commands.nix. The ruleset renderer passes any bare command attrset
 # through unchanged, so users can always drop to raw JSON if needed.
+#
+# Each `flush*` helper and the standalone `rule` constructor runs the
+# user body through the matching schema submodule before emitting; the
+# table-tree path is validated leaf-by-leaf in `render.nix`.
 
 let
   render = import ./render.nix { inherit lib validate objects; };
@@ -39,32 +43,56 @@ in
 
   flushRuleset = body: {
     flush = {
-      ruleset = body;
+      ruleset = validate {
+        type = objects.rulesetBody;
+        value = body;
+        prefix = [ "flushRuleset" ];
+      };
     };
   };
   flushTable = body: {
     flush = {
-      table = body;
+      table = validate {
+        type = objects.tableBody;
+        value = body;
+        prefix = [ "flushTable" ];
+      };
     };
   };
   flushChain = body: {
     flush = {
-      chain = body;
+      chain = validate {
+        type = objects.chainBody;
+        value = body;
+        prefix = [ "flushChain" ];
+      };
     };
   };
   flushSet = body: {
     flush = {
-      set = rename.set body;
+      set = validate {
+        type = objects.setObjectBody;
+        value = rename.set body;
+        prefix = [ "flushSet" ];
+      };
     };
   };
   flushMap = body: {
     flush = {
-      map = rename.set body;
+      map = validate {
+        type = objects.mapObjectBody;
+        value = rename.set body;
+        prefix = [ "flushMap" ];
+      };
     };
   };
   flushMeter = body: {
     flush = {
-      meter = body;
+      meter = validate {
+        type = objects.meterObjectBody;
+        value = body;
+        prefix = [ "flushMeter" ];
+      };
     };
   };
 
@@ -81,19 +109,27 @@ in
       index ? null,
       comment ? null,
     }:
+    let
+      body = compact {
+        inherit
+          family
+          table
+          chain
+          expr
+          handle
+          index
+          comment
+          ;
+      };
+      validated = validate {
+        type = objects.ruleBody;
+        value = body;
+        prefix = [ "rule" ];
+      };
+    in
     {
       add = {
-        rule = compact {
-          inherit
-            family
-            table
-            chain
-            expr
-            handle
-            index
-            comment
-            ;
-        };
+        rule = compact validated;
       };
     };
 }

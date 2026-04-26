@@ -118,6 +118,79 @@ let
         }))).success;
       expected = false;
     };
+
+    # ----- flush helpers and standalone rule (ruleset.nix) ----------------
+
+    testFlushTableBadFamilyRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.flushTable {
+          family = "wireguard";
+          name = "t";
+        }))).success;
+      expected = false;
+    };
+
+    testFlushChainBadHandleRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.flushChain {
+          family = "ip";
+          table = "t";
+          name = "c";
+          handle = "not-a-number";
+        }))).success;
+      expected = false;
+    };
+
+    testFlushSetMissingTypeRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.flushSet {
+          family = "ip";
+          table = "t";
+          name = "s";
+        }))).success;
+      expected = false;
+    };
+
+    testFlushMapMissingMapRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.flushMap {
+          family = "ip";
+          table = "t";
+          name = "m";
+          type = "ipv4_addr";
+        }))).success;
+      expected = false;
+    };
+
+    testFlushMeterBadTableRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.flushMeter {
+          family = "ip";
+          table = 42;
+          name = "m";
+        }))).success;
+      expected = false;
+    };
+
+    testFlushRulesetBadFamilyRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.flushRuleset {
+          family = "wireguard";
+        }))).success;
+      expected = false;
+    };
+
+    testStandaloneRuleBadHandleRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.rule {
+          family = "ip";
+          table = "t";
+          chain = "c";
+          expr = [ ];
+          handle = "abc";
+        }))).success;
+      expected = false;
+    };
   };
 
   runTests =
