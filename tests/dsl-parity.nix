@@ -25,10 +25,10 @@ let
     expected = roundtrip t handwritten;
   };
 
-  pe = parity nftlib.expression;
-  ps = parity nftlib.statement;
-  pr = parity nftlib.ruleset;
-  pc = parity nftlib.command;
+  pe = parity nftlib.types.expression;
+  ps = parity nftlib.types.statement;
+  pr = parity nftlib.types.ruleset;
+  pc = parity nftlib.types.command;
 in
 {
   # =========================================================================
@@ -2744,7 +2744,7 @@ in
 
   testDslExampleValidates = {
     expr = builtins.isString (
-      roundtrip nftlib.ruleset (import ../examples/basic-firewall-dsl.nix { inherit nftlib; })
+      roundtrip nftlib.types.ruleset (import ../examples/basic-firewall-dsl.nix { inherit nftlib; })
     );
     expected = true;
   };
@@ -2756,7 +2756,7 @@ in
   # via map lookup in DNAT, masquerade. Schema-validates.
   testDslHomeRouterValidates = {
     expr = builtins.isString (
-      roundtrip nftlib.ruleset (import ../examples/home-router-dsl.nix { inherit nftlib; })
+      roundtrip nftlib.types.ruleset (import ../examples/home-router-dsl.nix { inherit nftlib; })
     );
     expected = true;
   };

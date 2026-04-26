@@ -26,17 +26,17 @@ let
     # Verdicts
     # ------------------------------------------------------------------
     testAcceptVerdict = {
-      expr = roundtrip nftlib.statement { accept = null; };
+      expr = roundtrip nftlib.types.statement { accept = null; };
       expected = ''{"accept":null}'';
     };
 
     testDropVerdict = {
-      expr = roundtrip nftlib.statement { drop = null; };
+      expr = roundtrip nftlib.types.statement { drop = null; };
       expected = ''{"drop":null}'';
     };
 
     testJumpVerdict = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         jump = {
           target = "inbound";
         };
@@ -48,7 +48,7 @@ let
     # Match with payload expression
     # ------------------------------------------------------------------
     testMatchPayload = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         match = {
           left = {
             payload = {
@@ -67,7 +67,7 @@ let
     # Match with IPv6 address and prefix
     # ------------------------------------------------------------------
     testMatchIPv6Prefix = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         match = {
           left = {
             payload = {
@@ -91,7 +91,7 @@ let
     # Port range
     # ------------------------------------------------------------------
     testPortRange = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         range = [
           1024
           65535
@@ -104,7 +104,7 @@ let
     # Anonymous set of ports
     # ------------------------------------------------------------------
     testAnonymousSet = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         match = {
           left = {
             payload = {
@@ -129,7 +129,7 @@ let
     # inet_service lookup via @set-reference string
     # ------------------------------------------------------------------
     testSetReference = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         match = {
           left = {
             payload = {
@@ -148,7 +148,7 @@ let
     # DNAT with port
     # ------------------------------------------------------------------
     testDnat = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         dnat = {
           addr = "10.0.0.1";
           port = 8080;
@@ -162,7 +162,7 @@ let
     # SNAT with flags
     # ------------------------------------------------------------------
     testSnatFlags = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         snat = {
           addr = "192.0.2.1";
           flags = [
@@ -178,7 +178,7 @@ let
     # Masquerade (no addr)
     # ------------------------------------------------------------------
     testMasquerade = {
-      expr = roundtrip nftlib.statement { masquerade = { }; };
+      expr = roundtrip nftlib.types.statement { masquerade = { }; };
       expected = ''{"masquerade":{}}'';
     };
 
@@ -186,7 +186,7 @@ let
     # Named set using ipv4_addr type
     # ------------------------------------------------------------------
     testNamedSet = {
-      expr = roundtrip nftlib.objects.set {
+      expr = roundtrip nftlib.types.objects.set {
         set = {
           family = "inet";
           table = "filter";
@@ -214,7 +214,7 @@ let
     # ("ipv4_addr . inet_service") is rejected at runtime.
     # ------------------------------------------------------------------
     testMapConcatenated = {
-      expr = roundtrip nftlib.objects.map {
+      expr = roundtrip nftlib.types.objects.map {
         map = {
           family = "ip";
           table = "nat";
@@ -237,7 +237,7 @@ let
     # vmap (verdict map) with jumps
     # ------------------------------------------------------------------
     testVmap = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         vmap = {
           key = {
             meta = {
@@ -254,7 +254,7 @@ let
     # Meta expression
     # ------------------------------------------------------------------
     testMetaExpr = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         meta = {
           key = "mark";
         };
@@ -266,7 +266,7 @@ let
     # CT expression with direction
     # ------------------------------------------------------------------
     testCtExpr = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         ct = {
           key = "saddr";
           dir = "original";
@@ -280,7 +280,7 @@ let
     # Binary AND operation (mask)
     # ------------------------------------------------------------------
     testBitAnd = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         "&" = [
           {
             meta = {
@@ -297,7 +297,7 @@ let
     # Log with level and flags
     # ------------------------------------------------------------------
     testLog = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         log = {
           prefix = "DROPPED: ";
           level = "info";
@@ -314,7 +314,7 @@ let
     # Limit with per-unit
     # ------------------------------------------------------------------
     testLimit = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         limit = {
           rate = 100;
           per = "second";
@@ -328,7 +328,7 @@ let
     # Counter (named reference)
     # ------------------------------------------------------------------
     testCounterReference = {
-      expr = roundtrip nftlib.statement { counter = "http_hits"; };
+      expr = roundtrip nftlib.types.statement { counter = "http_hits"; };
       expected = ''{"counter":"http_hits"}'';
     };
 
@@ -336,7 +336,7 @@ let
     # Counter (anonymous)
     # ------------------------------------------------------------------
     testCounterAnonymous = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         counter = {
           packets = 0;
           bytes = 0;
@@ -349,7 +349,7 @@ let
     # FIB reverse-path check
     # ------------------------------------------------------------------
     testFib = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         fib = {
           result = "oif";
           flags = [
@@ -366,7 +366,7 @@ let
     # NFT_FIB_F_PRESENT branch).
     # ------------------------------------------------------------------
     testFibResultCheck = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         fib = {
           result = "check";
           flags = [ "saddr" ];
@@ -379,7 +379,7 @@ let
     # rt key "ipsec" — NFT_RT_XFRM token (parser_json.c:993-997).
     # ------------------------------------------------------------------
     testRtIpsecKey = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         rt = {
           key = "ipsec";
           family = "ip";
@@ -393,7 +393,7 @@ let
     # was missed when the schema was first derived (only "name" present).
     # ------------------------------------------------------------------
     testOsfVersionKey = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         osf = {
           key = "version";
           ttl = "loose";
@@ -407,7 +407,7 @@ let
     # missing from the schema's `flushObject` union.
     # ------------------------------------------------------------------
     testFlushMeter = {
-      expr = roundtrip nftlib.command {
+      expr = roundtrip nftlib.types.command {
         flush = {
           meter = {
             family = "inet";
@@ -427,7 +427,7 @@ let
     testFlushFlowtableRejected = {
       expr =
         (builtins.tryEval (
-          roundtrip nftlib.command {
+          roundtrip nftlib.types.command {
             flush = {
               flowtable = {
                 family = "inet";
@@ -447,7 +447,7 @@ let
     # that a `unit` key is now rejected so future re-additions get caught.
     # ------------------------------------------------------------------
     testLimitObjectMinimal = {
-      expr = roundtrip nftlib.objects.limit {
+      expr = roundtrip nftlib.types.objects.limit {
         limit = {
           family = "inet";
           table = "filter";
@@ -463,7 +463,7 @@ let
     testLimitObjectUnitRejected = {
       expr =
         (builtins.tryEval (
-          roundtrip nftlib.objects.limit {
+          roundtrip nftlib.types.objects.limit {
             limit = {
               family = "inet";
               table = "filter";
@@ -481,7 +481,7 @@ let
     # Numgen
     # ------------------------------------------------------------------
     testNumgen = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         numgen = {
           mode = "inc";
           mod = 4;
@@ -495,7 +495,7 @@ let
     # Concatenation expression
     # ------------------------------------------------------------------
     testConcat = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         concat = [
           {
             payload = {
@@ -518,7 +518,7 @@ let
     # Table object
     # ------------------------------------------------------------------
     testTable = {
-      expr = roundtrip nftlib.objects.table {
+      expr = roundtrip nftlib.types.objects.table {
         table = {
           family = "inet";
           name = "filter";
@@ -531,7 +531,7 @@ let
     # Base chain
     # ------------------------------------------------------------------
     testBaseChain = {
-      expr = roundtrip nftlib.objects.chain {
+      expr = roundtrip nftlib.types.objects.chain {
         chain = {
           family = "inet";
           table = "filter";
@@ -549,7 +549,7 @@ let
     # Rule with multiple statements
     # ------------------------------------------------------------------
     testRule = {
-      expr = roundtrip nftlib.objects.rule {
+      expr = roundtrip nftlib.types.objects.rule {
         rule = {
           family = "inet";
           table = "filter";
@@ -584,7 +584,7 @@ let
     # Flush ruleset command
     # ------------------------------------------------------------------
     testFlushRuleset = {
-      expr = roundtrip nftlib.command {
+      expr = roundtrip nftlib.types.command {
         flush = {
           ruleset = null;
         };
@@ -596,7 +596,7 @@ let
     # Add command wrapping a table
     # ------------------------------------------------------------------
     testAddCommand = {
-      expr = roundtrip nftlib.command {
+      expr = roundtrip nftlib.types.command {
         add = {
           table = {
             family = "ip";
@@ -611,7 +611,7 @@ let
     # Whole ruleset envelope
     # ------------------------------------------------------------------
     testRulesetEnvelope = {
-      expr = roundtrip nftlib.ruleset {
+      expr = roundtrip nftlib.types.ruleset {
         nftables = [
           {
             flush = {
@@ -635,7 +635,7 @@ let
     # Element object
     # ------------------------------------------------------------------
     testElement = {
-      expr = roundtrip nftlib.objects.element {
+      expr = roundtrip nftlib.types.objects.element {
         element = {
           family = "inet";
           table = "filter";
@@ -653,7 +653,7 @@ let
     # Reject with icmp code
     # ------------------------------------------------------------------
     testReject = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         reject = {
           type = "icmp";
           expr = "host-unreachable";
@@ -666,7 +666,7 @@ let
     # Meter statement
     # ------------------------------------------------------------------
     testMeter = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         meter = {
           name = "http_ratelimit";
           key = {
@@ -689,7 +689,7 @@ let
     # List-of-singleton flag coercion: single flag written as a string
     # ------------------------------------------------------------------
     testSingletonFlag = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         snat = {
           addr = "192.0.2.1";
           flags = "random";
@@ -702,7 +702,7 @@ let
     # Raw payload form (base+offset+len)
     # ------------------------------------------------------------------
     testRawPayload = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         payload = {
           base = "nh";
           offset = 72;
@@ -718,7 +718,7 @@ let
     testPayloadMixingRejected = {
       expr =
         (builtins.tryEval (
-          roundtrip nftlib.expression {
+          roundtrip nftlib.types.expression {
             payload = {
               base = "nh";
               offset = 0;
@@ -737,7 +737,7 @@ let
     testRawPayloadIncompleteRejected = {
       expr =
         (builtins.tryEval (
-          roundtrip nftlib.expression {
+          roundtrip nftlib.types.expression {
             payload = {
               base = "nh";
               offset = 0;
@@ -753,7 +753,7 @@ let
     testNamedPayloadIncompleteRejected = {
       expr =
         (builtins.tryEval (
-          roundtrip nftlib.expression {
+          roundtrip nftlib.types.expression {
             payload = {
               protocol = "tcp";
             };
@@ -766,7 +766,7 @@ let
     # `last` statement (bare null form)
     # ------------------------------------------------------------------
     testLastStmtNull = {
-      expr = roundtrip nftlib.statement { last = null; };
+      expr = roundtrip nftlib.types.statement { last = null; };
       expected = ''{"last":null}'';
     };
 
@@ -774,7 +774,7 @@ let
     # Counter stateless null form (emitted by `nft -j list --stateless`)
     # ------------------------------------------------------------------
     testCounterStatelessNull = {
-      expr = roundtrip nftlib.statement { counter = null; };
+      expr = roundtrip nftlib.types.statement { counter = null; };
       expected = ''{"counter":null}'';
     };
 
@@ -782,7 +782,7 @@ let
     # `last` statement with timestamp
     # ------------------------------------------------------------------
     testLastStmtUsed = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         last = {
           used = -1;
         };
@@ -794,7 +794,7 @@ let
     # `flow` offload statement
     # ------------------------------------------------------------------
     testFlowStmt = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         flow = {
           op = "add";
           flowtable = "@ft";
@@ -807,7 +807,7 @@ let
     # `tproxy` transparent proxy
     # ------------------------------------------------------------------
     testTproxyStmt = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         tproxy = {
           family = "ip";
           addr = "127.0.0.1";
@@ -821,7 +821,7 @@ let
     # `synproxy` anonymous configuration
     # ------------------------------------------------------------------
     testSynproxyAnon = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         synproxy = {
           mss = 1460;
           wscale = 7;
@@ -838,7 +838,7 @@ let
     # `synproxy` empty (all defaults)
     # ------------------------------------------------------------------
     testSynproxyNull = {
-      expr = roundtrip nftlib.statement { synproxy = null; };
+      expr = roundtrip nftlib.types.statement { synproxy = null; };
       expected = ''{"synproxy":null}'';
     };
 
@@ -846,7 +846,7 @@ let
     # `reset` tcp option strip
     # ------------------------------------------------------------------
     testResetStmt = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         reset = {
           "tcp option" = {
             name = "sack-perm";
@@ -860,12 +860,12 @@ let
     # `secmark` and `tunnel` statements (reference forms)
     # ------------------------------------------------------------------
     testSecmarkStmt = {
-      expr = roundtrip nftlib.statement { secmark = "@my_secmark"; };
+      expr = roundtrip nftlib.types.statement { secmark = "@my_secmark"; };
       expected = ''{"secmark":"@my_secmark"}'';
     };
 
     testTunnelStmt = {
-      expr = roundtrip nftlib.statement { tunnel = "@my_tunnel"; };
+      expr = roundtrip nftlib.types.statement { tunnel = "@my_tunnel"; };
       expected = ''{"tunnel":"@my_tunnel"}'';
     };
 
@@ -873,7 +873,7 @@ let
     # `ipsec` (xfrm) expression
     # ------------------------------------------------------------------
     testIpsecExpr = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         ipsec = {
           key = "saddr";
           family = "ip";
@@ -887,7 +887,7 @@ let
     # `tunnel` expression (metadata key)
     # ------------------------------------------------------------------
     testTunnelExpr = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         tunnel = {
           key = "id";
         };
@@ -899,7 +899,7 @@ let
     # `secmark` named object
     # ------------------------------------------------------------------
     testSecmarkObject = {
-      expr = roundtrip nftlib.objects.secmark {
+      expr = roundtrip nftlib.types.objects.secmark {
         secmark = {
           family = "inet";
           table = "filter";
@@ -914,7 +914,7 @@ let
     # `synproxy` named object
     # ------------------------------------------------------------------
     testSynproxyObject = {
-      expr = roundtrip nftlib.objects.synproxy {
+      expr = roundtrip nftlib.types.objects.synproxy {
         synproxy = {
           family = "inet";
           table = "filter";
@@ -931,7 +931,7 @@ let
     # NAT flag: netmap (added alongside random/fully-random/persistent)
     # ------------------------------------------------------------------
     testNetmapNatFlag = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         dnat = {
           addr = "10.0.0.0/24";
           flags = [ "netmap" ];
@@ -944,7 +944,7 @@ let
     # `destroy` command (like delete but idempotent)
     # ------------------------------------------------------------------
     testDestroyCommand = {
-      expr = roundtrip nftlib.command {
+      expr = roundtrip nftlib.types.command {
         destroy = {
           table = {
             family = "ip";
@@ -959,7 +959,7 @@ let
     # Tunnel object: VXLAN encapsulation
     # ------------------------------------------------------------------
     testTunnelVxlan = {
-      expr = roundtrip nftlib.objects.tunnel {
+      expr = roundtrip nftlib.types.objects.tunnel {
         tunnel = {
           family = "inet";
           table = "t";
@@ -980,7 +980,7 @@ let
     # Tunnel object: ERSPAN v1
     # ------------------------------------------------------------------
     testTunnelErspanV1 = {
-      expr = roundtrip nftlib.objects.tunnel {
+      expr = roundtrip nftlib.types.objects.tunnel {
         tunnel = {
           family = "inet";
           table = "t";
@@ -999,7 +999,7 @@ let
     # Tunnel object: ERSPAN v2
     # ------------------------------------------------------------------
     testTunnelErspanV2 = {
-      expr = roundtrip nftlib.objects.tunnel {
+      expr = roundtrip nftlib.types.objects.tunnel {
         tunnel = {
           family = "inet";
           table = "t";
@@ -1019,7 +1019,7 @@ let
     # Tunnel object: GENEVE (list of options)
     # ------------------------------------------------------------------
     testTunnelGeneve = {
-      expr = roundtrip nftlib.objects.tunnel {
+      expr = roundtrip nftlib.types.objects.tunnel {
         tunnel = {
           family = "inet";
           table = "t";
@@ -1045,7 +1045,7 @@ let
     testLimitPerRejectedWithoutPer = {
       expr =
         (builtins.tryEval (
-          roundtrip nftlib.statement {
+          roundtrip nftlib.types.statement {
             limit = {
               rate = 100;
             };
@@ -1056,7 +1056,7 @@ let
 
     # queue without num is valid
     testQueueNoNum = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         queue = {
           flags = [ "bypass" ];
         };
@@ -1066,7 +1066,7 @@ let
 
     # meter.size (parser_json.c:2793)
     testMeterSize = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         meter = {
           name = "m";
           key = {
@@ -1088,7 +1088,7 @@ let
 
     # nat.type_flags (parser_json.c:2353)
     testNatTypeFlags = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         dnat = {
           addr = "10.0.0.0/24";
           type_flags = [
@@ -1102,7 +1102,7 @@ let
 
     # ip option expression (parser_json.c:822)
     testIpOptionExpr = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         "ip option" = {
           name = "lsrr";
           field = "length";
@@ -1113,7 +1113,7 @@ let
 
     # tcp option raw form (parser_json.c:745)
     testTcpOptionRaw = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         "tcp option" = {
           base = 2;
           offset = 16;
@@ -1125,7 +1125,7 @@ let
 
     # payload tunnel form (parser_json.c:686)
     testPayloadTunnelForm = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         payload = {
           tunnel = "vxlan";
           protocol = "ip";
@@ -1137,7 +1137,7 @@ let
 
     # payload base "ih" (inner header)
     testPayloadInnerHeader = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         payload = {
           base = "ih";
           offset = 0;
@@ -1149,7 +1149,7 @@ let
 
     # Chain dev accepts string list (parser_json.c:3143 via json_parse_devs)
     testChainDevList = {
-      expr = roundtrip nftlib.objects.chain {
+      expr = roundtrip nftlib.types.objects.chain {
         chain = {
           family = "netdev";
           table = "filter";
@@ -1168,7 +1168,7 @@ let
 
     # secmark object: context is optional (parser_json.c:3769)
     testSecmarkObjectNoContext = {
-      expr = roundtrip nftlib.objects.secmark {
+      expr = roundtrip nftlib.types.objects.secmark {
         secmark = {
           family = "inet";
           table = "t";
@@ -1180,7 +1180,7 @@ let
 
     # ct helper object: protocol/type optional (parser_json.c:3782-3809)
     testCtHelperObjectMinimal = {
-      expr = roundtrip nftlib.objects.ctHelper {
+      expr = roundtrip nftlib.types.objects.ctHelper {
         "ct helper" = {
           family = "inet";
           table = "t";
@@ -1196,7 +1196,7 @@ let
     testTunnelNestedDisjoint = {
       expr =
         (builtins.tryEval (
-          roundtrip nftlib.objects.tunnel {
+          roundtrip nftlib.types.objects.tunnel {
             tunnel = {
               family = "inet";
               table = "t";
@@ -1216,7 +1216,7 @@ let
     # Socket keys: mark and wildcard (added in audit pass)
     # ------------------------------------------------------------------
     testSocketMark = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         socket = {
           key = "mark";
         };
@@ -1225,7 +1225,7 @@ let
     };
 
     testSocketWildcard = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         socket = {
           key = "wildcard";
         };
@@ -1237,7 +1237,7 @@ let
     # Meta keys added from meta_templates audit
     # ------------------------------------------------------------------
     testMetaIpsecKey = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         meta = {
           key = "ipsec";
         };
@@ -1246,7 +1246,7 @@ let
     };
 
     testMetaTimeKey = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         meta = {
           key = "time";
         };
@@ -1255,7 +1255,7 @@ let
     };
 
     testMetaSdifKey = {
-      expr = roundtrip nftlib.expression {
+      expr = roundtrip nftlib.types.expression {
         meta = {
           key = "sdif";
         };
@@ -1267,7 +1267,7 @@ let
     # ct timeout object: nested `policy` mapping state → seconds
     # ------------------------------------------------------------------
     testCtTimeoutObject = {
-      expr = roundtrip nftlib.objects.ctTimeout {
+      expr = roundtrip nftlib.types.objects.ctTimeout {
         "ct timeout" = {
           family = "ip";
           table = "filter";
@@ -1288,7 +1288,7 @@ let
     # set statement: delete op plus stmt attachment
     # ------------------------------------------------------------------
     testSetStmtDeleteWithStmt = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         set = {
           op = "delete";
           elem = "10.0.0.1";
@@ -1310,7 +1310,7 @@ let
     # map statement (distinct from vmap)
     # ------------------------------------------------------------------
     testMapStatement = {
-      expr = roundtrip nftlib.statement {
+      expr = roundtrip nftlib.types.statement {
         map = {
           op = "update";
           elem = "10.0.0.1";
@@ -1325,7 +1325,7 @@ let
     # table with comment
     # ------------------------------------------------------------------
     testTableComment = {
-      expr = roundtrip nftlib.objects.table {
+      expr = roundtrip nftlib.types.objects.table {
         table = {
           family = "inet";
           name = "filter";
@@ -1339,7 +1339,7 @@ let
     # chain with comment
     # ------------------------------------------------------------------
     testChainComment = {
-      expr = roundtrip nftlib.objects.chain {
+      expr = roundtrip nftlib.types.objects.chain {
         chain = {
           family = "inet";
           table = "filter";
@@ -1354,7 +1354,7 @@ let
     # Comment on a named object (counter)
     # ------------------------------------------------------------------
     testObjectComment = {
-      expr = roundtrip nftlib.objects.counter {
+      expr = roundtrip nftlib.types.objects.counter {
         counter = {
           family = "ip";
           table = "filter";

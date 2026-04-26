@@ -1,9 +1,24 @@
+/*
+  nix-nft-types — strict NixOS-style schema for libnftables JSON values,
+  plus matching renderers and an ergonomic DSL.
+
+  Outputs:
+    types                   — every schema type (primitive enums plus
+                              composable submodule types).
+    toJSON / toPretty       — render a validated value to libnftables-json.
+    toText / toTextPretty   — render to nftables `.nft` text syntax.
+    cleanValue              — strip module-internal markers.
+    dsl                     — declarative builder producing values accepted
+                              by the types above.
+*/
 { lib }:
 
 let
   internal = import ./schema/internal.nix { inherit lib; };
   primitives = import ./schema/primitives.nix { inherit lib; };
-  expressions = import ./schema/expressions.nix { inherit lib internal primitives; };
+  expressions = import ./schema/expressions.nix {
+    inherit lib internal primitives;
+  };
   statements = import ./schema/statements.nix {
     inherit
       lib
@@ -31,41 +46,51 @@ let
   };
 in
 {
-  # Primitive enum types, portNumber, prefixLength, nullType.
-  inherit (primitives) types;
+  /*
+    All schema types in one namespace, mirroring `lib.types`. Primitive
+    enums (familyType, hookType, portNumber, …) sit alongside composable
+    submodule types (expression, statement, command, …) and per-variant
+    body namespaces (expressions, statements, objects).
+  */
+  types = primitives.types // {
+    # Recursive expression union plus per-variant body submodules.
+    inherit (expressions) expression;
+    expressions = expressions.all;
 
-  # Recursive expression type plus individual body types.
-  inherit (expressions) expression;
-  expressions = expressions.all;
+    # Statement union plus per-variant body submodules.
+    inherit (statements) statement;
+    statements = statements.all;
 
-  # Statement type plus individual body types.
-  inherit (statements) statement;
-  statements = statements.all;
+    # Object bodies, single-tag wrappers, combined unions.
+    objects = objects.all;
+    inherit (objects)
+      addObject
+      listObject
+      flushObject
+      resetObject
+      ;
 
-  # Object bodies plus single-tag wrappers and combined unions.
-  objects = objects.all;
-  inherit (objects)
-    addObject
-    listObject
-    flushObject
-    resetObject
-    ;
+    # Top-level command/ruleset envelopes.
+    inherit (commands) command ruleset;
+  };
 
-  # Top-level command/ruleset envelopes.
-  inherit (commands) command ruleset;
-
-  # Render a value to libnftables-json.
+  # Render a validated value to libnftables-json.
   toJSON = json.toJSON;
   toPretty = json.toPretty;
   cleanValue = clean;
 
-  # Render a value to nftables text syntax (the `.nft` form `nft -f`
-  # consumes). Both renderers consume the same validated attrset.
+  /*
+    Render a validated value to the nftables `.nft` text syntax `nft -f`
+    consumes. Both renderers accept the same attrsets the types above
+    produce.
+  */
   toText = text.toText;
   toTextPretty = text.toTextPretty;
 
-  # DSL — path-based field access, top-level operators, variant namespaces,
-  # declarative table structure. Produces the same attrsets accepted by
-  # the types above.
+  /*
+    DSL — path-based field access, top-level operators, variant namespaces,
+    declarative table structure. Produces attrsets accepted by the types
+    above.
+  */
   inherit dsl;
 }
