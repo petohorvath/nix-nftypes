@@ -1,4 +1,4 @@
-{ lib }:
+{ lib, validate, objects }:
 
 # Declarative-tree → `[command]` expansion. Consumes table nodes produced by
 # ./table.nix and emits the list of `{ add.* = …; }` commands the schema

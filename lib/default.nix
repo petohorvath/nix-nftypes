@@ -25,7 +25,10 @@ let
   clean = import ./clean.nix { inherit lib; };
   json = import ./json { inherit lib clean; };
   text = import ./text { inherit lib clean; };
-  dsl = import ./dsl { inherit lib; };
+  dsl = import ./dsl {
+    inherit lib;
+    objects = objects.all;
+  };
 in
 {
   # Primitive enum types, portNumber, prefixLength, nullType.

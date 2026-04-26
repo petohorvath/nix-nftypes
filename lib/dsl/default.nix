@@ -1,4 +1,4 @@
-{ lib }:
+{ lib, objects }:
 
 # Public entry point for the `dsl` layer — a declarative DSL emphasizing:
 #   - Path-based field access (`fields.tcp.dport` instead of `payload "tcp" "dport"`)
@@ -9,15 +9,17 @@
 #   - CamelCase aliases for hyphenated JSON keys (handled by internal/rename.nix)
 
 let
+  validate = import ./internal/validate.nix { inherit lib; };
+
   fields = import ./fields { inherit lib; };
   ops = import ./ops.nix { inherit lib; };
   verdicts = import ./verdicts.nix { inherit lib; };
   exprs = import ./exprs.nix { inherit lib; };
   payload = import ./payload.nix { inherit lib; };
   actions = import ./actions { inherit lib; };
-  ruleset = import ./structure/ruleset.nix { inherit lib; };
+  ruleset = import ./structure/ruleset.nix { inherit lib validate objects; };
   table = import ./structure/table.nix { inherit lib; };
-  commands = import ./structure/commands.nix { inherit lib; };
+  commands = import ./structure/commands.nix { inherit lib validate objects; };
   variant = import ./internal/variant.nix { inherit lib; };
 
   # `reset` exists as both a rule-body statement (e.g. `reset tcpOption`)

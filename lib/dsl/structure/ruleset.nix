@@ -1,4 +1,4 @@
-{ lib }:
+{ lib, validate, objects }:
 
 # Ruleset envelope and flush-family commands. For other command kinds
 # (create, delete, destroy, list, rename, reset, replace, insert) see
@@ -6,7 +6,7 @@
 # through unchanged, so users can always drop to raw JSON if needed.
 
 let
-  render = import ./render.nix { inherit lib; };
+  render = import ./render.nix { inherit lib validate objects; };
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
 in
