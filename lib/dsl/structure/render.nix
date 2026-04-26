@@ -1,4 +1,8 @@
-{ lib, validate, objects }:
+{
+  lib,
+  validate,
+  objects,
+}:
 
 # Declarative-tree → `[command]` expansion. Consumes table nodes produced by
 # ./table.nix and emits the list of `{ add.* = …; }` commands the schema
@@ -111,7 +115,10 @@ let
       validated = validate {
         type = cfg.body;
         value = full;
-        prefix = [ pluralKey name ];
+        prefix = [
+          pluralKey
+          name
+        ];
       };
     in
     {
@@ -174,7 +181,10 @@ let
       validated = validate {
         type = objects.chainBody;
         value = full;
-        prefix = [ "chains" name ];
+        prefix = [
+          "chains"
+          name
+        ];
       };
     in
     {
@@ -186,9 +196,7 @@ let
   # Emit all `add rule` commands for one chain.
   emitChainRules =
     ctx: name: chainBodyValue:
-    lib.imap0 (idx: entry: emitRule (ctx // { chain = name; }) idx entry) (
-      chainBodyValue.rules or [ ]
-    );
+    lib.imap0 (idx: entry: emitRule (ctx // { chain = name; }) idx entry) (chainBodyValue.rules or [ ]);
 
   # Full expansion of a single table node into a flat command list.
   # Emission order is chosen so cross-references within the atomic batch

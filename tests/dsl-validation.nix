@@ -42,80 +42,108 @@ let
 
     testCreateChainPrioStringRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.create.chain {
-          family = "ip";
-          table = "t";
-          name = "c";
-          prio = "filter";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.create.chain {
+              family = "ip";
+              table = "t";
+              name = "c";
+              prio = "filter";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testDeleteCounterBadFamilyRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.delete.counter {
-          family = "wireguard";
-          table = "t";
-          name = "ctr";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.delete.counter {
+              family = "wireguard";
+              table = "t";
+              name = "ctr";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testListMapBadTypeRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.list.map {
-          family = "ip";
-          table = "t";
-          name = "m";
-          type = 123;
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.list.map {
+              family = "ip";
+              table = "t";
+              name = "m";
+              type = 123;
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testResetRuleBadHandleRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.reset.rule {
-          family = "ip";
-          table = "t";
-          chain = "c";
-          expr = [ ];
-          handle = "not-a-number";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.reset.rule {
+              family = "ip";
+              table = "t";
+              chain = "c";
+              expr = [ ];
+              handle = "not-a-number";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testRenameChainBadNewnameRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.rename.chain {
-          family = "ip";
-          table = "t";
-          name = "c";
-          newname = 42;
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.rename.chain {
+              family = "ip";
+              table = "t";
+              name = "c";
+              newname = 42;
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testReplaceRuleBadHandleRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.replace {
-          family = "ip";
-          table = "t";
-          chain = "c";
-          expr = [ ];
-          handle = "abc";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.replace {
+              family = "ip";
+              table = "t";
+              chain = "c";
+              expr = [ ];
+              handle = "abc";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testInsertRuleBadIndexRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.insert {
-          family = "ip";
-          table = "t";
-          chain = "c";
-          expr = [ ];
-          index = -1;
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.insert {
+              family = "ip";
+              table = "t";
+              chain = "c";
+              expr = [ ];
+              index = -1;
+            }
+          )
+        )).success;
       expected = false;
     };
 
@@ -123,72 +151,100 @@ let
 
     testFlushTableBadFamilyRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.flushTable {
-          family = "wireguard";
-          name = "t";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.flushTable {
+              family = "wireguard";
+              name = "t";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testFlushChainBadHandleRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.flushChain {
-          family = "ip";
-          table = "t";
-          name = "c";
-          handle = "not-a-number";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.flushChain {
+              family = "ip";
+              table = "t";
+              name = "c";
+              handle = "not-a-number";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testFlushSetMissingTypeRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.flushSet {
-          family = "ip";
-          table = "t";
-          name = "s";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.flushSet {
+              family = "ip";
+              table = "t";
+              name = "s";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testFlushMapMissingMapRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.flushMap {
-          family = "ip";
-          table = "t";
-          name = "m";
-          type = "ipv4_addr";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.flushMap {
+              family = "ip";
+              table = "t";
+              name = "m";
+              type = "ipv4_addr";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testFlushMeterBadTableRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.flushMeter {
-          family = "ip";
-          table = 42;
-          name = "m";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.flushMeter {
+              family = "ip";
+              table = 42;
+              name = "m";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testFlushRulesetBadFamilyRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.flushRuleset {
-          family = "wireguard";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.flushRuleset {
+              family = "wireguard";
+            }
+          )
+        )).success;
       expected = false;
     };
 
     testStandaloneRuleBadHandleRejected = {
       expr =
-        (builtins.tryEval (toJSON (dsl.rule {
-          family = "ip";
-          table = "t";
-          chain = "c";
-          expr = [ ];
-          handle = "abc";
-        }))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.rule {
+              family = "ip";
+              table = "t";
+              chain = "c";
+              expr = [ ];
+              handle = "abc";
+            }
+          )
+        )).success;
       expected = false;
     };
 
@@ -377,17 +433,21 @@ let
 
     testTreeAcceptedRulesetSucceeds = {
       expr =
-        (builtins.tryEval (toJSON (dsl.ruleset [
-          (dsl.table "ip" "t" {
-            chains.c = {
-              type = "filter";
-              hook = "input";
-              prio = 0;
-              policy = "accept";
-              rules = [ [ dsl.accept ] ];
-            };
-          })
-        ]))).success;
+        (builtins.tryEval (
+          toJSON (
+            dsl.ruleset [
+              (dsl.table "ip" "t" {
+                chains.c = {
+                  type = "filter";
+                  hook = "input";
+                  prio = 0;
+                  policy = "accept";
+                  rules = [ [ dsl.accept ] ];
+                };
+              })
+            ]
+          )
+        )).success;
       expected = true;
     };
   };

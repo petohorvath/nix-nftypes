@@ -18,7 +18,7 @@ This library closes that gap: a full, strict, source-of-truth type system for nf
 
 ## What it brings
 
-- **Evaluation-time errors.** Unknown fields, wrong types, missing required keys, invalid enum values, malformed statement tags — all fail during `nix eval`, before `nft` is ever invoked.
+- **Evaluation-time errors.** Unknown fields, wrong types, missing required keys, invalid enum values, malformed statement tags — all fail during `nix eval`, before `nft` is ever invoked. The DSL routes every user-supplied object body through the matching schema submodule; a type-mismatched field throws at eval time with the user's tree path named (e.g. `chains.c.prio: not of type 'null or signed integer'`), instead of silently rendering to JSON where `nft -j -f` would drop the broken section.
 - **Complete coverage.** Every statement, expression, object type, family, hook, meta key, ct key, operator, and flag the audited JSON parser accepts is exposed. No "happy path" subset; no quietly missing fields.
 - **Composable.** Rules, chains, sets, maps, named objects, and commands are plain typed attrsets, composed and reused through ordinary Nix `let` bindings and function arguments.
 - **Round-trip safe.** The same types that produce the JSON also describe what `nft -j list ruleset` emits, so reading existing state back into the same model is a possibility, not a rewrite.
@@ -41,7 +41,7 @@ Coverage:
 - Ruleset object types — table, chain, rule, set, map, element, flowtable, counter, quota, ct helper, ct timeout, ct expectation, limit, secmark, synproxy, tunnel, metainfo — with discriminated unions for add/replace/create/insert/delete/destroy/list/reset/flush/rename commands.
 - `toJSON` / `toPretty` renderer that strips unset option defaults but preserves significant nulls.
 - `toText` / `toTextPretty` renderer that emits the equivalent nftables text syntax (`.nft`) — pure Nix, mirrors the JSON renderer's position in the pipeline, no shell-out to `nft`.
-- 240+ Nix-level tests (schema, DSL parity, renderer, error cases) wired into `nix flake check`, plus three live-parser suites: one pipes JSON through `unshare -rn nft -c -j -f`, one pipes text through `unshare -rn nft -c -f -`, and one loads each case via both renderers into separate netns and diffs `nft list ruleset` to enforce JSON↔text equivalence.
+- 240+ Nix-level tests (schema, DSL parity, renderer, error cases) wired into `nix flake check`, plus three live-parser suites: one pipes JSON through `unshare -rn nft -c -j -f`, one pipes text through `unshare -rn nft -c -f -`, and one loads each case via both renderers into separate netns and diffs `nft list ruleset` to enforce JSON↔text equivalence. Two further suites exercise the DSL's schema validation: one asserts each constructor throws on a clearly-invalid field (`tests/dsl-validation.nix`), one asserts the thrown message names the offending path (`tests/dsl-validation-messages.nix`).
 
 ## Two layers
 

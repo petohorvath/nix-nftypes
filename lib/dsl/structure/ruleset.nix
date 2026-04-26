@@ -1,4 +1,8 @@
-{ lib, validate, objects }:
+{
+  lib,
+  validate,
+  objects,
+}:
 
 # Ruleset envelope and flush-family commands. For other command kinds
 # (create, delete, destroy, list, rename, reset, replace, insert) see

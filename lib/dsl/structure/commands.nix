@@ -1,4 +1,8 @@
-{ lib, validate, objects }:
+{
+  lib,
+  validate,
+  objects,
+}:
 
 # Namespaced builders for commands that don't fit the declarative table
 # tree: create, delete, destroy, list, rename, reset. Each command's schema
