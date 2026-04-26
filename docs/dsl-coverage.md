@@ -86,6 +86,28 @@ For every DSL constructor, verify the produced attrset is accepted by the schema
 
 No DSL constructor was found to emit a shape the schema rejects.
 
+## DSL-level validation
+
+Every DSL constructor that takes a user-supplied object body runs that body through `lib.evalModules` against the matching schema submodule before emitting JSON. Without this, a type-mismatched field would render to JSON unchecked and `nft -j -f` would silently drop the broken section (the canonical case: `chains.c.prio = "filter"` rendering to `"prio":"filter"`, which `nft` accepts as JSON but the kernel rejects, dropping the chain's base-chain attrs). With validation in place, the bad field throws at eval time naming the user's tree position.
+
+The wiring lives in `lib/dsl/internal/validate.nix`. It's invoked from the three structure modules:
+
+- `lib/dsl/structure/commands.nix` — every `create.<kind>` / `delete.<kind>` / `destroy.<kind>` / `list.<kind>` / `reset.<kind>` namespace, plus `rename.chain`, `replace`, `insert`. Each per-kind config carries a `body` field (the schema submodule) alongside `tag` (JSON tag) and `renameBody` (camelCase → JSON-key rename); `mkNamespace` validates per invocation with prefix `[ verb tag ]`.
+- `lib/dsl/structure/ruleset.nix` — every `flush*` helper (`flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`, `flushRuleset`) plus the standalone `dsl.rule` constructor. The bare `flush` constant has no body to validate.
+- `lib/dsl/structure/render.nix` — the table-tree expansion. `expandTable` validates the table envelope; `emitChainAdd`, `emitRule`, and `emitObject` validate per-leaf with prefixes that name the user's tree path (`chains.<name>`, `chains.<name>.rules.<idx>`, `<pluralKey>.<name>`).
+
+Validate accepts a `prefix` argument (a list of path components) which evalModules prepends to error-message paths. Examples of resulting errors:
+
+- `dsl.create.chain { …; prio = "filter"; }` → ``A definition for option `create.chain.prio' is not of type `null or signed integer'.``
+- Inside a table tree, `chains.c = { prio = "filter"; }` → ``A definition for option `chains.c.prio' is not of type `null or signed integer'.``
+- `dsl.flushTable { family = "wireguard"; name = "t"; }` → ``A definition for option `flushTable.family' is not of type `one of "ip", "ip6", "inet", "arp", "bridge", "netdev"'.``
+
+For schema submodule types (every body in `lib/schema/objects.nix` except `rulesetBody`), validate extracts the inner options via `getSubOptions [ ]` and passes them directly to `evalModules`, so errors show the field name without indirection. For `rulesetBody` (which is `oneOf [ nullType, submodule { family; } ]` and therefore not a flat submodule) it falls back to wrapping in a top-level `value` option; `rulesetBody` is shallow enough that this indirection isn't burdensome.
+
+Action constructors (`actions/*.nix`), verdicts, expressions, payload helpers, ops, and field trees are not validated directly. They produce statement/expression-shaped attrsets that get embedded in rule bodies; the `ruleBody` submodule has `expr = listOf statement`, so the recursive type-check covers them transitively. The existing parity tests in `dsl-parity.nix` already prove these constructors emit schema-accepted shapes — no separate wiring required.
+
+`tests/dsl-validation.nix` has one regression test per submodule wired up. `tests/dsl-validation-messages.nix` runs a representative subset through `nix-instantiate --eval` inside a sandboxed `runCommandLocal` and asserts the stderr names the expected option path — proving the "names the offending field" property end-to-end.
+
 ## Edge cases and design choices
 
 ### E1. The `dsl.reset` `__functor` overload

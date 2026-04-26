@@ -1,66 +1,90 @@
-{ lib }:
+{
+  lib,
+  validate,
+  objects,
+}:
 
 # Declarative-tree → `[command]` expansion. Consumes table nodes produced by
 # ./table.nix and emits the list of `{ add.* = …; }` commands the schema
 # accepts. Context (family/table/chain) is injected during the walk; users
 # never thread it manually.
+#
+# Each emit site validates the assembled body against the matching schema
+# submodule before wrapping it in a command tag, so a type-mismatched field
+# throws at eval time naming the user's tree path (e.g. `chains.c.prio:
+# not of type 'null or signed integer'`) — not silently flowing into JSON
+# where `nft -j -f` would drop the section.
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
   markers = import ../internal/markers.nix { inherit lib; };
 
-  # Object-kind configuration: the plural key used in a table body → the
-  # singular JSON tag emitted, plus the camelCase→hyphen rename applied to
-  # each entry's body before emission.
+  # Object-kind configuration for the table tree's plural-keyed object
+  # containers (sets, maps, counters, …):
+  #   tag         — the singular JSON command tag emitted (`set` for sets, …)
+  #   renameBody  — DSL-key → JSON-key rename applied before validation
+  #   body        — schema submodule the renamed body is validated against
   objectKinds = {
     sets = {
       tag = "set";
       renameBody = rename.set;
+      body = objects.setObjectBody;
     };
     maps = {
       tag = "map";
       renameBody = rename.set;
+      body = objects.mapObjectBody;
     };
     elements = {
       tag = "element";
       renameBody = rename.element;
+      body = objects.elementBody;
     };
     flowtables = {
       tag = "flowtable";
       renameBody = lib.id;
+      body = objects.flowtableBody;
     };
     counters = {
       tag = "counter";
       renameBody = lib.id;
+      body = objects.counterObjectBody;
     };
     quotas = {
       tag = "quota";
       renameBody = lib.id;
+      body = objects.quotaObjectBody;
     };
     limits = {
       tag = "limit";
       renameBody = lib.id;
+      body = objects.limitObjectBody;
     };
     ctHelpers = {
       tag = "ct helper";
       renameBody = lib.id;
+      body = objects.ctHelperObjectBody;
     };
     ctTimeouts = {
       tag = "ct timeout";
       renameBody = lib.id;
+      body = objects.ctTimeoutObjectBody;
     };
     ctExpectations = {
       tag = "ct expectation";
       renameBody = lib.id;
+      body = objects.ctExpectationObjectBody;
     };
     secmarks = {
       tag = "secmark";
       renameBody = lib.id;
+      body = objects.secmarkObjectBody;
     };
     synproxies = {
       tag = "synproxy";
       renameBody = lib.id;
+      body = objects.synproxyObjectBody;
     };
     # Tunnel bodies have hyphenated top-level keys (src-ipv4, …). The
     # nested `tunnel` attribute's shape depends on `type` and isn't renamed
@@ -68,6 +92,7 @@ let
     tunnels = {
       tag = "tunnel";
       renameBody = rename.tunnel;
+      body = objects.tunnelObjectBody;
     };
   };
 
@@ -77,7 +102,7 @@ let
 
   # Emit one `add <kind>` command for a single named object.
   emitObject =
-    ctx: pluralKey: name: body:
+    ctx: pluralKey: name: userBody:
     let
       cfg = objectKinds.${pluralKey};
       full = compact (
@@ -85,12 +110,20 @@ let
           inherit (ctx) family table;
           inherit name;
         }
-        // (cfg.renameBody body)
+        // (cfg.renameBody userBody)
       );
+      validated = validate {
+        type = cfg.body;
+        value = full;
+        prefix = [
+          pluralKey
+          name
+        ];
+      };
     in
     {
       add = {
-        "${cfg.tag}" = full;
+        "${cfg.tag}" = compact validated;
       };
     };
 
@@ -110,40 +143,60 @@ let
 
   # Emit a single rule, injecting chain context. `entry` is either a bare
   # list of statements or an attrset `{ expr; handle?; index?; comment?; }`.
+  # `idx` is the rule's position in the chain's `rules` list — included in
+  # the validation prefix so errors say which rule failed.
   emitRule =
-    ctx: entry:
+    ctx: idx: entry:
     let
       body = if builtins.isList entry then { expr = entry; } else entry;
       full = compact ({ inherit (ctx) family table chain; } // body);
+      validated = validate {
+        type = objects.ruleBody;
+        value = full;
+        prefix = [
+          "chains"
+          ctx.chain
+          "rules"
+          (toString idx)
+        ];
+      };
     in
     {
       add = {
-        rule = full;
+        rule = compact validated;
       };
     };
 
   # Emit `add chain` for a single chain (rules excluded — see emitChainRules).
   emitChainAdd =
-    ctx: name: chainBody:
+    ctx: name: chainBodyValue:
     let
       full = compact (
         {
           inherit (ctx) family table;
           inherit name;
         }
-        // (removeAttrs chainBody [ "rules" ])
+        // (removeAttrs chainBodyValue [ "rules" ])
       );
+      validated = validate {
+        type = objects.chainBody;
+        value = full;
+        prefix = [
+          "chains"
+          name
+        ];
+      };
     in
     {
       add = {
-        chain = full;
+        chain = compact validated;
       };
     };
 
   # Emit all `add rule` commands for one chain.
   emitChainRules =
-    ctx: name: chainBody:
-    map (emitRule (ctx // { chain = name; })) (chainBody.rules or [ ]);
+    ctx: name: chainBodyValue:
+    lib.imap0 (idx: entry: emitRule (ctx // { chain = name; }) idx entry) (chainBodyValue.rules or [ ]);
 
   # Full expansion of a single table node into a flat command list.
   # Emission order is chosen so cross-references within the atomic batch
@@ -170,9 +223,15 @@ let
         flags = null;
         comment = null;
       } body;
+      tableFull = compact ({ inherit family name; } // tableOpts);
+      tableValidated = validate {
+        type = objects.tableBody;
+        value = tableFull;
+        prefix = [ ];
+      };
       tableAdd = {
         add = {
-          table = compact ({ inherit family name; } // tableOpts);
+          table = compact tableValidated;
         };
       };
       ctx = {
@@ -182,8 +241,8 @@ let
 
       chains = body.chains or { };
       chainNames = sortedNames chains;
-      chainAdds = map (name: emitChainAdd ctx name chains.${name}) chainNames;
-      ruleAdds = lib.concatMap (name: emitChainRules ctx name chains.${name}) chainNames;
+      chainAdds = map (chainName: emitChainAdd ctx chainName chains.${chainName}) chainNames;
+      ruleAdds = lib.concatMap (chainName: emitChainRules ctx chainName chains.${chainName}) chainNames;
     in
     [ tableAdd ] ++ chainAdds ++ emitObjects ctx body ++ ruleAdds;
 
