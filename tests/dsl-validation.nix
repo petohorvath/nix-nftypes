@@ -37,6 +37,87 @@ let
       ];
       expected = false;
     };
+
+    # ----- command-builder constructors (commands.nix) --------------------
+
+    testCreateChainPrioStringRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.create.chain {
+          family = "ip";
+          table = "t";
+          name = "c";
+          prio = "filter";
+        }))).success;
+      expected = false;
+    };
+
+    testDeleteCounterBadFamilyRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.delete.counter {
+          family = "wireguard";
+          table = "t";
+          name = "ctr";
+        }))).success;
+      expected = false;
+    };
+
+    testListMapBadTypeRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.list.map {
+          family = "ip";
+          table = "t";
+          name = "m";
+          type = 123;
+        }))).success;
+      expected = false;
+    };
+
+    testResetRuleBadHandleRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.reset.rule {
+          family = "ip";
+          table = "t";
+          chain = "c";
+          expr = [ ];
+          handle = "not-a-number";
+        }))).success;
+      expected = false;
+    };
+
+    testRenameChainBadNewnameRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.rename.chain {
+          family = "ip";
+          table = "t";
+          name = "c";
+          newname = 42;
+        }))).success;
+      expected = false;
+    };
+
+    testReplaceRuleBadHandleRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.replace {
+          family = "ip";
+          table = "t";
+          chain = "c";
+          expr = [ ];
+          handle = "abc";
+        }))).success;
+      expected = false;
+    };
+
+    testInsertRuleBadIndexRejected = {
+      expr =
+        (builtins.tryEval (toJSON (dsl.insert {
+          family = "ip";
+          table = "t";
+          chain = "c";
+          expr = [ ];
+          index = -1;
+        }))).success;
+      expected = false;
+    };
   };
 
   runTests =

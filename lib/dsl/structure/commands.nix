@@ -21,78 +21,101 @@
 # DSL idiomatic renames (elements → elem, srcIpv4 → src-ipv4, …) are
 # applied per kind so users never have to write hyphenated keys even in
 # command-builder positions.
+#
+# Every constructor runs the renamed body through the matching schema
+# submodule before wrapping it in a command tag, so a type-mismatched
+# field throws at eval time naming the verb, kind, and field
+# (e.g. `create.chain.prio: not of type 'null or signed integer'`).
 
 let
   rename = import ../internal/rename.nix { inherit lib; };
 
-  # Per-object-kind configuration: the JSON tag emitted and the body rename
-  # applied before emission. Mirrors `structure/render.nix`'s `objectKinds`
-  # (which uses plural keys for the table tree); here singular DSL names
-  # match the command-builder surface.
+  # Per-object-kind configuration:
+  #   tag         — the singular JSON command tag (`chain`, `ct helper`, …)
+  #   renameBody  — DSL-key → JSON-key rename applied before validation
+  #   body        — schema submodule the renamed body is validated against
+  # Mirrors `structure/render.nix`'s `objectKinds`; here singular DSL names
+  # match the command-builder surface (vs the table tree's plural keys).
   addObjectKinds = {
     table = {
       tag = "table";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.tableBody;
     };
     chain = {
       tag = "chain";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.chainBody;
     };
     rule = {
       tag = "rule";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.ruleBody;
     };
     set = {
       tag = "set";
-      body = rename.set;
+      renameBody = rename.set;
+      body = objects.setObjectBody;
     };
     map = {
       tag = "map";
-      body = rename.set;
+      renameBody = rename.set;
+      body = objects.mapObjectBody;
     };
     element = {
       tag = "element";
-      body = rename.element;
+      renameBody = rename.element;
+      body = objects.elementBody;
     };
     flowtable = {
       tag = "flowtable";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.flowtableBody;
     };
     counter = {
       tag = "counter";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.counterObjectBody;
     };
     quota = {
       tag = "quota";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.quotaObjectBody;
     };
     ctHelper = {
       tag = "ct helper";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.ctHelperObjectBody;
     };
     limit = {
       tag = "limit";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.limitObjectBody;
     };
     ctTimeout = {
       tag = "ct timeout";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.ctTimeoutObjectBody;
     };
     ctExpectation = {
       tag = "ct expectation";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.ctExpectationObjectBody;
     };
     secmark = {
       tag = "secmark";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.secmarkObjectBody;
     };
     synproxy = {
       tag = "synproxy";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.synproxyObjectBody;
     };
     tunnel = {
       tag = "tunnel";
-      body = rename.tunnel;
+      renameBody = rename.tunnel;
+      body = objects.tunnelObjectBody;
     };
   };
 
@@ -102,11 +125,13 @@ let
   listObjectKinds = addObjectKinds // {
     metainfo = {
       tag = "metainfo";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.metainfoBody;
     };
     meter = {
       tag = "meter";
-      body = lib.id;
+      renameBody = lib.id;
+      body = objects.meterObjectBody;
     };
   };
 
@@ -128,14 +153,31 @@ let
       ;
   };
 
-  # Build a namespace `{ dslKey = body: { cmdTag = { jsonTag = rename body; }; }; … }`.
+  # Build a namespace `{ dslKey = body: { cmdTag = { jsonTag = validated; }; }; … }`.
+  # `validated` is the renamed user body run through evalModules against the
+  # kind's schema body; the prefix names the verb and kind so error messages
+  # read like `create.chain.prio: …`.
   mkNamespace =
     cmdTag: kinds:
-    lib.mapAttrs (_: cfg: body: {
-      ${cmdTag} = {
-        ${cfg.tag} = cfg.body body;
-      };
-    }) kinds;
+    lib.mapAttrs (
+      _: cfg: userBody:
+      let
+        renamed = cfg.renameBody userBody;
+        validated = validate {
+          type = cfg.body;
+          value = renamed;
+          prefix = [
+            cmdTag
+            cfg.tag
+          ];
+        };
+      in
+      {
+        ${cmdTag} = {
+          ${cfg.tag} = validated;
+        };
+      }
+    ) kinds;
 in
 {
   create = mkNamespace "create" createObjectKinds;
@@ -155,7 +197,14 @@ in
   rename = {
     chain = body: {
       rename = {
-        chain = body;
+        chain = validate {
+          type = objects.chainBody;
+          value = body;
+          prefix = [
+            "rename"
+            "chain"
+          ];
+        };
       };
     };
   };
@@ -166,12 +215,26 @@ in
   # kind is fixed.
   replace = body: {
     replace = {
-      rule = body;
+      rule = validate {
+        type = objects.ruleBody;
+        value = body;
+        prefix = [
+          "replace"
+          "rule"
+        ];
+      };
     };
   };
   insert = body: {
     insert = {
-      rule = body;
+      rule = validate {
+        type = objects.ruleBody;
+        value = body;
+        prefix = [
+          "insert"
+          "rule"
+        ];
+      };
     };
   };
 }
