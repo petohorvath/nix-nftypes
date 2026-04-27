@@ -52,7 +52,7 @@ A DSL surface is **complete** for a schema body if either path can produce every
 ### D4. No `list.meter` builder
 
 - **Schema gap surfaced**: `parser_json.c:4191` (`json_parse_cmd_list` dispatch) accepts `{"meter", CMD_OBJ_METER, json_parse_cmd_add_set}`. The schema's `listObject` didn't include `meter`, so even `{list = {meter = …};}` failed at evaluation time.
-- **Fix (schema)**: add `meter = bodies.meterObjectBody;` to the `listObject` `attrTag`. Logged in spec-coverage as a follow-up gap S1.
+- **Fix (schema)**: add `meter = bodies.meterObjectBody;` to the `listObject` `attrTag`. Logged in this audit's coverage summary (line above) so a future schema-only audit doesn't re-flag it.
 - **Fix (DSL)**: add `meter = { tag = "meter"; body = lib.id; };` to `listObjectKinds` in `lib/dsl/structure/commands.nix`. `dsl.list.meter {family;table;name;}` works.
 
 ### D5. Stale comment in `structure/ruleset.nix`
@@ -72,7 +72,7 @@ A DSL surface is **complete** for a schema body if either path can produce every
 For every DSL constructor, verify the produced attrset is accepted by the schema. Walked module-by-module:
 
 - `actions/counter.nix`: emits `{counter = null}`, `{counter = "name"}`, or `{counter = {packets?; bytes?;}}`. Schema's `counterRefOrBody = oneOf [nullLiteral str submodule{packets,bytes}]` accepts all three. ✓
-- `actions/rate.nix` (limit, quota): emits ref-or-inline forms matching `limitRefOrBody` / `quotaRefOrBody`. Crucially, **does not emit the vestigial `unit` field** that the schema removed in spec-coverage F6. Verified by `grep '\bunit\b' lib/dsl/`. ✓
+- `actions/rate.nix` (limit, quota): emits ref-or-inline forms matching `limitRefOrBody` / `quotaRefOrBody`. Crucially, **does not emit the vestigial `unit` field** that the schema removed in spec-coverage E19. Verified by `grep '\bunit\b' lib/dsl/`. ✓
 - `actions/log.nix`: applies `rename.log` (`queueThreshold` → `queue-threshold`) before emission. ✓
 - `actions/synproxy.nix`: anonymous form requires both `mss` and `wscale`, matching the schema's `synproxyAnonBody`. (Spec-coverage E10 notes the schema is stricter than the parser here; the DSL inherits that posture.)
 - `actions/nat.nix`, `actions/queue.nix`, `actions/reject.nix`, `actions/ct.nix`, `actions/flow.nix`, `actions/misc.nix`: each constructor emits the exact body shape the corresponding schema body accepts.
@@ -142,7 +142,6 @@ The DSL hides hyphenated JSON keys (`queue-threshold`, `gc-interval`, `auto-merg
 
 - Text renderer coverage: see [`docs/text-coverage.md`](text-coverage.md).
 - Schema-vs-parser audit: see [`docs/spec-coverage.md`](spec-coverage.md).
-- Schema-layer code quality: see [`docs/code-review.md`](code-review.md).
 - DSL-internal refactorings (e.g. unifying the variant pattern, splitting large action modules): not a coverage concern, deferred.
 
 ## Verification

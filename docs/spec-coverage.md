@@ -15,7 +15,7 @@ This doc records a file-by-file comparison of `lib/schema/` against `src/parser_
 | Object kinds (plural list/reset forms: `tables`, `chains`, `sets`, `counters`, …) | 13 | 0 | 13 | Read-back shapes only; never used as input. **Documented edge case** — not a fix target. |
 | Statements              | 31 (incl. `vmap` aliased and `xt` rejected) | 31 | 0 | All statement tags modelled. `xt` modelled but parser rejects (edge case). |
 | Expression tags         | 30 (concat/set/map/prefix/range, payload, exthdr, tcp/ip/sctp/dccp option, meta/rt/ct/fib/socket/osf/ipsec/tunnel/elem, numgen/jhash/symhash, 5 binops, 6 verdicts) | 30 | 0 | Match. |
-| Enums (`primitives.nix`)  | 30 distinct lookup tables | 38 enum types in schema | 3 enum-value gaps | See "Enum coverage" below. |
+| Enums (`primitives.nix`)  | 30 distinct lookup tables | 36 enum types in schema | 3 enum-value gaps | See "Enum coverage" below. |
 | Commands                | 10 (`add` `replace` `create` `insert` `delete` `destroy` `list` `reset` `flush` `rename`) + bare-listed implicit | 10 + topLevel union | 0 | Match. |
 
 **Enum-value gaps confirmed**: 3 (rt key `ipsec`, osf key `version`, fib result `check`). **Object-shape gaps confirmed**: 2 (`flushObject` includes `flowtable` parser rejects; missing `meter`). Total gaps fixed in this work: 5. See "Confirmed gaps" below.
@@ -67,14 +67,14 @@ These are cases where the parser accepts something the schema rejects.
 ### G4. `flushObject` includes `flowtable` but parser does not
 
 - **Parser**: `parser_json.c:4297-4304` — `cmd_obj_table[]` for flush has `table, chain, set, map, meter, ruleset` only. `flowtable` is *not* there; `nft -j -f` rejects `{ "flush": { "flowtable": … } }` with "Unknown object passed to flush command."
-- **Schema**: `lib/schema/objects.nix:784-793` — `flushObject` includes `flowtable = bodies.flowtableBody;`.
-- **Inconsistency**: README + `lib/dsl/` already document this. The DSL omits `flushFlowtable` deliberately ("nftables rejects `flush flowtable`, so that combination is intentionally absent" — README line 111). But the schema layer's `flushObject` exposes it anyway, so a hand-written `{ flush = { flowtable = …; }; }` passes type-check and then fails at `nft -c -j -f`.
+- **Schema**: `lib/schema/objects.nix:687-696` — `flushObject` includes `flowtable = bodies.flowtableBody;`.
+- **Inconsistency**: README + `lib/dsl/` already document this. The DSL omits `flushFlowtable` deliberately ("nftables rejects `flush flowtable`, so that combination is intentionally absent" — see the `flush` row in the README's DSL entry-points table). But the schema layer's `flushObject` exposes it anyway, so a hand-written `{ flush = { flowtable = …; }; }` passes type-check and then fails at `nft -c -j -f`.
 - **Fix in this work**: drop `flowtable` from `flushObject`.
 
 ### G5. `flushObject` missing `meter`
 
 - **Parser**: `parser_json.c:4302` — `{ "meter", CMD_OBJ_METER, … }` is in the flush dispatch table.
-- **Schema**: `lib/schema/objects.nix:784-793` — no `meter` entry in `flushObject` (and no `meterBody` in `objects.nix` at all — meters are modelled as a *statement* in `statements.nix:325-345`, not as an object).
+- **Schema**: `lib/schema/objects.nix:687-696` — no `meter` entry in `flushObject` (and no `meterBody` in `objects.nix` at all — meters are modelled as a *statement* in `statements.nix:329-349`, not as an object).
 - **Note**: nftables represents anonymous meters internally as sets, which is why parser routes flush-meter to `json_parse_cmd_add_set`. A user listing a ruleset that contains a named meter and trying to flush it cannot do so via the schema.
 - **Fix in this work**: add a minimal `meterObjectBody` (just family + table + name) and include it in `flushObject` (and `listObject` — see edge case E11). DSL exposure is deferred (DSL not in scope for this work).
 
@@ -88,55 +88,55 @@ Items the README "How this was built" section already notes are restated here in
 
 | Statement | Parser fn | Adoc | Schema |
 |---|---|---|---|
-| `last`      | `json_parse_last_stmt` (1937) | absent | `statements.nix:402-409` ✓ |
-| `flow`      | `json_parse_flow_offload_stmt` (2160) | absent | `statements.nix:411-422` ✓ |
-| `tproxy`    | `json_parse_tproxy_stmt` (2364) | absent | `statements.nix:424-442` ✓ |
-| `synproxy`  | `json_parse_synproxy_stmt` (2678) | absent | `statements.nix:444-466` ✓ |
-| `reset`     | `json_parse_optstrip_stmt` (2866) | absent | `statements.nix:469` ✓ |
-| `secmark`   | `json_parse_secmark_stmt` (2220) | absent | `statements.nix:511` ✓ |
-| `tunnel`    | `json_parse_tunnel_stmt` (2237) | absent | `statements.nix:512` ✓ |
+| `last`      | `json_parse_last_stmt` (1937) | absent | `statements.nix:406-413` ✓ |
+| `flow`      | `json_parse_flow_offload_stmt` (2160) | absent | `statements.nix:415-426` ✓ |
+| `tproxy`    | `json_parse_tproxy_stmt` (2364) | absent | `statements.nix:428-446` ✓ |
+| `synproxy`  | `json_parse_synproxy_stmt` (2678) | absent | `statements.nix:448-470` ✓ |
+| `reset`     | `json_parse_optstrip_stmt` (2866) | absent | `statements.nix:473` ✓ |
+| `secmark`   | `json_parse_secmark_stmt` (2220) | absent | `statements.nix:515` ✓ |
+| `tunnel`    | `json_parse_tunnel_stmt` (2237) | absent | `statements.nix:516` ✓ |
 
 ### Object types present in parser but absent from adoc
 
 | Object | Parser branch | Adoc | Schema |
 |---|---|---|---|
-| `secmark`   | `json_parse_cmd_add_object:CMD_OBJ_SECMARK` (3767) | absent | `objects.nix:556-565` ✓ |
-| `synproxy`  | `json_parse_cmd_add_object:CMD_OBJ_SYNPROXY` (3885) | absent | `objects.nix:567-583` ✓ |
-| `tunnel`    | `json_parse_cmd_add_object:NFT_OBJECT_TUNNEL` (3902) | absent | `objects.nix:585-719` ✓ |
+| `secmark`   | `json_parse_cmd_add_object:CMD_OBJ_SECMARK` (3767) | absent | `objects.nix:443-452` ✓ |
+| `synproxy`  | `json_parse_cmd_add_object:CMD_OBJ_SYNPROXY` (3885) | absent | `objects.nix:454-468` ✓ |
+| `tunnel`    | `json_parse_cmd_add_object:NFT_OBJECT_TUNNEL` (3902) | absent | `objects.nix:546-605` ✓ |
 
 ### Field-level deviations the schema follows the parser on
 
 | Item | Parser | Adoc | Schema |
 |---|---|---|---|
-| `ct timeout` policy is a nested `{ state → seconds }` object | `parser_json.c:3550-3580` (`json_parse_ct_timeout_policy`) | flat `state` + `value` fields | `objects.nix:500-504` ✓ |
-| `ct timeout` and `ct expectation` accept only `tcp`/`udp` for `protocol` | `parser_json.c:3815-3823, 3844-3852` | 8 protocols | `primitives.nix:266` (`ctTimeoutProtoType = ctHelperProtoType`) ✓ |
-| `chain.dev` accepts a string OR `[string]` | `parser_json.c:3041-3079` (`json_parse_devs`) | string only | `objects.nix:140-145` (`listOrSingleton types.str`) ✓ |
-| `flowtable.dev` accepts a string OR `[string]` | same `json_parse_devs` | string only | `objects.nix:383-387` ✓ |
+| `ct timeout` policy is a nested `{ state → seconds }` object | `parser_json.c:3550-3580` (`json_parse_ct_timeout_policy`) | flat `state` + `value` fields | `objects.nix:387-391` ✓ |
+| `ct timeout` and `ct expectation` accept only `tcp`/`udp` for `protocol` | `parser_json.c:3815-3823, 3844-3852` | 8 protocols | `primitives.nix:276` (`tcpUdpProto`) ✓ |
+| `chain.dev` accepts a string OR `[string]` | `parser_json.c:3041-3079` (`json_parse_devs`) | string only | `objects.nix:202-207` (`listOrSingleton types.str`) ✓ |
+| `flowtable.dev` accepts a string OR `[string]` | same `json_parse_devs` | string only | `objects.nix:275-279` ✓ |
 | `comment` field on tables, chains, rules, named objects | `parser_json.c:2974, 3100, 3231, 3750` | absent on most kinds | present on all relevant kinds ✓ |
-| `stmt` on sets/maps for stateful per-element statements | `parser_json.c:3423-3428` | absent | `objects.nix:253-257, 325-329` ✓ |
-| `stmt` on the `set` and `map` *statements* (per-element on add/update) | `parser_json.c:2523-2526, 2583-2586` | absent | `statements.nix:255-258, 282-286` ✓ |
-| `type_flags` on NAT statements (`interval`, `prefix`, `concat`) | `parser_json.c:2274-2289, 2353-2359` | absent | `statements.nix:203-207`, `primitives.nix:236-241` ✓ |
-| `size` on `meter` statement | `parser_json.c:2793` | absent | `statements.nix:339-343` ✓ |
-| `rate_unit`, `burst_unit`, `inv` on `limit` (statement and object) | `parser_json.c:2086-2089, 3868-3871` | partial coverage | `statements.nix:124-138, objects.nix:459-484` ✓ |
-| `payload.base = "ih"` (inner-header) | `parser_json.c:668-669` | only `ll`/`nh`/`th` | `primitives.nix:229-234` ✓ |
-| `socket.key = "mark"`, `"wildcard"` | `parser_json.c:506-509` | only `transparent` | `primitives.nix:252-256` ✓ |
+| `stmt` on sets/maps for stateful per-element statements | `parser_json.c:3423-3428` | absent | `objects.nix:157-161` (shared via `setMapCommonOptions`) ✓ |
+| `stmt` on the `set` and `map` *statements* (per-element on add/update) | `parser_json.c:2523-2526, 2583-2586` | absent | `statements.nix:259-263, 286-290` ✓ |
+| `type_flags` on NAT statements (`interval`, `prefix`, `concat`) | `parser_json.c:2274-2289, 2353-2359` | absent | `statements.nix:207-211`, `primitives.nix:248-252` ✓ |
+| `size` on `meter` statement | `parser_json.c:2793` | absent | `statements.nix:343-347` ✓ |
+| `rate_unit`, `burst_unit`, `inv` on `limit` (statement and object) | `parser_json.c:2086-2089, 3868-3871` | partial coverage | `statements.nix:117-150, objects.nix:340-372` ✓ |
+| `payload.base = "ih"` (inner-header) | `parser_json.c:668-669` | only `ll`/`nh`/`th` | `primitives.nix:240-245` ✓ |
+| `socket.key = "mark"`, `"wildcard"` | `parser_json.c:506-509` | only `transparent` | `primitives.nix:266-270` ✓ |
 | `nat.flag = "netmap"` | `parser_json.c:2263` | random/fully-random/persistent only | `primitives.nix:96-101` ✓ |
 | `set.flag = "dynamic"` | `parser_json.c:3296` | constant/interval/timeout only | `primitives.nix:63-68` ✓ |
 | `family = "egress"` hook | `chain_hookname_lookup`, kernel `nf_inet_hooks` | absent or partial | `primitives.nix:26-34` ✓ |
 | `family = "arp"`, `"bridge"`, `"netdev"` | `parse_family` | partial in adoc | `primitives.nix:17-24` ✓ |
-| Counter accepts `null` (stateless mode emit) | `parser_json.c:1914-1915` | not noted | `statements.nix:49-66` (`oneOf [nullLiteral …]`) ✓ |
-| Raw `tcp option` form (`{ base, offset, len }`) | `parser_json.c:745-765` | named only | `expressions.nix:152-189` ✓ |
-| Tunnelled `payload` form (`{ tunnel, protocol, field }`) | `parser_json.c:686-712` | not mentioned | `expressions.nix:88-106` ✓ |
+| Counter accepts `null` (stateless mode emit) | `parser_json.c:1914-1915` | not noted | `statements.nix:52-69` (`oneOf [nullLiteral …]`) ✓ |
+| Raw `tcp option` form (`{ base, offset, len }`) | `parser_json.c:745-765` | named only | `expressions.nix:162-200` ✓ |
+| Tunnelled `payload` form (`{ tunnel, protocol, field }`) | `parser_json.c:686-712` | not mentioned | `expressions.nix:94-114` ✓ |
 | Meta keys: `iifkind`, `oifkind`, `ibrpvid`, `ibrvproto`, `time`, `day`, `hour`, `secmark`, `sdif`, `sdifname`, `broute`, `ibrhwaddr`, `cgroup`, `ipsec` (=SECPATH), backwards-compat `ibriport`, `obriport`, `secpath` | `meta_templates[]` (`src/meta.c:617-708`) + `meta_key_parse` aliases (`src/meta.c:1020-1030`) | partial | `primitives.nix:150-192` (37 canonical + 3 aliases = 40) ✓ |
-| `ipsec` (xfrm) expression — keys, family, dir, spnum 0-255 | `parser_json.c:1585-1644` | absent | `expressions.nix:357-379` ✓ |
-| `tunnel` metadata expression (`path`/`id`) | `parser_json.c:446-461` | absent | `expressions.nix:381-386` ✓ |
-| `ip option` expression (named form) | `parser_json.c:822-849` | absent | `expressions.nix:191-204` ✓ |
-| `dccp option` expression | `parser_json.c:898-911` | absent | `expressions.nix:220-225` ✓ |
-| `sctp chunk` expression | `parser_json.c:867-895` | mentioned briefly | `expressions.nix:206-218` ✓ |
+| `ipsec` (xfrm) expression — keys, family, dir, spnum 0-255 | `parser_json.c:1585-1644` | absent | `expressions.nix:368-390` ✓ |
+| `tunnel` metadata expression (`path`/`id`) | `parser_json.c:446-461` | absent | `expressions.nix:392-397` ✓ |
+| `ip option` expression (named form) | `parser_json.c:822-849` | absent | `expressions.nix:203-215` ✓ |
+| `dccp option` expression | `parser_json.c:898-911` | absent | `expressions.nix:231-236` ✓ |
+| `sctp chunk` expression | `parser_json.c:867-895` | mentioned briefly | `expressions.nix:217-229` ✓ |
 | `osf` `version` key | `parser_json.c:486-488` | only `name` documented | **G2 above — missing in schema** |
 | `rt.ipsec` key | `parser_json.c:997` | adoc mentions classid/nexthop/mtu | **G1 above — missing in schema** |
 | `fib.result = "check"` | `parser_json.c:1181, 1201-1204` | not documented | **G3 above — missing in schema** |
-| `connlimit` aliased as `ct count` | `parser_json.c:2917, json_parse_connlimit_stmt` | mentions `ct count` only | `statements.nix:503` ✓ |
+| `connlimit` aliased as `ct count` | `parser_json.c:2917, json_parse_connlimit_stmt` | mentions `ct count` only | `statements.nix:507` ✓ |
 | `flush meter` accepted | `parser_json.c:4302` | not documented | **G5 above — missing in schema** |
 | `flush flowtable` rejected | `parser_json.c:4297-4304` (no `flowtable` row) | not documented | **G4 above — schema permits it** |
 
@@ -163,12 +163,13 @@ Items the README "How this was built" section already notes are restated here in
 | `xfrmDir` | `parser_json.c:1611-1620` | ✓ |
 | `xfrmKey` | `xfrm_templates[]` (`src/xfrm.c`) | ✓ |
 | `tunnelKey` | `tunnel_key_parse` (path/id) | ✓ |
+| `tunnelType` | tunnel-object encapsulation kind (vxlan/erspan/geneve), `parser_json.c:3902-3920` | ✓ |
 | `queueFlag` | `queue_flag_parse` (`parser_json.c:2815-2822`) | ✓ |
 | `rejectType` | `parser_json.c:2412-2429` | ✓ |
 | `setOp` | `parser_json.c:2494-2502, 2545-2553` | ✓ |
 | `metaKey` | `meta_templates[]` + `meta_key_parse` aliases | ✓ |
 | `rtKey` | `rt_key_tbl[]` (`parser_json.c:993-998`) | **G1 — missing `ipsec`** |
-| `rtFamilyType` | `parse_family` restricted | ✓ |
+| `ipFamily` | `parse_family` restricted to `ip`/`ip6` (used by rt, ipsec/xfrm, ct l3, NAT, named-object l3proto fields) | ✓ |
 | `ctDirection` | `parser_json.c:1077-1085` | ✓ |
 | `ngMode` | `parser_json.c:1107-1114` | ✓ |
 | `fibResult` | `fib_result_tbl[]` (`parser_json.c:1176-1182`) | **G3 — missing `check`** |
@@ -177,12 +178,10 @@ Items the README "How this was built" section already notes are restated here in
 | `osfKey` | `parser_json.c:484-489` | **G2 — missing `version`** |
 | `osfTtl` | `parser_json.c:474-481` | ✓ |
 | `socketKey` | `parser_json.c:504-510` (transparent/mark/wildcard) | ✓ — see E1 below |
-| `ctHelperProtoType` | `parser_json.c:3795-3802` | ✓ |
-| `ctTimeoutProtoType` | `parser_json.c:3815-3823, 3844-3852` (alias of `ctHelperProtoType` since the parser only branches tcp/udp for both) | ✓ |
+| `tcpUdpProto` | `parser_json.c:3795-3802, 3815-3823, 3844-3852` (shared by ct helper, ct timeout, ct expectation — parser branches only on tcp/udp for all three) | ✓ |
 | `xtType` | schema models (match/target/watcher); parser **rejects all `xt`** (`parser_json.c:2942-2944`) | E2 below |
 | `limitUnit` | `rate_to_bytes` (kbytes/mbytes) + special `"packets"` | ✓ |
 | `perUnit` | `seconds_from_unit` (`parser_json.c:2063-2074`) | ✓ |
-| `natFamilyType` | `parse_family` restricted | ✓ |
 
 ---
 
@@ -199,12 +198,12 @@ Items where the parser does something the schema cannot or chooses not to enforc
 ### E2. `xt` statement modelled but parser always rejects
 
 - `parser_json.c:2942-2944`: `if (!strcmp(type, "xt")) { json_error(ctx, "unsupported xtables compat expression, use iptables-nft with this ruleset"); return NULL; }`
-- Schema's `xtBody` (`statements.nix:389-400`) and `statement` tag (`statements.nix:504`) accept `{ xt = { type = …; name = …; }; }` and the resulting JSON serialises fine — but `nft -c -j -f` will reject it.
-- **Decision**: keep schema as-is for round-trip with `nft -j list ruleset` output (which emits `xt` blocks for legacy rules) but document this asymmetry. Schema is intentionally broader than parser-input on this specific tag. **Add a comment** in `statements.nix:504` (deferred to a follow-up if not done in this PR).
+- Schema's `xtBody` (`statements.nix:393-404`) and `statement` tag (`statements.nix:508`) accept `{ xt = { type = …; name = …; }; }` and the resulting JSON serialises fine — but `nft -c -j -f` will reject it.
+- **Decision**: keep schema as-is for round-trip with `nft -j list ruleset` output (which emits `xt` blocks for legacy rules) but document this asymmetry. Schema is intentionally broader than parser-input on this specific tag. **Add a comment** in `statements.nix:508` (deferred to a follow-up if not done in this PR).
 
 ### E3. `ct.key` is a free-form string, not an enum
 
-- `parser_json.c:1062-1075` looks up the key against `ct_templates[]` (a large table in `src/ct.c`). The schema uses `types.str` rather than enumerating the table's tokens (`expressions.nix:248-265`).
+- `parser_json.c:1062-1075` looks up the key against `ct_templates[]` (a large table in `src/ct.c`). The schema uses `types.str` rather than enumerating the table's tokens (`expressions.nix:259-276`).
 - **Reasoning**: the ct_templates table is large and spread across kernel versions; mirroring it in Nix would be brittle. The schema accepts strings and lets the live parser reject invalid values. The same choice was made for `tunnel_key_parse` and `tunnel_type` lookups internally.
 
 ### E4. `ct.dir` always optional in schema but parser-conditional
@@ -240,7 +239,7 @@ Items where the parser does something the schema cannot or chooses not to enforc
 ### E10. Synproxy statement inline form: mss/wscale individually optional in parser, both required in schema
 
 - `parser_json.c:2689-2710`: each of `mss` and `wscale` is read with `json_unpack` (optional). Setting only one is legal.
-- Schema: `synproxyAnonBody` (`statements.nix:444-460`) makes both required.
+- Schema: `synproxyAnonBody` (`statements.nix:448-464`) makes both required.
 - **Schema stricter than parser**. The synproxy *object* (`parser_json.c:3887`) requires both via `_err`, so the object-side schema is correct; only the *statement-side anonymous* form diverges. Probably intentional — partial-config synproxy statements are rarely useful — but worth noting if a user trips on it. Not fixed in this work.
 
 ### E11. Plural list/reset object kinds (`tables`, `chains`, `sets`, …) not modelled
@@ -291,8 +290,8 @@ Schema correctly exposes both `sport` and `dport`; the fix has to land upstream.
 ### E19. `limitObjectBody.unit` field has no role in parser
 
 - `parser_json.c:3861-3884` reads `rate`, `per`, `rate_unit`, `inv`, `burst`, `burst_unit`. The kernel-internal `limit.type` is derived from `rate_unit` (packets vs bytes), not from a separate `unit` field. The JSON serializer (`src/json.c`) emits `unit` as a synonym in some output paths but the parser silently ignores it.
-- Schema exposes `unit` (`objects.nix:474-478`) marked "(derived from rate_unit; kept for symmetry)". Misleading — `unit` is not "derived" so much as **vestigial on the input side**.
-- **Cleanup in this work**: drop `unit` from `limitObjectBody`; add a `tests/default.nix` regression test that confirms `nft -c -j -f` ignores `unit` so future re-additions are flagged.
+- Schema previously exposed a `unit` field marked "(derived from rate_unit; kept for symmetry)". Misleading — `unit` was not "derived" so much as **vestigial on the input side**.
+- **Cleanup in this work**: dropped `unit` from `limitObjectBody`; added a `tests/default.nix` regression test that confirms `nft -c -j -f` ignores `unit` so future re-additions are flagged. Current `limitObjectBody` lives at `objects.nix:340-372`.
 
 ### E20. `tableBody`/`chainBody`/`ruleBody` etc. carry `handle` for round-trip
 
@@ -305,7 +304,7 @@ Schema correctly exposes both `sport` and `dport`; the fix has to land upstream.
 
 ### E22. Implicit-add (bare object without command wrapper) for `nft -j list` round-trip
 
-- `parser_json.c:4383-4393`: top-level objects without an outer command verb are treated as implicit `add` with `CTX_F_IMPLICIT` flag (which makes `handle` non-positional). Schema's `topLevel = oneOf [command, bareListObject]` (`commands.nix:34-37`) matches this.
+- `parser_json.c:4383-4393`: top-level objects without an outer command verb are treated as implicit `add` with `CTX_F_IMPLICIT` flag (which makes `handle` non-positional). Schema's `topLevel = oneOf [command, bareListObject]` (`commands.nix:38-41`) matches this.
 
 ---
 

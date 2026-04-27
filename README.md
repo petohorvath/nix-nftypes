@@ -189,21 +189,23 @@ lib/
     default.nix             entry: clean → render commands → join with newlines
   dsl/                    DSL — declarative table tree + path-based field access
     default.nix             top-level entry aggregating every sub-module
-    fields/                 pre-built payload and meta/ct/rt/socket/fib/ipsec/tunnelMeta leaves
+    fields/                 pre-built payload and meta/ct/rt/socket/fib/ipsec/osf/tunnelMeta leaves
     ops.nix                 eq / ne / lt / gt / le / ge / inSet / notInSet / within / match
     verdicts.nix            accept / drop / continue / return / notrack / jump / goto
     exprs.nix               concat / set / map / prefix / range / numgen / jhash / … and header-option escape hatches
     payload.nix             payload / payloadRaw / payloadTunnel escape hatches
     actions/                counter, reject, log, rate, nat, synproxy, queue, ct, flow, misc — one file per statement group
     structure/              ruleset envelope, declarative `table` node, renderer that expands the tree into commands
-    internal/               compact, rename, variant (__functor helper), markers
+    internal/               compact, rename, variant (__functor helper), markers, validate (DSL → schema submodule wiring)
 tests/
-  default.nix             schema tests for the nft-types layer
-  dsl-parity.nix          parity tests for the DSL + renderer tests + error-case tests
-  dsl-integration.nix     live-parser tests: each ruleset is piped through `unshare -rn nft -c -j -f`
-  text-parity.nix         schema-level expected-string assertions for the text renderer
-  text-integration.nix    live-parser tests for text: pipes each case through `unshare -rn nft -c -f -`
-  render-equivalence.nix  loads JSON and text into separate netns, diffs `nft list ruleset`
+  default.nix                  schema tests for the nft-types layer
+  dsl-parity.nix               parity tests for the DSL + renderer tests + error-case tests
+  dsl-integration.nix          live-parser tests: each ruleset is piped through `unshare -rn nft -c -j -f`
+  dsl-validation.nix           per-submodule regression tests proving DSL constructors throw on type-mismatched bodies
+  dsl-validation-messages.nix  end-to-end check that thrown error messages name the offending option path
+  text-parity.nix              schema-level expected-string assertions for the text renderer
+  text-integration.nix         live-parser tests for text: pipes each case through `unshare -rn nft -c -f -`
+  render-equivalence.nix       loads JSON and text into separate netns, diffs `nft list ruleset`
 examples/
   basic-firewall.nix      hand-written raw attrsets (reference for users bypassing the DSL)
   basic-firewall-dsl.nix  same firewall via the DSL
@@ -227,6 +229,8 @@ Runs the full check matrix:
 - **text-parity-tests** — schema-level expected-string assertions for `toText`.
 - **text-integration-tests** — same case set as `integration-tests`, but rendered to text and piped through `unshare -rn nft -c -f -`.
 - **render-equivalence-tests** — for each case, loads JSON and text into separate netns and diffs `nft list ruleset`. The 1:1 contract.
+- **dsl-validation-tests** — per-submodule regression coverage: every DSL constructor that takes a user body is exercised with an invalid field and required to `throw` at evaluation time.
+- **dsl-validation-message-tests** — runs `nix-instantiate --eval` against representative bad expressions and asserts the stderr names the offending option path.
 
 Rendering an example ruleset for inspection:
 
