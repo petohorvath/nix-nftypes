@@ -21,7 +21,23 @@ let
 
   roundtrip = valueType: value: toJSON (validate valueType value);
 
-  tests = dslTests // {
+  # One drift assertion per primitive enum: the list under
+  # `nftlib.enums.<x>` must match the value list `types.enum` was
+  # constructed from (exposed by nixpkgs as `functor.payload.values`).
+  # Single-source binding in `lib/schema/primitives.nix` guarantees
+  # this; the test exists so any future regression that introduces
+  # parallel lists trips here.
+  enumDriftTests = lib.mapAttrs' (
+    name: list:
+    lib.nameValuePair "testEnumDrift_${name}" {
+      expr = list == nftlib.types.${name}.functor.payload.values;
+      expected = true;
+    }
+  ) nftlib.enums;
+
+  baseTests = dslTests // enumDriftTests;
+
+  tests = baseTests // {
     # ------------------------------------------------------------------
     # Verdicts
     # ------------------------------------------------------------------
@@ -1386,6 +1402,163 @@ let
         foo = 1;
       };
       expected = ''{"foo":1}'';
+    };
+
+    # ------------------------------------------------------------------
+    # resolvePriority — int passthrough
+    # ------------------------------------------------------------------
+    testResolvePriorityIntPassthroughIp = {
+      expr = nftlib.resolvePriority "ip" 42;
+      expected = 42;
+    };
+
+    testResolvePriorityIntPassthroughBridge = {
+      expr = nftlib.resolvePriority "bridge" (-100);
+      expected = -100;
+    };
+
+    # ------------------------------------------------------------------
+    # resolvePriority — default table (ip / ip6 / inet / arp / netdev)
+    # ------------------------------------------------------------------
+    testResolvePriorityIpFilter = {
+      expr = nftlib.resolvePriority "ip" "filter";
+      expected = 0;
+    };
+
+    testResolvePriorityIp6Raw = {
+      expr = nftlib.resolvePriority "ip6" "raw";
+      expected = -300;
+    };
+
+    testResolvePriorityInetSrcnat = {
+      expr = nftlib.resolvePriority "inet" "srcnat";
+      expected = 100;
+    };
+
+    testResolvePriorityNetdevMangle = {
+      expr = nftlib.resolvePriority "netdev" "mangle";
+      expected = -150;
+    };
+
+    # ------------------------------------------------------------------
+    # resolvePriority — bridge table (overrides default values)
+    # ------------------------------------------------------------------
+    testResolvePriorityBridgeFilter = {
+      expr = nftlib.resolvePriority "bridge" "filter";
+      expected = -200;
+    };
+
+    testResolvePriorityBridgeOut = {
+      expr = nftlib.resolvePriority "bridge" "out";
+      expected = 100;
+    };
+
+    testResolvePriorityBridgeDstnat = {
+      expr = nftlib.resolvePriority "bridge" "dstnat";
+      expected = -300;
+    };
+
+    # ------------------------------------------------------------------
+    # resolvePriority — unknown family throws
+    # ------------------------------------------------------------------
+    testResolvePriorityUnknownFamilyThrows = {
+      expr = (builtins.tryEval (nftlib.resolvePriority "wat" "filter")).success;
+      expected = false;
+    };
+
+    # ------------------------------------------------------------------
+    # resolvePriority — unknown symbol throws (default table)
+    # ------------------------------------------------------------------
+    testResolvePriorityUnknownSymbolThrowsDefault = {
+      expr = (builtins.tryEval (nftlib.resolvePriority "ip" "out")).success;
+      expected = false;
+    };
+
+    # ------------------------------------------------------------------
+    # resolvePriority — symbol valid in the default table is rejected for
+    # bridge if it isn't in the bridge table (`raw`/`mangle`/`security`
+    # are default-only).
+    # ------------------------------------------------------------------
+    testResolvePriorityUnknownSymbolThrowsBridge = {
+      expr = (builtins.tryEval (nftlib.resolvePriority "bridge" "raw")).success;
+      expected = false;
+    };
+
+    # ------------------------------------------------------------------
+    # compatibility matrix spot-checks
+    # ------------------------------------------------------------------
+    testCompatHooksNetdev = {
+      expr = nftlib.compatibility.hooksByFamily.netdev;
+      expected = [
+        "ingress"
+        "egress"
+      ];
+    };
+
+    testCompatHooksArp = {
+      expr = nftlib.compatibility.hooksByFamily.arp;
+      expected = [
+        "input"
+        "output"
+      ];
+    };
+
+    # `inet` supports `ingress` (with devices = {…}) since kernel 5.10
+    # — see `str2hooknum` in nftables `src/evaluate.c`.
+    testCompatHooksInetIncludesIngress = {
+      expr = builtins.elem "ingress" nftlib.compatibility.hooksByFamily.inet;
+      expected = true;
+    };
+
+    # Sanity check: the drift suite is generated, so an accidental
+    # truncation of `enumValues` would silently shrink coverage. We
+    # currently expose 36 enums; assert the count cannot drop below
+    # the existing surface without an explicit test update.
+    testEnumCountSanity = {
+      expr = builtins.length (builtins.attrNames nftlib.enums) >= 36;
+      expected = true;
+    };
+
+    testCompatNatExcludesBridge = {
+      expr = builtins.elem "bridge" nftlib.compatibility.familiesByChainType.nat;
+      expected = false;
+    };
+
+    testCompatNatExcludesNetdev = {
+      expr = builtins.elem "netdev" nftlib.compatibility.familiesByChainType.nat;
+      expected = false;
+    };
+
+    testCompatNatExcludesArp = {
+      expr = builtins.elem "arp" nftlib.compatibility.familiesByChainType.nat;
+      expected = false;
+    };
+
+    testCompatRouteFamilies = {
+      expr = nftlib.compatibility.familiesByChainType.route;
+      expected = [
+        "ip"
+        "ip6"
+      ];
+    };
+
+    testCompatHooksWithOifname = {
+      expr = nftlib.compatibility.hooksWithOifname;
+      expected = [
+        "forward"
+        "output"
+        "postrouting"
+      ];
+    };
+
+    testCompatPriorityDefaultFilter = {
+      expr = nftlib.compatibility.priorityIntsDefault.filter;
+      expected = 0;
+    };
+
+    testCompatPriorityBridgeFilter = {
+      expr = nftlib.compatibility.priorityIntsBridge.filter;
+      expected = -200;
     };
   };
 

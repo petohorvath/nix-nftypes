@@ -150,6 +150,30 @@ The nft-types layer is directly usable if the DSL's conventions don't fit — ev
 
 `nftlib.toJSON` on that value yields a byte-identical result to the DSL form. Raw commands and DSL children can appear side-by-side inside `dsl.ruleset [...]`.
 
+### Static reference data
+
+Three top-level exports surface kernel/man reference data downstream consumers (zone libraries, validators, doc generators) would otherwise rederive from `parser_json.c` or kernel headers.
+
+- `nftlib.enums` — flat value lists for every primitive enum, sourced from the same binding the `types.enum` definitions read. Drop-in replacement for `types.<x>.functor.payload.values`.
+
+  ```nix
+  nftlib.enums.family   # → [ "ip" "ip6" "inet" "arp" "bridge" "netdev" ]
+  ```
+
+- `nftlib.compatibility` — `man nft` Tables 6 and 7 plus the kernel's `oifname`-availability rule, transcribed: `hooksByFamily`, `familiesByChainType`, `priorityIntsDefault`, `priorityIntsBridge`, `hooksWithOifname`.
+
+  ```nix
+  nftlib.compatibility.hooksByFamily.netdev   # → [ "ingress" "egress" ]
+  ```
+
+- `nftlib.resolvePriority` — symbolic chain priority → int, with family-aware lookup. Bridge family uses `priorityIntsBridge`; every other known family uses `priorityIntsDefault`. Ints pass through unchanged. Unknown family or unknown symbol throws (with distinct messages).
+
+  ```nix
+  nftlib.resolvePriority "bridge" "filter"   # → -200
+  nftlib.resolvePriority "ip" "filter"       # → 0
+  nftlib.resolvePriority "ip" 42             # → 42
+  ```
+
 ### Running
 
 At runtime: `nft -j -f rules.json` (JSON) or `nft -f rules.nft` (text). Both rendering paths produce equivalent loaded rulesets — pick whichever fits the consumer.
@@ -170,6 +194,7 @@ The library was first written against the `libnftables-json(5)` adoc, then re-de
 lib/
   default.nix             entry point, wires schema → renderers + DSL
   clean.nix               shared null-stripping recursion (used by both renderers)
+  compatibility.nix       man nft Tables 6/7 reference data + resolvePriority helper
   schema/                 type-checked libnftables-json schema
     internal.nix            private helpers (discriminatedSubmodule, listOfLen, tagOpt, wrap)
     primitives.nix          enums: family, hook, operator, meta-key, etc.

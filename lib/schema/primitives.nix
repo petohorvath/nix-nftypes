@@ -14,300 +14,345 @@ let
   portNumber = types.ints.between 0 65535;
   prefixLength = types.ints.between 0 128;
 
-  family = types.enum [
-    "ip"
-    "ip6"
-    "inet"
-    "arp"
-    "bridge"
-    "netdev"
-  ];
+  /*
+    Source-of-truth value lists for every primitive enum. Consumed
+    twice: by the `types.enum` calls below (producing `types.<name>`)
+    and re-exported under `nftypes.lib.enums` via `default.nix`. A
+    single binding prevents the two surfaces drifting; a unit test
+    asserts `enums.<x> == types.<x>.functor.payload.values` per entry.
+  */
+  enumValues = {
+    family = [
+      "ip"
+      "ip6"
+      "inet"
+      "arp"
+      "bridge"
+      "netdev"
+    ];
 
-  hook = types.enum [
-    "prerouting"
-    "input"
-    "forward"
-    "output"
-    "postrouting"
-    "ingress"
-    "egress"
-  ];
+    hook = [
+      "prerouting"
+      "input"
+      "forward"
+      "output"
+      "postrouting"
+      "ingress"
+      "egress"
+    ];
 
-  policy = types.enum [
-    "accept"
-    "drop"
-  ];
+    policy = [
+      "accept"
+      "drop"
+    ];
 
-  chainType = types.enum [
-    "filter"
-    "nat"
-    "route"
-  ];
+    chainType = [
+      "filter"
+      "nat"
+      "route"
+    ];
 
-  operator = types.enum [
-    "=="
-    "!="
-    "<"
-    ">"
-    "<="
-    ">="
-    "in"
-  ];
+    operator = [
+      "=="
+      "!="
+      "<"
+      ">"
+      "<="
+      ">="
+      "in"
+    ];
 
-  tableFlag = types.enum [
-    "dormant"
-    "owner"
-    "persist"
-  ];
+    tableFlag = [
+      "dormant"
+      "owner"
+      "persist"
+    ];
 
-  setFlag = types.enum [
-    "constant"
-    "interval"
-    "timeout"
-    "dynamic"
-  ];
+    setFlag = [
+      "constant"
+      "interval"
+      "timeout"
+      "dynamic"
+    ];
 
-  setPolicy = types.enum [
-    "performance"
-    "memory"
-  ];
+    setPolicy = [
+      "performance"
+      "memory"
+    ];
 
-  logLevel = types.enum [
-    "emerg"
-    "alert"
-    "crit"
-    "err"
-    "warn"
-    "notice"
-    "info"
-    "debug"
-    "audit"
-  ];
+    logLevel = [
+      "emerg"
+      "alert"
+      "crit"
+      "err"
+      "warn"
+      "notice"
+      "info"
+      "debug"
+      "audit"
+    ];
 
-  logFlag = types.enum [
-    "tcp sequence"
-    "tcp options"
-    "ip options"
-    "skuid"
-    "ether"
-    "all"
-  ];
+    logFlag = [
+      "tcp sequence"
+      "tcp options"
+      "ip options"
+      "skuid"
+      "ether"
+      "all"
+    ];
 
-  natFlag = types.enum [
-    "random"
-    "fully-random"
-    "persistent"
-    "netmap"
-  ];
+    natFlag = [
+      "random"
+      "fully-random"
+      "persistent"
+      "netmap"
+    ];
 
-  synproxyFlag = types.enum [
-    "timestamp"
-    "sack-perm"
-  ];
+    # NAT statement `type_flags` (parser_json.c:2274-2283).
+    natTypeFlag = [
+      "interval"
+      "prefix"
+      "concat"
+    ];
 
-  flowOp = types.enum [
-    "add"
-  ];
+    synproxyFlag = [
+      "timestamp"
+      "sack-perm"
+    ];
 
-  xfrmDir = types.enum [
-    "in"
-    "out"
-  ];
+    flowOp = [ "add" ];
 
-  xfrmKey = types.enum [
-    "saddr"
-    "daddr"
-    "reqid"
-    "spi"
-  ];
+    xfrmDir = [
+      "in"
+      "out"
+    ];
 
-  tunnelKey = types.enum [
-    "path"
-    "id"
-  ];
+    xfrmKey = [
+      "saddr"
+      "daddr"
+      "reqid"
+      "spi"
+    ];
 
-  queueFlag = types.enum [
-    "bypass"
-    "fanout"
-  ];
+    tunnelKey = [
+      "path"
+      "id"
+    ];
 
-  rejectType = types.enum [
-    "tcp reset"
-    "icmpx"
-    "icmp"
-    "icmpv6"
-  ];
+    # Tunnel encapsulation kind for the tunnel named object's `type` field.
+    tunnelType = [
+      "vxlan"
+      "erspan"
+      "geneve"
+    ];
 
-  # parser_json.c:2494-2502 accepts add/update/delete.
-  setOp = types.enum [
-    "add"
-    "update"
-    "delete"
-  ];
+    queueFlag = [
+      "bypass"
+      "fanout"
+    ];
 
-  # Meta keys — matches meta_templates[] in src/meta.c plus the backcompat
-  # aliases accepted by meta_key_parse (ibriport, obriport, secpath).
-  metaKey = types.enum [
-    "length"
-    "protocol"
-    "nfproto"
-    "l4proto"
-    "priority"
-    "mark"
-    "iif"
-    "iifname"
-    "iiftype"
-    "oif"
-    "oifname"
-    "oiftype"
-    "skuid"
-    "skgid"
-    "nftrace"
-    "rtclassid"
-    "ibrname"
-    "obrname"
-    "pkttype"
-    "cpu"
-    "iifgroup"
-    "oifgroup"
-    "cgroup"
-    "random"
-    "ipsec"
-    "iifkind"
-    "oifkind"
-    "ibrpvid"
-    "ibrvproto"
-    "time"
-    "day"
-    "hour"
-    "secmark"
-    "sdif"
-    "sdifname"
-    "broute"
-    "ibrhwaddr"
-    # Backwards-compatibility aliases (meta_key_parse 1020-1030)
-    "ibriport"
-    "obriport"
-    "secpath"
-  ];
+    rejectType = [
+      "tcp reset"
+      "icmpx"
+      "icmp"
+      "icmpv6"
+    ];
 
-  # parser_json.c:993-997 rt_key_tbl[]: classid (NFT_RT_CLASSID), nexthop
-  # (NFT_RT_NEXTHOP4, swapped to NEXTHOP6 when family=ip6), mtu (NFT_RT_TCPMSS),
-  # ipsec (NFT_RT_XFRM — boolean: skb->dst->xfrm != NULL).
-  rtKey = types.enum [
-    "classid"
-    "nexthop"
-    "mtu"
-    "ipsec"
-  ];
+    # parser_json.c:2494-2502 accepts add/update/delete.
+    setOp = [
+      "add"
+      "update"
+      "delete"
+    ];
 
-  # `ip`/`ip6` family enum, used wherever the parser restricts a `family`
-  # field to IPv4/IPv6 (rt expression, ipsec/xfrm expression, ct expression's
-  # l3-specific keys, NAT statement, and named-object l3proto fields).
-  ipFamily = types.enum [
-    "ip"
-    "ip6"
-  ];
+    # Meta keys — matches meta_templates[] in src/meta.c plus the backcompat
+    # aliases accepted by meta_key_parse (ibriport, obriport, secpath).
+    metaKey = [
+      "length"
+      "protocol"
+      "nfproto"
+      "l4proto"
+      "priority"
+      "mark"
+      "iif"
+      "iifname"
+      "iiftype"
+      "oif"
+      "oifname"
+      "oiftype"
+      "skuid"
+      "skgid"
+      "nftrace"
+      "rtclassid"
+      "ibrname"
+      "obrname"
+      "pkttype"
+      "cpu"
+      "iifgroup"
+      "oifgroup"
+      "cgroup"
+      "random"
+      "ipsec"
+      "iifkind"
+      "oifkind"
+      "ibrpvid"
+      "ibrvproto"
+      "time"
+      "day"
+      "hour"
+      "secmark"
+      "sdif"
+      "sdifname"
+      "broute"
+      "ibrhwaddr"
+      # Backwards-compatibility aliases (meta_key_parse 1020-1030)
+      "ibriport"
+      "obriport"
+      "secpath"
+    ];
 
-  ctDirection = types.enum [
-    "original"
-    "reply"
-  ];
+    # parser_json.c:993-997 rt_key_tbl[]: classid (NFT_RT_CLASSID), nexthop
+    # (NFT_RT_NEXTHOP4, swapped to NEXTHOP6 when family=ip6), mtu
+    # (NFT_RT_TCPMSS), ipsec (NFT_RT_XFRM — boolean: skb->dst->xfrm != NULL).
+    rtKey = [
+      "classid"
+      "nexthop"
+      "mtu"
+      "ipsec"
+    ];
 
-  ngMode = types.enum [
-    "inc"
-    "random"
-  ];
+    # `ip`/`ip6` family enum, used wherever the parser restricts a `family`
+    # field to IPv4/IPv6 (rt expression, ipsec/xfrm expression, ct
+    # expression's l3-specific keys, NAT statement, and named-object
+    # l3proto fields).
+    ipFamily = [
+      "ip"
+      "ip6"
+    ];
 
-  # parser_json.c:1176-1182. "check" is the predicate form: result resolves
-  # to NFT_FIB_RESULT_OIF with NFT_FIB_F_PRESENT flag set ("does this route
-  # exist?" rather than a value lookup).
-  fibResult = types.enum [
-    "oif"
-    "oifname"
-    "type"
-    "check"
-  ];
+    ctDirection = [
+      "original"
+      "reply"
+    ];
 
-  fibFlag = types.enum [
-    "saddr"
-    "daddr"
-    "mark"
-    "iif"
-    "oif"
-  ];
+    ngMode = [
+      "inc"
+      "random"
+    ];
 
-  payloadBase = types.enum [
-    "ll"
-    "nh"
-    "th"
-    "ih"
-  ];
+    # parser_json.c:1176-1182. "check" is the predicate form: result resolves
+    # to NFT_FIB_RESULT_OIF with NFT_FIB_F_PRESENT flag set ("does this route
+    # exist?" rather than a value lookup).
+    fibResult = [
+      "oif"
+      "oifname"
+      "type"
+      "check"
+    ];
 
-  # NAT statement `type_flags` (parser_json.c:2274-2283).
-  natTypeFlag = types.enum [
-    "interval"
-    "prefix"
-    "concat"
-  ];
+    fibFlag = [
+      "saddr"
+      "daddr"
+      "mark"
+      "iif"
+      "oif"
+    ];
 
-  # parser_json.c:484-489 accepts "name" (default OSF lookup) and "version"
-  # (sets NFT_OSF_F_VERSION).
-  osfKey = types.enum [
-    "name"
-    "version"
-  ];
+    payloadBase = [
+      "ll"
+      "nh"
+      "th"
+      "ih"
+    ];
 
-  osfTtl = types.enum [
-    "loose"
-    "skip"
-  ];
+    # parser_json.c:484-489 accepts "name" (default OSF lookup) and "version"
+    # (sets NFT_OSF_F_VERSION).
+    osfKey = [
+      "name"
+      "version"
+    ];
 
-  socketKey = types.enum [
-    "transparent"
-    "mark"
-    "wildcard"
-  ];
+    osfTtl = [
+      "loose"
+      "skip"
+    ];
 
-  # parser_json.c uses identical tcp/udp branching for ct helper
-  # (parser_json.c:3795-3802), ct timeout (parser_json.c:3815-3823), and ct
-  # expectation (parser_json.c:3844-3852) `protocol` fields. Adoc lists more
-  # protocols for ct timeout but those aren't honoured by the JSON path.
-  tcpUdpProto = types.enum [
-    "tcp"
-    "udp"
-  ];
+    socketKey = [
+      "transparent"
+      "mark"
+      "wildcard"
+    ];
 
-  xtType = types.enum [
-    "match"
-    "target"
-    "watcher"
-  ];
+    # parser_json.c uses identical tcp/udp branching for ct helper
+    # (parser_json.c:3795-3802), ct timeout (parser_json.c:3815-3823), and ct
+    # expectation (parser_json.c:3844-3852) `protocol` fields. Adoc lists more
+    # protocols for ct timeout but those aren't honoured by the JSON path.
+    tcpUdpProto = [
+      "tcp"
+      "udp"
+    ];
 
-  limitUnit = types.enum [
-    "packets"
-    "bytes"
-  ];
+    xtType = [
+      "match"
+      "target"
+      "watcher"
+    ];
 
-  perUnit = types.enum [
-    "second"
-    "minute"
-    "hour"
-    "day"
-    "week"
-  ];
+    limitUnit = [
+      "packets"
+      "bytes"
+    ];
 
-  # Tunnel encapsulation kind for the tunnel named object's `type` field.
-  tunnelType = types.enum [
-    "vxlan"
-    "erspan"
-    "geneve"
-  ];
+    perUnit = [
+      "second"
+      "minute"
+      "hour"
+      "day"
+      "week"
+    ];
+  };
+
+  family = types.enum enumValues.family;
+  hook = types.enum enumValues.hook;
+  policy = types.enum enumValues.policy;
+  chainType = types.enum enumValues.chainType;
+  operator = types.enum enumValues.operator;
+  tableFlag = types.enum enumValues.tableFlag;
+  setFlag = types.enum enumValues.setFlag;
+  setPolicy = types.enum enumValues.setPolicy;
+  logLevel = types.enum enumValues.logLevel;
+  logFlag = types.enum enumValues.logFlag;
+  natFlag = types.enum enumValues.natFlag;
+  natTypeFlag = types.enum enumValues.natTypeFlag;
+  synproxyFlag = types.enum enumValues.synproxyFlag;
+  flowOp = types.enum enumValues.flowOp;
+  xfrmDir = types.enum enumValues.xfrmDir;
+  xfrmKey = types.enum enumValues.xfrmKey;
+  tunnelKey = types.enum enumValues.tunnelKey;
+  tunnelType = types.enum enumValues.tunnelType;
+  queueFlag = types.enum enumValues.queueFlag;
+  rejectType = types.enum enumValues.rejectType;
+  setOp = types.enum enumValues.setOp;
+  metaKey = types.enum enumValues.metaKey;
+  rtKey = types.enum enumValues.rtKey;
+  ipFamily = types.enum enumValues.ipFamily;
+  ctDirection = types.enum enumValues.ctDirection;
+  ngMode = types.enum enumValues.ngMode;
+  fibResult = types.enum enumValues.fibResult;
+  fibFlag = types.enum enumValues.fibFlag;
+  payloadBase = types.enum enumValues.payloadBase;
+  osfKey = types.enum enumValues.osfKey;
+  osfTtl = types.enum enumValues.osfTtl;
+  socketKey = types.enum enumValues.socketKey;
+  tcpUdpProto = types.enum enumValues.tcpUdpProto;
+  xtType = types.enum enumValues.xtType;
+  limitUnit = types.enum enumValues.limitUnit;
+  perUnit = types.enum enumValues.perUnit;
 
   listOrSingleton = elemType: types.either elemType (types.listOf elemType);
 in
 {
-  inherit listOrSingleton;
+  inherit listOrSingleton enumValues;
 
   types = {
     inherit
