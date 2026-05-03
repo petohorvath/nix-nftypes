@@ -13,8 +13,8 @@ This doc records a file-by-file comparison of `lib/schema/` against `src/parser_
 |-------------|-----------|-----------|------------------|---------------------------------|
 | Object kinds (singular) | 16 + ruleset + metainfo | 16 + ruleset + metainfo | 0 | All `add`-able object kinds modelled. |
 | Object kinds (plural list/reset forms: `tables`, `chains`, `sets`, `counters`, …) | 13 | 0 | 13 | Read-back shapes only; never used as input. **Documented edge case** — not a fix target. |
-| Statements              | 31 (incl. `vmap` aliased and `xt` rejected) | 31 | 0 | All statement tags modelled. `xt` modelled but parser rejects (edge case). |
-| Expression tags         | 30 (concat/set/map/prefix/range, payload, exthdr, tcp/ip/sctp/dccp option, meta/rt/ct/fib/socket/osf/ipsec/tunnel/elem, numgen/jhash/symhash, 5 binops, 6 verdicts) | 30 | 0 | Match. |
+| Statements              | 37 (7 verdicts incl. jump/goto with targets + 30 non-verdict tags incl. `vmap` aliased and `xt` rejected) | 37 | 0 | All statement tags modelled. `xt` modelled but parser rejects (edge case). |
+| Expression tags         | 34 (5 structural: concat/set/map/prefix/range; 9 header/metadata: payload, exthdr, tcp/ip/sctp/dccp option, meta/rt/ct; 9 generators/derived: numgen/jhash/symhash, fib/socket/osf/ipsec/tunnel/elem; 6 verdicts; 5 binops) | 34 | 0 | Match. |
 | Enums (`primitives.nix`)  | 30 distinct lookup tables | 36 enum types in schema | 3 enum-value gaps | See "Enum coverage" below. |
 | Commands                | 10 (`add` `replace` `create` `insert` `delete` `destroy` `list` `reset` `flush` `rename`) + bare-listed implicit | 10 + topLevel union | 0 | Match. |
 
@@ -39,7 +39,7 @@ These are cases where the parser accepts something the schema rejects.
 ### G1. `rtKey` missing `"ipsec"`
 
 - **Parser**: `parser_json.c:993-997` — `rt_key_tbl[]` includes `{ "ipsec", NFT_RT_XFRM }`. JSON `{ "rt": { "key": "ipsec", "family": "ip" } }` is accepted.
-- **Schema**: `lib/schema/primitives.nix:194-198` — `rtKey = enum [ "classid" "nexthop" "mtu" ]`. `"ipsec"` is rejected at evaluation time.
+- **Schema**: `lib/schema/primitives.nix:217-222` — `rtKey = enum [ "classid" "nexthop" "mtu" "ipsec" ]` after the fix. Pre-fix, `"ipsec"` was rejected at evaluation time.
 - **Origin**: NFT_RT_XFRM has been in `parser_json.c`'s `rt_key_tbl` since the table was introduced; the schema's enum was derived against `src/rt.c`'s `RT_TEMPLATE` table, which uses the same `"ipsec"` token (`src/rt.c:87`), but it was missed.
 - **Fix in this work**: add `"ipsec"` to `rtKey`.
 
@@ -53,14 +53,14 @@ These are cases where the parser accepts something the schema rejects.
       …
   }
   ```
-- **Schema**: `lib/schema/primitives.nix:243-245` — `osfKey = enum [ "name" ]`.
+- **Schema**: `lib/schema/primitives.nix:270-273` — `osfKey = enum [ "name" "version" ]` after the fix.
 - **Origin**: not derived from a lookup table; parser uses string-equality branches and the second branch was missed.
 - **Fix in this work**: add `"version"` to `osfKey`.
 
 ### G3. `fibResult` missing `"check"`
 
 - **Parser**: `parser_json.c:1176-1182` — `fib_result_tbl[]` ends with `[__NFT_FIB_RESULT_MAX] = "check"` (a special form mapping to `NFT_FIB_RESULT_OIF` + `NFTA_FIB_F_PRESENT` flag). JSON `{ "fib": { "result": "check", "flags": ["saddr"] } }` is accepted.
-- **Schema**: `lib/schema/primitives.nix:215-219` — `fibResult = enum [ "oif" "oifname" "type" ]`.
+- **Schema**: `lib/schema/primitives.nix:246-251` — `fibResult = enum [ "oif" "oifname" "type" "check" ]` after the fix.
 - **Note**: the `"check"` form is semantically a "does this route exist?" predicate, not a value lookup. Useful in the wild (`tests/py/inet/fib.t`).
 - **Fix in this work**: add `"check"` to `fibResult`.
 
@@ -101,8 +101,8 @@ Items the README "How this was built" section already notes are restated here in
 | Object | Parser branch | Adoc | Schema |
 |---|---|---|---|
 | `secmark`   | `json_parse_cmd_add_object:CMD_OBJ_SECMARK` (3767) | absent | `objects.nix:443-452` ✓ |
-| `synproxy`  | `json_parse_cmd_add_object:CMD_OBJ_SYNPROXY` (3885) | absent | `objects.nix:454-468` ✓ |
-| `tunnel`    | `json_parse_cmd_add_object:NFT_OBJECT_TUNNEL` (3902) | absent | `objects.nix:546-605` ✓ |
+| `synproxy`  | `json_parse_cmd_add_object:CMD_OBJ_SYNPROXY` (3885) | absent | `objects.nix:454-470` ✓ |
+| `tunnel`    | `json_parse_cmd_add_object:NFT_OBJECT_TUNNEL` (3902) | absent | `objects.nix:546-604` ✓ |
 
 ### Field-level deviations the schema follows the parser on
 
@@ -115,24 +115,24 @@ Items the README "How this was built" section already notes are restated here in
 | `comment` field on tables, chains, rules, named objects | `parser_json.c:2974, 3100, 3231, 3750` | absent on most kinds | present on all relevant kinds ✓ |
 | `stmt` on sets/maps for stateful per-element statements | `parser_json.c:3423-3428` | absent | `objects.nix:157-161` (shared via `setMapCommonOptions`) ✓ |
 | `stmt` on the `set` and `map` *statements* (per-element on add/update) | `parser_json.c:2523-2526, 2583-2586` | absent | `statements.nix:259-263, 286-290` ✓ |
-| `type_flags` on NAT statements (`interval`, `prefix`, `concat`) | `parser_json.c:2274-2289, 2353-2359` | absent | `statements.nix:207-211`, `primitives.nix:248-252` ✓ |
+| `type_flags` on NAT statements (`interval`, `prefix`, `concat`) | `parser_json.c:2274-2289, 2353-2359` | absent | `statements.nix:207-211`, `primitives.nix:112-116` ✓ |
 | `size` on `meter` statement | `parser_json.c:2793` | absent | `statements.nix:343-347` ✓ |
 | `rate_unit`, `burst_unit`, `inv` on `limit` (statement and object) | `parser_json.c:2086-2089, 3868-3871` | partial coverage | `statements.nix:117-150, objects.nix:340-372` ✓ |
-| `payload.base = "ih"` (inner-header) | `parser_json.c:668-669` | only `ll`/`nh`/`th` | `primitives.nix:240-245` ✓ |
-| `socket.key = "mark"`, `"wildcard"` | `parser_json.c:506-509` | only `transparent` | `primitives.nix:266-270` ✓ |
-| `nat.flag = "netmap"` | `parser_json.c:2263` | random/fully-random/persistent only | `primitives.nix:96-101` ✓ |
-| `set.flag = "dynamic"` | `parser_json.c:3296` | constant/interval/timeout only | `primitives.nix:63-68` ✓ |
-| `family = "egress"` hook | `chain_hookname_lookup`, kernel `nf_inet_hooks` | absent or partial | `primitives.nix:26-34` ✓ |
-| `family = "arp"`, `"bridge"`, `"netdev"` | `parse_family` | partial in adoc | `primitives.nix:17-24` ✓ |
-| Counter accepts `null` (stateless mode emit) | `parser_json.c:1914-1915` | not noted | `statements.nix:52-69` (`oneOf [nullLiteral …]`) ✓ |
-| Raw `tcp option` form (`{ base, offset, len }`) | `parser_json.c:745-765` | named only | `expressions.nix:162-200` ✓ |
-| Tunnelled `payload` form (`{ tunnel, protocol, field }`) | `parser_json.c:686-712` | not mentioned | `expressions.nix:94-114` ✓ |
-| Meta keys: `iifkind`, `oifkind`, `ibrpvid`, `ibrvproto`, `time`, `day`, `hour`, `secmark`, `sdif`, `sdifname`, `broute`, `ibrhwaddr`, `cgroup`, `ipsec` (=SECPATH), backwards-compat `ibriport`, `obriport`, `secpath` | `meta_templates[]` (`src/meta.c:617-708`) + `meta_key_parse` aliases (`src/meta.c:1020-1030`) | partial | `primitives.nix:150-192` (37 canonical + 3 aliases = 40) ✓ |
-| `ipsec` (xfrm) expression — keys, family, dir, spnum 0-255 | `parser_json.c:1585-1644` | absent | `expressions.nix:368-390` ✓ |
-| `tunnel` metadata expression (`path`/`id`) | `parser_json.c:446-461` | absent | `expressions.nix:392-397` ✓ |
-| `ip option` expression (named form) | `parser_json.c:822-849` | absent | `expressions.nix:203-215` ✓ |
-| `dccp option` expression | `parser_json.c:898-911` | absent | `expressions.nix:231-236` ✓ |
-| `sctp chunk` expression | `parser_json.c:867-895` | mentioned briefly | `expressions.nix:217-229` ✓ |
+| `payload.base = "ih"` (inner-header) | `parser_json.c:668-669` | only `ll`/`nh`/`th` | `primitives.nix:261-266` ✓ |
+| `socket.key = "mark"`, `"wildcard"` | `parser_json.c:506-509` | only `transparent` | `primitives.nix:280-284` ✓ |
+| `nat.flag = "netmap"` | `parser_json.c:2263` | random/fully-random/persistent only | `primitives.nix:104-109` ✓ |
+| `set.flag = "dynamic"` | `parser_json.c:3296` | constant/interval/timeout only | `primitives.nix:71-76` ✓ |
+| `family = "egress"` hook | `chain_hookname_lookup`, kernel `nf_inet_hooks` | absent or partial | `primitives.nix:34-42` ✓ |
+| `family = "arp"`, `"bridge"`, `"netdev"` | `parse_family` | partial in adoc | `primitives.nix:25-32` ✓ |
+| Counter accepts `null` (stateless mode emit) | `parser_json.c:1914-1915` | not noted | `statements.nix:52-70` (`oneOf [nullLiteral …]`) ✓ |
+| Raw `tcp option` form (`{ base, offset, len }`) | `parser_json.c:745-765` | named only | `expressions.nix:169-189` ✓ |
+| Tunnelled `payload` form (`{ tunnel, protocol, field }`) | `parser_json.c:686-712` | not mentioned | `expressions.nix:101-121` ✓ |
+| Meta keys: `iifkind`, `oifkind`, `ibrpvid`, `ibrvproto`, `time`, `day`, `hour`, `secmark`, `sdif`, `sdifname`, `broute`, `ibrhwaddr`, `cgroup`, `ipsec` (=SECPATH), backwards-compat `ibriport`, `obriport`, `secpath` | `meta_templates[]` (`src/meta.c:617-708`) + `meta_key_parse` aliases (`src/meta.c:1020-1030`) | partial | `primitives.nix:170-212` (37 canonical + 3 aliases = 40) ✓ |
+| `ipsec` (xfrm) expression — keys, family, dir, spnum 0-255 | `parser_json.c:1585-1644` | absent | `expressions.nix:375-397` ✓ |
+| `tunnel` metadata expression (`path`/`id`) | `parser_json.c:446-461` | absent | `expressions.nix:399-404` ✓ |
+| `ip option` expression (named form) | `parser_json.c:822-849` | absent | `expressions.nix:210-222` ✓ |
+| `dccp option` expression | `parser_json.c:898-911` | absent | `expressions.nix:238-243` ✓ |
+| `sctp chunk` expression | `parser_json.c:867-895` | mentioned briefly | `expressions.nix:224-236` ✓ |
 | `osf` `version` key | `parser_json.c:486-488` | only `name` documented | **G2 above — missing in schema** |
 | `rt.ipsec` key | `parser_json.c:997` | adoc mentions classid/nexthop/mtu | **G1 above — missing in schema** |
 | `fib.result = "check"` | `parser_json.c:1181, 1201-1204` | not documented | **G3 above — missing in schema** |

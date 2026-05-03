@@ -6,8 +6,8 @@ This doc is the DSL counterpart of [`docs/spec-coverage.md`](spec-coverage.md). 
 
 | Surface | Schema bodies / tags | DSL constructors | Gaps fixed in this work |
 |---|---|---|---|
-| **Statement tags** | 31 (`statement` attrTag) | 40+ across `actions/` + `verdicts.nix` + `ops.nix` | 0 — full coverage already |
-| **Expression tags** | 30 (`taggedExpression`) | 18 in `exprs.nix` + 180+ field leaves under `fields/` + 11 escape hatches | 2 field leaves (rt `ipsec`, fib `check`) + new `fields/osf.nix` for symmetry |
+| **Statement tags** | 37 (`statement` attrTag) | 40+ across `actions/` + `verdicts.nix` + `ops.nix` | 0 — full coverage already |
+| **Expression tags** | 34 (`taggedExpression`) | 27 in `exprs.nix` (covering 26 unique tags) + 180+ field leaves under `fields/` + 3 payload helpers in `payload.nix` | 2 field leaves (rt `ipsec`, fib `check`) + new `fields/osf.nix` for symmetry |
 | **Add-object kinds** | 16 | 16 (`create.<kind>`, `delete.<kind>`, `destroy.<kind>`, `list.<kind>`, plus the declarative `table` tree) | 0 — full coverage |
 | **Flush-object kinds** | 6 (table/chain/set/map/meter/ruleset) | 6 (`flush`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`) | 1 — added `flushMeter` |
 | **List-object kinds** | 17 (16 add-objects + metainfo + meter) | 17 (`list.<kind>`, `list.metainfo`, `list.meter`) | 1 — added `list.meter` |
