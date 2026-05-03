@@ -475,6 +475,33 @@ in
         };
       };
 
+  # `stmt = null` must not appear in the rendered shape — the DSL `compact`
+  # helper drops null-valued attrs before wrapping.
+  testExprElemNoStmt = {
+    expr = toJSON (
+      dsl.expr.elem {
+        val = "1.2.3.4";
+        timeout = 60;
+      }
+    );
+    expected = ''{"elem":{"timeout":60,"val":"1.2.3.4"}}'';
+  };
+
+  # Element-attached stateful statement via expr.elem — produces the same
+  # shape as a hand-written attrset.
+  testExprElemWithStmt =
+    pe
+      (dsl.expr.elem {
+        val = "1.2.3.4";
+        stmt = [ { counter = "tracker-hits"; } ];
+      })
+      {
+        elem = {
+          val = "1.2.3.4";
+          stmt = [ { counter = "tracker-hits"; } ];
+        };
+      };
+
   testExprBitor = pe (dsl.expr.bitor dsl.fields.meta.mark 255) {
     "|" = [
       {

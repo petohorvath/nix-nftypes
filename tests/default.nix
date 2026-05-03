@@ -666,6 +666,86 @@ let
     };
 
     # ------------------------------------------------------------------
+    # Element body with attached `stmt` — parser_json.c json_parse_set_elem
+    # accepts a `stmt` array alongside `val`/`timeout`/`expires` for stateful
+    # statements (counter/quota/limit/…) that fire on element match.
+    # ------------------------------------------------------------------
+    testElementStmtCounterRef = {
+      expr = roundtrip nftlib.types.expression {
+        elem = {
+          val = "1.2.3.4";
+          timeout = 60;
+          stmt = [ { counter = "tracker-hits"; } ];
+        };
+      };
+      expected = ''{"elem":{"stmt":[{"counter":"tracker-hits"}],"timeout":60,"val":"1.2.3.4"}}'';
+    };
+
+    # Element body with multiple stateful statements (counter + limit).
+    testElementStmtMulti = {
+      expr = roundtrip nftlib.types.expression {
+        elem = {
+          val = "10.0.0.1";
+          stmt = [
+            {
+              counter = {
+                packets = 0;
+                bytes = 0;
+              };
+            }
+            {
+              limit = {
+                rate = 5;
+                per = "second";
+              };
+            }
+          ];
+        };
+      };
+      expected = ''{"elem":{"stmt":[{"counter":{"bytes":0,"packets":0}},{"limit":{"per":"second","rate":5}}],"val":"10.0.0.1"}}'';
+    };
+
+    # Element body inside a set object — full add-set command shape with
+    # element-attached counter ref. End-to-end check that the schema route
+    # accepts the value and toJSON emits the libnftables-json wire form.
+    testSetElementsWithStmt = {
+      expr = roundtrip nftlib.types.objects.set {
+        set = {
+          family = "ip";
+          table = "filter";
+          name = "tracker";
+          type = "ipv4_addr";
+          elem = [
+            {
+              elem = {
+                val = "1.2.3.4";
+                timeout = 60;
+                stmt = [ { counter = "tracker-hits"; } ];
+              };
+            }
+          ];
+        };
+      };
+      expected = ''{"set":{"elem":[{"elem":{"stmt":[{"counter":"tracker-hits"}],"timeout":60,"val":"1.2.3.4"}}],"family":"ip","name":"tracker","table":"filter","type":"ipv4_addr"}}'';
+    };
+
+    # An invalid statement shape inside `stmt` must fail validation —
+    # confirms the back-reference resolves to the real statement type and
+    # isn't accepting arbitrary attrsets.
+    testElementStmtRejectsInvalid = {
+      expr =
+        (builtins.tryEval (
+          roundtrip nftlib.types.expression {
+            elem = {
+              val = "1.2.3.4";
+              stmt = [ { not_a_real_statement = { }; } ];
+            };
+          }
+        )).success;
+      expected = false;
+    };
+
+    # ------------------------------------------------------------------
     # Reject with icmp code
     # ------------------------------------------------------------------
     testReject = {

@@ -395,6 +395,28 @@ let
       expected = "add element inet main trusted { 8.8.8.8, 1.1.1.1 }";
     };
 
+    # Element body with attached `stmt` (counter ref) — the renderer
+    # appends each rendered statement after timeout/expires/comment.
+    testElementWithStmt = {
+      expr = one {
+        add.element = {
+          family = "ip";
+          table = "filter";
+          name = "tracker";
+          elem = [
+            {
+              elem = {
+                val = "1.2.3.4";
+                timeout = 60;
+                stmt = [ { counter = "tracker-hits"; } ];
+              };
+            }
+          ];
+        };
+      };
+      expected = ''add element ip filter tracker { 1.2.3.4 timeout 60s counter name "tracker-hits" }'';
+    };
+
     testFlowtable = {
       expr = one {
         add.flowtable = {

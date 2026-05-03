@@ -2,6 +2,13 @@
   lib,
   internal,
   primitives,
+  # Lazy reference to the sibling `statements` module. Only `.statement` is
+  # consumed (by `elemBody.stmt`), and the access is deferred until value
+  # validation, breaking what would otherwise be a load-order cycle:
+  # `statements.nix` already imports from this file (statements consume
+  # `expr`), so a direct import in the other direction would deadlock.
+  # `lib/default.nix` ties the knot via mutually-recursive let bindings.
+  statements,
 }:
 
 let
@@ -416,6 +423,14 @@ let
           type = types.nullOr types.str;
           default = null;
           description = "element comment";
+        };
+        # parser_json.c json_parse_set_elem emits a `stmt` array alongside
+        # `val`/`timeout`/`expires` for stateful statements (counter/quota/
+        # limit/…) attached to the element.
+        stmt = mkOption {
+          type = types.nullOr (types.listOf statements.statement);
+          default = null;
+          description = "stateful statements attached to the element";
         };
       };
     };

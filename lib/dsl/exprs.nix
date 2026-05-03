@@ -33,6 +33,7 @@ rec {
       timeout ? null,
       expires ? null,
       comment ? null,
+      stmt ? null,
     }:
     {
       elem = compact {
@@ -41,6 +42,7 @@ rec {
           timeout
           expires
           comment
+          stmt
           ;
       };
     };

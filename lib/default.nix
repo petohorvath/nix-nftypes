@@ -25,8 +25,18 @@
 let
   internal = import ./schema/internal.nix { inherit lib; };
   primitives = import ./schema/primitives.nix { inherit lib; };
+  # Mutual reference between `expressions` and `statements`: statements
+  # consume `expr`, and elements (defined in expressions) accept a `stmt`
+  # list. Nix's recursive `let` resolves this lazily — both modules are
+  # constructed without forcing the cross-reference, which is only forced
+  # during value validation (by which point both attrsets exist).
   expressions = import ./schema/expressions.nix {
-    inherit lib internal primitives;
+    inherit
+      lib
+      internal
+      primitives
+      statements
+      ;
   };
   statements = import ./schema/statements.nix {
     inherit

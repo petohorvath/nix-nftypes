@@ -2,6 +2,12 @@
   lib,
   context,
   primitives,
+  # Lazy reference to the sibling `statements` renderer. Only `.renderStatement`
+  # is consumed (by `renderElem` for element-attached `stmt` lists). Statements
+  # already depend on expressions, so the back-reference is wired through
+  # mutually-recursive `let` bindings in lib/text/default.nix and forced only
+  # at render time.
+  statements,
 }:
 
 # Renderer for the recursive `expression` type. Mirrors the schema layout
@@ -223,11 +229,15 @@ let
       timeout ? null,
       expires ? null,
       comment ? null,
+      stmt ? null,
     }:
     renderExpression (resetPrec ctx) val
     + lib.optionalString (timeout != null) " timeout ${toString timeout}s"
     + lib.optionalString (expires != null) " expires ${toString expires}s"
-    + lib.optionalString (comment != null) " comment ${primitives.string comment}";
+    + lib.optionalString (comment != null) " comment ${primitives.string comment}"
+    + lib.optionalString (stmt != null) (
+      " " + lib.concatMapStringsSep " " (statements.renderStatement (resetPrec ctx)) stmt
+    );
 
   renderJump = _ctx: { target }: "jump ${target}";
   renderGoto = _ctx: { target }: "goto ${target}";

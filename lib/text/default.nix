@@ -16,7 +16,18 @@
 let
   context = import ./context.nix { inherit lib; };
   primitives = import ./primitives.nix { inherit lib; };
-  expressions = import ./expressions.nix { inherit lib context primitives; };
+  # Mutual reference: `statements` consumes `expressions.renderExpression`,
+  # while `renderElem` (in expressions) calls back into
+  # `statements.renderStatement` to render element-attached `stmt` lists.
+  # Recursive `let` resolves the cycle lazily.
+  expressions = import ./expressions.nix {
+    inherit
+      lib
+      context
+      primitives
+      statements
+      ;
+  };
   statements = import ./statements.nix {
     inherit
       lib
