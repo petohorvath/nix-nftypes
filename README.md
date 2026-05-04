@@ -22,7 +22,7 @@ This library closes that gap: a full, strict, source-of-truth type system for nf
 - **Complete coverage.** Every statement, expression, object type, family, hook, meta key, ct key, operator, and flag the audited JSON parser accepts is exposed. No "happy path" subset; no quietly missing fields.
 - **Composable.** Rules, chains, sets, maps, named objects, and commands are plain typed attrsets, composed and reused through ordinary Nix `let` bindings and function arguments.
 - **Round-trip safe.** The same types that produce the JSON also describe what `nft -j list ruleset` emits, so reading existing state back into the same model is a possibility, not a rewrite.
-- **Two renderers, one schema.** The validated attrsets render either to libnftables-JSON (`toJSON`/`toPretty`) or to nftables text syntax (`toText`/`toTextPretty`). A `render-equivalence` test suite loads both into separate netns and diffs `nft list ruleset` output to enforce the 1:1 contract.
+- **Two renderers, one schema.** The validated attrsets render either to libnftables-JSON (`toJson`/`toNix`) or to nftables text syntax (`toText`/`toTextPretty`). A `render-equivalence` test suite loads both into separate netns and diffs `nft list ruleset` output to enforce the 1:1 contract.
 - **Declarative DSL on top of the nft-types layer.** Path-based field access, flat operators, variant namespaces, and `chains.<name>.rules = [...]` table trees. Produces the same validated attrsets as the nft-types layer and can be mixed with hand-written commands in a single ruleset.
 - **Auditable.** Every field and enum value is derived directly from the nftables C source, and the derivation is documented below. "1:1 with the spec" here means the implementation, not the man page.
 
@@ -39,7 +39,7 @@ Coverage:
 - Recursive `expression` type covering every form the JSON parser accepts (payloads, meta/ct/rt/fib/ipsec/tunnel, numgen/hash, set/map/concat/prefix/range, binary ops, verdicts, etc.).
 - `statement` type for every rule building block (match, counter, nat, log, limit, meter, queue, last, flow, tproxy, synproxy, reset, secmark, tunnel, …).
 - Ruleset object types — table, chain, rule, set, map, element, flowtable, counter, quota, ct helper, ct timeout, ct expectation, limit, secmark, synproxy, tunnel, metainfo — with discriminated unions for add/replace/create/insert/delete/destroy/list/reset/flush/rename commands.
-- `toJSON` / `toPretty` renderer that strips unset option defaults but preserves significant nulls.
+- `toJson` / `toNix` renderer that strips unset option defaults but preserves significant nulls.
 - `toText` / `toTextPretty` renderer that emits the equivalent nftables text syntax (`.nft`) — pure Nix, mirrors the JSON renderer's position in the pipeline, no shell-out to `nft`.
 - 240+ Nix-level tests (schema, DSL parity, renderer, error cases) wired into `nix flake check`, plus three live-parser suites: one pipes JSON through `unshare -rn nft -c -j -f`, one pipes text through `unshare -rn nft -c -f -`, and one loads each case via both renderers into separate netns and diffs `nft list ruleset` to enforce JSON↔text equivalence. Two further suites exercise the DSL's schema validation: one asserts each constructor throws on a clearly-invalid field (`tests/dsl-validation.nix`), one asserts the thrown message names the offending path (`tests/dsl-validation-messages.nix`).
 
@@ -58,7 +58,7 @@ The same validated attrset can be rendered two ways:
 
 | | output | consumed by |
 |---|---|---|
-| `nftlib.toJSON` / `toPretty` | `libnftables-json` (compact / pretty) | `nft -j -f` |
+| `nftlib.toJson` / `toNix` | `libnftables-json` (compact / pretty) | `nft -j -f` |
 | `nftlib.toText` / `toTextPretty` | nftables text syntax (compact / multi-line) | `nft -f` |
 
 Both renderers consume the cleaned attrset directly — neither shells out to `nft`. The text path mirrors the JSON path's position in the pipeline; nothing in the schema or DSL has to know which renderer will run. The `render-equivalence-tests` suite (in `tests/render-equivalence.nix`) loads each test case via both renderers into separate network namespaces and diffs `nft list ruleset` to enforce that they produce the same loaded ruleset.
@@ -82,7 +82,7 @@ Path-based field access, top-level operators, variant namespaces, and a declarat
         inherit (nftlib.dsl) ruleset flush table eq inSet accept counter limit;
         inherit (nftlib.dsl.fields) tcp ct;
       in
-      nixpkgs.legacyPackages.x86_64-linux.writeText "rules.json" (nftlib.toJSON (ruleset [
+      nixpkgs.legacyPackages.x86_64-linux.writeText "rules.json" (nftlib.toJson (ruleset [
         flush
         (table "inet" "filter" {
           chains.input = {
@@ -148,7 +148,7 @@ The nft-types layer is directly usable if the DSL's conventions don't fit — ev
 }
 ```
 
-`nftlib.toJSON` on that value yields a byte-identical result to the DSL form. Raw commands and DSL children can appear side-by-side inside `dsl.ruleset [...]`.
+`nftlib.toJson` on that value yields a byte-identical result to the DSL form. Raw commands and DSL children can appear side-by-side inside `dsl.ruleset [...]`.
 
 ### Static reference data
 
@@ -202,7 +202,7 @@ lib/
     statements.nix          `statement` attrTag union
     objects.nix             tables/chains/rules/sets/named objects + union types
     commands.nix            add/replace/create/insert/delete/destroy/list/reset/flush/rename + ruleset envelope
-  json/                   toJSON / toPretty (null-stripping via clean)
+  json/                   toJson / toNix (null-stripping via clean)
     default.nix             entry point
   text/                   toText / toTextPretty — pure-Nix nftables text renderer
     context.nix             pretty/compact mode, indent depth, parent-precedence threading
@@ -265,7 +265,7 @@ nix eval --impure --raw --expr '
   let
     flake = builtins.getFlake (toString ./.);
     example = import ./examples/home-router-dsl.nix { nftlib = flake.lib; };
-  in flake.lib.toJSON example
+  in flake.lib.toJson example
 ' | jq
 
 # Text (multi-line `.nft`)
@@ -283,7 +283,7 @@ Manually validating the output against the live nftables parser (requires `nftab
 # JSON path
 nix eval --impure --raw --expr '
   let flake = builtins.getFlake (toString ./.); in
-  flake.lib.toJSON (import ./examples/basic-firewall-dsl.nix { nftlib = flake.lib; })
+  flake.lib.toJson (import ./examples/basic-firewall-dsl.nix { nftlib = flake.lib; })
 ' > /tmp/rules.json
 unshare -rn nft -c -j -f /tmp/rules.json
 

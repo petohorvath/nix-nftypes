@@ -7,7 +7,7 @@
 # collapse to attrsets the schema already accepts.
 
 let
-  inherit (nftlib) toJSON;
+  inherit (nftlib) toJson;
   dsl = nftlib.dsl;
 
   validate =
@@ -18,7 +18,7 @@ let
         { v = v; }
       ];
     }).config.v;
-  roundtrip = t: v: toJSON (validate t v);
+  roundtrip = t: v: toJson (validate t v);
 
   parity = t: nftValue: handwritten: {
     expr = roundtrip t nftValue;
@@ -478,7 +478,7 @@ in
   # `stmt = null` must not appear in the rendered shape — the DSL `compact`
   # helper drops null-valued attrs before wrapping.
   testExprElemNoStmt = {
-    expr = toJSON (
+    expr = toJson (
       dsl.expr.elem {
         val = "1.2.3.4";
         timeout = 60;
@@ -1744,32 +1744,32 @@ in
         ];
       };
 
-  # Invalid children (wrong type) must throw. `toJSON` forces evaluation so
+  # Invalid children (wrong type) must throw. `toJson` forces evaluation so
   # the thrown exception is caught by tryEval — the renderer builds a lazy
   # list and the throw wouldn't fire until a consumer walks it.
   testRenderRejectString = {
-    expr = (builtins.tryEval (toJSON (dsl.ruleset [ "not-a-command" ]))).success;
+    expr = (builtins.tryEval (toJson (dsl.ruleset [ "not-a-command" ]))).success;
     expected = false;
   };
 
   testRenderRejectInt = {
-    expr = (builtins.tryEval (toJSON (dsl.ruleset [ 42 ]))).success;
+    expr = (builtins.tryEval (toJson (dsl.ruleset [ 42 ]))).success;
     expected = false;
   };
 
   testRenderRejectBool = {
-    expr = (builtins.tryEval (toJSON (dsl.ruleset [ true ]))).success;
+    expr = (builtins.tryEval (toJson (dsl.ruleset [ true ]))).success;
     expected = false;
   };
 
   testRenderRejectNull = {
-    expr = (builtins.tryEval (toJSON (dsl.ruleset [ null ]))).success;
+    expr = (builtins.tryEval (toJson (dsl.ruleset [ null ]))).success;
     expected = false;
   };
 
   # Invalid child nested inside a list is detected too (recursion reaches it).
   testRenderRejectNestedInvalid = {
-    expr = (builtins.tryEval (toJSON (dsl.ruleset [ [ "bad" ] ]))).success;
+    expr = (builtins.tryEval (toJson (dsl.ruleset [ [ "bad" ] ]))).success;
     expected = false;
   };
 

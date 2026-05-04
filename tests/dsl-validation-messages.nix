@@ -25,7 +25,7 @@ let
     {
       name = "chains-c-prio";
       body = ''
-        nftlib.toJSON (nftlib.dsl.ruleset [
+        nftlib.toJson (nftlib.dsl.ruleset [
           (nftlib.dsl.table "ip" "t" {
             chains.c = { prio = "filter"; };
           })
@@ -36,7 +36,7 @@ let
     {
       name = "create-chain-prio";
       body = ''
-        nftlib.toJSON (nftlib.dsl.create.chain {
+        nftlib.toJson (nftlib.dsl.create.chain {
           family = "ip"; table = "t"; name = "c";
           prio = "filter";
         })
@@ -46,7 +46,7 @@ let
     {
       name = "tree-counters-bad-packets";
       body = ''
-        nftlib.toJSON (nftlib.dsl.ruleset [
+        nftlib.toJson (nftlib.dsl.ruleset [
           (nftlib.dsl.table "ip" "t" {
             counters.c = { packets = "lots"; };
           })
@@ -57,7 +57,7 @@ let
     {
       name = "rule-bad-handle";
       body = ''
-        nftlib.toJSON (nftlib.dsl.rule {
+        nftlib.toJson (nftlib.dsl.rule {
           family = "ip"; table = "t"; chain = "c";
           expr = [ ]; handle = "abc";
         })
@@ -67,7 +67,7 @@ let
     {
       name = "flushTable-bad-family";
       body = ''
-        nftlib.toJSON (nftlib.dsl.flushTable {
+        nftlib.toJson (nftlib.dsl.flushTable {
           family = "wireguard"; name = "t";
         })
       '';

@@ -14,7 +14,7 @@
     resolvePriority         — symbolic chain priority → int, with
                               family-aware lookup (bridge family
                               overrides default values).
-    toJSON / toPretty       — render a validated value to libnftables-json.
+    toJson / toNix       — render a validated value to libnftables-json.
     toText / toTextPretty   — render to nftables `.nft` text syntax.
     cleanValue              — strip module-internal markers.
     dsl                     — declarative builder producing values accepted
@@ -121,8 +121,8 @@ in
   inherit (compatibility) resolvePriority;
 
   # Render a validated value to libnftables-json.
-  toJSON = json.toJSON;
-  toPretty = json.toPretty;
+  toJson = json.toJson;
+  toNix = json.toNix;
   cleanValue = clean;
 
   /*

@@ -475,7 +475,7 @@ in
           # Capture the rendered JSON once; reuse for nft input and (on
           # failure) diagnostic output. No scratch files needed.
           ruleset=$(cat <<'RULESET_EOF'
-          ${nftlib.toJSON c.ruleset}
+          ${nftlib.toJson c.ruleset}
           RULESET_EOF
           )
           # Per-case dummy interfaces. `nft -c` resolves device names in

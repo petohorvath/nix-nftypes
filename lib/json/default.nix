@@ -5,12 +5,12 @@
 # without depending on this module.
 
 let
-  toJSON = value: builtins.toJSON (clean value);
+  toJson = value: builtins.toJSON (clean value);
 
   # Pretty-printed rendering via nix's builtin — useful for reading generated
-  # output. Applies the same cleaning as toJSON.
-  toPretty = value: lib.generators.toPretty { multiline = true; } (clean value);
+  # output. Applies the same cleaning as toJson.
+  toNix = value: lib.generators.toPretty { multiline = true; } (clean value);
 in
 {
-  inherit toJSON toPretty;
+  inherit toJson toNix;
 }

@@ -2,7 +2,7 @@
 
 let
   inherit (pkgs) lib;
-  inherit (nftlib) toJSON;
+  inherit (nftlib) toJson;
 
   dslTests = import ./dsl-parity.nix { inherit lib nftlib; };
 
@@ -19,7 +19,7 @@ let
       ];
     }).config.v;
 
-  roundtrip = valueType: value: toJSON (validate valueType value);
+  roundtrip = valueType: value: toJson (validate valueType value);
 
   # One drift assertion per primitive enum: the list under
   # `nftlib.enums.<x>` must match the value list `types.enum` was
@@ -707,7 +707,7 @@ let
 
     # Element body inside a set object — full add-set command shape with
     # element-attached counter ref. End-to-end check that the schema route
-    # accepts the value and toJSON emits the libnftables-json wire form.
+    # accepts the value and toJson emits the libnftables-json wire form.
     testSetElementsWithStmt = {
       expr = roundtrip nftlib.types.objects.set {
         set = {
@@ -1469,7 +1469,7 @@ let
     # unknown top-level keys).
     # ------------------------------------------------------------------
     testCleanStripsTypeRuleset = {
-      expr = toJSON {
+      expr = toJson {
         _type = "x.y";
         nftables = [ ];
       };
@@ -1477,7 +1477,7 @@ let
     };
 
     testCleanStripsTypeArbitraryAttrset = {
-      expr = toJSON {
+      expr = toJson {
         _type = "x.y";
         foo = 1;
       };

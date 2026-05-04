@@ -54,7 +54,7 @@ let
           printf '=== %s ===\n' ${lib.escapeShellArg c.name}
 
           cat > ./in.json <<'JSON_EOF'
-          ${nftlib.toJSON c.ruleset}
+          ${nftlib.toJson c.ruleset}
           JSON_EOF
           cat > ./in.nft <<'TEXT_EOF'
           ${nftlib.toTextPretty c.ruleset}

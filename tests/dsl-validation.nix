@@ -13,12 +13,12 @@
 
 let
   dsl = nftlib.dsl;
-  inherit (nftlib) toJSON;
+  inherit (nftlib) toJson;
 
   # Force evaluation of the rendered JSON so the schema actually runs.
-  # Without `toJSON` the table tree is just a marked attrset and no
+  # Without `toJson` the table tree is just a marked attrset and no
   # evalModules call is triggered.
-  renders = rulesetValue: (builtins.tryEval (toJSON (dsl.ruleset rulesetValue))).success;
+  renders = rulesetValue: (builtins.tryEval (toJson (dsl.ruleset rulesetValue))).success;
 
   tests = {
     # The user's bug. Schema `chainBody.prio` is `nullOr int`; passing a
@@ -43,7 +43,7 @@ let
     testCreateChainPrioStringRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.create.chain {
               family = "ip";
               table = "t";
@@ -58,7 +58,7 @@ let
     testDeleteCounterBadFamilyRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.delete.counter {
               family = "wireguard";
               table = "t";
@@ -72,7 +72,7 @@ let
     testListMapBadTypeRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.list.map {
               family = "ip";
               table = "t";
@@ -87,7 +87,7 @@ let
     testResetRuleBadHandleRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.reset.rule {
               family = "ip";
               table = "t";
@@ -103,7 +103,7 @@ let
     testRenameChainBadNewnameRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.rename.chain {
               family = "ip";
               table = "t";
@@ -118,7 +118,7 @@ let
     testReplaceRuleBadHandleRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.replace {
               family = "ip";
               table = "t";
@@ -134,7 +134,7 @@ let
     testInsertRuleBadIndexRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.insert {
               family = "ip";
               table = "t";
@@ -152,7 +152,7 @@ let
     testFlushTableBadFamilyRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.flushTable {
               family = "wireguard";
               name = "t";
@@ -165,7 +165,7 @@ let
     testFlushChainBadHandleRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.flushChain {
               family = "ip";
               table = "t";
@@ -180,7 +180,7 @@ let
     testFlushSetMissingTypeRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.flushSet {
               family = "ip";
               table = "t";
@@ -194,7 +194,7 @@ let
     testFlushMapMissingMapRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.flushMap {
               family = "ip";
               table = "t";
@@ -209,7 +209,7 @@ let
     testFlushMeterBadTableRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.flushMeter {
               family = "ip";
               table = 42;
@@ -223,7 +223,7 @@ let
     testFlushRulesetBadFamilyRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.flushRuleset {
               family = "wireguard";
             }
@@ -235,7 +235,7 @@ let
     testStandaloneRuleBadHandleRejected = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.rule {
               family = "ip";
               table = "t";
@@ -434,7 +434,7 @@ let
     testTreeAcceptedRulesetSucceeds = {
       expr =
         (builtins.tryEval (
-          toJSON (
+          toJson (
             dsl.ruleset [
               (dsl.table "ip" "t" {
                 chains.c = {
