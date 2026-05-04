@@ -22,7 +22,7 @@ This library closes that gap: a full, strict, source-of-truth type system for nf
 - **Complete coverage.** Every statement, expression, object type, family, hook, meta key, ct key, operator, and flag the audited JSON parser accepts is exposed. No "happy path" subset; no quietly missing fields.
 - **Composable.** Rules, chains, sets, maps, named objects, and commands are plain typed attrsets, composed and reused through ordinary Nix `let` bindings and function arguments.
 - **Round-trip safe.** The same types that produce the JSON also describe what `nft -j list ruleset` emits, so reading existing state back into the same model is a possibility, not a rewrite.
-- **Two renderers, one schema.** The validated attrsets render either to libnftables-JSON (`toJson`/`toNix`) or to nftables text syntax (`toText`/`toTextPretty`). A `render-equivalence` test suite loads both into separate netns and diffs `nft list ruleset` output to enforce the 1:1 contract.
+- **Two renderers, one schema.** The validated attrsets render either to libnftables-JSON (`toJson`/`toNix`) or to nftables text syntax (`toText`/`toTextPretty` for full rulesets, `toTextBlock`/`toTextBlockPretty` for the contents of one table block). A `render-equivalence` test suite loads JSON and text into separate netns and diffs `nft list ruleset` output to enforce the 1:1 contract.
 - **Declarative DSL on top of the nft-types layer.** Path-based field access, flat operators, variant namespaces, and `chains.<name>.rules = [...]` table trees. Produces the same validated attrsets as the nft-types layer and can be mixed with hand-written commands in a single ruleset.
 - **Auditable.** Every field and enum value is derived directly from the nftables C source, and the derivation is documented below. "1:1 with the spec" here means the implementation, not the man page.
 
@@ -41,6 +41,7 @@ Coverage:
 - Ruleset object types — table, chain, rule, set, map, element, flowtable, counter, quota, ct helper, ct timeout, ct expectation, limit, secmark, synproxy, tunnel, metainfo — with discriminated unions for add/replace/create/insert/delete/destroy/list/reset/flush/rename commands.
 - `toJson` / `toNix` renderer that strips unset option defaults but preserves significant nulls.
 - `toText` / `toTextPretty` renderer that emits the equivalent nftables text syntax (`.nft`) — pure Nix, mirrors the JSON renderer's position in the pipeline, no shell-out to `nft`.
+- `toTextBlock` / `toTextBlockPretty` render the contents of one `table { ... }` block (no wrapper, no `add` keyword, rules folded as inline statements inside their parent chain) — for embedding in host modules that supply their own wrapper, like nixpkgs' `networking.nftables.tables.<n>.content`.
 - 240+ Nix-level tests (schema, DSL parity, renderer, error cases) wired into `nix flake check`, plus three live-parser suites: one pipes JSON through `unshare -rn nft -c -j -f`, one pipes text through `unshare -rn nft -c -f -`, and one loads each case via both renderers into separate netns and diffs `nft list ruleset` to enforce JSON↔text equivalence. Two further suites exercise the DSL's schema validation: one asserts each constructor throws on a clearly-invalid field (`tests/dsl-validation.nix`), one asserts the thrown message names the offending path (`tests/dsl-validation-messages.nix`).
 
 ## Two layers
@@ -59,9 +60,12 @@ The same validated attrset can be rendered two ways:
 | | output | consumed by |
 |---|---|---|
 | `nftlib.toJson` / `toNix` | `libnftables-json` (compact / pretty) | `nft -j -f` |
-| `nftlib.toText` / `toTextPretty` | nftables text syntax (compact / multi-line) | `nft -f` |
+| `nftlib.toText` / `toTextPretty` | nftables text syntax, full ruleset (compact / multi-line) | `nft -f` |
+| `nftlib.toTextBlock` / `toTextBlockPretty` | block-form contents of one table (compact / multi-line) | inside a host-supplied `table <fam> <name> { ... }` wrapper |
 
-Both renderers consume the cleaned attrset directly — neither shells out to `nft`. The text path mirrors the JSON path's position in the pipeline; nothing in the schema or DSL has to know which renderer will run. The `render-equivalence-tests` suite (in `tests/render-equivalence.nix`) loads each test case via both renderers into separate network namespaces and diffs `nft list ruleset` to enforce that they produce the same loaded ruleset.
+All three consume the cleaned attrset directly — none shells out to `nft`. The text paths mirror the JSON path's position in the pipeline; nothing in the schema or DSL has to know which renderer will run. The `render-equivalence-tests` suite (in `tests/render-equivalence.nix`) loads each test case via both full-ruleset renderers into separate network namespaces and diffs `nft list ruleset` to enforce that they produce the same loaded ruleset.
+
+`toTextBlock` accepts a single `dsl.table` value and emits only the inside of that table block — no `table <fam> <name> { ... }` wrapper, no `add` keyword on object decls, rules folded as inline statements inside their parent chain. The intended consumer is a host module that already manages the wrapper (e.g. nixpkgs' `networking.nftables.tables.<n>.content`).
 
 A handful of inputs are accepted by the JSON parser but not the text grammar (e.g. a flowtable named `offload`, since the text parser treats `offload` as a reserved word in flowtable position). Those cases are listed in `tests/text-integration.nix::knownTextLimitations`; the JSON path remains the authoritative target for them.
 
@@ -204,7 +208,7 @@ lib/
     commands.nix            add/replace/create/insert/delete/destroy/list/reset/flush/rename + ruleset envelope
   json/                   toJson / toNix (null-stripping via clean)
     default.nix             entry point
-  text/                   toText / toTextPretty — pure-Nix nftables text renderer
+  text/                   toText / toTextPretty (full rulesets) + toTextBlock / toTextBlockPretty (single-table block form)
     context.nix             pretty/compact mode, indent depth, parent-precedence threading
     primitives.nix          identifier quoting, string escape, flag joining
     expressions.nix         all expression variants + binop precedence
@@ -230,6 +234,7 @@ tests/
   dsl-validation-messages.nix  end-to-end check that thrown error messages name the offending option path
   text-parity.nix              schema-level expected-string assertions for the text renderer
   text-integration.nix         live-parser tests for text: pipes each case through `unshare -rn nft -c -f -`
+  text-block-parity.nix        expected-string + live-parser tests for toTextBlock / toTextBlockPretty
   render-equivalence.nix       loads JSON and text into separate netns, diffs `nft list ruleset`
 examples/
   basic-firewall.nix      hand-written raw attrsets (reference for users bypassing the DSL)
@@ -253,6 +258,8 @@ Runs the full check matrix:
 - **integration-tests** — pipes each case's JSON through `unshare -rn nft -c -j -f` (real libnftables parser inside a private netns).
 - **text-parity-tests** — schema-level expected-string assertions for `toText`.
 - **text-integration-tests** — same case set as `integration-tests`, but rendered to text and piped through `unshare -rn nft -c -f -`.
+- **text-block-parity-tests** — expected-string assertions for `toTextBlock` / `toTextBlockPretty`.
+- **text-block-integration-tests** — wraps each block-form output in `table <fam> <name> { ... }` and pipes through `unshare -rn nft -c -f -`.
 - **render-equivalence-tests** — for each case, loads JSON and text into separate netns and diffs `nft list ruleset`. The 1:1 contract.
 - **dsl-validation-tests** — per-submodule regression coverage: every DSL constructor that takes a user body is exercised with an invalid field and required to `throw` at evaluation time.
 - **dsl-validation-message-tests** — runs `nix-instantiate --eval` against representative bad expressions and asserts the stderr names the offending option path.

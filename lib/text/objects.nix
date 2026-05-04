@@ -38,10 +38,18 @@ let
   #
   # Compact: `{ a; b; c }`.
   # Pretty:  one statement per line, indented, each terminated with `;`.
+  #
+  # Empty body: imperative form omits braces entirely (the `add <kind>`
+  # verb provides enough context — `add counter inet fw hits` parses
+  # fine), but block form must still emit `{ }` because a bare
+  # `counter hits` inside a `table { ... }` block is ambiguous to the
+  # parser.
   block =
     ctx: lines:
-    if lines == [ ] then
+    if lines == [ ] && !(ctx.block or false) then
       ""
+    else if lines == [ ] then
+      " { }"
     else
       let
         inner = withDepth ctx;
@@ -63,8 +71,13 @@ let
   # If a name happens to collide with an nftables keyword (e.g. a
   # flowtable named "offload"), the user has to rename — there's no
   # quoting form that works in this position.
+  #
+  # In block-form rendering (`ctx.block`), the enclosing `table { ... }`
+  # implies family/table, so `scope2` collapses to just the object's
+  # name. `scope1` is unaffected — the only caller (the table header
+  # itself) is never rendered in block form.
   scope1 = body: "${body.family} ${rIdent body.table}";
-  scope2 = body: "${scope1 body} ${rIdent body.name}";
+  scope2 = ctx: body: if ctx.block then rIdent body.name else "${scope1 body} ${rIdent body.name}";
 
   # Render a setDatatype: string → "ipv4_addr"; list → "ipv4_addr . port";
   # { typeof = expr } → "typeof <expr>".
@@ -115,10 +128,23 @@ let
       "comment ${primitives.string body.comment}"
     ];
 
-  renderChainHeader = _ctx: body: scope2 body;
+  renderChainHeader = ctx: body: scope2 ctx body;
+
+  # Shared between renderRuleHeader (imperative `add rule …`) and the
+  # block-form rule lines folded into a chain's brace block: the
+  # statements + optional `comment "…"` clause that make up everything
+  # after the rule's family/table/chain prefix.
+  renderRuleStmtsAndComment =
+    ctx: body:
+    let
+      stmts = renderRuleExpr ctx body.expr;
+      commentClause =
+        if (body.comment or null) == null then "" else " comment ${primitives.string body.comment}";
+    in
+    "${stmts}${commentClause}";
 
   renderChainBody =
-    _ctx: body:
+    ctx: body:
     let
       isBase = (body.type or null) != null && (body.hook or null) != null && (body.prio or null) != null;
       baseLine =
@@ -133,8 +159,12 @@ let
       commentLine = lib.optional (
         (body.comment or null) != null
       ) "comment ${primitives.string body.comment}";
+      # In block form, rules render inline inside the chain block; the
+      # toTextBlock walker passes them via `ctx.rulesByChain.<name>`.
+      # Imperative renderers leave the field unset and the list collapses.
+      blockRuleLines = map (renderRuleStmtsAndComment ctx) (ctx.rulesByChain.${body.name} or [ ]);
     in
-    baseLine ++ policyLine ++ commentLine;
+    baseLine ++ policyLine ++ commentLine ++ blockRuleLines;
 
   # rule: `<family> <table> <chain> <statements> [handle/index] [comment]`.
   # Rules do not use a brace block; statements are inline.
@@ -148,15 +178,12 @@ let
           " index ${toString body.index}"
         else
           "";
-      stmts = renderRuleExpr ctx body.expr;
-      commentClause =
-        if (body.comment or null) == null then "" else " comment ${primitives.string body.comment}";
     in
-    "${body.family} ${rIdent body.table} ${rIdent body.chain}${pos} ${stmts}${commentClause}";
+    "${body.family} ${rIdent body.table} ${rIdent body.chain}${pos} ${renderRuleStmtsAndComment ctx body}";
 
   # set: header `<family> <table> <name>`; body covers type/flags/policy/
   # size/timeout/gc-interval/auto-merge/elements/comment/stmt.
-  renderSetHeader = _ctx: body: scope2 body;
+  renderSetHeader = ctx: body: scope2 ctx body;
 
   renderSetBody =
     ctx: body:
@@ -204,7 +231,7 @@ let
 
   # map: same as set but the type clause is `type K : V` and elements are
   # `k : v` pairs (handled by renderSetElement).
-  renderMapHeader = _ctx: body: scope2 body;
+  renderMapHeader = ctx: body: scope2 ctx body;
 
   renderMapBody =
     ctx: body:
@@ -257,10 +284,10 @@ let
       elemList = if builtins.isList body.elem then body.elem else [ body.elem ];
       inner = lib.concatMapStringsSep ", " (renderSetElement (resetPrec ctx)) elemList;
     in
-    "element ${scope2 body} { ${inner} }";
+    "element ${scope2 ctx body} { ${inner} }";
 
   # flowtable: `hook <hook> priority <prio>; devices = { ... };`.
-  renderFlowtableHeader = _ctx: body: scope2 body;
+  renderFlowtableHeader = ctx: body: scope2 ctx body;
 
   renderFlowtableBody =
     _ctx: body:
@@ -282,7 +309,7 @@ let
     hookLine ++ devLine;
 
   # counter: bare body (`add counter ...`) or with packets/bytes/comment.
-  renderCounterHeader = _ctx: body: scope2 body;
+  renderCounterHeader = ctx: body: scope2 ctx body;
 
   renderCounterBody =
     _ctx: body:
@@ -296,7 +323,7 @@ let
     ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
   # quota object: `[over] <bytes> bytes [used N bytes]`.
-  renderQuotaHeader = _ctx: body: scope2 body;
+  renderQuotaHeader = ctx: body: scope2 ctx body;
 
   renderQuotaBody =
     _ctx: body:
@@ -310,7 +337,7 @@ let
     head ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
   # limit object: `rate [over] <r> [<unit>]/<per> [burst N <unit>]`.
-  renderLimitHeader = _ctx: body: scope2 body;
+  renderLimitHeader = ctx: body: scope2 ctx body;
 
   renderLimitBody =
     _ctx: body:
@@ -341,7 +368,7 @@ let
   # single statement (the parser only accepts a `type` clause when
   # `protocol` follows it inline, no separator). `l3proto` and `comment`
   # are then separate statements with their own `;`.
-  renderCtHelperHeader = _ctx: body: scope2 body;
+  renderCtHelperHeader = ctx: body: scope2 ctx body;
 
   renderCtHelperBody =
     _ctx: body:
@@ -363,7 +390,7 @@ let
     ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
   # ct timeout object: `protocol tcp; l3proto ip; policy = { established: 300, ... };`.
-  renderCtTimeoutHeader = _ctx: body: scope2 body;
+  renderCtTimeoutHeader = ctx: body: scope2 ctx body;
 
   renderCtTimeoutBody =
     _ctx: body:
@@ -383,7 +410,7 @@ let
     ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
   # ct expectation object.
-  renderCtExpectationHeader = _ctx: body: scope2 body;
+  renderCtExpectationHeader = ctx: body: scope2 ctx body;
 
   renderCtExpectationBody =
     _ctx: body:
@@ -395,7 +422,7 @@ let
     ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
   # secmark object.
-  renderSecmarkHeader = _ctx: body: scope2 body;
+  renderSecmarkHeader = ctx: body: scope2 ctx body;
 
   renderSecmarkBody =
     _ctx: body:
@@ -403,7 +430,7 @@ let
     ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
   # synproxy object.
-  renderSynproxyHeader = _ctx: body: scope2 body;
+  renderSynproxyHeader = ctx: body: scope2 ctx body;
 
   renderSynproxyBody =
     _ctx: body:
@@ -419,7 +446,7 @@ let
 
   # tunnel object: id/src-ipv4/dst-ipv4/sport/dport/ttl/tos/type and the
   # nested encapsulation-specific block.
-  renderTunnelHeader = _ctx: body: scope2 body;
+  renderTunnelHeader = ctx: body: scope2 ctx body;
 
   renderTunnelBody =
     ctx: body:

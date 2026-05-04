@@ -1,11 +1,17 @@
 # Text renderer — coverage gaps
 
-The text renderer (`lib/text/`, exposed as `nftlib.toText` / `nftlib.toTextPretty`) emits the multi-line `.nft` form that `nft -f rules.nft` consumes. The JSON renderer is the authoritative path; the text renderer mirrors it position-for-position in the pipeline.
+The text renderer (`lib/text/`) emits the multi-line `.nft` form that `nft -f rules.nft` consumes. Two surface forms:
+
+- `nftlib.toText` / `nftlib.toTextPretty` — full imperative ruleset (`add chain …` / `add rule …`), one command per line.
+- `nftlib.toTextBlock` / `nftlib.toTextBlockPretty` — contents of one `table { ... }` block (no wrapper, no `add` keyword, rules folded as inline statements inside their parent chain). For embedding in host modules that supply their own table wrapper, e.g. nixpkgs' `networking.nftables.tables.<n>.content`.
+
+The JSON renderer is the authoritative path; the text renderers mirror it position-for-position in the pipeline.
 
 Common-path coverage is enforced by:
 
 - `tests/text-parity.nix` — ~30 schema-level expected-string assertions for `toText`.
 - `tests/text-integration.nix` — pipes each integration case's text rendering through `unshare -rn nft -c -f -`.
+- `tests/text-block-parity.nix` — expected-string assertions for `toTextBlock` / `toTextBlockPretty`, plus live-parser cases that wrap each output in `table <fam> <name> { ... }` and pipe through `nft -c -f -`.
 - `tests/render-equivalence.nix` — for ~9 cases (including the full basic-firewall-dsl example), loads JSON and text into separate netns and diffs `nft list ruleset` byte-for-byte. This is the 1:1 contract.
 
 The items below are written from the nft docs without live-parser coverage. Real usage may surface issues. For anything on this list, the JSON path is the supported target.

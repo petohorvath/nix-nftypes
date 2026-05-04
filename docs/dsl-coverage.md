@@ -149,4 +149,4 @@ The DSL hides hyphenated JSON keys (`queue-threshold`, `gc-interval`, `auto-merg
 `nix flake check` passes the full matrix:
 
 - `schema-tests` — 240+ assertions including 5 spec-coverage gap-fix tests plus 7 new DSL parity tests (rt ipsec, fib check, osf name, osf version, flushMeter, list.meter, alongside the existing rt/fib leaves).
-- `text-parity-tests`, `integration-tests`, `text-integration-tests`, `render-equivalence-tests` — all unchanged by the DSL additions.
+- `text-parity-tests`, `integration-tests`, `text-integration-tests`, `text-block-parity-tests`, `text-block-integration-tests`, `render-equivalence-tests` — all unchanged by the DSL additions.

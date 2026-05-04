@@ -14,8 +14,15 @@
     resolvePriority         — symbolic chain priority → int, with
                               family-aware lookup (bridge family
                               overrides default values).
-    toJson / toNix       — render a validated value to libnftables-json.
-    toText / toTextPretty   — render to nftables `.nft` text syntax.
+    toJson / toNix          — render a validated value to libnftables-json.
+    toText / toTextPretty   — render to nftables `.nft` text syntax in
+                              imperative form (`add chain …` / `add rule …`).
+    toTextBlock /
+      toTextBlockPretty     — render a single `dsl.table` value to block
+                              form (the contents of a
+                              `table <fam> <name> { … }` wrapper, suitable
+                              for embedding in a host module like nixpkgs'
+                              `networking.nftables.tables.<n>.content`).
     cleanValue              — strip module-internal markers.
     dsl                     — declarative builder producing values accepted
                               by the types above.
@@ -127,11 +134,19 @@ in
 
   /*
     Render a validated value to the nftables `.nft` text syntax `nft -f`
-    consumes. Both renderers accept the same attrsets the types above
-    produce.
+    consumes. The imperative entries (`toText` / `toTextPretty`) accept
+    the same attrsets the types above produce. The block-form entries
+    (`toTextBlock` / `toTextBlockPretty`) accept a single `dsl.table`
+    value and emit only the contents of that table — no
+    `table <fam> <name> { ... }` wrapper — so a host module like
+    nixpkgs' `networking.nftables.tables.<n>.content` can supply the
+    wrapper itself. Rules render as inline statements inside their
+    parent chain's brace block (vs separate `add rule …` commands).
   */
   toText = text.toText;
   toTextPretty = text.toTextPretty;
+  toTextBlock = node: text.toTextBlock (dsl.ruleset [ node ]);
+  toTextBlockPretty = node: text.toTextBlockPretty (dsl.ruleset [ node ]);
 
   /*
     DSL — path-based field access, top-level operators, variant namespaces,

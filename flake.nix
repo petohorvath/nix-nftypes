@@ -29,6 +29,7 @@
             inherit nftlib;
           };
           textParity = import ./tests/text-parity.nix { inherit pkgs nftlib; };
+          textBlockParity = import ./tests/text-block-parity.nix { inherit pkgs nftlib; };
           textIntegration = import ./tests/text-integration.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -56,6 +57,17 @@
           # Text-renderer parity tests: compact-form expected-string
           # assertions per construct.
           text-parity-tests = textParity.runTests pkgs;
+          # Block-form text-renderer parity tests: assertions for
+          # toTextBlock / toTextBlockPretty (the contents of a single
+          # `table { ... }` block, no `add` keyword, no family/table
+          # prefix on object headers).
+          text-block-parity-tests = textBlockParity.runTests pkgs;
+          # Block-form text-renderer live-parser check: each case is
+          # rendered via toTextBlockPretty, wrapped in
+          # `table <fam> <name> { ... }`, and piped through
+          # `unshare -rn nft -c -f -` to verify the round-trip is
+          # accepted by the upstream parser.
+          text-block-integration-tests = textBlockParity.runIntegrationTests pkgs textBlockParity.integrationCases;
           # Text-renderer live-parser tests: same case set as
           # integration-tests, but rendered to text and piped through
           # `unshare -rn nft -c -f -` (no `-j`).
