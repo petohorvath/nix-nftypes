@@ -65,15 +65,29 @@ let
   # An empty list renders as `{ }`; the JSON parser accepts
   # `{ set = []; }`, and whether the result is valid in context is the
   # text parser's call, not the renderer's.
+  #
+  # An `@`-prefixed string body is the canonical named-set-reference form
+  # (`{"set":"@name"}` in libnftables-JSON); render it as the bare reference
+  # since text grammar wants `@name`, not `{ @name }`. A non-`@` string body
+  # is the footgun — `{"set":"name"}` reads as a 1-element anonymous set
+  # whose sole element is the literal string `name`, never the caller's
+  # intent. The DSL's `expr.set` already throws on that shape, but raw
+  # attrsets bypassing the DSL still reach this renderer.
   renderSet =
     ctx: body:
-    let
-      elems = if builtins.isList body then body else [ body ];
-    in
-    if elems == [ ] then
+    if builtins.isString body && lib.hasPrefix "@" body then
+      body
+    else if !(builtins.isList body) then
+      throw ''
+        text: { set = …; } body must be a list (anonymous set) or an
+        `@`-prefixed string (named-set reference). Got: ${builtins.toJSON body}.
+        For a named-set reference, use `expr.setRef "<name>"` or pass
+        `"@<name>"` directly as the right operand.
+      ''
+    else if body == [ ] then
       "{ }"
     else
-      "{ " + lib.concatMapStringsSep ", " (renderSetElement (resetPrec ctx)) elems + " }";
+      "{ " + lib.concatMapStringsSep ", " (renderSetElement (resetPrec ctx)) body + " }";
 
   # In-expression map lookup: <key> map <data>. Used as an RHS expression
   # like `tcp dport map @port_forward`. The named-map definition lives in

@@ -688,6 +688,67 @@ let
       expected = "replace rule ip t c handle 7 drop";
     };
 
+    # ---- named-set references ------------------------------------------
+
+    # `{ set = "@name"; }` is the libnftables-JSON named-set reference
+    # shape; the text grammar wants the bare reference, no braces.
+    testMatchSetRef = {
+      expr = one {
+        add.rule = {
+          family = "inet";
+          table = "t";
+          chain = "c";
+          expr = [
+            {
+              match = {
+                left = {
+                  meta = {
+                    key = "iifname";
+                  };
+                };
+                op = "==";
+                right = {
+                  set = "@trusted";
+                };
+              };
+            }
+          ];
+        };
+      };
+      expected = "add rule inet t c meta iifname @trusted";
+    };
+
+    # A non-`@`-prefixed string body is the footgun: the renderer used to
+    # emit `{ <bare> }`, which the parser reads as a 1-element anonymous
+    # set whose sole element is a literal hostname string. The guardrail
+    # converts that silent miss into a loud throw.
+    testRenderSetStringBodyThrows = {
+      expr =
+        (builtins.tryEval (one {
+          add.rule = {
+            family = "inet";
+            table = "t";
+            chain = "c";
+            expr = [
+              {
+                match = {
+                  left = {
+                    meta = {
+                      key = "iifname";
+                    };
+                  };
+                  op = "==";
+                  right = {
+                    set = "trusted";
+                  };
+                };
+              }
+            ];
+          };
+        })).success;
+      expected = false;
+    };
+
     # ---- ruleset envelope (multi-command) -------------------------------
     testRulesetMultiCommand = {
       expr = toText {

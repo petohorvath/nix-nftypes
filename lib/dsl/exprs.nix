@@ -13,12 +13,52 @@ rec {
   # -- Structural -----------------------------------------------------------
 
   concat = xs: { concat = xs; };
-  set = xs: { set = xs; };
+
+  # Anonymous set literal. Body must be a list of expressions; a bare string
+  # would render as `{"set":"<x>"}`, which `nft` interprets as a 1-element
+  # anonymous set whose sole element is the literal string `<x>` — never the
+  # caller's intent. For a named-set reference use `expr.setRef`.
+  set =
+    xs:
+    if builtins.isString xs then
+      throw ''
+        expr.set: a bare string ("${xs}") is not a valid anonymous-set body —
+        anonymous sets are lists. For a named-set reference, use
+        `expr.setRef "${xs}"` (or pass `"@${xs}"` directly to inSet/notInSet).
+      ''
+    else
+      { set = xs; };
+
+  # Named set reference: `{ set = "@<name>"; }`. The leading `@` is the
+  # libnftables-JSON convention for named refs (vs. anonymous-set bodies which
+  # are lists). Callers pass the bare name; we prepend the `@`. An already
+  # `@`-prefixed name is tolerated to keep migration painless.
+  setRef =
+    name:
+    if !(builtins.isString name) then
+      throw "expr.setRef: expected a name string, got ${builtins.typeOf name}"
+    else if lib.hasPrefix "@" name then
+      { set = name; }
+    else
+      { set = "@${name}"; };
+
   map =
     { key, data }:
     {
       map = { inherit key data; };
     };
+
+  # Named map reference, mirroring `setRef`. Pass the bare name; the helper
+  # prepends the `@`. Tolerates an already-prefixed name.
+  mapRef =
+    name:
+    if !(builtins.isString name) then
+      throw "expr.mapRef: expected a name string, got ${builtins.typeOf name}"
+    else if lib.hasPrefix "@" name then
+      { map = name; }
+    else
+      { map = "@${name}"; };
+
   prefix = addr: len: { prefix = { inherit addr len; }; };
   range = lo: hi: {
     range = [

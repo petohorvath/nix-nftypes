@@ -161,6 +161,30 @@ let
     };
 
     # ------------------------------------------------------------------
+    # `{ set = "@name" }` — canonical libnftables-JSON named-set
+    # reference shape (vs. the bare-string form above). Both shapes are
+    # accepted by `nft -j`; this asserts the JSON renderer emits the
+    # shape unchanged so consumers using `expr.setRef` get the documented
+    # form on the wire.
+    # ------------------------------------------------------------------
+    testSetReferenceWrapped = {
+      expr = roundtrip nftlib.types.statement {
+        match = {
+          left = {
+            meta = {
+              key = "iifname";
+            };
+          };
+          right = {
+            set = "@trusted";
+          };
+          op = "==";
+        };
+      };
+      expected = ''{"match":{"left":{"meta":{"key":"iifname"}},"op":"==","right":{"set":"@trusted"}}}'';
+    };
+
+    # ------------------------------------------------------------------
     # DNAT with port
     # ------------------------------------------------------------------
     testDnat = {

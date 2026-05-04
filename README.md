@@ -109,14 +109,18 @@ Key entry points under `nftlib.dsl`:
 | `fields.<proto>.<name>` | pre-built payload leaves (`fields.tcp.dport`, `fields.ip.saddr`, `fields.ct.state`, `fields.meta.iifname`, `fields.fib.oif`, …) |
 | `payload` / `payloadRaw` / `payloadTunnel` | escape hatches for fields not in the tree |
 | `eq` / `ne` / `lt` / `gt` / `le` / `ge` | match operators producing `{ match: { left; right; op; } }` |
-| `inSet` / `notInSet` / `within` | set-membership match — auto-wraps a list rhs as `{ set = […]; }`, passes `"@name"` through |
+| `inSet` / `notInSet` / `within` | set-membership match — auto-wraps a list rhs as `{ set = […]; }`, passes `"@name"` through (the documented shorthand for a named-set match) |
 | `match.in_` / `match.raw` | bitwise `in` operator + raw escape hatch |
 | `accept` / `drop` / `continue` / `return` / `notrack` | verdicts as values |
 | `jump target` / `goto target` | verdicts with targets |
 | `counter` / `reject` / `log` / `limit` / `quota` / `synproxy` / `masquerade` / `redirect` / `queue` | callable attrsets with `.auto` / `.plain` / `.ref` variants (`counter {…}` vs `counter.auto` vs `counter.ref "name"`) |
 | `snat` / `dnat` / `fwd` / `dup` / `tproxy` | NAT statements |
 | `flow` / `meter` / `vmap` / `mangle` / `setStmt` / `mapStmt` / `last` / `lastUsed` / … | remaining statements |
-| `expr.concat` / `expr.set` / `expr.map` / `expr.prefix` / `expr.range` / `expr.numgen` / `expr.jhash` / … | structural and generator expressions |
+| `expr.concat` / `expr.prefix` / `expr.range` / `expr.numgen` / `expr.jhash` / … | structural and generator expressions |
+| `expr.set [...]` | **anonymous** set literal — body must be a list (a bare string throws and points at `setRef`) |
+| `expr.setRef "name"` | **named** set reference — emits `{ set = "@name"; }` (already-`@`-prefixed names are tolerated) |
+| `expr.map { key; data; }` | map-lookup expression (`<key> map <data>`) |
+| `expr.mapRef "name"` | named map reference — emits `{ map = "@name"; }` |
 | `ruleset` / `table` | top-level builders |
 | `flush` / `flushRuleset` / `flushTable` / `flushChain` / `flushSet` / `flushMap` / `flushMeter` | flush commands (bare `flush` = flush everything; siblings take an object body). nftables rejects `flush flowtable`, so that combination is intentionally absent. |
 | `rule` | standalone `add rule` (for when a rule needs an explicit handle/index outside the table tree) |

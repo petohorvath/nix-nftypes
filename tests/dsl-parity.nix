@@ -307,6 +307,28 @@ in
         ];
       };
 
+  # Named-set reference: bare name gets the canonical `@` prefix; an
+  # already-prefixed name is tolerated (idempotent migration). Both produce
+  # the libnftables-JSON shape `{"set":"@<name>"}`.
+  testExprSetRef = pe (dsl.expr.setRef "trusted_v4") {
+    set = "@trusted_v4";
+  };
+  testExprSetRefIdempotent = pe (dsl.expr.setRef "@trusted_v4") {
+    set = "@trusted_v4";
+  };
+
+  # `expr.set <bare-string>` is a footgun (silently rendered to invalid
+  # nftables); the constructor throws and points at `setRef`.
+  testExprSetStringRejected = {
+    expr = (builtins.tryEval (dsl.expr.set "trusted_v4")).success;
+    expected = false;
+  };
+
+  # `expr.set` on an actual list still works — anonymous-set path unchanged.
+  testExprSetListStillWorks = pe (dsl.expr.set [ "1.2.3.4" ]) {
+    set = [ "1.2.3.4" ];
+  };
+
   testExprMap =
     pe
       (dsl.expr.map {
@@ -324,6 +346,27 @@ in
           data = "@pf";
         };
       };
+
+  # Named-map reference mirror cases for setRef. The schema's `mapBody`
+  # requires `{ key, data }` so the `{map: "@name"}` shape can't be
+  # round-tripped through `toJson`; assert on the constructed value
+  # directly instead.
+  testExprMapRef = {
+    expr = dsl.expr.mapRef "cache";
+    expected = {
+      map = "@cache";
+    };
+  };
+  testExprMapRefIdempotent = {
+    expr = dsl.expr.mapRef "@cache";
+    expected = {
+      map = "@cache";
+    };
+  };
+  testExprMapRefRejectsNonString = {
+    expr = (builtins.tryEval (dsl.expr.mapRef 42)).success;
+    expected = false;
+  };
 
   testExprPrefix = pe (dsl.expr.prefix "10.0.0.0" 8) {
     prefix = {
