@@ -1,12 +1,15 @@
 /*
   compatibility — static reference data for nftables family×hook,
-  family×chain-type, and chain-priority tables, plus a `resolvePriority`
-  helper that converts symbolic priorities to ints with family-aware
-  lookup. Sources: `man nft` Tables 6 (default families) and 7 (bridge
-  family overrides), cross-checked against
+  family×chain-type, chain-type×hook, and chain-priority tables, plus
+  a `resolvePriority` helper that converts symbolic priorities to ints
+  with family-aware lookup and a `validChainPlacement` helper that
+  combines the three matrices into a single (family, chainType, hook)
+  predicate. Sources: `man nft` Tables 6 (default families) and 7
+  (bridge family overrides), cross-checked against
   `include/uapi/linux/netfilter_ipv4.h` /
   `include/uapi/linux/netfilter_ipv6.h` /
-  `include/uapi/linux/netfilter_bridge.h`.
+  `include/uapi/linux/netfilter_bridge.h` and the kernel's
+  `nf_chain_type` registrations in `net/netfilter/nf_tables_api.c`.
 
   Example:
     nftypes.lib.compatibility.hooksByFamily.netdev
@@ -14,6 +17,9 @@
 
     nftypes.lib.resolvePriority "bridge" "filter"
     # → -200
+
+    nftypes.lib.validChainPlacement "ip" "nat" "forward"
+    # → false  (nat does not attach at forward)
 */
 
 let
@@ -72,8 +78,11 @@ let
   /*
     Inverse of the chain-type compatibility matrix in `man nft`
     Table 6: families that natively support each chain type. `nat`
-    is rejected for `arp`, `bridge`, `netdev`; `route` is `ip`/`ip6`
-    only (and inet's compat shim does not extend to `route`).
+    is rejected for `arp`, `bridge`, `netdev`; `route` is `ip` /
+    `ip6` / `inet` (the kernel's `nft_chain_route_*` registrations
+    cover the inet meta-family by dispatching to the per-protocol
+    implementations — verified on kernel 6.8 with `inet route hook
+    output`).
   */
   familiesByChainType = {
     filter = [
@@ -92,7 +101,35 @@ let
     route = [
       "ip"
       "ip6"
+      "inet"
     ];
+  };
+
+  /*
+    Per-chain-type kernel hook restriction. `filter` may attach at
+    any hook the family exposes; `nat` is the four routing-related
+    hooks (the kernel rejects `forward` / `ingress` / `egress`);
+    `route` is `output`-only — its purpose is to trigger a routing
+    re-evaluation when the locally-generated packet's headers
+    change, which has no analog at the inbound hooks.
+
+    Combine with `hooksByFamily` to get the actual allowed set for
+    a `(family, chainType)` pair (the intersection). `null` is the
+    sentinel for "any hook the family exposes" — used by `filter`
+    to avoid duplicating each family's hook list here.
+
+    Sourced from `man nft` Table 6 and the kernel's `nf_chain_type`
+    registrations in `net/netfilter/nf_tables_api.c`.
+  */
+  hooksByChainType = {
+    filter = null;
+    nat = [
+      "prerouting"
+      "input"
+      "output"
+      "postrouting"
+    ];
+    route = [ "output" ];
   };
 
   /*
@@ -176,14 +213,42 @@ let
         + builtins.concatStringsSep ", " symNames
         + "."
       ));
+
+  /*
+    validChainPlacement :: family -> chainType -> hook -> bool
+
+    True iff the kernel will accept a base chain with this
+    `(family, chainType, hook)` triple. Combines three checks:
+      - `family` supports `chainType`        (familiesByChainType)
+      - `family` exposes `hook`              (hooksByFamily)
+      - `chainType` permits `hook`           (hooksByChainType)
+    All three must hold; any one failing means kernel rejection.
+
+    Useful for consumers that synthesize chain placements from
+    higher-level abstractions (e.g. zone-based firewalls) and want
+    to flag invalid combinations at compile time rather than at
+    `nft -f` time.
+  */
+  validChainPlacement =
+    family: chainType: hook:
+    let
+      families = familiesByChainType.${chainType} or [ ];
+      familyHooks = hooksByFamily.${family} or [ ];
+      typeHooks = hooksByChainType.${chainType} or null;
+    in
+    builtins.elem family families
+    && builtins.elem hook familyHooks
+    && (typeHooks == null || builtins.elem hook typeHooks);
 in
 {
   inherit
     hooksByFamily
     familiesByChainType
+    hooksByChainType
     priorityIntsDefault
     priorityIntsBridge
     hooksWithOifname
     resolvePriority
+    validChainPlacement
     ;
 }

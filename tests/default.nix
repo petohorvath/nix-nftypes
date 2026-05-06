@@ -1643,6 +1643,7 @@ let
       expected = [
         "ip"
         "ip6"
+        "inet"
       ];
     };
 
@@ -1663,6 +1664,99 @@ let
     testCompatPriorityBridgeFilter = {
       expr = nftlib.compatibility.priorityIntsBridge.filter;
       expected = -200;
+    };
+
+    # ------------------------------------------------------------------
+    # hooksByChainType — `null` is the "any hook the family exposes"
+    # sentinel for `filter`; `nat` and `route` carry explicit lists.
+    # ------------------------------------------------------------------
+    testCompatHooksByChainTypeFilterSentinel = {
+      expr = nftlib.compatibility.hooksByChainType.filter;
+      expected = null;
+    };
+
+    testCompatHooksByChainTypeNat = {
+      expr = nftlib.compatibility.hooksByChainType.nat;
+      expected = [
+        "prerouting"
+        "input"
+        "output"
+        "postrouting"
+      ];
+    };
+
+    testCompatHooksByChainTypeRoute = {
+      expr = nftlib.compatibility.hooksByChainType.route;
+      expected = [ "output" ];
+    };
+
+    # ------------------------------------------------------------------
+    # validChainPlacement — (family, chainType, hook) → bool. Cases
+    # mirror the kernel-probed matrix on Linux 6.8 / nftables 1.0.9.
+    # ------------------------------------------------------------------
+    testValidChainPlacementIpFilterPrerouting = {
+      expr = nftlib.validChainPlacement "ip" "filter" "prerouting";
+      expected = true;
+    };
+
+    testValidChainPlacementIpNatPrerouting = {
+      expr = nftlib.validChainPlacement "ip" "nat" "prerouting";
+      expected = true;
+    };
+
+    testValidChainPlacementIpNatForward = {
+      expr = nftlib.validChainPlacement "ip" "nat" "forward";
+      expected = false;
+    };
+
+    testValidChainPlacementIpRouteOutput = {
+      expr = nftlib.validChainPlacement "ip" "route" "output";
+      expected = true;
+    };
+
+    testValidChainPlacementIpRoutePrerouting = {
+      expr = nftlib.validChainPlacement "ip" "route" "prerouting";
+      expected = false;
+    };
+
+    # Verified on real kernel 6.8 / nftables 1.0.9: `inet route hook
+    # output` is accepted (the kernel dispatches inet route via the
+    # per-protocol implementations).
+    testValidChainPlacementInetRouteOutput = {
+      expr = nftlib.validChainPlacement "inet" "route" "output";
+      expected = true;
+    };
+
+    testValidChainPlacementNetdevFilterIngress = {
+      expr = nftlib.validChainPlacement "netdev" "filter" "ingress";
+      expected = true;
+    };
+
+    testValidChainPlacementNetdevNatIngress = {
+      expr = nftlib.validChainPlacement "netdev" "nat" "ingress";
+      expected = false;
+    };
+
+    testValidChainPlacementArpFilterInput = {
+      expr = nftlib.validChainPlacement "arp" "filter" "input";
+      expected = true;
+    };
+
+    testValidChainPlacementArpFilterForward = {
+      expr = nftlib.validChainPlacement "arp" "filter" "forward";
+      expected = false;
+    };
+
+    # Unknown family / chainType / hook strings fall through to false
+    # rather than throw — consumers can probe freely without try/catch.
+    testValidChainPlacementUnknownFamily = {
+      expr = nftlib.validChainPlacement "wat" "filter" "input";
+      expected = false;
+    };
+
+    testValidChainPlacementUnknownChainType = {
+      expr = nftlib.validChainPlacement "ip" "wat" "input";
+      expected = false;
     };
   };
 

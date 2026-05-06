@@ -9,11 +9,14 @@
                               `enums.family = [ "ip" "ip6" … ]`. Same
                               binding as the `types.enum` definitions.
     compatibility           — kernel/man reference data: family×hook,
-                              chain-type×family, symbolic priorities,
-                              hooks-with-oifname.
+                              chain-type×family, chain-type×hook,
+                              symbolic priorities, hooks-with-oifname.
     resolvePriority         — symbolic chain priority → int, with
                               family-aware lookup (bridge family
                               overrides default values).
+    validChainPlacement     — `(family, chainType, hook)` → bool. True
+                              iff the kernel will accept a base chain
+                              with this triple.
     toJson / toNix          — render a validated value to libnftables-json.
     toText / toTextPretty   — render to nftables `.nft` text syntax in
                               imperative form (`add chain …` / `add rule …`).
@@ -119,13 +122,14 @@ in
     inherit (compatibility)
       hooksByFamily
       familiesByChainType
+      hooksByChainType
       priorityIntsDefault
       priorityIntsBridge
       hooksWithOifname
       ;
   };
 
-  inherit (compatibility) resolvePriority;
+  inherit (compatibility) resolvePriority validChainPlacement;
 
   # Render a validated value to libnftables-json.
   toJson = json.toJson;

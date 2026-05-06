@@ -168,10 +168,11 @@ Three top-level exports surface kernel/man reference data downstream consumers (
   nftlib.enums.family   # → [ "ip" "ip6" "inet" "arp" "bridge" "netdev" ]
   ```
 
-- `nftlib.compatibility` — `man nft` Tables 6 and 7 plus the kernel's `oifname`-availability rule, transcribed: `hooksByFamily`, `familiesByChainType`, `priorityIntsDefault`, `priorityIntsBridge`, `hooksWithOifname`.
+- `nftlib.compatibility` — `man nft` Tables 6 and 7 plus the kernel's `oifname`-availability rule and per-chain-type hook restrictions, transcribed: `hooksByFamily`, `familiesByChainType`, `hooksByChainType`, `priorityIntsDefault`, `priorityIntsBridge`, `hooksWithOifname`.
 
   ```nix
   nftlib.compatibility.hooksByFamily.netdev   # → [ "ingress" "egress" ]
+  nftlib.compatibility.hooksByChainType.nat   # → [ "prerouting" "input" "output" "postrouting" ]
   ```
 
 - `nftlib.resolvePriority` — symbolic chain priority → int, with family-aware lookup. Bridge family uses `priorityIntsBridge`; every other known family uses `priorityIntsDefault`. Ints pass through unchanged. Unknown family or unknown symbol throws (with distinct messages).
@@ -180,6 +181,14 @@ Three top-level exports surface kernel/man reference data downstream consumers (
   nftlib.resolvePriority "bridge" "filter"   # → -200
   nftlib.resolvePriority "ip" "filter"       # → 0
   nftlib.resolvePriority "ip" 42             # → 42
+  ```
+
+- `nftlib.validChainPlacement` — `(family, chainType, hook) → bool`. True iff the kernel will accept a base chain with this triple, intersecting `familiesByChainType`, `hooksByFamily`, and `hooksByChainType`. Useful for consumers that synthesize chain placements from higher-level abstractions (zone-based firewalls, policy compilers) and want to flag invalid combinations at compile time rather than at `nft -f` time.
+
+  ```nix
+  nftlib.validChainPlacement "ip"     "nat"    "forward"     # → false (nat does not attach at forward)
+  nftlib.validChainPlacement "inet"   "route"  "output"      # → true
+  nftlib.validChainPlacement "netdev" "nat"    "ingress"     # → false (netdev does not support nat)
   ```
 
 ### Running
