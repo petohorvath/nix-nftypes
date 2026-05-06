@@ -168,11 +168,12 @@ Three top-level exports surface kernel/man reference data downstream consumers (
   nftlib.enums.family   # → [ "ip" "ip6" "inet" "arp" "bridge" "netdev" ]
   ```
 
-- `nftlib.compatibility` — `man nft` Tables 6 and 7 plus the kernel's `oifname`-availability rule and per-chain-type hook restrictions, transcribed: `hooksByFamily`, `familiesByChainType`, `hooksByChainType`, `priorityIntsDefault`, `priorityIntsBridge`, `hooksWithOifname`.
+- `nftlib.compatibility` — `man nft` Tables 6 and 7 plus the kernel's `oifname`-availability rule and per-chain-type hook restrictions, transcribed: `hooksByFamily`, `familiesByChainType`, `hooksByChainType`, `priorityIntsDefault`, `priorityIntsBridge`, `priorityIntsByFamily`, `hooksWithOifname`. The `priorityIntsByFamily` accessor returns the family-appropriate priority table — `bridge` gets `priorityIntsBridge`, every other known family gets `priorityIntsDefault`.
 
   ```nix
-  nftlib.compatibility.hooksByFamily.netdev   # → [ "ingress" "egress" ]
-  nftlib.compatibility.hooksByChainType.nat   # → [ "prerouting" "input" "output" "postrouting" ]
+  nftlib.compatibility.hooksByFamily.netdev          # → [ "ingress" "egress" ]
+  nftlib.compatibility.hooksByChainType.nat          # → [ "prerouting" "input" "output" "postrouting" ]
+  nftlib.compatibility.priorityIntsByFamily "bridge" # → priorityIntsBridge
   ```
 
 - `nftlib.resolvePriority` — symbolic chain priority → int, with family-aware lookup. Bridge family uses `priorityIntsBridge`; every other known family uses `priorityIntsDefault`. Ints pass through unchanged. Unknown family or unknown symbol throws (with distinct messages).
@@ -181,6 +182,24 @@ Three top-level exports surface kernel/man reference data downstream consumers (
   nftlib.resolvePriority "bridge" "filter"   # → -200
   nftlib.resolvePriority "ip" "filter"       # → 0
   nftlib.resolvePriority "ip" 42             # → 42
+  ```
+
+- `nftlib.priorityNameOf` — int → symbolic chain priority (reverse of `resolvePriority`). Returns the canonical symbol if one exists for the family, else the raw int unchanged. Symbols pass through. Useful for consumers that key chain buckets by `(hook, priorityName)` and want int-form and symbol-form inputs to land in the same bucket.
+
+  ```nix
+  nftlib.priorityNameOf "ip"     0       # → "filter"
+  nftlib.priorityNameOf "bridge" (-200)  # → "filter"  (bridge filter is -200, not 0)
+  nftlib.priorityNameOf "bridge" 0       # → 0         (no canonical symbol for 0 in bridge)
+  nftlib.priorityNameOf "ip"     17      # → 17        (no canonical symbol)
+  ```
+
+- `nftlib.chainTypeFor` — `(family, hook, priority) → chainType | null`. Returns the chain type (`"filter"` / `"nat"` / `"route"`) the kernel infers from a placement: `srcnat`/`dstnat` priorities → `"nat"`, `mangle` at a route hook → `"route"`, otherwise `"filter"`. Symbol unknown to the family returns `null`; unknown family throws. Family-aware: bridge `srcnat` is 300 (not 100) and still classifies correctly.
+
+  ```nix
+  nftlib.chainTypeFor "ip"     "postrouting" "srcnat"   # → "nat"
+  nftlib.chainTypeFor "bridge" "postrouting" 300        # → "nat"   (bridge srcnat int form)
+  nftlib.chainTypeFor "ip"     "output"      "mangle"   # → "route"
+  nftlib.chainTypeFor "ip"     "prerouting"  "mangle"   # → "filter" (route is output-only)
   ```
 
 - `nftlib.validChainPlacement` — `(family, chainType, hook) → bool`. True iff the kernel will accept a base chain with this triple, intersecting `familiesByChainType`, `hooksByFamily`, and `hooksByChainType`. Useful for consumers that synthesize chain placements from higher-level abstractions (zone-based firewalls, policy compilers) and want to flag invalid combinations at compile time rather than at `nft -f` time.

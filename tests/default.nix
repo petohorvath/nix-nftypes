@@ -1758,6 +1758,148 @@ let
       expr = nftlib.validChainPlacement "ip" "wat" "input";
       expected = false;
     };
+
+    # ------------------------------------------------------------------
+    # priorityIntsByFamily — family→table accessor. Internal dispatch
+    # shared by resolvePriority / priorityNameOf / chainTypeFor.
+    # ------------------------------------------------------------------
+    testPriorityIntsByFamilyIp = {
+      expr = nftlib.compatibility.priorityIntsByFamily "ip" == nftlib.compatibility.priorityIntsDefault;
+      expected = true;
+    };
+
+    testPriorityIntsByFamilyInet = {
+      expr = nftlib.compatibility.priorityIntsByFamily "inet" == nftlib.compatibility.priorityIntsDefault;
+      expected = true;
+    };
+
+    testPriorityIntsByFamilyBridge = {
+      expr =
+        nftlib.compatibility.priorityIntsByFamily "bridge" == nftlib.compatibility.priorityIntsBridge;
+      expected = true;
+    };
+
+    testPriorityIntsByFamilyUnknownThrows = {
+      expr = (builtins.tryEval (nftlib.compatibility.priorityIntsByFamily "nope")).success;
+      expected = false;
+    };
+
+    # ------------------------------------------------------------------
+    # priorityNameOf — int → symbol reverse of resolvePriority.
+    # ------------------------------------------------------------------
+    testPriorityNameOfIpZero = {
+      expr = nftlib.priorityNameOf "ip" 0;
+      expected = "filter";
+    };
+
+    testPriorityNameOfIpFilterPassthrough = {
+      expr = nftlib.priorityNameOf "ip" "filter";
+      expected = "filter";
+    };
+
+    testPriorityNameOfIpSrcnat = {
+      expr = nftlib.priorityNameOf "ip" 100;
+      expected = "srcnat";
+    };
+
+    testPriorityNameOfIpUnknownInt = {
+      expr = nftlib.priorityNameOf "ip" 17;
+      expected = 17;
+    };
+
+    # Bridge-specific: -200 is bridge filter (not 0).
+    testPriorityNameOfBridgeFilter = {
+      expr = nftlib.priorityNameOf "bridge" (-200);
+      expected = "filter";
+    };
+
+    testPriorityNameOfBridgeSrcnat = {
+      expr = nftlib.priorityNameOf "bridge" 300;
+      expected = "srcnat";
+    };
+
+    # 0 is `filter` for ip but unknown for bridge — no canonicalization.
+    testPriorityNameOfBridgeZero = {
+      expr = nftlib.priorityNameOf "bridge" 0;
+      expected = 0;
+    };
+
+    testPriorityNameOfUnknownFamilyThrows = {
+      expr = (builtins.tryEval (nftlib.priorityNameOf "nope" 0)).success;
+      expected = false;
+    };
+
+    # ------------------------------------------------------------------
+    # chainTypeFor — derive chain type from (family, hook, priority).
+    # ------------------------------------------------------------------
+    testChainTypeForIpInputFilter = {
+      expr = nftlib.chainTypeFor "ip" "input" "filter";
+      expected = "filter";
+    };
+
+    testChainTypeForIpInputZero = {
+      expr = nftlib.chainTypeFor "ip" "input" 0;
+      expected = "filter";
+    };
+
+    testChainTypeForIpPostroutingSrcnat = {
+      expr = nftlib.chainTypeFor "ip" "postrouting" "srcnat";
+      expected = "nat";
+    };
+
+    testChainTypeForIpPreroutingDstnat = {
+      expr = nftlib.chainTypeFor "ip" "prerouting" "dstnat";
+      expected = "nat";
+    };
+
+    testChainTypeForIpOutputMangle = {
+      expr = nftlib.chainTypeFor "ip" "output" "mangle";
+      expected = "route";
+    };
+
+    testChainTypeForIpPreroutingMangle = {
+      expr = nftlib.chainTypeFor "ip" "prerouting" "mangle";
+      expected = "filter";
+    };
+
+    # Bridge srcnat is 300 (not 100); both symbol and int forms map to "nat".
+    testChainTypeForBridgePostroutingSrcnatSymbol = {
+      expr = nftlib.chainTypeFor "bridge" "postrouting" "srcnat";
+      expected = "nat";
+    };
+
+    testChainTypeForBridgePostroutingSrcnatInt = {
+      expr = nftlib.chainTypeFor "bridge" "postrouting" 300;
+      expected = "nat";
+    };
+
+    testChainTypeForBridgeInputFilter = {
+      expr = nftlib.chainTypeFor "bridge" "input" "filter";
+      expected = "filter";
+    };
+
+    testChainTypeForBridgeInputFilterInt = {
+      expr = nftlib.chainTypeFor "bridge" "input" (-200);
+      expected = "filter";
+    };
+
+    # Bridge `out` is bridge-specific and not a NAT/route signal.
+    testChainTypeForBridgeOutputOut = {
+      expr = nftlib.chainTypeFor "bridge" "output" "out";
+      expected = "filter";
+    };
+
+    # Symbol unknown to the family returns null (not "filter") — the
+    # placement is uninterpretable, distinct from a known-filter case.
+    testChainTypeForUnknownSymbol = {
+      expr = nftlib.chainTypeFor "ip" "input" "wat";
+      expected = null;
+    };
+
+    testChainTypeForUnknownFamilyThrows = {
+      expr = (builtins.tryEval (nftlib.chainTypeFor "nope" "input" "filter")).success;
+      expected = false;
+    };
   };
 
   runTests =

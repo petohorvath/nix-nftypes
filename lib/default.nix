@@ -10,10 +10,20 @@
                               binding as the `types.enum` definitions.
     compatibility           — kernel/man reference data: family×hook,
                               chain-type×family, chain-type×hook,
-                              symbolic priorities, hooks-with-oifname.
+                              symbolic priorities, hooks-with-oifname,
+                              plus a `priorityIntsByFamily` accessor
+                              for the family-appropriate priority
+                              table.
     resolvePriority         — symbolic chain priority → int, with
                               family-aware lookup (bridge family
                               overrides default values).
+    priorityNameOf          — int → symbolic chain priority (reverse
+                              of `resolvePriority`); ints with no
+                              canonical symbol pass through unchanged.
+    chainTypeFor            — `(family, hook, priority)` → chain type
+                              (`"filter"` / `"nat"` / `"route"`); the
+                              type the kernel infers from the
+                              placement.
     validChainPlacement     — `(family, chainType, hook)` → bool. True
                               iff the kernel will accept a base chain
                               with this triple.
@@ -125,11 +135,17 @@ in
       hooksByChainType
       priorityIntsDefault
       priorityIntsBridge
+      priorityIntsByFamily
       hooksWithOifname
       ;
   };
 
-  inherit (compatibility) resolvePriority validChainPlacement;
+  inherit (compatibility)
+    resolvePriority
+    validChainPlacement
+    priorityNameOf
+    chainTypeFor
+    ;
 
   # Render a validated value to libnftables-json.
   toJson = json.toJson;
