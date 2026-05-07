@@ -170,7 +170,9 @@ let
     testMultipleChildrenAllEndWithSemiCompact = {
       expr = toTextBlock (
         dsl.table "inet" "fw" {
-          chains.input = baseChain // { rules = [ [ dsl.accept ] ]; };
+          chains.input = baseChain // {
+            rules = [ [ dsl.accept ] ];
+          };
           sets.lan_v4 = {
             type = "ipv4_addr";
             flags = [ "interval" ];
@@ -311,22 +313,22 @@ let
         set +e
         failed=0
         ${lib.concatMapStringsSep "\n" (cf: ''
-          printf '=== %s (%s) ===\n' ${lib.escapeShellArg cf.name} ${cf.form}
-          inner=$(cat <<'INNER_EOF'
-        ${cf.rendered}
-        INNER_EOF
-          )
-          ruleset="table ${cf.table.family} ${cf.table.name} {
-        $inner
-        }"
-          if nft_err=$(unshare -rn nft -c -f - <<<"$ruleset" 2>&1); then
-            echo "PASS"
-          else
-            echo "FAIL:"
-            echo "$nft_err" | sed 's/^/    /'
-            echo "$ruleset" | sed 's/^/    | /'
-            failed=$((failed + 1))
-          fi
+            printf '=== %s (%s) ===\n' ${lib.escapeShellArg cf.name} ${cf.form}
+            inner=$(cat <<'INNER_EOF'
+          ${cf.rendered}
+          INNER_EOF
+            )
+            ruleset="table ${cf.table.family} ${cf.table.name} {
+          $inner
+          }"
+            if nft_err=$(unshare -rn nft -c -f - <<<"$ruleset" 2>&1); then
+              echo "PASS"
+            else
+              echo "FAIL:"
+              echo "$nft_err" | sed 's/^/    /'
+              echo "$ruleset" | sed 's/^/    | /'
+              failed=$((failed + 1))
+            fi
         '') caseForms}
         if [ "$failed" -gt 0 ]; then
           echo "$failed text-block-integration test(s) failed"
