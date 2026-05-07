@@ -307,7 +307,7 @@ let
           policy = "drop";
         };
       };
-      expected = "add chain inet main input { type filter hook input priority 0; policy drop }";
+      expected = "add chain inet main input { type filter hook input priority 0; policy drop; }";
     };
 
     testRegularChain = {
@@ -333,7 +333,7 @@ let
           dev = "eth0";
         };
       };
-      expected = ''add chain netdev filter ingress { type filter hook ingress device "eth0" priority -100 }'';
+      expected = ''add chain netdev filter ingress { type filter hook ingress device "eth0" priority -100; }'';
     };
 
     testSetWithFlagsAndElems = {
@@ -354,7 +354,7 @@ let
           ];
         };
       };
-      expected = "add set inet main trusted { type ipv4_addr; flags interval; elements = { 10.0.0.0/8 } }";
+      expected = "add set inet main trusted { type ipv4_addr; flags interval; elements = { 10.0.0.0/8 }; }";
     };
 
     testMapWithElems = {
@@ -377,7 +377,7 @@ let
           ];
         };
       };
-      expected = "add map inet main ports { type inet_service : inet_service; elements = { 80 : 8080, 443 : 8443 } }";
+      expected = "add map inet main ports { type inet_service : inet_service; elements = { 80 : 8080, 443 : 8443 }; }";
     };
 
     testElement = {
@@ -431,7 +431,7 @@ let
           ];
         };
       };
-      expected = "add flowtable inet main ft1 { hook ingress priority 0; devices = { eth0, eth1 } }";
+      expected = "add flowtable inet main ft1 { hook ingress priority 0; devices = { eth0, eth1 }; }";
     };
 
     testCounterObject = {
@@ -444,7 +444,7 @@ let
           bytes = 5000;
         };
       };
-      expected = "add counter ip filter ctr { packets 100 bytes 5000 }";
+      expected = "add counter ip filter ctr { packets 100 bytes 5000; }";
     };
 
     testQuotaOver = {
@@ -457,7 +457,7 @@ let
           inv = true;
         };
       };
-      expected = "add quota ip filter q { over 1000000 bytes }";
+      expected = "add quota ip filter q { over 1000000 bytes; }";
     };
 
     testLimitObject = {
@@ -471,7 +471,7 @@ let
           burst = 10;
         };
       };
-      expected = "add limit ip filter lim { rate 5/second burst 10 packets }";
+      expected = "add limit ip filter lim { rate 5/second burst 10 packets; }";
     };
 
     testCtTimeoutPolicy = {
@@ -488,7 +488,7 @@ let
           };
         };
       };
-      expected = "add ct timeout ip t fast_tcp { protocol tcp; l3proto ip; policy = { close: 5, established: 300 } }";
+      expected = "add ct timeout ip t fast_tcp { protocol tcp; l3proto ip; policy = { close: 5, established: 300 }; }";
     };
 
     testSynproxyObject = {
@@ -505,7 +505,7 @@ let
           ];
         };
       };
-      expected = "add synproxy inet t sp { mss 1460 wscale 7; timestamp sack-perm }";
+      expected = "add synproxy inet t sp { mss 1460 wscale 7; timestamp sack-perm; }";
     };
 
     # ct timeout/expectation with only the required name fields — the
@@ -551,7 +551,7 @@ let
           };
         };
       };
-      expected = "add tunnel inet t v { id 42; type vxlan; vxlan { gbp 100 } }";
+      expected = "add tunnel inet t v { id 42; type vxlan; vxlan { gbp 100 }; }";
     };
 
     # Hyphenated identifier — the bare-identifier regex must accept `-`

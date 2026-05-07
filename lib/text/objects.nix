@@ -33,10 +33,12 @@ let
   rIdent = primitives.identQuote;
 
   # Wrap a list of body lines in `{ ... }`. The text grammar requires `;`
-  # between statements inside braces in both compact and pretty modes —
-  # newlines alone don't separate them.
+  # after every statement inside braces in both compact and pretty modes,
+  # including the one immediately before `}` — newlines alone don't
+  # separate them, and a missing trailing `;` makes the parser report
+  # `unexpected '}'`.
   #
-  # Compact: `{ a; b; c }`.
+  # Compact: `{ a; b; c; }`.
   # Pretty:  one statement per line, indented, each terminated with `;`.
   #
   # Empty body: imperative form omits braces entirely (the `add <kind>`
@@ -57,8 +59,8 @@ let
           if ctx.pretty then
             lib.concatMapStringsSep "" (l: "\n${indent inner}${l};") lines
           else
-            lib.concatMapStringsSep "; " (l: l) lines;
-        close = if ctx.pretty then "\n${indent ctx}}" else " }";
+            lib.concatMapStrings (l: "${l}; ") lines;
+        close = if ctx.pretty then "\n${indent ctx}}" else "}";
         open = if ctx.pretty then " {" else " { ";
       in
       "${open}${joined}${close}";

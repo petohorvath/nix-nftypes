@@ -43,7 +43,7 @@ let
     # ---- chain only (base chain, no rules) -----------------------------
     testBaseChainNoRulesCompact = {
       expr = toTextBlock (dsl.table "inet" "fw" { chains.input = baseChain; });
-      expected = "chain input { type filter hook input priority 0 }";
+      expected = "chain input { type filter hook input priority 0; }";
     };
 
     testBaseChainNoRulesPretty = {
@@ -67,7 +67,7 @@ let
           };
         }
       );
-      expected = "chain input { type filter hook input priority 0; policy drop; accept; drop }";
+      expected = "chain input { type filter hook input priority 0; policy drop; accept; drop; }";
     };
 
     testChainWithRulesPretty = {
@@ -122,7 +122,7 @@ let
           };
         }
       );
-      expected = "set lan_v4 { type ipv4_addr; flags interval }";
+      expected = "set lan_v4 { type ipv4_addr; flags interval; }";
     };
 
     testSetBlockPretty = {
@@ -148,6 +148,36 @@ let
         }
       );
       expected = "counter hits { }";
+    };
+
+    # Regression: pre-fix emitted `accept; accept }`, which `nft -f`
+    # rejects with `unexpected '}'`.
+    testChainTwoRulesEndsWithSemiCompact = {
+      expr = toTextBlock (
+        dsl.table "inet" "fw" {
+          chains.fwd = (baseChain // { hook = "forward"; }) // {
+            rules = [
+              [ dsl.accept ]
+              [ dsl.accept ]
+            ];
+          };
+        }
+      );
+      expected = "chain fwd { type filter hook forward priority 0; accept; accept; }";
+    };
+
+    # Same regression for sibling decls inside the table block.
+    testMultipleChildrenAllEndWithSemiCompact = {
+      expr = toTextBlock (
+        dsl.table "inet" "fw" {
+          chains.input = baseChain // { rules = [ [ dsl.accept ] ]; };
+          sets.lan_v4 = {
+            type = "ipv4_addr";
+            flags = [ "interval" ];
+          };
+        }
+      );
+      expected = "chain input { type filter hook input priority 0; accept; }\nset lan_v4 { type ipv4_addr; flags interval; }";
     };
 
     # ---- mixed children at the same indent level -----------------------
@@ -256,6 +286,20 @@ let
 
   runIntegrationTests =
     pkgs': cases:
+    let
+      caseForms = lib.concatMap (c: [
+        {
+          inherit (c) name table;
+          form = "pretty";
+          rendered = toTextBlockPretty c.table;
+        }
+        {
+          inherit (c) name table;
+          form = "compact";
+          rendered = toTextBlock c.table;
+        }
+      ]) cases;
+    in
     pkgs'.runCommandLocal "text-block-integration-tests"
       {
         nativeBuildInputs = [
@@ -266,15 +310,15 @@ let
       ''
         set +e
         failed=0
-        ${lib.concatMapStringsSep "\n" (c: ''
-          printf '=== %s ===\n' ${lib.escapeShellArg c.name}
+        ${lib.concatMapStringsSep "\n" (cf: ''
+          printf '=== %s (%s) ===\n' ${lib.escapeShellArg cf.name} ${cf.form}
           inner=$(cat <<'INNER_EOF'
-          ${toTextBlockPretty c.table}
-          INNER_EOF
+        ${cf.rendered}
+        INNER_EOF
           )
-          ruleset="table ${c.table.family} ${c.table.name} {
-          $inner
-          }"
+          ruleset="table ${cf.table.family} ${cf.table.name} {
+        $inner
+        }"
           if nft_err=$(unshare -rn nft -c -f - <<<"$ruleset" 2>&1); then
             echo "PASS"
           else
@@ -283,12 +327,12 @@ let
             echo "$ruleset" | sed 's/^/    | /'
             failed=$((failed + 1))
           fi
-        '') cases}
+        '') caseForms}
         if [ "$failed" -gt 0 ]; then
           echo "$failed text-block-integration test(s) failed"
           exit 1
         fi
-        echo "All ${toString (builtins.length cases)} text-block-integration tests passed"
+        echo "All ${toString (builtins.length caseForms)} text-block-integration tests passed"
         touch $out
       '';
 in
