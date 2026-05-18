@@ -451,6 +451,11 @@ let
   # (`list`) is bodyless, so no body is emitted.
   renderMetainfoHeader = _ctx: _body: "";
 
+  # meter (for list/flush output): family/table/name only. There's no
+  # `add meter` — meters are anonymous, created via the `meter`
+  # statement — so the header-only form is the entire surface.
+  renderMeterHeader = ctx: body: scope2 ctx body;
+
   # ruleset envelope: null → bare; { family } → `<verb> ruleset <family>`.
   renderRulesetHeader =
     _ctx: body: if body == null then "" else (if body ? family then body.family else "");
@@ -531,6 +536,10 @@ let
     };
     metainfo = {
       header = renderMetainfoHeader;
+      body = emptyBody;
+    };
+    meter = {
+      header = renderMeterHeader;
       body = emptyBody;
     };
     ruleset = {
