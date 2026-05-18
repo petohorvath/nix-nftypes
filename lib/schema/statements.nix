@@ -24,6 +24,7 @@ let
     xtType
     perUnit
     nullLiteral
+    nftQuotedString
     ;
   expr = expressions.expression;
   inherit (expressions) verdictTargetBody;
@@ -294,7 +295,9 @@ let
     logBody = types.submodule {
       options = {
         prefix = mkOption {
-          type = types.nullOr types.str;
+          # nft renders this through the same quoted-string path as
+          # comments — see nftQuotedString.
+          type = types.nullOr nftQuotedString;
           default = null;
           description = "log prefix";
         };

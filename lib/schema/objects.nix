@@ -25,6 +25,7 @@ let
     tunnelType
     portNumber
     nullLiteral
+    nftQuotedString
     ;
   expr = expressions.expression;
   stmt = statements.statement;
@@ -102,7 +103,11 @@ let
 
   commentOption = {
     comment = mkOption {
-      type = types.nullOr types.str;
+      # See lib/schema/primitives.nix nftQuotedString for the
+      # character-set / length constraints (security-critical: nft has no
+      # string-escape syntax, so '"' / '\' / control chars in the rendered
+      # text inject statements or corrupt the output).
+      type = types.nullOr nftQuotedString;
       default = null;
       description = "free-form object comment";
     };

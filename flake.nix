@@ -46,6 +46,10 @@
             inherit pkgs;
             inherit (pkgs) lib;
           };
+          commentSafety = import ./tests/comment-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
         in
         {
           schema-tests = tests.runTests pkgs;
@@ -88,6 +92,13 @@
           # to dsl-validation-tests, which checks the failure but not the
           # message shape.
           dsl-validation-message-tests = validationMessages.runMessageTests;
+          # Regression pin for the nft quoted-string injection class:
+          # schema rejects '"', '\', control chars, and >128 bytes on
+          # commentOption / elemBody.comment / log prefix; renderer
+          # asserts the same set as defence-in-depth; safe comments
+          # round-trip through both text and JSON paths byte-for-byte.
+          comment-safety-tests = commentSafety.runTests pkgs;
+          comment-safety-integration-tests = commentSafety.runIntegrationTests pkgs;
         }
       );
 

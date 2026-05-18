@@ -4,9 +4,11 @@
 #
 #   identQuote     — render an identifier (table/chain/set name etc.); bare
 #                    when it matches the unquoted-identifier rule, else
-#                    double-quoted with `"`/`\` escaped.
+#                    double-quoted (asserted-safe). Note nft REJECTS quoted
+#                    strings in most identifier positions, so the fallback
+#                    is mostly a load-bearing parse error.
 #   string         — render a free-form string (comment, log prefix); always
-#                    double-quoted with `"`/`\` escaped.
+#                    double-quoted (asserted-safe).
 #   flags          — render a flag value that the schema accepts as either a
 #                    bare string or a list (listOrSingleton). Joined with `,`.
 #   handle         — render a `handle <n>` clause when handle is non-null.
@@ -28,7 +30,33 @@ let
 
   isBareIdent = s: builtins.match bareIdentRegex s != null;
 
-  escape = s: lib.escape [ "\"" "\\" ] s;
+  # SECURITY-CRITICAL: nft has NO string-escape grammar. The lexer ends a
+  # quoted token at the next bare `"`, treating any preceding `\` as a
+  # literal byte. A string containing `"` therefore terminates early and
+  # any trailing content is parsed as further nft commands — at table
+  # scope that includes nested `chain` definitions, yielding a real
+  # firewall bypass (e.g. `comment "X"; chain bypass { ... }; #"`
+  # injects a chain with `policy accept` at priority -10).
+  #
+  # We cannot "escape" the dangerous characters because nft has no escape
+  # syntax to render into. Instead the function asserts the input is
+  # already safe (no `"`, no `\`, no control characters incl. NUL/\n) and
+  # returns it as-is. Schema-level types (see lib/schema/primitives.nix
+  # `nftQuotedString`) catch most violations at eval time; this assert is
+  # the defense-in-depth backstop for any caller that bypasses the
+  # schema (tests, third-party DSLs, hand-built attrsets).
+  escape =
+    s:
+    if builtins.match ''[^"\\[:cntrl:]]*'' s == null then
+      throw ''
+        nftypes: refusing to render a string containing a character unsafe for
+        nft's quoted-string syntax (any of: '"', '\', control character). nft
+        has no string-escape grammar — these characters either terminate the
+        token early (allowing statement injection) or corrupt the parser.
+        Offending value: ${builtins.toJSON s}
+      ''
+    else
+      s;
 
   quoteString = s: ''"${escape s}"'';
 

@@ -32,6 +32,7 @@ let
     tunnelKey
     nullLiteral
     prefixLength
+    nftQuotedString
     ;
 
   # Fixed-point recursion so bodies and the top-level `expression` type can
@@ -420,7 +421,7 @@ let
           description = "remaining time in seconds";
         };
         comment = mkOption {
-          type = types.nullOr types.str;
+          type = types.nullOr nftQuotedString;
           default = null;
           description = "element comment";
         };
