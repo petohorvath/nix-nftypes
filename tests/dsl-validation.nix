@@ -452,25 +452,10 @@ let
     };
   };
 
-  runTests =
-    pkgs:
-    let
-      results = lib.runTests tests;
-      fmt = res: lib.generators.toPretty { } res;
-    in
-    if results == [ ] then
-      pkgs.runCommandLocal "dsl-validation-tests-pass" { } ''
-        echo "All ${toString (builtins.length (builtins.attrNames tests))} validation tests passed"
-        touch $out
-      ''
-    else
-      pkgs.runCommandLocal "dsl-validation-tests-fail" { } ''
-        cat <<'EOF'
-        DSL validation tests failed:
-        ${fmt results}
-        EOF
-        exit 1
-      '';
+  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
+    name = "dsl-validation-tests";
+    inherit tests;
+  };
 in
 {
   inherit tests runTests;

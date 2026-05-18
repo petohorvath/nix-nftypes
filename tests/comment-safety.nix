@@ -323,25 +323,10 @@ let
         touch $out
       '';
 
-  runTests =
-    pkgs:
-    let
-      results = lib.runTests tests;
-      fmt = res: lib.generators.toPretty { } res;
-    in
-    if results == [ ] then
-      pkgs.runCommandLocal "comment-safety-tests-pass" { } ''
-        echo "All ${toString (builtins.length (builtins.attrNames tests))} comment-safety unit tests passed"
-        touch $out
-      ''
-    else
-      pkgs.runCommandLocal "comment-safety-tests-fail" { } ''
-        cat <<'EOF'
-        Comment-safety tests failed:
-        ${fmt results}
-        EOF
-        exit 1
-      '';
+  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
+    name = "comment-safety-tests";
+    inherit tests;
+  };
 in
 {
   inherit tests runTests runIntegrationTests;

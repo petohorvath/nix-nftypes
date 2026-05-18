@@ -773,25 +773,10 @@ let
     };
   };
 
-  runTests =
-    pkgs':
-    let
-      results = lib.runTests tests;
-      fmt = res: lib.generators.toPretty { } res;
-    in
-    if results == [ ] then
-      pkgs'.runCommandLocal "nft-text-parity-tests-pass" { } ''
-        echo "All ${toString (builtins.length (builtins.attrNames tests))} text-parity tests passed"
-        touch $out
-      ''
-    else
-      pkgs'.runCommandLocal "nft-text-parity-tests-fail" { } ''
-        cat <<'EOF'
-        Text-parity tests failed:
-        ${fmt results}
-        EOF
-        exit 1
-      '';
+  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
+    name = "nft-text-parity-tests";
+    inherit tests;
+  };
 in
 {
   inherit tests runTests;

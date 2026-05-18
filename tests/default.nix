@@ -1902,25 +1902,10 @@ let
     };
   };
 
-  runTests =
-    pkgs':
-    let
-      results = lib.runTests tests;
-      fmt = res: lib.generators.toPretty { } res;
-    in
-    if results == [ ] then
-      pkgs'.runCommandLocal "nft-schema-tests-pass" { } ''
-        echo "All ${toString (builtins.length (builtins.attrNames tests))} tests passed"
-        touch $out
-      ''
-    else
-      pkgs'.runCommandLocal "nft-schema-tests-fail" { } ''
-        cat <<'EOF'
-        Schema tests failed:
-        ${fmt results}
-        EOF
-        exit 1
-      '';
+  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
+    name = "nft-schema-tests";
+    inherit tests;
+  };
 in
 {
   inherit tests runTests;

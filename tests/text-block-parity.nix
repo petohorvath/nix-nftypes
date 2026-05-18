@@ -230,25 +230,10 @@ let
     };
   };
 
-  runTests =
-    pkgs':
-    let
-      results = lib.runTests tests;
-      fmt = res: lib.generators.toPretty { } res;
-    in
-    if results == [ ] then
-      pkgs'.runCommandLocal "nft-text-block-parity-tests-pass" { } ''
-        echo "All ${toString (builtins.length (builtins.attrNames tests))} text-block-parity tests passed"
-        touch $out
-      ''
-    else
-      pkgs'.runCommandLocal "nft-text-block-parity-tests-fail" { } ''
-        cat <<'EOF'
-        Text-block-parity tests failed:
-        ${fmt results}
-        EOF
-        exit 1
-      '';
+  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
+    name = "nft-text-block-parity-tests";
+    inherit tests;
+  };
 
   # Live-parser cases: each `table` is rendered to block form, wrapped
   # in `table <family> <name> { ... }`, and piped through

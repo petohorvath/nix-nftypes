@@ -377,25 +377,10 @@ let
 
   tests = semanticsTests // constructionTests // driftTests // roundTripTests;
 
-  runTests =
-    pkgs:
-    let
-      results = lib.runTests tests;
-      fmt = res: lib.generators.toPretty { } res;
-    in
-    if results == [ ] then
-      pkgs.runCommandLocal "restricted-types-tests-pass" { } ''
-        echo "All ${toString (builtins.length (builtins.attrNames tests))} restricted-type tests passed"
-        touch $out
-      ''
-    else
-      pkgs.runCommandLocal "restricted-types-tests-fail" { } ''
-        cat <<'EOF'
-        Restricted-type tests failed:
-        ${fmt results}
-        EOF
-        exit 1
-      '';
+  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
+    name = "restricted-types-tests";
+    inherit tests;
+  };
 in
 {
   inherit tests runTests;
