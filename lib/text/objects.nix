@@ -593,4 +593,9 @@ in
     renderObject
     renderObjectHeader
     ;
+  # The kind set this renderer's dispatch table accepts. Read by the
+  # schema↔text drift test (tests/default.nix) to assert every object
+  # kind referenced by command unions (addObject, listObject) has a
+  # renderer entry.
+  renderableKinds = builtins.attrNames kinds;
 }

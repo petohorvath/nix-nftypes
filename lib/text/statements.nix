@@ -422,4 +422,9 @@ in
     renderStatement
     renderRuleExpr
     ;
+  # The tag set this renderer's dispatch table accepts. Read by the
+  # schema↔text drift test (tests/default.nix) to assert every tag in
+  # the `statement` union has a renderer entry — otherwise an unrendered
+  # tag throws at render time instead of failing eval-time.
+  tags = builtins.attrNames taggedRenderers;
 }

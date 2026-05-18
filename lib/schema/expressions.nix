@@ -549,7 +549,12 @@ let
   };
 in
 {
-  inherit (exprs) expression verdictTargetBody expressionOf;
+  inherit (exprs)
+    expression
+    taggedExpression
+    verdictTargetBody
+    expressionOf
+    ;
   all = removeAttrs exprs [
     "expression"
     "taggedExpression"

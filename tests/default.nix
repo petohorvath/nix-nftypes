@@ -35,7 +35,102 @@ let
     }
   ) nftlib.enums;
 
-  baseTests = dslTests // enumDriftTests;
+  # Schema↔text drift: every tag in the schema's `statement`,
+  # `taggedExpression`, and `addObject`/`listObject` unions must have a
+  # matching entry in the corresponding text/* dispatch table —
+  # otherwise the renderer throws at *render time* (`no renderer for
+  # tag '…'`) instead of failing eval-time. Catches the regression class
+  # where a new schema tag is added without a renderer.
+  #
+  # Renderer modules are re-imported here with their full dep tree so
+  # the test reads the exact `taggedRenderers`/`kinds` tables the
+  # production path uses. Same internal-access pattern as
+  # tests/comment-safety.nix.
+  textDriftTests =
+    let
+      nftSafeString = import ../lib/nft-safe-string.nix { };
+      context = import ../lib/text/context.nix { inherit lib; };
+      primitives = import ../lib/text/primitives.nix { inherit lib nftSafeString; };
+      # Mutual reference between statements and expressions — resolved
+      # lazily by Nix's recursive `let`.
+      expressions = import ../lib/text/expressions.nix {
+        inherit
+          lib
+          context
+          primitives
+          statements
+          ;
+      };
+      statements = import ../lib/text/statements.nix {
+        inherit
+          lib
+          context
+          primitives
+          expressions
+          ;
+      };
+      objects = import ../lib/text/objects.nix {
+        inherit
+          lib
+          context
+          primitives
+          expressions
+          statements
+          ;
+      };
+
+      # Tags in `xs` that don't appear in `ys`. A non-empty result lists
+      # the offenders verbatim, which makes the failure output
+      # self-explanatory.
+      missing = xs: ys: lib.subtractLists ys xs;
+      stmtTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
+      exprTags = builtins.attrNames nftlib.types.taggedExpression.functor.payload.tags;
+      # Renderable object kinds: every union tag in addObject ∪ listObject
+      # (the latter adds `metainfo` and `meter`) plus `ruleset`, which
+      # appears only as a command-level envelope but still needs a
+      # header renderer for `list/flush/reset ruleset`.
+      objectKinds =
+        lib.unique (
+          builtins.attrNames nftlib.types.addObject.functor.payload.tags
+          ++ builtins.attrNames nftlib.types.listObject.functor.payload.tags
+        )
+        ++ [ "ruleset" ];
+    in
+    {
+      # Schema → renderer: every tag the schema accepts must be
+      # renderable (otherwise renderStatement/Expression/Object throws
+      # at render time).
+      testTextDrift_statementTagsCovered = {
+        expr = missing stmtTags statements.tags;
+        expected = [ ];
+      };
+      testTextDrift_expressionTagsCovered = {
+        expr = missing exprTags expressions.tags;
+        expected = [ ];
+      };
+      testTextDrift_objectKindsCovered = {
+        expr = missing objectKinds objects.renderableKinds;
+        expected = [ ];
+      };
+
+      # Renderer → schema: every entry in the renderer dispatch table
+      # must correspond to a real schema tag (otherwise it's dead code
+      # — unreachable because no schema route emits that tag).
+      testTextDrift_statementRendererHasNoOrphans = {
+        expr = missing statements.tags stmtTags;
+        expected = [ ];
+      };
+      testTextDrift_expressionRendererHasNoOrphans = {
+        expr = missing expressions.tags exprTags;
+        expected = [ ];
+      };
+      testTextDrift_objectRendererHasNoOrphans = {
+        expr = missing objects.renderableKinds objectKinds;
+        expected = [ ];
+      };
+    };
+
+  baseTests = dslTests // enumDriftTests // textDriftTests;
 
   tests = baseTests // {
     # ------------------------------------------------------------------
