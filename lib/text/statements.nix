@@ -19,11 +19,11 @@
 let
   inherit (context) resetPrec;
   inherit (expressions) renderExpression;
+  inherit (lib) optionalString;
 
   # ---- helpers ---------------------------------------------------------
 
   rExpr = ctx: e: renderExpression (resetPrec ctx) e;
-  optStr = cond: s: lib.optionalString cond s;
 
   # Render a list of natFlags as a comma-separated suffix. NAT statements
   # accept a single flag string or a list (listOrSingleton).
@@ -50,12 +50,10 @@ let
 
   # ---- per-tag renderers ----------------------------------------------
 
-  renderVerdict =
-    name: _ctx: _body:
-    name;
-
-  renderJump = _ctx: { target }: "jump ${target}";
-  renderGoto = _ctx: { target }: "goto ${target}";
+  # Verdicts/jump/goto live in expressions.nix (they're valid in both
+  # statement and expression position). We reuse those renderers verbatim
+  # rather than maintaining a parallel pair here.
+  inherit (expressions) renderVerdict renderJump renderGoto;
 
   # match: `<left> <op> <right>`. `==` and `in` are elided in nft text:
   # equality is implicit, and set/range membership (op = "in") is
@@ -103,13 +101,15 @@ let
       "quota name ${primitives.string body}"
     else
       let
-        head = "quota" + optStr ((body.inv or null) == true) " over";
-        valPart = " ${toString body.val}" + optStr ((body.val_unit or null) != null) " ${body.val_unit}";
+        head = "quota" + optionalString ((body.inv or null) == true) " over";
+        valPart =
+          " ${toString body.val}" + optionalString ((body.val_unit or null) != null) " ${body.val_unit}";
         usedPart =
           if (body.used or null) == null then
             ""
           else
-            " used ${toString body.used}" + optStr ((body.used_unit or null) != null) " ${body.used_unit}";
+            " used ${toString body.used}"
+            + optionalString ((body.used_unit or null) != null) " ${body.used_unit}";
       in
       head + valPart + usedPart;
 
@@ -120,8 +120,8 @@ let
       "limit name ${primitives.string body}"
     else
       let
-        head = "limit rate" + optStr ((body.inv or null) == true) " over";
-        rateUnit = optStr ((body.rate_unit or null) != null) " ${body.rate_unit}";
+        head = "limit rate" + optionalString ((body.inv or null) == true) " over";
+        rateUnit = optionalString ((body.rate_unit or null) != null) " ${body.rate_unit}";
         ratePart = " ${toString body.rate}${rateUnit}/${body.per}";
         burstPart =
           if (body.burst or null) == null then
@@ -149,7 +149,9 @@ let
     if addr == null then
       "fwd to ${rExpr ctx dev}"
     else
-      "fwd to ${rExpr ctx addr}" + optStr (family != null) " family ${family}" + " via ${rExpr ctx dev}";
+      "fwd to ${rExpr ctx addr}"
+      + optionalString (family != null) " family ${family}"
+      + " via ${rExpr ctx dev}";
 
   # dup: `dup to <addr> [device <dev>]`.
   renderDup =
@@ -158,7 +160,7 @@ let
       addr,
       dev ? null,
     }:
-    "dup to ${rExpr ctx addr}" + optStr (dev != null) " device ${rExpr ctx dev}";
+    "dup to ${rExpr ctx addr}" + optionalString (dev != null) " device ${rExpr ctx dev}";
 
   # NAT — snat/dnat share the same body. `addr` is omitted for port-only
   # translation; `family` precedes `to`; `port` is appended `:port`. flags
@@ -173,7 +175,7 @@ let
       type_flags ? null,
     }:
     let
-      head = name + optStr (family != null) " ${family}";
+      head = name + optionalString (family != null) " ${family}";
       to = renderNatTo ctx addr port;
       flagsStr = renderNatFlags flags;
       typeStr = renderNatFlags type_flags;
@@ -199,7 +201,7 @@ let
     if type == null && expr == null then
       "reject"
     else
-      "reject with ${type}" + optStr (expr != null) " ${rExpr ctx expr}";
+      "reject with ${type}" + optionalString (expr != null) " ${rExpr ctx expr}";
 
   # set/map dynamic-update statement: `<op> @<set> { <elem>[ : <data>] [stmt]* }`.
   renderSetStmt =
@@ -268,7 +270,7 @@ let
       size ? null,
     }:
     "meter ${primitives.identQuote name}"
-    + optStr (size != null) " size ${toString size}"
+    + optionalString (size != null) " size ${toString size}"
     + " { ${rExpr ctx key} ${renderStatement (resetPrec ctx) stmt} }";
 
   # queue: `queue` / `queue num <expr>` / `queue flags ... num <expr>`.
@@ -279,7 +281,7 @@ let
       flags ? null,
     }:
     let
-      flagsStr = optStr (flags != null) " flags ${primitives.flags { sep = ","; } flags}";
+      flagsStr = optionalString (flags != null) " flags ${primitives.flags { sep = ","; } flags}";
       numStr = if num == null then "" else " num ${rExpr ctx num}";
     in
     "queue" + flagsStr + numStr;
@@ -294,7 +296,7 @@ let
       val,
       inv ? null,
     }:
-    "ct count" + optStr (inv == true) " over" + " ${toString val}";
+    "ct count" + optionalString (inv == true) " over" + " ${toString val}";
 
   # xt: deprecated escape hatch. Render as `xt <type> "<name>"`.
   renderXt = _ctx: { type, name }: "xt ${type} ${primitives.string name}";
@@ -315,7 +317,7 @@ let
       addr ? null,
       port ? null,
     }:
-    "tproxy" + optStr (family != null) " ${family}" + renderNatTo ctx addr port;
+    "tproxy" + optionalString (family != null) " ${family}" + renderNatTo ctx addr port;
 
   # synproxy: bare / inline / named-reference (expr).
   renderSynproxy =

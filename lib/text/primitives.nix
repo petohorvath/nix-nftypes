@@ -1,4 +1,4 @@
-{ lib }:
+{ lib, nftSafeString }:
 
 # Primitive atoms used by every higher-level renderer.
 #
@@ -41,13 +41,14 @@ let
   # We cannot "escape" the dangerous characters because nft has no escape
   # syntax to render into. Instead the function asserts the input is
   # already safe (no `"`, no `\`, no control characters incl. NUL/\n) and
-  # returns it as-is. Schema-level types (see lib/schema/primitives.nix
-  # `nftQuotedString`) catch most violations at eval time; this assert is
-  # the defense-in-depth backstop for any caller that bypasses the
-  # schema (tests, third-party DSLs, hand-built attrsets).
+  # returns it as-is. The schema's `nftQuotedString` type uses the same
+  # predicate (see lib/nft-safe-string.nix) and catches most violations
+  # at eval time; this assert is the defense-in-depth backstop for any
+  # caller that bypasses the schema (tests, third-party DSLs, hand-built
+  # attrsets).
   escape =
     s:
-    if builtins.match ''[^"\\[:cntrl:]]*'' s == null then
+    if !nftSafeString.isSafe s then
       throw ''
         nftypes: refusing to render a string containing a character unsafe for
         nft's quoted-string syntax (any of: '"', '\', control character). nft

@@ -32,15 +32,13 @@
 # (e.g. `create.chain.prio: not of type 'null or signed integer'`).
 
 let
-  rename = import ../internal/rename.nix { inherit lib; };
-
-  # Per-object-kind configuration:
-  #   tag         — the singular JSON command tag (`chain`, `ct helper`, …)
-  #   renameBody  — DSL-key → JSON-key rename applied before validation
-  #   body        — schema submodule the renamed body is validated against
-  # Mirrors `structure/render.nix`'s `objectKinds`; here singular DSL names
-  # match the command-builder surface (vs the table tree's plural keys).
-  addObjectKinds = {
+  # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
+  # body; plural; }`). Drop the `plural` field — irrelevant here — and
+  # add the three command-only kinds (table/chain/rule) that aren't
+  # table-tree containers.
+  objectKindRegistry = import ./object-kinds.nix { inherit lib objects; };
+  sharedKinds = lib.mapAttrs (_: cfg: removeAttrs cfg [ "plural" ]) objectKindRegistry;
+  addObjectKinds = sharedKinds // {
     table = {
       tag = "table";
       renameBody = lib.id;
@@ -55,71 +53,6 @@ let
       tag = "rule";
       renameBody = lib.id;
       body = objects.ruleBody;
-    };
-    set = {
-      tag = "set";
-      renameBody = rename.set;
-      body = objects.setObjectBody;
-    };
-    map = {
-      tag = "map";
-      renameBody = rename.set;
-      body = objects.mapObjectBody;
-    };
-    element = {
-      tag = "element";
-      renameBody = rename.element;
-      body = objects.elementBody;
-    };
-    flowtable = {
-      tag = "flowtable";
-      renameBody = lib.id;
-      body = objects.flowtableBody;
-    };
-    counter = {
-      tag = "counter";
-      renameBody = lib.id;
-      body = objects.counterObjectBody;
-    };
-    quota = {
-      tag = "quota";
-      renameBody = lib.id;
-      body = objects.quotaObjectBody;
-    };
-    ctHelper = {
-      tag = "ct helper";
-      renameBody = lib.id;
-      body = objects.ctHelperObjectBody;
-    };
-    limit = {
-      tag = "limit";
-      renameBody = lib.id;
-      body = objects.limitObjectBody;
-    };
-    ctTimeout = {
-      tag = "ct timeout";
-      renameBody = lib.id;
-      body = objects.ctTimeoutObjectBody;
-    };
-    ctExpectation = {
-      tag = "ct expectation";
-      renameBody = lib.id;
-      body = objects.ctExpectationObjectBody;
-    };
-    secmark = {
-      tag = "secmark";
-      renameBody = lib.id;
-      body = objects.secmarkObjectBody;
-    };
-    synproxy = {
-      tag = "synproxy";
-      renameBody = lib.id;
-      body = objects.synproxyObjectBody;
-    };
-    tunnel = {
-      tag = "tunnel";
-      renameBody = rename.tunnel;
-      body = objects.tunnelObjectBody;
     };
   };
 

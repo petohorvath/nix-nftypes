@@ -44,7 +44,8 @@
 
 let
   internal = import ./schema/internal.nix { inherit lib; };
-  primitives = import ./schema/primitives.nix { inherit lib; };
+  nftSafeString = import ./nft-safe-string.nix { };
+  primitives = import ./schema/primitives.nix { inherit lib nftSafeString; };
   # Mutual reference between `expressions` and `statements`: statements
   # consume `expr`, and elements (defined in expressions) accept a `stmt`
   # list. Nix's recursive `let` resolves this lazily — both modules are
@@ -78,7 +79,7 @@ let
   commands = import ./schema/commands.nix { inherit lib internal objects; };
   clean = import ./clean.nix { inherit lib; };
   json = import ./json { inherit lib clean; };
-  text = import ./text { inherit lib clean; };
+  text = import ./text { inherit lib clean nftSafeString; };
   dsl = import ./dsl {
     inherit lib;
     objects = objects.all;

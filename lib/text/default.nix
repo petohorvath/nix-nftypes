@@ -1,4 +1,8 @@
-{ lib, clean }:
+{
+  lib,
+  clean,
+  nftSafeString,
+}:
 
 # Public entry for the nftables-text renderer.
 #
@@ -25,7 +29,7 @@
 
 let
   context = import ./context.nix { inherit lib; };
-  primitives = import ./primitives.nix { inherit lib; };
+  primitives = import ./primitives.nix { inherit lib nftSafeString; };
   # Mutual reference: `statements` consumes `expressions.renderExpression`,
   # while `renderElem` (in expressions) calls back into
   # `statements.renderStatement` to render element-attached `stmt` lists.

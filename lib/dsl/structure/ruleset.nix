@@ -17,14 +17,6 @@ let
   render = import ./render.nix { inherit lib validate objects; };
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
-in
-{
-  # Envelope: flat-maps children into { nftables = [ commands ]; }. Children
-  # may be table nodes (expanded into multiple commands), bare command
-  # attrsets, or lists of commands.
-  ruleset = children: {
-    nftables = render.flattenChildren children;
-  };
 
   # -- Flush commands -------------------------------------------------------
   # Schema (objects.nix `flushObject`) accepts: table, chain, set, map,
@@ -38,65 +30,55 @@ in
   # `flush flowtable` is intentionally absent from both schema and DSL —
   # the nftables parser rejects it ("Unknown object passed to flush
   # command").
+  flushKinds = {
+    flushRuleset = {
+      tag = "ruleset";
+      body = objects.rulesetBody;
+    };
+    flushTable = {
+      tag = "table";
+      body = objects.tableBody;
+    };
+    flushChain = {
+      tag = "chain";
+      body = objects.chainBody;
+    };
+    flushSet = {
+      tag = "set";
+      body = objects.setObjectBody;
+      renameBody = rename.set;
+    };
+    flushMap = {
+      tag = "map";
+      body = objects.mapObjectBody;
+      renameBody = rename.set;
+    };
+    flushMeter = {
+      tag = "meter";
+      body = objects.meterObjectBody;
+    };
+  };
 
+  flushHelpers = lib.mapAttrs (name: cfg: body: {
+    flush.${cfg.tag} = validate {
+      type = cfg.body;
+      value = (cfg.renameBody or lib.id) body;
+      prefix = [ name ];
+    };
+  }) flushKinds;
+in
+{
+  # Envelope: flat-maps children into { nftables = [ commands ]; }. Children
+  # may be table nodes (expanded into multiple commands), bare command
+  # attrsets, or lists of commands.
+  ruleset = children: {
+    nftables = render.flattenChildren children;
+  };
+
+  # Bare `flush ruleset` — the ubiquitous "flush everything" form.
   flush = {
     flush = {
       ruleset = null;
-    };
-  };
-
-  flushRuleset = body: {
-    flush = {
-      ruleset = validate {
-        type = objects.rulesetBody;
-        value = body;
-        prefix = [ "flushRuleset" ];
-      };
-    };
-  };
-  flushTable = body: {
-    flush = {
-      table = validate {
-        type = objects.tableBody;
-        value = body;
-        prefix = [ "flushTable" ];
-      };
-    };
-  };
-  flushChain = body: {
-    flush = {
-      chain = validate {
-        type = objects.chainBody;
-        value = body;
-        prefix = [ "flushChain" ];
-      };
-    };
-  };
-  flushSet = body: {
-    flush = {
-      set = validate {
-        type = objects.setObjectBody;
-        value = rename.set body;
-        prefix = [ "flushSet" ];
-      };
-    };
-  };
-  flushMap = body: {
-    flush = {
-      map = validate {
-        type = objects.mapObjectBody;
-        value = rename.set body;
-        prefix = [ "flushMap" ];
-      };
-    };
-  };
-  flushMeter = body: {
-    flush = {
-      meter = validate {
-        type = objects.meterObjectBody;
-        value = body;
-        prefix = [ "flushMeter" ];
-      };
     };
   };
 
@@ -137,3 +119,4 @@ in
       };
     };
 }
+// flushHelpers

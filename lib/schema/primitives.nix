@@ -1,4 +1,4 @@
-{ lib }:
+{ lib, nftSafeString }:
 
 let
   inherit (lib) types mkOptionType;
@@ -15,22 +15,16 @@ let
   prefixLength = types.ints.between 0 128;
 
   # A free-form string safe for rendering into nft's quoted-string syntax
-  # (`comment "…"`, `log prefix "…"`). nft has NO string-escape grammar —
-  # the lexer ends the token at the next bare `"` and treats `\` as a
-  # literal byte, so any `"` or `\` in user input renders to text that
-  # injects statements (or, at best, parse-errors at deploy time).
-  # Control characters (incl. NUL and newline) similarly break the
-  # rendered output. 128-byte length cap matches kernel
-  # NFTNL_UDATA_COMMENT_MAXLEN; log-prefix has the same limit.
+  # (`comment "…"`, `log prefix "…"`). The safe-character set lives in
+  # lib/nft-safe-string.nix; the text renderer's defense-in-depth `escape`
+  # asserts the same predicate, so neither path can drift. 128-byte length
+  # cap matches kernel NFTNL_UDATA_COMMENT_MAXLEN; log-prefix has the same
+  # limit.
   nftQuotedString = mkOptionType {
     name = "nftQuotedString";
     description = ''nft-safe quoted string (no '"', '\', or control characters; ≤128 bytes)'';
     descriptionClass = "noun";
-    check =
-      s:
-      builtins.isString s
-      && builtins.match ''[^"\\[:cntrl:]]*'' s != null
-      && builtins.stringLength s <= 128;
+    check = s: builtins.isString s && nftSafeString.isSafe s && builtins.stringLength s <= 128;
     merge = lib.mergeEqualOption;
   };
 

@@ -17,84 +17,15 @@
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
-  rename = import ../internal/rename.nix { inherit lib; };
   markers = import ../internal/markers.nix { inherit lib; };
 
-  # Object-kind configuration for the table tree's plural-keyed object
-  # containers (sets, maps, counters, …):
-  #   tag         — the singular JSON command tag emitted (`set` for sets, …)
-  #   renameBody  — DSL-key → JSON-key rename applied before validation
-  #   body        — schema submodule the renamed body is validated against
-  objectKinds = {
-    sets = {
-      tag = "set";
-      renameBody = rename.set;
-      body = objects.setObjectBody;
-    };
-    maps = {
-      tag = "map";
-      renameBody = rename.set;
-      body = objects.mapObjectBody;
-    };
-    elements = {
-      tag = "element";
-      renameBody = rename.element;
-      body = objects.elementBody;
-    };
-    flowtables = {
-      tag = "flowtable";
-      renameBody = lib.id;
-      body = objects.flowtableBody;
-    };
-    counters = {
-      tag = "counter";
-      renameBody = lib.id;
-      body = objects.counterObjectBody;
-    };
-    quotas = {
-      tag = "quota";
-      renameBody = lib.id;
-      body = objects.quotaObjectBody;
-    };
-    limits = {
-      tag = "limit";
-      renameBody = lib.id;
-      body = objects.limitObjectBody;
-    };
-    ctHelpers = {
-      tag = "ct helper";
-      renameBody = lib.id;
-      body = objects.ctHelperObjectBody;
-    };
-    ctTimeouts = {
-      tag = "ct timeout";
-      renameBody = lib.id;
-      body = objects.ctTimeoutObjectBody;
-    };
-    ctExpectations = {
-      tag = "ct expectation";
-      renameBody = lib.id;
-      body = objects.ctExpectationObjectBody;
-    };
-    secmarks = {
-      tag = "secmark";
-      renameBody = lib.id;
-      body = objects.secmarkObjectBody;
-    };
-    synproxies = {
-      tag = "synproxy";
-      renameBody = lib.id;
-      body = objects.synproxyObjectBody;
-    };
-    # Tunnel bodies have hyphenated top-level keys (src-ipv4, …). The
-    # nested `tunnel` attribute's shape depends on `type` and isn't renamed
-    # here — users of geneve options write the hyphenated keys directly.
-    tunnels = {
-      tag = "tunnel";
-      renameBody = rename.tunnel;
-      body = objects.tunnelObjectBody;
-    };
-  };
+  # Re-key the shared registry by `plural` for table-tree lookup. Each
+  # entry carries the singular JSON `tag`, the schema `body` submodule,
+  # and the DSL-key → JSON-key `renameBody` function the kind needs.
+  objectKindRegistry = import ./object-kinds.nix { inherit lib objects; };
+  objectKinds = lib.mapAttrs' (
+    _: cfg: lib.nameValuePair cfg.plural (removeAttrs cfg [ "plural" ])
+  ) objectKindRegistry;
 
   # Alphabetical attribute-name listing. `builtins.attrNames` is already
   # sorted; this wrapper documents intent at call sites.

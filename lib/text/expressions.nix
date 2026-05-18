@@ -359,6 +359,9 @@ in
     renderExpression
     renderSetElement
     renderElem
+    renderVerdict
+    renderJump
+    renderGoto
     binopPrec
     ;
 }

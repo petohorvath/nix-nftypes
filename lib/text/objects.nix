@@ -183,31 +183,13 @@ let
     in
     "${body.family} ${rIdent body.table} ${rIdent body.chain}${pos} ${renderRuleStmtsAndComment ctx body}";
 
-  # set: header `<family> <table> <name>`; body covers type/flags/policy/
-  # size/timeout/gc-interval/auto-merge/elements/comment/stmt.
-  renderSetHeader = ctx: body: scope2 ctx body;
-
-  renderSetBody =
-    ctx: body:
+  # Shared body renderer for set and map objects. They differ only in the
+  # type clause: sets emit `type <K>`; maps emit `type <K> : <V>`. Every
+  # other clause (flags/policy/size/timeout/gc-interval/auto-merge/stmt/
+  # elements/comment) is identical.
+  renderSetOrMapBody =
+    typeLineFor: ctx: body:
     let
-      typeLine = [ "type ${renderDatatype ctx body.type}" ];
-      flagsLine =
-        lib.optional ((body.flags or null) != null)
-          "flags ${primitives.flags { sep = ", "; } body.flags}";
-      policyLine = lib.optional ((body.policy or null) != null) "policy ${body.policy}";
-      sizeLine = lib.optional ((body.size or null) != null) "size ${toString body.size}";
-      timeoutLine = lib.optional ((body.timeout or null) != null) "timeout ${toString body.timeout}s";
-      gcLine = lib.optional (
-        (body."gc-interval" or null) != null
-      ) "gc-interval ${toString body."gc-interval"}s";
-      autoMergeLine = lib.optional ((body."auto-merge" or null) == true) "auto-merge";
-      stmtLine =
-        if (body.stmt or null) == null then
-          [ ]
-        else
-          # Stateful statements attached to elements are rendered as
-          # `counter; quota` etc. inside the set body.
-          map (s: statements.renderStatement (resetPrec ctx) s) body.stmt;
       elemList =
         if (body.elem or null) == null then
           [ ]
@@ -215,67 +197,38 @@ let
           body.elem
         else
           [ body.elem ];
-      elemLine = lib.optional (elemList != [ ]) (renderElements ctx elemList);
-      commentLine = lib.optional (
-        (body.comment or null) != null
-      ) "comment ${primitives.string body.comment}";
+      # Stateful statements attached to elements are rendered as
+      # `counter; quota` etc. inside the body.
+      stmtLines =
+        if (body.stmt or null) == null then
+          [ ]
+        else
+          map (s: statements.renderStatement (resetPrec ctx) s) body.stmt;
     in
-    typeLine
-    ++ flagsLine
-    ++ policyLine
-    ++ sizeLine
-    ++ timeoutLine
-    ++ gcLine
-    ++ autoMergeLine
-    ++ stmtLine
-    ++ elemLine
-    ++ commentLine;
+    [ (typeLineFor ctx body) ]
+    ++
+      lib.optional ((body.flags or null) != null)
+        "flags ${primitives.flags { sep = ", "; } body.flags}"
+    ++ lib.optional ((body.policy or null) != null) "policy ${body.policy}"
+    ++ lib.optional ((body.size or null) != null) "size ${toString body.size}"
+    ++ lib.optional ((body.timeout or null) != null) "timeout ${toString body.timeout}s"
+    ++ lib.optional ((body."gc-interval" or null) != null) "gc-interval ${toString body."gc-interval"}s"
+    ++ lib.optional ((body."auto-merge" or null) == true) "auto-merge"
+    ++ stmtLines
+    ++ lib.optional (elemList != [ ]) (renderElements ctx elemList)
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+
+  # set: header `<family> <table> <name>`; body covers type/flags/policy/
+  # size/timeout/gc-interval/auto-merge/elements/comment/stmt.
+  renderSetHeader = ctx: body: scope2 ctx body;
+  renderSetBody = renderSetOrMapBody (ctx: body: "type ${renderDatatype ctx body.type}");
 
   # map: same as set but the type clause is `type K : V` and elements are
   # `k : v` pairs (handled by renderSetElement).
   renderMapHeader = ctx: body: scope2 ctx body;
-
-  renderMapBody =
-    ctx: body:
-    let
-      typeLine = [ "type ${renderDatatype ctx body.type} : ${renderDatatype ctx body.map}" ];
-      flagsLine =
-        lib.optional ((body.flags or null) != null)
-          "flags ${primitives.flags { sep = ", "; } body.flags}";
-      policyLine = lib.optional ((body.policy or null) != null) "policy ${body.policy}";
-      sizeLine = lib.optional ((body.size or null) != null) "size ${toString body.size}";
-      timeoutLine = lib.optional ((body.timeout or null) != null) "timeout ${toString body.timeout}s";
-      gcLine = lib.optional (
-        (body."gc-interval" or null) != null
-      ) "gc-interval ${toString body."gc-interval"}s";
-      autoMergeLine = lib.optional ((body."auto-merge" or null) == true) "auto-merge";
-      stmtLine =
-        if (body.stmt or null) == null then
-          [ ]
-        else
-          map (s: statements.renderStatement (resetPrec ctx) s) body.stmt;
-      elemList =
-        if (body.elem or null) == null then
-          [ ]
-        else if builtins.isList body.elem then
-          body.elem
-        else
-          [ body.elem ];
-      elemLine = lib.optional (elemList != [ ]) (renderElements ctx elemList);
-      commentLine = lib.optional (
-        (body.comment or null) != null
-      ) "comment ${primitives.string body.comment}";
-    in
-    typeLine
-    ++ flagsLine
-    ++ policyLine
-    ++ sizeLine
-    ++ timeoutLine
-    ++ gcLine
-    ++ autoMergeLine
-    ++ stmtLine
-    ++ elemLine
-    ++ commentLine;
+  renderMapBody = renderSetOrMapBody (
+    ctx: body: "type ${renderDatatype ctx body.type} : ${renderDatatype ctx body.map}"
+  );
 
   # element: `<family> <table> <set-name> { <elem>, <elem>, ... }`. The
   # body is a bare comma-separated element list inside braces (no

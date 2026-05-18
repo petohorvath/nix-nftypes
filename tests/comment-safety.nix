@@ -25,7 +25,10 @@ let
   # Internal handle to the renderer primitives — exercised directly so the
   # renderer-level defence-in-depth assert is pinned independently of the
   # schema. Production callers should not import this path.
-  textPrimitives = import ../lib/text/primitives.nix { inherit lib; };
+  textPrimitives = import ../lib/text/primitives.nix {
+    inherit lib;
+    nftSafeString = import ../lib/nft-safe-string.nix { };
+  };
 
   # The audit's malicious comment payload — verified end-to-end to inject
   # a chain at priority -10 with `policy accept` pre-fix.
