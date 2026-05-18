@@ -158,6 +158,40 @@ The nft-types layer is directly usable if the DSL's conventions don't fit — ev
 
 `nftlib.toJson` on that value yields a byte-identical result to the DSL form. Raw commands and DSL children can appear side-by-side inside `dsl.ruleset [...]`.
 
+### Restricting `statement` and `expression` to a subset of kinds
+
+Downstream consumers sometimes want a field typed like `statement` but constrained to a subset of statement tags — e.g. a "match-only" slot that gets spliced into a rule as a prefix clause must reject verdicts (an `accept` short-circuits dispatch entirely) and side-effecting statements (a `counter` or `log` fires on every packet, not just the user's intended target). Two helpers make this a type-level check at `evalModules` time instead of a hand-rolled walker validator.
+
+- `nftlib.types.statementOf` — `[ String ] -> Type`. Returns `types.attrTag` of the requested subset of statement tags. The kinds list reads as the constraint at the call site; unknown kinds throw at type construction time so typos surface immediately.
+
+  ```nix
+  # Match-only slot (the common "prefix-match" pattern).
+  matchOverride = mkOption {
+    type = lib.types.listOf (nftlib.types.statementOf [ "match" ]);
+    default = [ ];
+  };
+
+  # Verdict-only slot (e.g. terminal dispatch action).
+  terminal = mkOption {
+    type = nftlib.types.statementOf [
+      "accept" "drop" "jump" "goto" "return" "continue"
+    ];
+  };
+  ```
+
+- `nftlib.types.matchStatement` — pre-applied alias for `statementOf [ "match" ]`, the most common subset.
+
+- `nftlib.types.expressionOf` — `[ String ] -> Type`. Same shape, but for the tagged forms of `expression` (`payload`, `meta`, `ct`, `numgen`, …). Scalars (`str` / `int` / `bool`) and bare expression lists are intentionally *outside* the subset — `expression` accepts them as their own oneOf branches, so consumers that want them on top of a tag subset compose explicitly:
+
+  ```nix
+  type = lib.types.oneOf [
+    lib.types.str
+    (nftlib.types.expressionOf [ "payload" "meta" ])
+  ];
+  ```
+
+All three helpers route through the same per-kind body map the unrestricted `statement` and `expression` types use, so adding a new tag upstream automatically participates in the subset helpers (covered by a per-kind smoke loop in `tests/restricted-types.nix`). Error messages name the allowed kinds — `value is not of type 'statement (one of: "match")'` rather than the generic `attribute-tagged union`.
+
 ### Static reference data
 
 Three top-level exports surface kernel/man reference data downstream consumers (zone libraries, validators, doc generators) would otherwise rederive from `parser_json.c` or kernel headers.

@@ -93,12 +93,25 @@ in
     body namespaces (expressions, statements, objects).
   */
   types = primitives.types // {
-    # Recursive expression union plus per-variant body submodules.
-    inherit (expressions) expression;
+    /*
+      Recursive expression union plus per-variant body submodules and
+      a subset helper. `expressionOf [ kinds... ]` restricts to a
+      chosen set of tagged expression kinds — see the helper docstring
+      in `lib/schema/expressions.nix` for scope (tagged-only; scalars
+      and bare lists are not included).
+    */
+    inherit (expressions) expression expressionOf;
     expressions = expressions.all;
 
-    # Statement union plus per-variant body submodules.
-    inherit (statements) statement;
+    /*
+      Statement union plus per-variant body submodules and subset
+      helpers. `statementOf [ kinds... ]` restricts a `statement`-typed
+      field to a subset of statement tags (e.g. match-only or
+      verdict-only) with `evalModules`-time validation, replacing
+      hand-rolled walker checks downstream. `matchStatement` is the
+      pre-applied common case (`statementOf [ "match" ]`).
+    */
+    inherit (statements) statement statementOf matchStatement;
     statements = statements.all;
 
     # Object bodies, single-tag wrappers, combined unions.

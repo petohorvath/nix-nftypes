@@ -445,49 +445,57 @@ let
 
     binaryOpBody = listOfMinLen 2 expression;
 
-    # Tagged union of everything that's represented as `{ <key>: <body> }`.
+    /*
+      Map of tag → body type. Single source of truth for the private
+      `taggedExpression` union (the discriminated `{ <key>: <body> }`
+      shape embedded in `expression`) and the public `expressionOf`
+      subset helper. Adding a new tag here participates in both.
+    */
+    expressionBodies = {
+      # Compound/structural
+      concat = concatBody;
+      set = setBody;
+      map = mapBody;
+      prefix = prefixBody;
+      range = rangeBody;
+      # Header fields and packet metadata
+      payload = payloadBody;
+      exthdr = exthdrBody;
+      "tcp option" = tcpOptionBody;
+      "ip option" = ipOptionBody;
+      "sctp chunk" = sctpChunkBody;
+      "dccp option" = dccpOptionBody;
+      meta = metaBody;
+      rt = rtBody;
+      ct = ctBody;
+      # Generators / derived
+      numgen = numgenBody;
+      jhash = jhashBody;
+      symhash = symhashBody;
+      fib = fibBody;
+      socket = socketBody;
+      osf = osfBody;
+      ipsec = ipsecBody;
+      tunnel = tunnelExprBody;
+      elem = elemBody;
+      # Verdicts (valid in vmap data)
+      accept = nullLiteral;
+      drop = nullLiteral;
+      continue = nullLiteral;
+      return = nullLiteral;
+      jump = verdictTargetBody;
+      goto = verdictTargetBody;
+      # Binary operators
+      "|" = binaryOpBody;
+      "^" = binaryOpBody;
+      "&" = binaryOpBody;
+      "<<" = binaryOpBody;
+      ">>" = binaryOpBody;
+    };
+
+    # Tagged union of everything represented as `{ <key>: <body> }`.
     taggedExpression = types.attrTag (
-      lib.mapAttrs (_: type: mkOption { inherit type; }) {
-        # Compound/structural
-        concat = concatBody;
-        set = setBody;
-        map = mapBody;
-        prefix = prefixBody;
-        range = rangeBody;
-        # Header fields and packet metadata
-        payload = payloadBody;
-        exthdr = exthdrBody;
-        "tcp option" = tcpOptionBody;
-        "ip option" = ipOptionBody;
-        "sctp chunk" = sctpChunkBody;
-        "dccp option" = dccpOptionBody;
-        meta = metaBody;
-        rt = rtBody;
-        ct = ctBody;
-        # Generators / derived
-        numgen = numgenBody;
-        jhash = jhashBody;
-        symhash = symhashBody;
-        fib = fibBody;
-        socket = socketBody;
-        osf = osfBody;
-        ipsec = ipsecBody;
-        tunnel = tunnelExprBody;
-        elem = elemBody;
-        # Verdicts (valid in vmap data)
-        accept = nullLiteral;
-        drop = nullLiteral;
-        continue = nullLiteral;
-        return = nullLiteral;
-        jump = verdictTargetBody;
-        goto = verdictTargetBody;
-        # Binary operators
-        "|" = binaryOpBody;
-        "^" = binaryOpBody;
-        "&" = binaryOpBody;
-        "<<" = binaryOpBody;
-        ">>" = binaryOpBody;
-      }
+      lib.mapAttrs (_: type: mkOption { inherit type; }) expressionBodies
     );
 
     expression = types.oneOf [
@@ -497,12 +505,55 @@ let
       (types.listOf expression)
       taggedExpression
     ];
+
+    /*
+      `expressionOf : [ String ] -> Type` — restrict an
+      `expression`-typed field to a subset of the *tagged* expression
+      kinds. Scalars (`str` / `int` / `bool`) and bare expression
+      lists, which `expression` accepts as their own oneOf branches,
+      are **not** part of the result; consumers that want them on top
+      of a tag subset can compose:
+
+        types.oneOf [
+          types.str
+          (nftypes.types.expressionOf [ "payload" "meta" ])
+        ]
+
+      Throws at *type construction* time on unknown kinds so typos
+      surface immediately rather than at module evaluation.
+    */
+    expressionOf =
+      kinds:
+      let
+        valid = lib.attrNames expressionBodies;
+        invalid = lib.subtractLists valid kinds;
+        renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
+        base = types.attrTag (
+          lib.mapAttrs (_: type: mkOption { inherit type; }) (lib.getAttrs kinds expressionBodies)
+        );
+      in
+      if !(builtins.isList kinds) then
+        throw "nftypes.types.expressionOf: argument must be a list of strings"
+      else if kinds == [ ] then
+        throw "nftypes.types.expressionOf: kinds list must be non-empty"
+      else if invalid != [ ] then
+        throw (
+          "nftypes.types.expressionOf: unknown expression kind(s): "
+          + "${renderList invalid}. Valid kinds: ${renderList valid}."
+        )
+      else
+        base
+        // {
+          description = "tagged expression (one of: ${renderList kinds})";
+        };
   };
 in
 {
-  inherit (exprs) expression verdictTargetBody;
+  inherit (exprs) expression verdictTargetBody expressionOf;
   all = removeAttrs exprs [
     "expression"
     "taggedExpression"
+    "expressionBodies"
+    "expressionOf"
   ];
 }

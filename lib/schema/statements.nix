@@ -475,53 +475,107 @@ let
     # reset statement (TCP option strip): takes a tcp option expression.
     resetBody = expr;
 
-    statement = types.attrTag (
-      lib.mapAttrs (_: type: mkOption { inherit type; }) {
-        # Verdicts
-        accept = nullLiteral;
-        drop = nullLiteral;
-        continue = nullLiteral;
-        return = nullLiteral;
-        notrack = nullLiteral;
-        jump = verdictTargetBody;
-        goto = verdictTargetBody;
-        # Core statements
-        match = matchBody;
-        counter = counterRefOrBody;
-        mangle = mangleBody;
-        quota = quotaRefOrBody;
-        limit = limitRefOrBody;
-        fwd = fwdBody;
-        dup = dupBody;
-        snat = natBody;
-        dnat = natBody;
-        masquerade = masqueradeBody;
-        redirect = masqueradeBody;
-        reject = rejectBody;
-        set = setStatementBody;
-        map = mapStatementBody;
-        log = logBody;
-        "ct helper" = expr;
-        "ct timeout" = expr;
-        "ct expectation" = expr;
-        meter = meterBody;
-        queue = queueBody;
-        vmap = vmapBody;
-        "ct count" = ctCountBody;
-        xt = xtBody;
-        # Statements found in parser_json.c but absent from the in-repo adoc:
-        last = lastBody;
-        flow = flowBody;
-        tproxy = tproxyBody;
-        synproxy = synproxyStatementBody;
-        reset = resetBody;
-        secmark = expr;
-        tunnel = expr;
-      }
-    );
+    /*
+      Map of tag → body type. Single source of truth for the full
+      `statement` attrTag union and the `statementOf` subset helper —
+      adding a new statement kind here participates in both without
+      drift. Kept inside `bodies` (rather than alongside it) so the
+      body submodules above are in scope without qualification.
+    */
+    statementBodies = {
+      # Verdicts
+      accept = nullLiteral;
+      drop = nullLiteral;
+      continue = nullLiteral;
+      return = nullLiteral;
+      notrack = nullLiteral;
+      jump = verdictTargetBody;
+      goto = verdictTargetBody;
+      # Core statements
+      match = matchBody;
+      counter = counterRefOrBody;
+      mangle = mangleBody;
+      quota = quotaRefOrBody;
+      limit = limitRefOrBody;
+      fwd = fwdBody;
+      dup = dupBody;
+      snat = natBody;
+      dnat = natBody;
+      masquerade = masqueradeBody;
+      redirect = masqueradeBody;
+      reject = rejectBody;
+      set = setStatementBody;
+      map = mapStatementBody;
+      log = logBody;
+      "ct helper" = expr;
+      "ct timeout" = expr;
+      "ct expectation" = expr;
+      meter = meterBody;
+      queue = queueBody;
+      vmap = vmapBody;
+      "ct count" = ctCountBody;
+      xt = xtBody;
+      # Statements found in parser_json.c but absent from the in-repo adoc:
+      last = lastBody;
+      flow = flowBody;
+      tproxy = tproxyBody;
+      synproxy = synproxyStatementBody;
+      reset = resetBody;
+      secmark = expr;
+      tunnel = expr;
+    };
+
+    statement = types.attrTag (lib.mapAttrs (_: type: mkOption { inherit type; }) statementBodies);
+
+    /*
+      `statementOf : [ String ] -> Type` — restrict a `statement`-typed
+      field to a subset of statement kinds, validated at `evalModules`
+      time. Each element of `kinds` names a tag in the `statement`
+      union (see `attrNames` of the statement attrTag).
+
+      Use cases: a downstream "match-only" slot
+      (`statementOf [ "match" ]`) or a verdict-only slot
+      (`statementOf [ "accept" "drop" "jump" "goto" "return" "continue" ]`).
+      Throws at *type construction* time on unknown kinds so typos
+      surface immediately rather than at module evaluation.
+
+      The result is `types.attrTag` of the requested subset, with
+      `description` overridden to name the allowed kinds so error
+      messages read "value is not of type 'statement (one of: match)'"
+      instead of the generic "attribute-tagged union".
+    */
+    statementOf =
+      kinds:
+      let
+        valid = lib.attrNames statementBodies;
+        invalid = lib.subtractLists valid kinds;
+        renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
+        base = types.attrTag (
+          lib.mapAttrs (_: type: mkOption { inherit type; }) (lib.getAttrs kinds statementBodies)
+        );
+      in
+      if !(builtins.isList kinds) then
+        throw "nftypes.types.statementOf: argument must be a list of strings"
+      else if kinds == [ ] then
+        throw "nftypes.types.statementOf: kinds list must be non-empty"
+      else if invalid != [ ] then
+        throw (
+          "nftypes.types.statementOf: unknown statement kind(s): "
+          + "${renderList invalid}. Valid kinds: ${renderList valid}."
+        )
+      else
+        base
+        // {
+          description = "statement (one of: ${renderList kinds})";
+        };
   };
 in
 {
-  inherit (bodies) statement;
-  all = removeAttrs bodies [ "statement" ];
+  inherit (bodies) statement statementOf;
+  matchStatement = bodies.statementOf [ "match" ];
+  all = removeAttrs bodies [
+    "statement"
+    "statementOf"
+    "statementBodies"
+  ];
 }

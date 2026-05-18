@@ -50,6 +50,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          restrictedTypes = import ./tests/restricted-types.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
         in
         {
           schema-tests = tests.runTests pkgs;
@@ -99,6 +103,11 @@
           # round-trip through both text and JSON paths byte-for-byte.
           comment-safety-tests = commentSafety.runTests pkgs;
           comment-safety-integration-tests = commentSafety.runIntegrationTests pkgs;
+          # Subset-helper coverage: `statementOf` / `matchStatement` /
+          # `expressionOf` accept the in-subset tags and reject the
+          # rest, throw on construction-time misuse, and stay in sync
+          # with the schema unions (per-kind smoke loop).
+          restricted-types-tests = restrictedTypes.runTests pkgs;
         }
       );
 
