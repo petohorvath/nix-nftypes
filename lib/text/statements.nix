@@ -19,7 +19,7 @@
 
 let
   inherit (context) resetPrec;
-  inherit (expressions) renderExpression;
+  inherit (expressions) renderExpression safeToken;
   inherit (lib) optionalString;
 
   # ---- helpers ---------------------------------------------------------
@@ -266,6 +266,10 @@ let
       "reject with ${type}" + optionalString (expr != null) " ${rExpr ctx expr}";
 
   # set/map dynamic-update statement: `<op> @<set> { <elem>[ : <data>] [stmt]* }`.
+  # The schema types `set`/`map` as `types.str`; the renderer prepends `@`
+  # and would otherwise emit the rest bare. `safeToken` rejects any byte
+  # outside the bare-token grammar, including a newline + trailing statement
+  # payload that would have parsed as a fresh nft command at rule scope.
   renderSetStmt =
     ctx:
     {
@@ -281,7 +285,7 @@ let
         else
           " " + lib.concatMapStringsSep " " (renderStatement (resetPrec ctx)) stmt;
     in
-    "${op} @${set} { ${rExpr ctx elem}${stmts} }";
+    "${op} @${safeToken set} { ${rExpr ctx elem}${stmts} }";
 
   renderMapStmt =
     ctx:
@@ -299,7 +303,7 @@ let
         else
           " " + lib.concatMapStringsSep " " (renderStatement (resetPrec ctx)) stmt;
     in
-    "${op} @${map} { ${rExpr ctx elem} : ${rExpr ctx data}${stmts} }";
+    "${op} @${safeToken map} { ${rExpr ctx elem} : ${rExpr ctx data}${stmts} }";
 
   # log: `log [prefix "..."] [group N] [snaplen N] [queue-threshold N] [level L] [flags ...]`.
   renderLog =
@@ -366,10 +370,12 @@ let
   # last: `last [used <ms>]`. Body can be null or { used }.
   renderLast = _ctx: body: if body == null then "last" else "last used ${toString body.used}";
 
-  # flow <op> <flowtable-ref>. The schema already requires `flowtable`
-  # to include the leading `@`, so we emit it as-is rather than prefixing
-  # another one.
-  renderFlow = _ctx: { op, flowtable }: "flow ${op} ${flowtable}";
+  # flow <op> <flowtable-ref>. The schema-level convention is that
+  # `flowtable` includes the leading `@`, so the renderer emits the
+  # value as-is. `safeToken` covers both `@name` and bare `name`
+  # (the predicate's safe-byte set includes `@`), so an unsafe byte
+  # in either form throws before reaching the output stream.
+  renderFlow = _ctx: { op, flowtable }: "flow ${op} ${safeToken flowtable}";
 
   # tproxy: like dnat, but `to` syntax.
   renderTproxy =

@@ -409,6 +409,7 @@ in
     renderJump
     renderGoto
     binopPrec
+    safeToken
     ;
   # The tag set this renderer's dispatch table accepts. Read by the
   # schema↔text drift test (tests/default.nix) to assert every tagged
