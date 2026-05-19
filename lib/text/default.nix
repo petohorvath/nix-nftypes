@@ -62,6 +62,7 @@ let
       expressions
       statements
       nftSafeIfname
+      nftSafeScalar
       ;
   };
   commands = import ./commands.nix {

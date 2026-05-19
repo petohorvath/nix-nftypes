@@ -81,6 +81,7 @@ let
           expressions
           statements
           nftSafeIfname
+          nftSafeScalar
           ;
       };
 

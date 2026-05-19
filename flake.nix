@@ -62,6 +62,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          setDatatypeSafety = import ./tests/set-datatype-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -142,6 +146,14 @@
           # predicate — non-empty, no whitespace, no nft-grammar
           # metacharacters, no control chars.
           expr-scalar-safety-tests = exprScalarSafety.runTests pkgs;
+          # Regression pin for the set/map datatype injection class:
+          # the `type <X>` clause (and `type K . V` for concatenated
+          # keys) rendered each name string bare. The renderer now
+          # walks every name through `nft-safe-scalar.nix`'s predicate,
+          # so an unsafe byte truncating the clause and dropping a
+          # fresh `add chain …` payload into the rendered file no
+          # longer reaches `nft -f`.
+          set-datatype-safety-tests = setDatatypeSafety.runTests pkgs;
           # Subset-helper coverage: `statementOf` / `matchStatement` /
           # `expressionOf` accept the in-subset tags and reject the
           # rest, throw on construction-time misuse, and stay in sync

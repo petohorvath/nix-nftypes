@@ -5,6 +5,7 @@
   expressions,
   statements,
   nftSafeIfname,
+  nftSafeScalar,
 }:
 
 # Renderer for the object kinds in lib/schema/objects.nix.
@@ -82,14 +83,31 @@ let
   scope1 = body: "${body.family} ${rIdent body.table}";
   scope2 = ctx: body: if ctx.block then rIdent body.name else "${scope1 body} ${rIdent body.name}";
 
+  # SECURITY-CRITICAL: a string datatype renders bare into the set/map
+  # `type <X>` clause; a list renders bare joined with ` . `. An unsafe
+  # byte in the name either ends the `type` clause early (`;`, `}`,
+  # newline) and lets the trailing bytes parse as fresh nft commands,
+  # or splits the token in ways that corrupt the parse. The legitimate
+  # datatype set is identifier-shaped (`ipv4_addr`, `inet_service`,
+  # `ifname`, …), so the shared `nft-safe-scalar` predicate captures
+  # exactly the safe subset.
+  assertSafeDt =
+    name:
+    if !(builtins.isString name) || nftSafeScalar.isSafe name then
+      true
+    else
+      throw ''
+        nftypes: refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '"', '\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}.
+      '';
+
   # Render a setDatatype: string → "ipv4_addr"; list → "ipv4_addr . port";
   # { typeof = expr } → "typeof <expr>".
   renderDatatype =
     ctx: dt:
     if builtins.isString dt then
-      dt
+      lib.seq (assertSafeDt dt) dt
     else if builtins.isList dt then
-      lib.concatStringsSep " . " dt
+      lib.seq (lib.all assertSafeDt dt) (lib.concatStringsSep " . " dt)
     else if builtins.isAttrs dt && dt ? typeof then
       "typeof ${rExpr ctx dt.typeof}"
     else
