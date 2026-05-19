@@ -66,6 +66,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          exprTokenSafety = import ./tests/expr-token-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -154,6 +158,15 @@
           # fresh `add chain …` payload into the rendered file no
           # longer reaches `nft -f`.
           set-datatype-safety-tests = setDatatypeSafety.runTests pkgs;
+          # Regression pin for the tagged-body token injection class:
+          # payload/exthdr/ip-option/tcp-option/sctp-chunk/ct schema
+          # bodies expose `types.str` fields (protocol, field, name,
+          # key) that the renderer used to interpolate bare into the
+          # surrounding clause. A new `safeToken` helper in
+          # lib/text/expressions.nix routes each through the shared
+          # `nft-safe-scalar` predicate so an unsafe byte truncating
+          # the clause no longer reaches `nft -f`.
+          expr-token-safety-tests = exprTokenSafety.runTests pkgs;
           # Subset-helper coverage: `statementOf` / `matchStatement` /
           # `expressionOf` accept the in-subset tags and reject the
           # rest, throw on construction-time misuse, and stay in sync

@@ -44,6 +44,24 @@ let
     ">>" = 4;
   };
 
+  # SECURITY-CRITICAL: tagged-body field strings (payload protocol /
+  # field, exthdr name, ip/tcp/sctp option name / field, ct key, …)
+  # render bare into the surrounding nft text. The schema types these
+  # as `types.str`, so the renderer is the last line of defence — an
+  # unsafe byte either truncates the clause or splits the token,
+  # letting trailing input parse as fresh nft commands. Wraps the
+  # shared `nft-safe-scalar` predicate so call sites read as
+  # `${safeToken body.protocol}` and a refactor that drops the wrap
+  # surfaces immediately.
+  safeToken =
+    s:
+    if nftSafeScalar.isSafe s then
+      s
+    else
+      throw ''
+        nftypes: refusing to render a bare nft token ${builtins.toJSON s} that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '"', '\', '#', and control characters; legitimate field/key names are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON s}.
+      '';
+
   # Render a numeric/string/bool atom.
   renderScalar =
     v:
@@ -130,43 +148,49 @@ let
   renderConcat = ctx: xs: lib.concatMapStringsSep " . " (renderExpression (resetPrec ctx)) xs;
 
   # Payload — three disjoint shapes (parser_json.c:660-733). Discriminate by
-  # key presence, mirroring the schema's addCheck predicates.
+  # key presence, mirroring the schema's addCheck predicates. `base` (raw
+  # form) is enum-typed; the named/tunnel forms thread protocol/field/tunnel
+  # through `safeToken` since the schema accepts them as `types.str`.
   renderPayload =
     _ctx: body:
     if body ? base && body ? offset && body ? len then
       "@${body.base},${toString body.offset},${toString body.len}"
     else if body ? tunnel then
-      "${body.tunnel} ${body.protocol} ${body.field}"
+      "${safeToken body.tunnel} ${safeToken body.protocol} ${safeToken body.field}"
     else
-      "${body.protocol} ${body.field}";
+      "${safeToken body.protocol} ${safeToken body.field}";
 
   # Extension header (IPv6): <name> <field> for field access; bare <name>
   # for existence checks. The text grammar accepts both.
   renderExthdr =
-    _ctx: body: if (body.field or null) == null then body.name else "${body.name} ${body.field}";
+    _ctx: body:
+    if (body.field or null) == null then
+      safeToken body.name
+    else
+      "${safeToken body.name} ${safeToken body.field}";
 
   renderTcpOption =
     _ctx: body:
     if body ? base then
       "tcp option @${toString body.base},${toString body.offset},${toString body.len}"
     else if (body.field or null) == null then
-      "tcp option ${body.name}"
+      "tcp option ${safeToken body.name}"
     else
-      "tcp option ${body.name} ${body.field}";
+      "tcp option ${safeToken body.name} ${safeToken body.field}";
 
   renderIpOption =
     _ctx: body:
     if (body.field or null) == null then
-      "ip option ${body.name}"
+      "ip option ${safeToken body.name}"
     else
-      "ip option ${body.name} ${body.field}";
+      "ip option ${safeToken body.name} ${safeToken body.field}";
 
   renderSctpChunk =
     _ctx: body:
     if (body.field or null) == null then
-      "sctp chunk ${body.name}"
+      "sctp chunk ${safeToken body.name}"
     else
-      "sctp chunk ${body.name} ${body.field}";
+      "sctp chunk ${safeToken body.name} ${safeToken body.field}";
 
   renderDccpOption = _ctx: body: "dccp option ${toString body.type}";
 
@@ -178,7 +202,8 @@ let
     if (body.family or null) == null then "rt ${body.key}" else "rt ${body.family} ${body.key}";
 
   # Conntrack: `ct [<dir>] [<family>] <key>`. The dir/family clauses are
-  # optional and non-exclusive.
+  # optional and non-exclusive. `dir` and `family` are enum-typed by the
+  # schema; `key` is `types.str` and threads through `safeToken`.
   renderCt =
     _ctx: body:
     let
@@ -187,7 +212,7 @@ let
       ]
       ++ lib.optional ((body.dir or null) != null) body.dir
       ++ lib.optional ((body.family or null) != null) body.family
-      ++ [ body.key ];
+      ++ [ (safeToken body.key) ];
     in
     lib.concatStringsSep " " parts;
 
