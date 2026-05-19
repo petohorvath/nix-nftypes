@@ -253,8 +253,12 @@ let
       " " + lib.concatMapStringsSep " " (statements.renderStatement (resetPrec ctx)) stmt
     );
 
-  renderJump = _ctx: { target }: "jump ${target}";
-  renderGoto = _ctx: { target }: "goto ${target}";
+  # Verdict target is a chain name; route through identQuote so the
+  # renderer's `escape` assert catches the parser-meta injection set
+  # ('"', '\', control chars) and other invalid bytes land in the
+  # quoted-form fallback that nft rejects in identifier position.
+  renderJump = _ctx: { target }: "jump ${primitives.identQuote target}";
+  renderGoto = _ctx: { target }: "goto ${primitives.identQuote target}";
 
   # Bare verdicts as expressions (vmap data position).
   renderVerdict =

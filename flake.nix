@@ -54,6 +54,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          verdictTargetSafety = import ./tests/verdict-target-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -116,6 +120,15 @@
           # element count preserved.
           ifname-safety-tests = ifnameSafety.runTests pkgs;
           ifname-safety-integration-tests = ifnameSafety.runIntegrationTests pkgs;
+          # Regression pin for the verdict-target injection class: a
+          # `jump`/`goto` target with a newline used to render bare and
+          # let `nft -f` parse the trailing bytes as a fresh top-level
+          # command. Renderer now routes the target through
+          # `primitives.identQuote`, which either emits the bare ident
+          # or asserts via `escape` (rejecting '"', '\', control chars)
+          # and quotes the rest — where nft rejects the quoted form in
+          # identifier position.
+          verdict-target-safety-tests = verdictTargetSafety.runTests pkgs;
           # Subset-helper coverage: `statementOf` / `matchStatement` /
           # `expressionOf` accept the in-subset tags and reject the
           # rest, throw on construction-time misuse, and stay in sync
