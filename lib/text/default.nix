@@ -3,6 +3,7 @@
   clean,
   nftSafeString,
   nftSafeIfname,
+  nftSafeScalar,
 }:
 
 # Public entry for the nftables-text renderer.
@@ -41,6 +42,7 @@ let
       context
       primitives
       statements
+      nftSafeScalar
       ;
   };
   statements = import ./statements.nix {

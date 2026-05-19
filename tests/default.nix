@@ -50,6 +50,7 @@ let
     let
       nftSafeString = import ../lib/nft-safe-string.nix { };
       nftSafeIfname = import ../lib/nft-safe-ifname.nix { };
+      nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
       context = import ../lib/text/context.nix { inherit lib; };
       primitives = import ../lib/text/primitives.nix { inherit lib nftSafeString; };
       # Mutual reference between statements and expressions — resolved
@@ -60,6 +61,7 @@ let
           context
           primitives
           statements
+          nftSafeScalar
           ;
       };
       statements = import ../lib/text/statements.nix {

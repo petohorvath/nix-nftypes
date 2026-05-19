@@ -46,6 +46,7 @@ let
   internal = import ./schema/internal.nix { inherit lib; };
   nftSafeString = import ./nft-safe-string.nix { };
   nftSafeIfname = import ./nft-safe-ifname.nix { };
+  nftSafeScalar = import ./nft-safe-scalar.nix { };
   primitives = import ./schema/primitives.nix { inherit lib nftSafeString nftSafeIfname; };
   # Mutual reference between `expressions` and `statements`: statements
   # consume `expr`, and elements (defined in expressions) accept a `stmt`
@@ -86,6 +87,7 @@ let
       clean
       nftSafeString
       nftSafeIfname
+      nftSafeScalar
       ;
   };
   dsl = import ./dsl {

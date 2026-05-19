@@ -8,6 +8,7 @@
   # mutually-recursive `let` bindings in lib/text/default.nix and forced only
   # at render time.
   statements,
+  nftSafeScalar,
 }:
 
 # Renderer for the recursive `expression` type. Mirrors the schema layout
@@ -51,10 +52,26 @@ let
     else if builtins.isBool v then
       (if v then "1" else "0")
     else if builtins.isString v then
-      # Strings in expression position are atoms: ip addresses, identifiers,
-      # set references like "@trusted_v4". They render bare; the schema has
-      # already validated them.
-      v
+      # Strings in expression position are atoms: ip addresses,
+      # identifiers, set references like "@trusted_v4". They render
+      # bare into the surrounding statement context, so any whitespace
+      # or nft-grammar metacharacter would either split the token or
+      # let a payload break out of expression position entirely. The
+      # schema's `nftSafeScalarType` catches most violations at
+      # evalModules time; this assert backstops callers that bypass
+      # the schema (raw attrsets, third-party DSLs).
+      if !(nftSafeScalar.isSafe v) then
+        throw ''
+          nftypes: refusing to render a scalar string ${builtins.toJSON v} at
+          expression position that contains a character unsafe for nft's bare-
+          token grammar (any of: whitespace, ',', ';', '{', '}', '"', '\', '#',
+          control character). The renderer emits the value verbatim, so an
+          unsafe byte either splits the token or breaks the parser context —
+          at rule scope a newline + statement payload silently appends
+          attacker-controlled commands. Offending value: ${builtins.toJSON v}
+        ''
+      else
+        v
     else
       throw "text.expressions: cannot render scalar of unknown type";
 

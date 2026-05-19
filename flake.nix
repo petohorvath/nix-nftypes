@@ -58,6 +58,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          exprScalarSafety = import ./tests/expr-scalar-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -129,6 +133,15 @@
           # and quotes the rest — where nft rejects the quoted form in
           # identifier position.
           verdict-target-safety-tests = verdictTargetSafety.runTests pkgs;
+          # Regression pin for the expression-scalar injection class: a
+          # bare string in expression position (match RHS, NAT addr,
+          # set element, …) used to render verbatim through
+          # `renderScalar`, so a newline + statement payload landed in
+          # the text stream as a fresh top-level command. The renderer
+          # now asserts the value against `nft-safe-scalar.nix`'s
+          # predicate — non-empty, no whitespace, no nft-grammar
+          # metacharacters, no control chars.
+          expr-scalar-safety-tests = exprScalarSafety.runTests pkgs;
           # Subset-helper coverage: `statementOf` / `matchStatement` /
           # `expressionOf` accept the in-subset tags and reject the
           # rest, throw on construction-time misuse, and stay in sync
