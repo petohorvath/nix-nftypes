@@ -1,4 +1,8 @@
-{ lib, nftSafeString }:
+{
+  lib,
+  nftSafeString,
+  nftSafeIfname,
+}:
 
 let
   inherit (lib) types mkOptionType;
@@ -25,6 +29,19 @@ let
     description = ''nft-safe quoted string (no '"', '\', or control characters; ≤128 bytes)'';
     descriptionClass = "noun";
     check = s: builtins.isString s && nftSafeString.isSafe s && builtins.stringLength s <= 128;
+    merge = lib.mergeEqualOption;
+  };
+
+  # Interface name safe for both the kernel (`dev_valid_name`) and nft's
+  # unquoted set-element grammar. See lib/nft-safe-ifname.nix for the
+  # rules. Used as the element type for set/map bodies whose `type` is
+  # `"ifname"`; a renderer-level assert in lib/text/objects.nix mirrors
+  # the predicate as defence-in-depth.
+  ifname = mkOptionType {
+    name = "ifname";
+    description = ''nft-safe interface name (≤15 bytes; no '/' ':' whitespace ',' ';' '{' '}' '"' '\' '#' or control chars; not '.' or '..')'';
+    descriptionClass = "noun";
+    check = nftSafeIfname.isSafe;
     merge = lib.mergeEqualOption;
   };
 
@@ -410,6 +427,7 @@ in
       prefixLength
       nullLiteral
       nftQuotedString
+      ifname
       ;
   };
 }

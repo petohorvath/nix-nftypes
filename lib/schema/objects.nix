@@ -26,6 +26,7 @@ let
     portNumber
     nullLiteral
     nftQuotedString
+    ifname
     ;
   expr = expressions.expression;
   stmt = statements.statement;
@@ -206,7 +207,13 @@ let
           };
           dev = mkOption {
             # parser_json.c:3143 → json_parse_devs accepts string | [string].
-            type = types.nullOr (listOrSingleton types.str);
+            # Element type is `ifname` (not `types.str`) for the same
+            # reason set/map elements with `type = "ifname"` are
+            # tightened — the renderer emits a multi-dev list bare as
+            # `devices = { eth0, eth1 }`, and an unsafe character would
+            # silently widen the binding to interfaces the user never
+            # declared. See lib/nft-safe-ifname.nix.
+            type = types.nullOr (listOrSingleton ifname);
             default = null;
             description = "bound interface(s) for netdev-family base chains";
           };
@@ -278,7 +285,9 @@ let
           description = "priority";
         };
         dev = mkOption {
-          type = types.nullOr (listOrSingleton types.str);
+          # See chainBody.dev for the ifname-tightening rationale —
+          # multi-dev list rendering is bare comma-joined.
+          type = types.nullOr (listOrSingleton ifname);
           default = null;
           description = "bound interface(s)";
         };

@@ -4,6 +4,7 @@
   primitives,
   expressions,
   statements,
+  nftSafeIfname,
 }:
 
 # Renderer for the object kinds in lib/schema/objects.nix.
@@ -103,14 +104,36 @@ let
     in
     "elements = { ${inner} }";
 
+  # SECURITY-CRITICAL: a multi-device list renders bare into
+  # `devices = { eth0, eth1 }`. An element containing `,` would split as
+  # two devices (silent widening); other nft-special bytes corrupt the
+  # parser. Single-device rendering uses `primitives.string` which
+  # already asserts no `"` / `\` / control chars, but doesn't enforce
+  # the ifname-specific restrictions — wire the predicate in for both
+  # paths so the renderer never emits an unsafe device name regardless
+  # of how it was reached (DSL emit, raw attrset, hand-built ruleset).
+  assertSafeDev =
+    devs:
+    let
+      bad = nftSafeIfname.firstUnsafe devs;
+    in
+    if bad == null then
+      true
+    else
+      throw ''
+        nftypes: refusing to render a chain/flowtable device ${builtins.toJSON bad} that contains a character unsafe for nft's unquoted device-list grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '"' '\' '#' and control characters, because nft renders multi-dev lists bare as `devices = { ... }` and those characters either widen the list silently or corrupt the parser. Offending value: ${builtins.toJSON bad}.
+      '';
+
   # Render a chain `dev` field — either a bare string ("eth0") or a list.
   # Single device: `device "eth0"`; multiple: `devices = { eth0, eth1 }`.
   renderChainDev =
     dev:
-    if builtins.isString dev then
-      "device ${primitives.string dev}"
-    else
-      "devices = { ${lib.concatStringsSep ", " dev} }";
+    lib.seq (assertSafeDev dev) (
+      if builtins.isString dev then
+        "device ${primitives.string dev}"
+      else
+        "devices = { ${lib.concatStringsSep ", " dev} }"
+    );
 
   # ---- per-kind body renderers ---------------------------------------
 
@@ -190,13 +213,30 @@ let
   renderSetOrMapBody =
     typeLineFor: ctx: body:
     let
+      # SECURITY-CRITICAL: when `type = "ifname"`, elements render bare
+      # into `elements = { ... }`. An element string containing `,`
+      # silently widens the set (the unquoted comma lexes as the
+      # element separator); `;` `{` `}` `"` `\` `#` similarly break or
+      # corrupt the text grammar. The DSL emit step catches this at
+      # eval time naming the user's tree path
+      # (lib/dsl/structure/render.nix); the assert here is the
+      # defence-in-depth backstop for callers bypassing the DSL (raw
+      # attrsets, third-party DSLs, hand-built ruleset values).
+      ifnameBad = nftSafeIfname.badIfnameElement body;
+      _checked =
+        if ifnameBad == null then
+          true
+        else
+          throw ''
+            nftypes: refusing to render an ifname-typed set/map element ${builtins.toJSON ifnameBad} that contains a character unsafe for nft's unquoted element grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '"' '\' '#' and control characters, because nft renders ifname elements bare into `elements = { ... }` and those characters either widen the set silently or corrupt the parser. Offending value: ${builtins.toJSON ifnameBad}.
+          '';
       elemList =
         if (body.elem or null) == null then
           [ ]
         else if builtins.isList body.elem then
-          body.elem
+          lib.seq _checked body.elem
         else
-          [ body.elem ];
+          lib.seq _checked [ body.elem ];
       # Stateful statements attached to elements are rendered as
       # `counter; quota` etc. inside the body.
       stmtLines =
@@ -259,7 +299,7 @@ let
           let
             devs = if builtins.isList body.dev then body.dev else [ body.dev ];
           in
-          [ "devices = { ${lib.concatStringsSep ", " devs} }" ];
+          lib.seq (assertSafeDev devs) [ "devices = { ${lib.concatStringsSep ", " devs} }" ];
     in
     hookLine ++ devLine;
 

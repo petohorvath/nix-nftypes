@@ -49,6 +49,7 @@ let
   textDriftTests =
     let
       nftSafeString = import ../lib/nft-safe-string.nix { };
+      nftSafeIfname = import ../lib/nft-safe-ifname.nix { };
       context = import ../lib/text/context.nix { inherit lib; };
       primitives = import ../lib/text/primitives.nix { inherit lib nftSafeString; };
       # Mutual reference between statements and expressions — resolved
@@ -76,6 +77,7 @@ let
           primitives
           expressions
           statements
+          nftSafeIfname
           ;
       };
 

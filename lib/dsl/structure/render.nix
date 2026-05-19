@@ -18,6 +18,11 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   markers = import ../internal/markers.nix { inherit lib; };
+  # Cross-field ifname check (see badIfnameElement docstring). Imported
+  # here rather than threaded through ruleset/default.nix because it has
+  # no constructor arguments and the predicate is the same shared file
+  # used by lib/schema/primitives.nix and lib/text/objects.nix.
+  nftSafeIfname = import ../../nft-safe-ifname.nix { };
 
   # Re-key the shared registry by `plural` for table-tree lookup. Each
   # entry carries the singular JSON `tag`, the schema `body` submodule,
@@ -51,12 +56,26 @@ let
           name
         ];
       };
+      # Cross-field ifname check: `type = "ifname"` sets/maps render
+      # elements bare into `elements = { … }`, and a `,` in an element
+      # silently widens the set (the comma lexes as the element
+      # separator). The schema's primitive type system can't see
+      # siblings; check here so the user sees an eval-time error
+      # naming the offending tree path. Renderer-level assert in
+      # lib/text/objects.nix backstops callers that bypass the DSL.
+      bad =
+        if cfg.tag == "set" || cfg.tag == "map" then nftSafeIfname.badIfnameElement validated else null;
     in
-    {
-      add = {
-        "${cfg.tag}" = compact validated;
+    if bad != null then
+      throw ''
+        ${pluralKey}.${name}: set has type = "ifname" but element ${builtins.toJSON bad} is not a safe interface name (see lib/nft-safe-ifname.nix). nft renders ifname elements bare into `elements = { ... }`, so unsafe characters can silently widen the set or break the text parser.
+      ''
+    else
+      {
+        add = {
+          "${cfg.tag}" = compact validated;
+        };
       };
-    };
 
   # All `add <kind>` commands for every object kind present in `body`.
   emitObjects =

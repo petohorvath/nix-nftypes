@@ -50,6 +50,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          ifnameSafety = import ./tests/ifname-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -103,6 +107,15 @@
           # round-trip through both text and JSON paths byte-for-byte.
           comment-safety-tests = commentSafety.runTests pkgs;
           comment-safety-integration-tests = commentSafety.runIntegrationTests pkgs;
+          # Regression pin for the ifname-typed set/map element widening
+          # class: a `,` in a `type = "ifname"` element rendered bare
+          # split into two elements at parse time, silently broadening
+          # the set. DSL emit rejects at evalModules; renderer asserts
+          # the same predicate as defence-in-depth; safe ifname sets
+          # round-trip through both text and JSON paths with the
+          # element count preserved.
+          ifname-safety-tests = ifnameSafety.runTests pkgs;
+          ifname-safety-integration-tests = ifnameSafety.runIntegrationTests pkgs;
           # Subset-helper coverage: `statementOf` / `matchStatement` /
           # `expressionOf` accept the in-subset tags and reject the
           # rest, throw on construction-time misuse, and stay in sync

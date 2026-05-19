@@ -2,6 +2,7 @@
   lib,
   clean,
   nftSafeString,
+  nftSafeIfname,
 }:
 
 # Public entry for the nftables-text renderer.
@@ -57,6 +58,7 @@ let
       primitives
       expressions
       statements
+      nftSafeIfname
       ;
   };
   commands = import ./commands.nix {
