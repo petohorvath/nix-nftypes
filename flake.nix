@@ -78,6 +78,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          ctTimeoutPolicySafety = import ./tests/ct-timeout-policy-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -189,6 +193,12 @@
           # surfaces (statement, named-object body, positional
           # `create` form) now route the unit name through `safeToken`.
           unit-name-safety-tests = unitNameSafety.runTests pkgs;
+          # Regression pin for the ct-timeout policy-key injection
+          # class: `policy` is `attrsOf ints.unsigned`, so keys are
+          # arbitrary strings. The renderer emitted each key bare into
+          # `policy = { <k>: <v>, … }`. Each key now flows through
+          # `safeToken`.
+          ct-timeout-policy-safety-tests = ctTimeoutPolicySafety.runTests pkgs;
           # Subset-helper coverage: `statementOf` / `matchStatement` /
           # `expressionOf` accept the in-subset tags and reject the
           # rest, throw on construction-time misuse, and stay in sync

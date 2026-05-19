@@ -413,12 +413,18 @@ let
   renderCtTimeoutBody =
     _ctx: body:
     let
+      # `policy` is `attrsOf ints.unsigned` in the schema, so keys are
+      # arbitrary strings. They render bare into `policy = { <k>: <v>, … }`
+      # — a `;` / `}` / newline in a key would terminate the clause and
+      # let trailing bytes parse as fresh nft commands. Connection-state
+      # names (`established`, `close_wait`, `time_wait`, …) are
+      # identifier-shaped and pass `safeToken` cleanly.
       policyLine =
         if (body.policy or null) == null then
           [ ]
         else
           let
-            entries = lib.mapAttrsToList (k: v: "${k}: ${toString v}") body.policy;
+            entries = lib.mapAttrsToList (k: v: "${safeToken k}: ${toString v}") body.policy;
           in
           [ "policy = { ${lib.concatStringsSep ", " entries} }" ];
     in
