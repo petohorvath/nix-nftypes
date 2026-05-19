@@ -14,10 +14,10 @@
 #   handle         — render a `handle <n>` clause when handle is non-null.
 #   comment        — render a trailing `comment "<text>"` clause when
 #                    comment is non-null.
-#   priority       — render a chain priority value. Schema accepts either
-#                    int or string (named priority like "filter", "filter +
-#                    10"); both render as-is, with strings unquoted because
-#                    the text grammar uses unquoted priority tokens.
+#   priority       — render a chain priority value. Schema types prio as
+#                    `nullOr int`; this helper enforces the same on the
+#                    render side. Symbolic priorities go through
+#                    `nftlib.resolvePriority` upstream.
 
 let
   # Matches the subset of nftables scanner.l string-token rule that's safe
@@ -78,10 +78,23 @@ let
 
   comment = v: if v == null then "" else " comment ${quoteString v}";
 
-  # Chain priority: int → "0", "-100" etc.; string → "filter", "filter + 10"
-  # emitted as-is (no quoting — the text grammar parses these as named
-  # priority tokens).
-  priority = v: if builtins.isInt v then toString v else v;
+  # Chain priority. The schema types `prio` as `types.nullOr types.int`
+  # (chainBody / flowtableBody), so the renderer mirrors that contract
+  # and refuses anything else. The earlier "or string" branch was dead
+  # — schema rejects strings — and offered a way for raw-attrset
+  # callers bypassing the schema to slip a `priority <token>` clause
+  # containing a newline + top-level command into the rendered text.
+  # Named priorities (`filter`, `filter + 10`) flow through
+  # `compatibility.resolvePriority` to an int before reaching this
+  # point; renderers stay int-only.
+  priority =
+    v:
+    if builtins.isInt v then
+      toString v
+    else
+      throw ''
+        nftypes: refusing to render a non-integer chain/flowtable priority ${builtins.toJSON v}. The schema types `prio` as `nullOr int`; symbolic priorities ("filter", "filter + 10", …) flow through `nftlib.resolvePriority` to an int before reaching the renderer. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements.
+      '';
 in
 {
   inherit

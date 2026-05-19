@@ -82,6 +82,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          prioritySafety = import ./tests/priority-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -199,6 +203,13 @@
           # `policy = { <k>: <v>, … }`. Each key now flows through
           # `safeToken`.
           ct-timeout-policy-safety-tests = ctTimeoutPolicySafety.runTests pkgs;
+          # Regression pin for the chain/flowtable priority injection
+          # class: the renderer used to accept string priorities even
+          # though the schema typed `prio` as `nullOr int`. A raw
+          # attrset could slip an unsafe string into the `priority <X>`
+          # clause; the renderer now mirrors the schema and refuses
+          # anything but an int.
+          priority-safety-tests = prioritySafety.runTests pkgs;
           # Subset-helper coverage: `statementOf` / `matchStatement` /
           # `expressionOf` accept the in-subset tags and reject the
           # rest, throw on construction-time misuse, and stay in sync
