@@ -3,6 +3,7 @@
   context,
   primitives,
   expressions,
+  nftSafeIfname,
 }:
 
 # Renderer for the `statement` attrTag union (lib/schema/statements.nix).
@@ -55,9 +56,57 @@ let
   # rather than maintaining a parallel pair here.
   inherit (expressions) renderVerdict renderJump renderGoto;
 
+  # Meta keys whose value is an interface-name string (kernel's
+  # `dev_valid_name` rules). Matches against these keys take an ifname
+  # RHS, which nft's grammar wants quoted when the string contains
+  # special characters — bare `meta iifname eth0,eth1` lexes the `,`
+  # as a bitmask operator and rejects ifname as a non-bitmask type
+  # (audit-noted UX issue; not silent widening, but unhelpful).
+  ifnameMetaKeys = [
+    "iifname"
+    "oifname"
+    "sdifname"
+    "ibrname"
+    "obrname"
+  ];
+
+  # True iff the match LHS is a key whose RHS string should be treated
+  # as an ifname (quoted, validated). Currently handles `meta <key>` for
+  # the keys above and `fib … oifname` (whose result token returns the
+  # interface name as a string).
+  isIfnameLhs =
+    lhs:
+    if !(builtins.isAttrs lhs) then
+      false
+    else
+      let
+        names = builtins.attrNames lhs;
+      in
+      if builtins.length names != 1 then
+        false
+      else
+        let
+          tag = builtins.head names;
+          body = lhs.${tag};
+        in
+        if tag == "meta" then
+          builtins.elem (body.key or null) ifnameMetaKeys
+        else if tag == "fib" then
+          (body.result or null) == "oifname"
+        else
+          false;
+
   # match: `<left> <op> <right>`. `==` and `in` are elided in nft text:
   # equality is implicit, and set/range membership (op = "in") is
   # expressed by adjacency with no operator. Other operators always emit.
+  #
+  # When LHS is an ifname-typed key and RHS is a plain string (not an
+  # `@`-prefixed set reference), the string is asserted ifname-safe and
+  # emitted quoted: `meta iifname "eth0"`. This makes character-set
+  # mistakes a render-time error rather than a confusing nft parse
+  # error or kernel activation error. Set / range / setRef / other
+  # tagged RHS shapes are left to renderExpression, which keeps the
+  # existing set-literal-element handling intact.
   renderMatch =
     ctx:
     {
@@ -67,7 +116,20 @@ let
     }:
     let
       lhs = rExpr ctx left;
-      rhs = rExpr ctx right;
+      ifnameRhs = isIfnameLhs left && builtins.isString right && !(lib.hasPrefix "@" right);
+      rhs =
+        if ifnameRhs then
+          let
+            bad = if nftSafeIfname.isSafe right then null else right;
+          in
+          if bad == null then
+            primitives.string right
+          else
+            throw ''
+              nftypes: refusing to render an ifname-typed match RHS ${builtins.toJSON bad} that is not a safe interface name (see lib/nft-safe-ifname.nix). The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '"' '\' '#' and control characters, because such a value can never resolve to a real interface and nft's text parser may also misread unquoted special characters as operators. Offending value: ${builtins.toJSON bad}.
+            ''
+        else
+          rExpr ctx right;
     in
     if op == "==" || op == "in" then "${lhs} ${rhs}" else "${lhs} ${op} ${rhs}";
 

@@ -68,6 +68,7 @@ let
           context
           primitives
           expressions
+          nftSafeIfname
           ;
       };
       objects = import ../lib/text/objects.nix {

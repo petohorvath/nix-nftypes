@@ -1,39 +1,46 @@
 { lib, nftlib }:
 
-# Regression coverage for the ifname set/map element widening class. Pre-
-# fix: a `type = "ifname"` set whose element contained `,` rendered as
-# `elements = { eth0,eth1 }` and nft's text parser lexed the comma as
-# the element separator, silently broadening the set to two interfaces
-# the user never declared. The kernel's 15-byte IFNAMSIZ cap rules out
-# fitting a whole `; chain bypass { ... }; #` injection into one element,
-# so the practical worst case is silent widening (not the full firewall
-# bypass C1 enabled), but it's still a real correctness gap.
+# Regression coverage for the ifname widening / unsafe-byte class
+# across every surface where an interface name reaches the text
+# renderer. Pre-fix the audit-flagged path was a `type = "ifname"` set
+# whose element contained `,`: rendered as `elements = { eth0,eth1 }`,
+# nft's text parser lexed the comma as the element separator, silently
+# broadening the set to two interfaces the user never declared. The
+# kernel's 15-byte IFNAMSIZ cap rules out fitting a `; chain bypass`
+# injection like the C1 comment case, but silent widening is still a
+# real correctness gap.
 #
-# The fix is layered (mirrors C1):
-#   - DSL emit (lib/dsl/structure/render.nix): cross-field check at
-#     evalModules time. The set/map body's `type` and `elem` siblings
-#     can't be related at the primitive-type level, so the validation
-#     runs after `validate` returns and throws naming the user's tree
-#     path (`sets.<n>: …`).
-#   - Schema primitive (lib/schema/primitives.nix `ifname`): exposed as
-#     a public type so downstream consumers can tighten their own
-#     interfaces against the same rule.
-#   - Renderer (lib/text/objects.nix `renderSetOrMapBody`): throws on
-#     the same predicate as defence-in-depth for raw-attrset callers
-#     that bypass the DSL.
+# Common predicate (lib/nft-safe-ifname.nix): rejects `,` `;` `{` `}`
+# `"` `\` `#` and control chars on top of the kernel's `dev_valid_name`
+# rules (no `/` `:` whitespace, not `.` / `..`, ≤15 bytes). Both schema
+# and renderer consult `isSafe` / `firstUnsafe` / `badIfnameElement`
+# so the two layers can't drift.
 #
-#   - chain `dev` field (netdev-family base chains) and flowtable
-#     `dev` field — both render multi-device lists as bare comma-joined
-#     `devices = { … }`, and a `,` in an element widens identically to
-#     the set/map case. Tightened to `listOrSingleton ifname` so the
-#     schema check fires at the option boundary; the text renderer
-#     applies the same defence-in-depth assert via `assertSafeDev`.
+# Surfaces fixed:
+#   - set/map elements (the audit-flagged path). DSL emit
+#     (lib/dsl/structure/render.nix) cross-field-checks set/map `type`
+#     vs `elem` siblings at evalModules time and throws naming the
+#     user's tree path; the text renderer
+#     (lib/text/objects.nix `renderSetOrMapBody`) repeats the assert
+#     as defence-in-depth for raw-attrset callers.
+#   - chain.dev (netdev-family base chains) and flowtable.dev.
+#     Multi-dev lists render bare comma-joined as `devices = { … }`;
+#     the schema (lib/schema/objects.nix) types both fields as
+#     `listOrSingleton ifname` and the renderer
+#     (lib/text/objects.nix `assertSafeDev`) asserts each dev again.
+#   - `meta iifname` / `oifname` / `sdifname` / `ibrname` / `obrname`
+#     and `fib … oifname` match RHS. Pre-fix bare `meta iifname
+#     eth0,eth1` lexed `,` as a bitmask operator and rejected ifname
+#     as a non-bitmask type — parse error at activation, not silent
+#     widening, but unhelpful UX. `match.right` is the open
+#     `expression` union so the schema can't statically constrain it;
+#     the renderer (lib/text/statements.nix `renderMatch` /
+#     `isIfnameLhs`) is the sole gate, asserting ifname-safety and
+#     emitting the value quoted.
 #
-# Audit follow-up (NOT covered here — different mechanism, separate
-# PR): the `meta iifname` match RHS is a parse error rather than
-# silent widening (nft reads the unquoted comma as a bitmask operator
-# and rejects ifname as a non-bitmask type), so it's less dangerous
-# but still poor UX.
+# Also exposed: `nftlib.types.ifname` — public primitive so downstream
+# consumers can tighten their own interface-name surfaces against the
+# same rule.
 
 let
   dsl = nftlib.dsl;
@@ -352,6 +359,99 @@ let
     ];
   };
 
+  # Match RHS goes through the text renderer only — match.right is the
+  # open `expression` union, so the schema can't statically constrain
+  # it. Build raw rule envelopes (skipping the DSL for clarity about
+  # the test shape) and exercise the renderer's `isIfnameLhs` /
+  # ifname-safe assertion.
+  rawMatchRule = metaKey: rightVal: {
+    nftables = [
+      {
+        add.rule = {
+          family = "inet";
+          table = "t";
+          chain = "c";
+          expr = [
+            {
+              match = {
+                left = {
+                  meta = {
+                    key = metaKey;
+                  };
+                };
+                op = "==";
+                right = rightVal;
+              };
+            }
+          ];
+        };
+      }
+    ];
+  };
+
+  matchRhsTests = {
+    # Each ifname-typed meta key throws on the widening payload.
+    testMatchThrowsOn_iifname = {
+      expr = evalSucceeds (toText (rawMatchRule "iifname" wideningPayload));
+      expected = false;
+    };
+    testMatchThrowsOn_oifname = {
+      expr = evalSucceeds (toText (rawMatchRule "oifname" wideningPayload));
+      expected = false;
+    };
+    testMatchThrowsOn_sdifname = {
+      expr = evalSucceeds (toText (rawMatchRule "sdifname" wideningPayload));
+      expected = false;
+    };
+    testMatchThrowsOn_ibrname = {
+      expr = evalSucceeds (toText (rawMatchRule "ibrname" wideningPayload));
+      expected = false;
+    };
+    testMatchThrowsOn_obrname = {
+      expr = evalSucceeds (toText (rawMatchRule "obrname" wideningPayload));
+      expected = false;
+    };
+
+    # Non-ifname meta keys are unaffected — `mark` accepts integer
+    # comparison and shouldn't see a stricter ifname check applied.
+    testMatchAcceptsNonIfnameKey = {
+      expr = evalSucceeds (toText (rawMatchRule "mark" 100));
+      expected = true;
+    };
+
+    # Safe ifname renders QUOTED post-fix (the new behaviour). Pin the
+    # exact output so a future refactor that drops the quoting breaks
+    # here.
+    testMatchQuotesSafeIfname = {
+      expr = toText (rawMatchRule "iifname" "eth0");
+      expected = "add rule inet t c meta iifname \"eth0\"";
+    };
+
+    # `@`-prefixed string is the named-set reference form; must stay
+    # bare so nft reads it as a setRef and not as a quoted ifname
+    # literal.
+    testMatchPreservesSetRefBare = {
+      expr = toText (rawMatchRule "iifname" "@trusted");
+      expected = "add rule inet t c meta iifname @trusted";
+    };
+
+    # Anonymous set RHS goes through renderSet, not the new
+    # single-string path; pin that it's untouched. (The set-element-
+    # widening question for anonymous sets is the same class as the
+    # named-set fix but a separate path — out of scope here.)
+    testMatchAnonymousSetRhsUnchanged = {
+      expr = toText (
+        rawMatchRule "iifname" {
+          set = [
+            "lo"
+            "eth0"
+          ];
+        }
+      );
+      expected = "add rule inet t c meta iifname { lo, eth0 }";
+    };
+  };
+
   rendererTests = {
     testTextThrowsOnMaliciousRaw = {
       expr = evalSucceeds (toText malRaw);
@@ -390,6 +490,7 @@ let
     // schemaAcceptanceTests
     // nonIfnameTolerates
     // predicateTests
+    // matchRhsTests
     // rendererTests;
 
   # ----- Integration ------------------------------------------------------
