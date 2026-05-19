@@ -70,6 +70,7 @@ let
       lib
       primitives
       objects
+      expressions
       ;
   };
 

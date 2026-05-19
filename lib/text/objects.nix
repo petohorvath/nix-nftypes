@@ -28,7 +28,7 @@ let
     indent
     resetPrec
     ;
-  inherit (expressions) renderExpression renderSetElement;
+  inherit (expressions) renderExpression renderSetElement safeToken;
   inherit (statements) renderRuleExpr;
 
   rExpr = ctx: e: renderExpression (resetPrec ctx) e;
@@ -355,11 +355,16 @@ let
   renderLimitBody =
     _ctx: body:
     let
+      # `rate_unit` and `burst_unit` are `types.str` in the schema and
+      # render bare here; route both through the shared `safeToken`
+      # helper so a parser-meta byte truncating the clause is rejected
+      # at render time rather than splitting into separate statements
+      # at nft load.
       head =
         "rate"
         + lib.optionalString ((body.inv or null) == true) " over"
         + " ${toString body.rate}"
-        + lib.optionalString ((body.rate_unit or null) != null) " ${body.rate_unit}"
+        + lib.optionalString ((body.rate_unit or null) != null) " ${safeToken body.rate_unit}"
         + "/${body.per}"
         + (
           if (body.burst or null) == null then
@@ -369,7 +374,7 @@ let
             # to "packets" when none is set (same as the limit statement
             # renderer in lib/text/statements.nix).
             let
-              burstUnit = if (body.burst_unit or null) != null then body.burst_unit else "packets";
+              burstUnit = if (body.burst_unit or null) != null then safeToken body.burst_unit else "packets";
             in
             " burst ${toString body.burst} ${burstUnit}"
         );

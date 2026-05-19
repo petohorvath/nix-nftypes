@@ -74,6 +74,10 @@
             inherit (pkgs) lib;
             inherit nftlib;
           };
+          unitNameSafety = import ./tests/unit-name-safety.nix {
+            inherit (pkgs) lib;
+            inherit nftlib;
+          };
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -178,6 +182,13 @@
           # `safeToken` so an unsafe byte truncating the statement and
           # dropping an attacker payload no longer reaches `nft -f`.
           named-ref-safety-tests = namedRefSafety.runTests pkgs;
+          # Regression pin for the limit/quota unit-name injection
+          # class: `rate_unit` / `burst_unit` / `val_unit` /
+          # `used_unit` are `types.str` in the schema and used to
+          # render bare into the surrounding clause. All three render
+          # surfaces (statement, named-object body, positional
+          # `create` form) now route the unit name through `safeToken`.
+          unit-name-safety-tests = unitNameSafety.runTests pkgs;
           # Subset-helper coverage: `statementOf` / `matchStatement` /
           # `expressionOf` accept the in-subset tags and reject the
           # rest, throw on construction-time misuse, and stay in sync

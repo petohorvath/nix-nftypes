@@ -156,7 +156,10 @@ let
   renderMangle = ctx: { key, value }: "${rExpr ctx key} set ${rExpr ctx value}";
 
   # quota: str → named ref; attrset → `quota [over] <val> <unit> [used <u> <unit>]`.
-  # `inv = true` flips the implicit "until" to "over".
+  # `inv = true` flips the implicit "until" to "over". `val_unit` and
+  # `used_unit` are `types.str` in the schema and render bare into the
+  # output, so each flows through `safeToken` to reject parser-meta
+  # bytes that would otherwise terminate the statement.
   renderQuota =
     _ctx: body:
     if builtins.isString body then
@@ -165,17 +168,20 @@ let
       let
         head = "quota" + optionalString ((body.inv or null) == true) " over";
         valPart =
-          " ${toString body.val}" + optionalString ((body.val_unit or null) != null) " ${body.val_unit}";
+          " ${toString body.val}"
+          + optionalString ((body.val_unit or null) != null) " ${safeToken body.val_unit}";
         usedPart =
           if (body.used or null) == null then
             ""
           else
             " used ${toString body.used}"
-            + optionalString ((body.used_unit or null) != null) " ${body.used_unit}";
+            + optionalString ((body.used_unit or null) != null) " ${safeToken body.used_unit}";
       in
       head + valPart + usedPart;
 
   # limit: str → named ref; attrset → `limit rate [over] <r> [<unit>]/<per> [burst N <unit>]`.
+  # `rate_unit` / `burst_unit` are `types.str` rendered bare; same
+  # `safeToken` treatment as quota above.
   renderLimit =
     _ctx: body:
     if builtins.isString body then
@@ -183,7 +189,7 @@ let
     else
       let
         head = "limit rate" + optionalString ((body.inv or null) == true) " over";
-        rateUnit = optionalString ((body.rate_unit or null) != null) " ${body.rate_unit}";
+        rateUnit = optionalString ((body.rate_unit or null) != null) " ${safeToken body.rate_unit}";
         ratePart = " ${toString body.rate}${rateUnit}/${body.per}";
         burstPart =
           if (body.burst or null) == null then
@@ -194,7 +200,7 @@ let
             # defaults to "packets" when rate is in packets; the text
             # parser doesn't infer this, so we emit it explicitly.
             let
-              burstUnit = if (body.burst_unit or null) != null then body.burst_unit else "packets";
+              burstUnit = if (body.burst_unit or null) != null then safeToken body.burst_unit else "packets";
             in
             " burst ${toString body.burst} ${burstUnit}";
       in
