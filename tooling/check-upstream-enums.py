@@ -1,28 +1,44 @@
 #!/usr/bin/env python3
 """
-check-upstream-enums.py — deterministic enum drift detector.
+check-upstream-enums.py — deterministic enum + dispatch-tag drift detector.
 
 Layer 4 of the upstream-sync pipeline (see docs/upstream-sync.md). Extracts
-the accepted-token sets from the cleanly-structured C tables in the *pinned*
-nftables source tree and diffs them against this library's `nftlib.enums`.
+accepted-token sets from the cleanly-structured C tables in the *pinned*
+nftables source tree and diffs them against this library's schema: the
+primitive enums (`nftlib.enums`) and the statement/expression tag unions
+(the `attrTag` sets behind `types.statement` / `types.taggedExpression`).
 
 This is the belt-and-suspenders complement to the AI watcher: where the AI
 reads unstructured `strcmp` ladders, this script reads the well-formed C
-tables with zero AI and zero false positives. It catches exactly the
-historical drift class recorded in docs/spec-coverage.md (G1 `rt key ipsec`,
-G3 `fib result check`) and the highest-churn enum, `metaKey`.
+tables with zero AI and zero false positives. It catches the historical
+drift class recorded in docs/spec-coverage.md (G1 `rt key ipsec`, G3
+`fib result check`), the highest-churn enum (`metaKey`), and — via the
+dispatch tables — the "upstream added a whole new statement/expression
+kind" class that would otherwise only surface if the corpus happened to
+use it.
 
 Usage:
-    check-upstream-enums.py <nftables-src-root> <schema-enums.json>
+    check-upstream-enums.py <nftables-src-root> <schema-tokens.json>
 
-`schema-enums.json` is `builtins.toJSON nftlib.enums` (a map of enum name →
-list of accepted strings). Exit 0 if no drift, 1 if the parser accepts a
-token the schema rejects (D2 drift — the dangerous, test-invisible direction).
+`schema-tokens.json` is produced by tests/upstream-enums.nix:
+
+    {
+      "enums":          { "<enum>": ["tok", ...], ... },   # nftlib.enums
+      "statementTags":  ["accept", "match", ...],           # statement attrTag names
+      "expressionTags": ["payload", "concat", ...]          # taggedExpression names
+    }
+
+Exit 0 if no drift; 1 if the parser accepts a token the schema rejects
+(D2 drift — the dangerous, test-invisible direction); 3 on extraction
+failure (renamed table, or a table whose token count fell below its
+plausibility floor — refusing the vacuous green where a regex that no
+longer matches reads as "no drift").
 
 Only a *subset* of the schema's enums are source-table-backed and therefore
 checkable here; the rest are parsed via `strcmp` ladders or live in other
 files. The uncovered enums are listed explicitly in the report (no silent
-caps) — they are the AI watcher's job, not this script's.
+caps) — they are the corpus check's and the AI watcher's job, not this
+script's.
 """
 
 import json
@@ -30,26 +46,65 @@ import re
 import sys
 
 
-# Registry: schema-enum name -> how to extract its accepted tokens from the
-# pinned nftables source. Each entry names the source file (relative to the
-# tree root), the C symbol holding the table, and the table's shape. Only
-# tables that map 1:1 and unambiguously onto a schema enum are listed —
-# `op_tbl` (bitwise ops, not the relational `operator` enum) and the several
-# same-named `flag_tbl[]` locals are deliberately excluded.
+# Registry: check name -> how to extract its accepted tokens from the pinned
+# nftables source, and which schema token list to diff against. Each entry
+# names the source file (relative to the tree root), the C symbol holding
+# the table, the table's shape, a `floor` (minimum plausible token count —
+# extraction below it FAILS instead of passing vacuously; floors sit safely
+# under today's counts: family 6, rtKey 4, fibResult 4, metaKey 37,
+# stmt_parser_tbl 35, cb_tbl 41), an optional `target` (top-level key of the
+# schema document; entries without one read `enums[<name>]`), and `fix` —
+# where the token belongs when drift fires.
+#
+# Only tables that map 1:1 and unambiguously onto a schema token list are
+# listed — `op_tbl` (bitwise operators; a slice of `cb_tbl`, which is
+# covered) and the several same-named `flag_tbl[]` locals are deliberately
+# excluded.
 #
 # Shapes:
-#   "pair"          struct array `{ "name", VALUE }` — take the first string
-#                   of each entry. (family_tbl, rt_key_tbl)
+#   "pair"          struct array `{ "name", ... }` — take the first string
+#                   of each entry. (family_tbl, rt_key_tbl, stmt_parser_tbl,
+#                   cb_tbl)
 #   "designated"    `[ENUM] = "name"` designated initializers — take each RHS
 #                   string literal; `= NULL` entries carry no string and are
 #                   skipped. (fib_result_tbl)
 #   "meta_template" `[ENUM] = META_TEMPLATE("name", …)` — take the first arg
 #                   of each META_TEMPLATE(...) call. (meta_templates)
 REGISTRY = {
-    "family":    {"file": "src/parser_json.c", "symbol": "family_tbl",      "shape": "pair"},
-    "rtKey":     {"file": "src/parser_json.c", "symbol": "rt_key_tbl",      "shape": "pair"},
-    "fibResult": {"file": "src/parser_json.c", "symbol": "fib_result_tbl",  "shape": "designated"},
-    "metaKey":   {"file": "src/meta.c",        "symbol": "meta_templates",  "shape": "meta_template"},
+    "family": {
+        "file": "src/parser_json.c", "symbol": "family_tbl",
+        "shape": "pair", "floor": 4,
+        "fix": "lib/schema/primitives.nix",
+    },
+    "rtKey": {
+        "file": "src/parser_json.c", "symbol": "rt_key_tbl",
+        "shape": "pair", "floor": 3,
+        "fix": "lib/schema/primitives.nix",
+    },
+    "fibResult": {
+        "file": "src/parser_json.c", "symbol": "fib_result_tbl",
+        "shape": "designated", "floor": 3,
+        "fix": "lib/schema/primitives.nix",
+    },
+    "metaKey": {
+        "file": "src/meta.c", "symbol": "meta_templates",
+        "shape": "meta_template", "floor": 20,
+        "fix": "lib/schema/primitives.nix",
+    },
+    # The two JSON dispatch tables: every statement / expression tag the
+    # parser routes. Schema-only leftovers are expected and informational
+    # (statements: `vmap` is dispatched outside the table, `xt` is modelled
+    # but rejected by the parser — both documented in spec-coverage.md).
+    "statementTag": {
+        "file": "src/parser_json.c", "symbol": "stmt_parser_tbl",
+        "shape": "pair", "floor": 20, "target": "statementTags",
+        "fix": "lib/schema/statements.nix (statement attrTag union) + a lib/text renderer",
+    },
+    "expressionTag": {
+        "file": "src/parser_json.c", "symbol": "cb_tbl",
+        "shape": "pair", "floor": 20, "target": "expressionTags",
+        "fix": "lib/schema/expressions.nix (taggedExpression union) + a lib/text renderer",
+    },
 }
 
 # Enums known to come from `strcmp` ladders or non-table sources — reported as
@@ -104,7 +159,7 @@ def main(argv):
     src_root, schema_path = argv[1], argv[2]
 
     with open(schema_path) as fh:
-        schema = json.load(fh)
+        doc = json.load(fh)
 
     file_cache = {}
 
@@ -114,31 +169,46 @@ def main(argv):
                 file_cache[rel] = fh.read()
         return file_cache[rel]
 
-    drift = {}   # enum -> tokens the parser accepts but the schema rejects
+    drift = {}   # check name -> tokens the parser accepts but the schema rejects
     report = []
 
-    for enum, spec in sorted(REGISTRY.items()):
-        if enum not in schema:
-            drift[enum] = ["<enum absent from nftlib.enums entirely>"]
+    for name, spec in sorted(REGISTRY.items()):
+        target = spec.get("target")
+        schema_values = doc.get(target) if target else doc.get("enums", {}).get(name)
+        if schema_values is None:
+            drift[name] = [f"<'{target or name}' list absent from the schema document>"]
             continue
-        block = extract_block(read(spec["file"]), spec["symbol"])
+        try:
+            block = extract_block(read(spec["file"]), spec["symbol"])
+        except LookupError as exc:
+            print(f"EXTRACTION FAILURE: {exc}", file=sys.stderr)
+            return 3
         # Filter empties (placeholder template slots) and dedupe, order-stable.
         extracted = [t for t in tokens_from_block(block, spec["shape"]) if t]
         parser_set = dict.fromkeys(extracted)  # ordered set
-        schema_set = set(schema[enum])
+        if len(parser_set) < spec["floor"]:
+            print(
+                f"EXTRACTION FAILURE: {spec['symbol']} yielded "
+                f"{len(parser_set)} token(s), below the plausibility floor of "
+                f"{spec['floor']} — the table shape likely changed and the "
+                f"extractor no longer matches it. Refusing a vacuous pass.",
+                file=sys.stderr,
+            )
+            return 3
+        schema_set = set(schema_values)
 
         missing = [t for t in parser_set if t not in schema_set]   # DRIFT
-        extra = [t for t in schema[enum] if t not in parser_set]    # info
+        extra = [t for t in schema_values if t not in parser_set]  # info
 
         if missing:
-            drift[enum] = missing
+            drift[name] = missing
         report.append(
-            f"  {enum:<12} parser={len(parser_set):<3} schema={len(schema_set):<3} "
+            f"  {name:<14} parser={len(parser_set):<3} schema={len(schema_set):<3} "
             f"drift={missing or '-'} schema-only={extra or '-'} "
             f"[{spec['symbol']}]"
         )
 
-    print("Upstream enum extraction vs nftlib.enums")
+    print("Upstream token extraction vs schema (enums + statement/expression tags)")
     print("(parser tokens missing from schema = drift; schema-only = info)\n")
     print("\n".join(report))
     print("\nNot source-checked (parsed via strcmp ladders / other files):")
@@ -147,15 +217,16 @@ def main(argv):
 
     if drift:
         print("\nDRIFT DETECTED — the pinned parser accepts tokens the schema rejects:")
-        for enum, toks in sorted(drift.items()):
-            print(f"  {enum}: add {toks} to lib/schema/primitives.nix")
+        for name, toks in sorted(drift.items()):
+            fix = REGISTRY.get(name, {}).get("fix", "lib/schema/primitives.nix")
+            print(f"  {name}: add {toks} — {fix}")
         print(
             "\nThis is the test-invisible 'schema too restrictive' direction. "
             "Add the tokens, then record the gap in docs/spec-coverage.md."
         )
         return 1
 
-    print("\nNo enum drift: every source-checked parser token is in the schema.")
+    print("\nNo drift: every source-checked parser token is in the schema.")
     return 0
 
 

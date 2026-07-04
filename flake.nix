@@ -312,6 +312,13 @@
             nftablesSrc = nftables-src;
           };
           nftablesPinned = mkPinnedNft pkgs;
+          upstreamRoundtrip = import ./tests/upstream-roundtrip.nix {
+            inherit pkgs nftlib nftablesPinned;
+          };
+          upstreamSelftest = import ./tests/upstream-selftest.nix {
+            inherit pkgs nftlib;
+            nftablesSrc = nftables-src;
+          };
         in
         {
           # Layer 2 — nftables' own `tests/py` corpus validated against the
@@ -331,6 +338,18 @@
           integration-tests-pinned =
             integration.runIntegrationTestsWithNft nftablesPinned pkgs
               integration.cases;
+          # Layer 5 — read-back round-trip: really load each case with the
+          # pinned `nft`, capture `nft -j list ruleset`, validate every
+          # emitted command against the schema. The only deterministic net
+          # for serializer (src/json.c) and object-shape drift, and the
+          # test behind the README's "round-trip safe" claim.
+          upstream-roundtrip-tests = upstreamRoundtrip.runTests pkgs;
+          # Red-path self-tests: inject drift/defects into the tooling's
+          # inputs and assert every drift check actually goes red — the
+          # guard against the checks themselves rotting silently green
+          # (dead extraction regex, over-broad baseline, toothless
+          # validator).
+          upstream-tooling-selftests = upstreamSelftest.runTests pkgs;
         };
     in
     {

@@ -265,7 +265,9 @@ Because the schema is a transcription of one pinned `parser_json.c` revision, it
 
 - Two nixpkgs channels are first-class compatibility targets: every channel-dependent check runs against both the stable `nixpkgs` input (plain names) and `nixpkgs-unstable` (`-unstable` suffix), covering each channel's `nft` binary *and* its `lib` module system on every `nix flake check`.
 - `upstream-corpus-tests` validates nftables' own `tests/py` corpus against the schema — upstream's own record of what valid input looks like, version by version.
-- `upstream-enum-extraction-tests` extracts the parser's C enum tables and diffs them against `nftlib.enums` — deterministic, zero false positives.
+- `upstream-enum-extraction-tests` extracts the parser's C enum tables **and its statement/expression dispatch tables** and diffs them against `nftlib.enums` and the schema's tag unions — deterministic, zero false positives, with plausibility floors so a dead extraction regex fails instead of passing vacuously.
+- `upstream-roundtrip-tests` really loads each case with the pinned `nft` and validates everything `nft -j list ruleset` emits back against the schema — the round-trip claim as a test, and the only deterministic net for serializer (`src/json.c`) and object-shape drift.
+- `upstream-tooling-selftests` injects drift and defects into the checks' inputs and asserts each one actually goes red — the guard against the drift net itself rotting silently green.
 - `integration-tests-pinned` runs the live-parser suite against an `nft` built from the pinned source, with a scheduled canary that floats each channel to its branch tip.
 - A weekly `upstream-sync` workflow diffs upstream's parser sources against the pin and uses Claude to draft a triage report (filed as a GitHub issue) — gated by the checks above, never trusted on its own.
 
@@ -343,7 +345,7 @@ Runs the full check matrix. Every suite below is instantiated **twice** — agai
 - **dsl-validation-tests** — per-submodule regression coverage: every DSL constructor that takes a user body is exercised with an invalid field and required to `throw` at evaluation time.
 - **dsl-validation-message-tests** — runs `nix-instantiate --eval` against representative bad expressions and asserts the stderr names the offending option path.
 
-Three pin-anchored upstream-sync checks run once (they consume the `nftables-src` pin, not a channel): **upstream-corpus-tests**, **upstream-enum-extraction-tests**, and **integration-tests-pinned** — see [`docs/upstream-sync.md`](docs/upstream-sync.md).
+Five pin-anchored upstream-sync checks run once (they consume the `nftables-src` pin, not a channel): **upstream-corpus-tests**, **upstream-enum-extraction-tests**, **upstream-roundtrip-tests**, **upstream-tooling-selftests**, and **integration-tests-pinned** — see [`docs/upstream-sync.md`](docs/upstream-sync.md).
 
 Rendering an example ruleset for inspection:
 

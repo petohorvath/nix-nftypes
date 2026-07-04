@@ -49,13 +49,20 @@ jobs:
             echo "Drift: pinned ($pinned) != upstream master ($latest)."
           fi
 
+      # Diff every surface the library mirrors: the JSON parser and its
+      # lookup-table sources (parser_json.c, meta.c, rt.c), the JSON
+      # serializer (json.c — read-back / round-trip drift), the text
+      # grammar the text renderer targets (parser_bison.y, scanner.l —
+      # e.g. new reserved words like the `offload` flowtable-name class),
+      # and the adoc for documentation context.
       - name: Diff parser sources
         if: steps.rev.outputs.drift == 'true'
         run: |
           git clone --quiet https://git.netfilter.org/nftables nftables-upstream
           git -C nftables-upstream diff \
             "${{ steps.rev.outputs.pinned }}" "${{ steps.rev.outputs.latest }}" -- \
-            src/parser_json.c src/meta.c src/rt.c doc/libnftables-json.adoc \
+            src/parser_json.c src/json.c src/meta.c src/rt.c \
+            src/parser_bison.y src/scanner.l doc/libnftables-json.adoc \
             > parser.diff || true
           echo "diff bytes: $(wc -c <parser.diff)"
 

@@ -55,8 +55,10 @@ the parser, not anyone's reading of it, is the source of truth.
 | 1 | full check set ×2 — every suite against stable `nixpkgs` (plain names) **and** `nixpkgs-unstable` (`-unstable` suffix) | D1 | live parser + module system |
 | 1 | `canary` CI job — integration suites vs the floating tip of **each** channel | D1 | live parser |
 | 2 | `upstream-corpus-tests` — nftables' own `tests/py` corpus vs the schema | **D2** | upstream's own truth |
-| 4 | `upstream-enum-extraction-tests` — C enum tables vs `nftlib.enums` | **D2** | deterministic extraction |
-| 3 | `drift-watch` workflow + AI triage — diff upstream parser, draft a report | both | AI (gated by 1/2/4) |
+| 4 | `upstream-enum-extraction-tests` — C enum **and dispatch-tag** tables vs `nftlib.enums` + the statement/expression unions | **D2** | deterministic extraction |
+| 5 | `upstream-roundtrip-tests` — everything `nft -j list ruleset` emits vs the schema | **D2** (serializer side) | live serializer |
+| 3 | `drift-watch` workflow + AI triage — diff upstream parser, draft a report | both | AI (gated by 1/2/4/5) |
+| — | `upstream-tooling-selftests` — injected drift must turn each check red | meta | self-test |
 
 (The numbering follows the order the layers were designed in, not CI order.)
 
@@ -116,30 +118,81 @@ silently ignored — each is classified into a named pattern in
 only on an offending statement matching **no** known pattern, i.e. *new* drift
 from a future bump. See [Known corpus divergences](#known-corpus-divergences).
 
-### Layer 4 — deterministic enum extraction (covers D2)
+### Layer 4 — deterministic token extraction (covers D2)
 
 `upstream-enum-extraction-tests` (`tests/upstream-enums.nix` →
 `tooling/check-upstream-enums.py`) reads the cleanly-structured C lookup tables
-in the pinned source — `family_tbl`, `rt_key_tbl`, `fib_result_tbl` in
-`parser_json.c`, and `meta_templates` in `meta.c` — and asserts every token
-they accept is in `nftlib.enums`. Zero AI, zero false positives. It catches the
-exact historical drift class (G1 `rt key ipsec`, G3 `fib result check`) and the
-highest-churn enum, `metaKey`.
+in the pinned source and asserts every token they accept is in the schema.
+Zero AI, zero false positives. Two table families:
 
-It only covers enums backed by a clean table. Enums parsed via `strcmp` ladders
-(`operator`, `socketKey`, `osfKey`) are out of reach and are listed as "not
-source-checked" in the check's output — they're the corpus check's and the AI
-watcher's job. The corpus check already demonstrated the split by catching the
-missing `!` (negation) operator, which `operator` being strcmp-parsed kept out
-of Layer 4.
+- **enum tables** — `family_tbl`, `rt_key_tbl`, `fib_result_tbl` in
+  `parser_json.c` and `meta_templates` in `meta.c`, diffed against
+  `nftlib.enums`. Catches the exact historical drift class (G1 `rt key
+  ipsec`, G3 `fib result check`) and the highest-churn enum, `metaKey`.
+- **dispatch tables** — `stmt_parser_tbl` and `cb_tbl` in `parser_json.c`,
+  diffed against the `statement` / `taggedExpression` attrTag unions. This
+  makes "upstream added a whole new statement or expression kind" a
+  deterministic red instead of something only the corpus (if it happens to
+  use it) or the AI would notice. Schema-only leftovers are informational
+  (`vmap` dispatches outside the table; `xt` is modelled but
+  parser-rejected — both in spec-coverage.md).
+
+Every table also carries a **plausibility floor**: if extraction yields fewer
+tokens than the floor (an upstream reformat the regex no longer matches), the
+check fails loudly instead of passing vacuously.
+
+Enums parsed via `strcmp` ladders (`operator`, `socketKey`, `osfKey`) are out
+of reach and are listed as "not source-checked" in the check's output —
+they're the corpus check's and the AI watcher's job. The corpus check already
+demonstrated the split by catching the missing `!` (negation) operator, which
+`operator` being strcmp-parsed kept out of Layer 4.
+
+### Layer 5 — read-back round-trip (covers the serializer)
+
+`upstream-roundtrip-tests` (`tests/upstream-roundtrip.nix`) tests the
+direction every other suite ignores: the **output** side. Each integration
+case is really loaded (no `-c`) into a private netns with the pinned `nft`,
+`nft -j list ruleset` is captured, and every emitted command is validated
+against `nftlib.types.ruleset`. This is the README's "round-trip safe" claim
+as a test, and the only deterministic net for two surfaces nothing else
+covers: `src/json.c` (the serializer, which evolves independently of
+`parser_json.c`) and **object bodies** (the `tests/py` corpus carries only
+per-rule statement arrays). Divergences are baselined in
+`knownReadbackDivergences` — empty at the current pin — and a load-count
+floor refuses a vacuous pass if environment rot stops cases loading.
+
+Building this check surfaced a real upstream asymmetry worth knowing:
+`json.c` resolves l4 protocol numbers to names via glibc's
+`getprotobynumber`, i.e. `/etc/protocols`. On systems without that file
+(minimal containers), `ct helper`/`ct timeout`/`ct expectation` list back
+with `"protocol": 6` instead of `"tcp"` — a form `parser_json.c` **rejects**
+on input, so on such systems nftables' own listing does not round-trip
+through its own parser. The check provides `/etc/protocols` inside the
+namespace so the captured listing matches normal systems and stays
+deterministic.
+
+### Tooling self-tests
+
+The worst failure mode for a drift net is rotting silently *green* — a dead
+extraction regex, an over-broad baseline, a validator that accepts anything.
+`upstream-tooling-selftests` (`tests/upstream-selftest.nix`) injects defects
+and asserts red: a schema stripped of `rt key ipsec` (G1 reintroduced) and of
+the `tproxy` statement tag must produce DRIFT; a renamed C table and a table
+the regex can no longer read must fail extraction (not report "no drift"); a
+fake corpus statement matching no baseline pattern must land in `newDrift`;
+and the `ruleset` validator must reject unknown top tags, fields, and
+statements while accepting bare listed objects with handles.
 
 ### Layer 3 — scheduled watcher + AI triage (the early warning)
 
 `.github/workflows/upstream-sync.yml` runs weekly. `drift-watch` compares
-upstream nftables HEAD against the pinned rev; on a difference it diffs the
-parser source files and hands the diff to `tooling/drift-triage.sh`, which asks
-Claude (`claude-opus-4-8`) to classify each hunk and map it onto the schema,
-then files (or updates) a GitHub issue labelled `upstream-drift`.
+upstream nftables HEAD against the pinned rev; on a difference it diffs every
+mirrored surface — `parser_json.c` and its lookup-table sources (`meta.c`,
+`rt.c`), the serializer (`json.c`), the text grammar the text renderer
+targets (`parser_bison.y`, `scanner.l`), and the adoc — and hands the diff to
+`tooling/drift-triage.sh`, which asks Claude (`claude-opus-4-8`) to classify
+each hunk and map it onto the schema, then files (or updates) a GitHub issue
+labelled `upstream-drift`.
 
 **Why AI fits here and nowhere else.** The mapping from a C `strcmp` ladder or
 `json_unpack` call to a Nix `attrTag` branch or `types.enum` entry is
@@ -155,8 +208,10 @@ drift notice and skips triage.
 
 | Signal | Means | Action |
 |---|---|---|
-| `upstream-enum-extraction-tests` red | parser accepts an enum token the schema lacks | add the token to `lib/schema/primitives.nix`; record a G-N entry in `docs/spec-coverage.md` |
+| `upstream-enum-extraction-tests` red | parser accepts an enum token or statement/expression tag the schema lacks — or extraction fell below a plausibility floor | add the token where the report points (`primitives.nix` / `statements.nix` / `expressions.nix`); record a G-N entry in `docs/spec-coverage.md`. On EXTRACTION FAILURE, fix the extractor's registry |
 | `upstream-corpus-tests` red (new offender) | parser's own corpus uses a shape the schema rejects | extend the schema to accept it (and add a renderer + test), or, if intentionally unsupported, add a pattern to `knownDivergences` with the reason |
+| `upstream-roundtrip-tests` red | the pinned `nft -j list ruleset` emits a shape the schema rejects — serializer or object drift; read-back consumers break | extend the schema (preferred) or baseline in `knownReadbackDivergences` with the reason |
+| `upstream-tooling-selftests` red | the drift tooling itself regressed — a check would no longer go red on real drift | fix the tooling first; no other green can be trusted until this passes |
 | `integration-tests-pinned` red | the schema emits JSON the pinned `nft` rejects | the schema is too permissive — tighten it |
 | a `*-unstable` check red, stable twin green | the unstable channel moved — a newer `nft` rejects something stable accepts, or unstable's `lib` changed module-system behavior/messages | fix ahead of the next stable release, or add a per-oracle skip (the `pinnedConformanceSkip` pattern) with the reason |
 | a stable check red, `-unstable` twin green | regression against the deployment floor (rare: a stable-channel backport, or a library change that leans on unstable-only behavior) | treat as a release blocker — stable is the compatibility floor |
