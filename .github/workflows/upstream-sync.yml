@@ -1,0 +1,134 @@
+name: Upstream sync
+
+# Keeps the schema in step with nftables as the JSON parser evolves
+# (docs/upstream-sync.md). Two independent jobs, both non-gating:
+#
+#   drift-watch — compares upstream nftables HEAD against the pinned
+#     `nftables-src` rev. On a difference, diffs the parser source files and
+#     runs the AI triage (tooling/drift-triage.sh), then files/updates a
+#     GitHub issue with the report. Early warning that the pin is stale.
+#
+#   canary — runs the live-parser integration suite against the LATEST tip
+#     of each nixpkgs channel (stable `nixpkgs` and `nixpkgs-unstable`),
+#     floating past the locked revs. A red canary while the locked checks
+#     are green means that channel changed parser acceptance (drift
+#     direction D1); red-unstable with green-stable pinpoints which channel
+#     moved. continue-on-error so it reports without failing.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch: {} # allow manual runs
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  drift-watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve pinned vs upstream revision
+        id: rev
+        run: |
+          pinned=$(jq -r '.nodes."nftables-src".locked.rev' flake.lock)
+          latest=$(git ls-remote https://git.netfilter.org/nftables refs/heads/master | cut -f1)
+          echo "pinned=$pinned" >>"$GITHUB_OUTPUT"
+          echo "latest=$latest" >>"$GITHUB_OUTPUT"
+          if [ "$pinned" = "$latest" ]; then
+            echo "drift=false" >>"$GITHUB_OUTPUT"
+            echo "No drift: pinned ($pinned) == upstream master ($latest)."
+          else
+            echo "drift=true" >>"$GITHUB_OUTPUT"
+            echo "Drift: pinned ($pinned) != upstream master ($latest)."
+          fi
+
+      - name: Diff parser sources
+        if: steps.rev.outputs.drift == 'true'
+        run: |
+          git clone --quiet https://git.netfilter.org/nftables nftables-upstream
+          git -C nftables-upstream diff \
+            "${{ steps.rev.outputs.pinned }}" "${{ steps.rev.outputs.latest }}" -- \
+            src/parser_json.c src/meta.c src/rt.c doc/libnftables-json.adoc \
+            > parser.diff || true
+          echo "diff bytes: $(wc -c <parser.diff)"
+
+      - name: AI drift triage
+        if: steps.rev.outputs.drift == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            echo "ANTHROPIC_API_KEY secret not set — skipping AI triage, filing a bare drift notice." >&2
+            {
+              echo "# nftables upstream drift detected"
+              echo
+              echo "Pinned \`${{ steps.rev.outputs.pinned }}\` → upstream \`${{ steps.rev.outputs.latest }}\`."
+              echo "AI triage was skipped (no \`ANTHROPIC_API_KEY\` secret). Diff is attached to the run."
+            } > drift-report.md
+            exit 0
+          fi
+          bash tooling/drift-triage.sh \
+            --diff parser.diff \
+            --schema-dir lib/schema \
+            --spec-coverage docs/spec-coverage.md \
+            --old-rev "${{ steps.rev.outputs.pinned }}" \
+            --new-rev "${{ steps.rev.outputs.latest }}" \
+            --out drift-report.md
+
+      - name: File or update drift issue
+        if: steps.rev.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.rev.outputs.latest }}
+        run: |
+          title="Upstream nftables drift: ${LATEST:0:12}"
+          # One issue per upstream rev — don't reopen a chorus on every run.
+          existing=$(gh issue list --state open --label upstream-drift \
+            --search "${LATEST:0:12} in:title" --json number --jq '.[0].number // empty')
+          gh label create upstream-drift --color FBCA04 \
+            --description "nftables parser moved past the pinned revision" 2>/dev/null || true
+          if [ -n "$existing" ]; then
+            echo "Issue #$existing already tracks $LATEST; appending a fresh report."
+            gh issue comment "$existing" --body-file drift-report.md
+          else
+            gh issue create --title "$title" --label upstream-drift --body-file drift-report.md
+          fi
+
+  canary:
+    strategy:
+      fail-fast: false # let each channel report independently
+      matrix:
+        include:
+          - input: nixpkgs # stable channel; plain check names
+            suffix: ""
+          - input: nixpkgs-unstable
+            suffix: "-unstable"
+    runs-on: ubuntu-latest
+    continue-on-error: true # non-gating: a red canary is a signal, not a failure
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - name: Allow unshare to create user namespaces
+        run: |
+          sudo cp .github/apparmor/nix-unshare /etc/apparmor.d/nix-unshare
+          sudo apparmor_parser -r /etc/apparmor.d/nix-unshare
+      # Float the channel input to its branch tip so the integration suite
+      # runs against the nft that channel ships TODAY, not the locked rev.
+      # The branch ref is read from flake.lock, so repointing `nixpkgs` at
+      # the next NixOS release updates the canary automatically.
+      - name: Integration suite vs latest ${{ matrix.input }} nft
+        run: |
+          ref=$(jq -r '.nodes["${{ matrix.input }}"].original.ref' flake.lock)
+          locked=$(jq -r '.nodes["${{ matrix.input }}"].locked.rev' flake.lock | cut -c1-12)
+          echo "Floating ${{ matrix.input }} ($ref, locked at $locked) to its current tip."
+          nix build -L \
+            --override-input ${{ matrix.input }} "github:NixOS/nixpkgs/$ref" \
+            '.#checks.x86_64-linux.integration-tests${{ matrix.suffix }}' \
+            '.#checks.x86_64-linux.text-integration-tests${{ matrix.suffix }}'

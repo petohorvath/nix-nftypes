@@ -55,7 +55,7 @@ let
     name = "t";
   };
 in
-{
+rec {
   cases = [
     # -- create: supported object kinds ------------------------------------
     # `create.rule` is excluded from the DSL (nftables rejects it).
@@ -457,12 +457,19 @@ in
   # `unshare -rn nft -c -j -f` against it. The Nix sandbox permits nested
   # user/network namespaces on Linux, so nft gets a private netfilter
   # instance and can exercise its real parser without root.
-  runIntegrationTests =
+  #
+  # Parameterized over the `nft` package so the same case set can run against
+  # two oracles: nftables from the locked nixpkgs (the gating PR check) and an
+  # `nft` built from the pinned `nftables-src` (Layer 1 conformance — the
+  # exact parser the schema was derived from). See `runIntegrationTests` /
+  # `runIntegrationTestsWithNft` below.
+  mkIntegrationTests =
+    { name, nft }:
     pkgs: cases:
-    pkgs.runCommandLocal "dsl-integration-tests"
+    pkgs.runCommandLocal name
       {
         nativeBuildInputs = [
-          pkgs.nftables
+          nft
           pkgs.util-linux
           pkgs.iproute2
         ];
@@ -506,4 +513,36 @@ in
         echo "All ${toString (builtins.length cases)} integration tests passed"
         touch $out
       '';
+
+  # Default oracle: nftables from the (locked) nixpkgs input — the gating
+  # integration check on every PR.
+  runIntegrationTests =
+    pkgs: cases:
+    mkIntegrationTests {
+      name = "dsl-integration-tests";
+      nft = pkgs.nftables;
+    } pkgs cases;
+
+  # Cases skipped only in the pinned conformance run. They depend on
+  # pre-existing kernel state (a live rule handle) that `nft -c` in a fresh
+  # netns cannot supply. The 1.1.6 *release* parser is lenient about this in
+  # check mode and accepts them (so they stay in the nixpkgs-oracle run); the
+  # pinned dev parser (f7dc8269) validates the handle and rejects when it is
+  # absent. Not a schema defect — a check-mode limitation, of the same class
+  # this file already documents for `replace` / `insert` / `rename`. The
+  # divergence itself (release-lenient vs dev-strict handle validation) is the
+  # kind of signal the conformance oracle exists to surface.
+  pinnedConformanceSkip = [ "add-rule-via-tree-and-standalone" ];
+
+  # Conformance oracle (Layer 1, docs/upstream-sync.md): the same cases against
+  # an `nft` built from the pinned `nftables-src`. flake.nix passes
+  # `nftablesPinned` here. A divergence between this and `runIntegrationTests`
+  # (beyond `pinnedConformanceSkip`) is drift between the parser the schema
+  # claims and the parser nixpkgs ships.
+  runIntegrationTestsWithNft =
+    nft: pkgs: cases:
+    mkIntegrationTests {
+      name = "dsl-integration-tests-pinned";
+      inherit nft;
+    } pkgs (builtins.filter (c: !(builtins.elem c.name pinnedConformanceSkip)) cases);
 }

@@ -1,12 +1,64 @@
 {
   "nodes": {
+    "libnftnl-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1774002320,
+        "narHash": "sha256-527s5TCaxSluw2W5IZI62g9C08LPJUqnJ7j2Etv53r4=",
+        "ref": "master",
+        "rev": "363b0e32361969fc695c3eaf619f343abcf2f912",
+        "revCount": 1069,
+        "type": "git",
+        "url": "https://git.netfilter.org/libnftnl"
+      },
+      "original": {
+        "ref": "master",
+        "rev": "363b0e32361969fc695c3eaf619f343abcf2f912",
+        "type": "git",
+        "url": "https://git.netfilter.org/libnftnl"
+      }
+    },
+    "nftables-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1776961128,
+        "narHash": "sha256-2Np9zsPOHdmq7QIEdZDZkhdYY1FWexX3LkzkDGGpTtY=",
+        "ref": "master",
+        "rev": "f7dc8269ddaed49fe643423a3a403b91ab1e50db",
+        "revCount": 4428,
+        "type": "git",
+        "url": "https://git.netfilter.org/nftables"
+      },
+      "original": {
+        "ref": "master",
+        "rev": "f7dc8269ddaed49fe643423a3a403b91ab1e50db",
+        "type": "git",
+        "url": "https://git.netfilter.org/nftables"
+      }
+    },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1776169885,
-        "narHash": "sha256-l/iNYDZ4bGOAFQY2q8y5OAfBBtrDAaPuRQqWaFHVRXM=",
+        "lastModified": 1782999065,
+        "narHash": "sha256-5Dgj5+pIQYZKrXUGaLCk7CKfN3MmpwIhO94++WVxvng=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "4bd9165a9165d7b5e33ae57f3eecbcb28fb231c9",
+        "rev": "80d591ed473cfc46329932c2aadac9b435342c7c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-26.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-unstable": {
+      "locked": {
+        "lastModified": 1782959384,
+        "narHash": "sha256-xnJJk+ct+D2+wdRxj1wk36w5zV9RVESwRqcklPdt3fM=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "65179426c83bb3f6bc14898b42ea1c6f01d374b0",
         "type": "github"
       },
       "original": {
@@ -18,7 +70,10 @@
     },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "libnftnl-src": "libnftnl-src",
+        "nftables-src": "nftables-src",
+        "nixpkgs": "nixpkgs",
+        "nixpkgs-unstable": "nixpkgs-unstable"
       }
     }
   },

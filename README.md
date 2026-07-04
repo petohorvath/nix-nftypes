@@ -9,6 +9,7 @@ Related docs:
 - [`docs/spec-coverage.md`](docs/spec-coverage.md) — file-by-file audit of `lib/schema/` against `parser_json.c`. Coverage matrix, enum verification, every adoc-vs-parser deviation the schema captures, edge cases where schema and parser deliberately diverge.
 - [`docs/dsl-coverage.md`](docs/dsl-coverage.md) — DSL audit against the schema. Confirms every shape the schema accepts is reachable from `lib/dsl/`, either via pre-built constructors or escape hatches.
 - [`docs/text-coverage.md`](docs/text-coverage.md) — text renderer (`lib/text/`) coverage notes and known limitations.
+- [`docs/upstream-sync.md`](docs/upstream-sync.md) — the mechanism that keeps the schema in step with nftables as the JSON parser evolves: the pinned `nftables-src` input, the corpus and enum-extraction drift checks, the pinned-parser conformance build, and the scheduled AI drift-triage watcher.
 
 ## Why this exists
 
@@ -258,6 +259,18 @@ Examples:
 
 The library was first written against the `libnftables-json(5)` adoc, then re-derived against `src/parser_json.c` after `nft -c` validation surfaced gaps the adoc didn't predict. The parser is the source of truth for both sides: every field it reads on input is exposed; every key and enum `nft -j list ruleset` emits on output is accepted on the input side. See [`docs/spec-coverage.md`](docs/spec-coverage.md) for the file-by-file audit (every adoc-vs-parser deviation the schema captures and every edge case where it deliberately diverges).
 
+## Staying in sync with nftables
+
+Because the schema is a transcription of one pinned `parser_json.c` revision, it can drift as nftables evolves. The exact revision is now a machine-readable flake input (`nftables-src`), and a layered set of checks watches for divergence in both directions — the schema accepting something a newer parser rejects, and (the test-invisible direction) a newer parser accepting something the schema doesn't model:
+
+- Two nixpkgs channels are first-class compatibility targets: every channel-dependent check runs against both the stable `nixpkgs` input (plain names) and `nixpkgs-unstable` (`-unstable` suffix), covering each channel's `nft` binary *and* its `lib` module system on every `nix flake check`.
+- `upstream-corpus-tests` validates nftables' own `tests/py` corpus against the schema — upstream's own record of what valid input looks like, version by version.
+- `upstream-enum-extraction-tests` extracts the parser's C enum tables and diffs them against `nftlib.enums` — deterministic, zero false positives.
+- `integration-tests-pinned` runs the live-parser suite against an `nft` built from the pinned source, with a scheduled canary that floats each channel to its branch tip.
+- A weekly `upstream-sync` workflow diffs upstream's parser sources against the pin and uses Claude to draft a triage report (filed as a GitHub issue) — gated by the checks above, never trusted on its own.
+
+See [`docs/upstream-sync.md`](docs/upstream-sync.md) for the full design, how to respond to each signal, and how to bump the pin.
+
 ## Layout
 
 ```
@@ -318,7 +331,7 @@ docs/
 nix flake check
 ```
 
-Runs the full check matrix:
+Runs the full check matrix. Every suite below is instantiated **twice** — against the stable `nixpkgs` input (plain names) and against `nixpkgs-unstable` (`-unstable` suffix, e.g. `integration-tests-unstable`) — so compatibility with both channels' `nft` and `lib` is enforced on every check run:
 
 - **schema-tests** — 240+ Nix-level assertions: schema validation of hand-written raw attrsets, DSL↔raw byte-for-byte parity, renderer tests for emission order and error cases, and schema validation of each example.
 - **integration-tests** — pipes each case's JSON through `unshare -rn nft -c -j -f` (real libnftables parser inside a private netns).
@@ -329,6 +342,8 @@ Runs the full check matrix:
 - **render-equivalence-tests** — for each case, loads JSON and text into separate netns and diffs `nft list ruleset`. The 1:1 contract.
 - **dsl-validation-tests** — per-submodule regression coverage: every DSL constructor that takes a user body is exercised with an invalid field and required to `throw` at evaluation time.
 - **dsl-validation-message-tests** — runs `nix-instantiate --eval` against representative bad expressions and asserts the stderr names the offending option path.
+
+Three pin-anchored upstream-sync checks run once (they consume the `nftables-src` pin, not a channel): **upstream-corpus-tests**, **upstream-enum-extraction-tests**, and **integration-tests-pinned** — see [`docs/upstream-sync.md`](docs/upstream-sync.md).
 
 Rendering an example ruleset for inspection:
 
