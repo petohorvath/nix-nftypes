@@ -2,14 +2,14 @@
 
 Typed Nix bindings for nftables. Rulesets are built as structured Nix values, type-checked at evaluation time, then rendered either to libnftables-JSON for `nft -j -f` or to nftables text syntax for `nft -f`.
 
-Authoritative reference: **nftables post-1.1.6 development** (upstream commit `f7dc8269ddaed49fe643423a3a403b91ab1e50db`, `v1.1.6-105-gf7dc8269`, 2026-04-22). Every field, enum, and structural decision in this library is derived from that revision; the released `v1.1.6` tag is 2025-12-03 and predates several schema-relevant parser changes the audit covers.
+Schema audit reference: **nftables post-1.1.6 development** (upstream commit `f7dc8269ddaed49fe643423a3a403b91ab1e50db`, `v1.1.6-105-gf7dc8269`, 2026-04-22). Every field, enum, and structural decision in the audit was derived from that revision. Compatibility tests use the exact nftables binaries, release sources, and downstream patches carried by the stable and unstable nixpkgs inputs rather than building a separate upstream revision.
 
 Related docs:
 
 - [`docs/spec-coverage.md`](docs/spec-coverage.md) — file-by-file audit of `lib/schema/` against `parser_json.c`. Coverage matrix, enum verification, every adoc-vs-parser deviation the schema captures, edge cases where schema and parser deliberately diverge.
 - [`docs/dsl-coverage.md`](docs/dsl-coverage.md) — DSL audit against the schema. Confirms every shape the schema accepts is reachable from `lib/dsl/`, either via pre-built constructors or escape hatches.
 - [`docs/text-coverage.md`](docs/text-coverage.md) — text renderer (`lib/text/`) coverage notes and known limitations.
-- [`docs/upstream-sync.md`](docs/upstream-sync.md) — the mechanism that keeps the schema in step with nftables as the JSON parser evolves: the pinned `nftables-src` input, the corpus and enum-extraction drift checks, the pinned-parser conformance build, and the scheduled AI drift-triage watcher.
+- [`docs/upstream-sync.md`](docs/upstream-sync.md) — the mechanism that checks the schema against the exact nftables packages in locked stable/unstable nixpkgs and previews both channel tips with corpus, token-extraction, round-trip, and source-diff checks.
 
 ## Why this exists
 
@@ -261,17 +261,17 @@ The library was first written against the `libnftables-json(5)` adoc, then re-de
 
 ## Staying in sync with nftables
 
-Because the schema is a transcription of one pinned `parser_json.c` revision, it can drift as nftables evolves. The exact revision is now a machine-readable flake input (`nftables-src`), and a layered set of checks watches for divergence in both directions — the schema accepting something a newer parser rejects, and (the test-invisible direction) a newer parser accepting something the schema doesn't model:
+Because the schema is a transcription of nftables' parser and serializer, it can drift as the versions packaged by nixpkgs evolve. The compatibility authorities are the exact nftables packages in the stable and unstable flake inputs; no independent Netfilter Git input is used. A layered set of checks watches both directions — the schema accepting something a channel parser rejects, and the parser accepting or emitting something the schema does not model:
 
-- Two nixpkgs channels are first-class compatibility targets: every channel-dependent check runs against both the stable `nixpkgs` input (plain names) and `nixpkgs-unstable` (`-unstable` suffix), covering each channel's `nft` binary *and* its `lib` module system on every `nix flake check`.
-- `upstream-corpus-tests` validates nftables' own `tests/py` corpus against the schema — upstream's own record of what valid input looks like, version by version.
-- `upstream-enum-extraction-tests` extracts the parser's C enum tables **and its statement/expression dispatch tables** and diffs them against `nftlib.enums` and the schema's tag unions — deterministic, zero false positives, with plausibility floors so a dead extraction regex fails instead of passing vacuously.
-- `upstream-roundtrip-tests` really loads each case with the pinned `nft` and validates everything `nft -j list ruleset` emits back against the schema — the round-trip claim as a test, and the only deterministic net for serializer (`src/json.c`) and object-shape drift.
-- `upstream-tooling-selftests` injects drift and defects into the checks' inputs and asserts each one actually goes red — the guard against the drift net itself rotting silently green.
-- `integration-tests-pinned` runs the live-parser suite against an `nft` built from the pinned source, with a scheduled canary that floats each channel to its branch tip.
-- A weekly `upstream-sync` workflow diffs upstream's parser sources against the pin and uses Claude to draft a triage report (filed as a GitHub issue) — gated by the checks above, never trusted on its own.
+- Every channel-dependent check runs against both locked `nixpkgs` (plain names) and locked `nixpkgs-unstable` (`-unstable` suffix), covering each channel's real `nft` binary, patched source tree, and `lib` module system.
+- `nftables-source-provenance-tests` proves source-side checks inherit `pkgs.nftables.src` and the complete nixpkgs patch list.
+- `nftables-corpus-tests` validates nftables' own `tests/py` corpus against the schema.
+- `nftables-enum-extraction-tests` extracts C enum and statement/expression dispatch tables and compares them with the schema, with plausibility floors against vacuous passes.
+- `nftables-roundtrip-tests` really loads cases with the selected channel's `nft` and validates everything `nft -j list ruleset` emits back against the schema.
+- `nftables-tooling-selftests` injects defects and proves each drift check turns red.
+- A weekly `upstream-sync` workflow compares each lock with its channel tip by patched-source content hash, uploads a source diff and files an issue on change, and runs nine nftables-facing canary checks against each immutable tip. Optional AI triage drafts context but is never the gate.
 
-See [`docs/upstream-sync.md`](docs/upstream-sync.md) for the full design, how to respond to each signal, and how to bump the pin.
+See [`docs/upstream-sync.md`](docs/upstream-sync.md) for the full design and response playbook.
 
 ## Layout
 
@@ -333,7 +333,7 @@ docs/
 nix flake check
 ```
 
-Runs the full check matrix. Every suite below is instantiated **twice** — against the stable `nixpkgs` input (plain names) and against `nixpkgs-unstable` (`-unstable` suffix, e.g. `integration-tests-unstable`) — so compatibility with both channels' `nft` and `lib` is enforced on every check run:
+Runs the full check matrix. Every channel-dependent suite below is instantiated **twice** — against the stable `nixpkgs` input (plain names) and against `nixpkgs-unstable` (`-unstable` suffix, e.g. `integration-tests-unstable`) — so compatibility with both channels' `nft` and `lib` is enforced on every check run:
 
 - **schema-tests** — 240+ Nix-level assertions: schema validation of hand-written raw attrsets, DSL↔raw byte-for-byte parity, renderer tests for emission order and error cases, and schema validation of each example.
 - **integration-tests** — pipes each case's JSON through `unshare -rn nft -c -j -f` (real libnftables parser inside a private netns).
@@ -344,8 +344,12 @@ Runs the full check matrix. Every suite below is instantiated **twice** — agai
 - **render-equivalence-tests** — for each case, loads JSON and text into separate netns and diffs `nft list ruleset`. The 1:1 contract.
 - **dsl-validation-tests** — per-submodule regression coverage: every DSL constructor that takes a user body is exercised with an invalid field and required to `throw` at evaluation time.
 - **dsl-validation-message-tests** — runs `nix-instantiate --eval` against representative bad expressions and asserts the stderr names the offending option path.
-
-Five pin-anchored upstream-sync checks run once (they consume the `nftables-src` pin, not a channel): **upstream-corpus-tests**, **upstream-enum-extraction-tests**, **upstream-roundtrip-tests**, **upstream-tooling-selftests**, and **integration-tests-pinned** — see [`docs/upstream-sync.md`](docs/upstream-sync.md).
+- **nftables-source-provenance-tests** — proves the source tree uses the selected channel package's exact release archive and patch set.
+- **nftables-corpus-tests** — validates nftables' packaged `tests/py` statement corpus against the schema.
+- **nftables-enum-extraction-tests** — compares packaged parser enum/dispatch tables with schema tokens.
+- **nftables-roundtrip-tests** — validates real channel `nft -j list ruleset` output against the schema.
+- **nftables-tooling-selftests** — injects failures to prove the source-drift net still turns red.
+- **channel-source-policy-tests** — runs once, not per channel, and statically prevents reintroducing independent Netfilter inputs or direct-Git workflow dependencies.
 
 Rendering an example ruleset for inspection:
 

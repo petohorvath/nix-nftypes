@@ -2,9 +2,10 @@
 """
 check-upstream-enums.py — deterministic enum + dispatch-tag drift detector.
 
-Layer 4 of the upstream-sync pipeline (see docs/upstream-sync.md). Extracts
-accepted-token sets from the cleanly-structured C tables in the *pinned*
-nftables source tree and diffs them against this library's schema: the
+Deterministic token check in the channel-source pipeline
+(see docs/upstream-sync.md). Extracts accepted-token sets from the
+cleanly-structured C tables in the selected channel package's patched nftables
+source tree and diffs them against this library's schema: the
 primitive enums (`nftlib.enums`) and the statement/expression tag unions
 (the `attrTag` sets behind `types.statement` / `types.taggedExpression`).
 
@@ -18,7 +19,7 @@ kind" class that would otherwise only surface if the corpus happened to
 use it.
 
 Usage:
-    check-upstream-enums.py <nftables-src-root> <schema-tokens.json>
+    check-upstream-enums.py <nftables-source-root> <schema-tokens.json>
 
 `schema-tokens.json` is produced by tests/upstream-enums.nix:
 
@@ -46,10 +47,11 @@ import re
 import sys
 
 
-# Registry: check name -> how to extract its accepted tokens from the pinned
-# nftables source, and which schema token list to diff against. Each entry
-# names the source file (relative to the tree root), the C symbol holding
-# the table, the table's shape, a `floor` (minimum plausible token count —
+# Registry: check name -> how to extract accepted tokens from the selected
+# channel package's nftables source, and which schema token list to diff
+# against. Each entry names the source file (relative to the tree root), the C
+# symbol holding the table, its shape, and a `floor` (minimum plausible token
+# count —
 # extraction below it FAILS instead of passing vacuously; floors sit safely
 # under today's counts: family 6, rtKey 4, fibResult 4, metaKey 37,
 # stmt_parser_tbl 35, cb_tbl 41), an optional `target` (top-level key of the
@@ -216,7 +218,7 @@ def main(argv):
         print(f"  {enum:<12} {why}")
 
     if drift:
-        print("\nDRIFT DETECTED — the pinned parser accepts tokens the schema rejects:")
+        print("\nDRIFT DETECTED — the channel parser accepts tokens the schema rejects:")
         for name, toks in sorted(drift.items()):
             fix = REGISTRY.get(name, {}).get("fix", "lib/schema/primitives.nix")
             print(f"  {name}: add {toks} — {fix}")

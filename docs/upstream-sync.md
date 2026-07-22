@@ -1,279 +1,231 @@
 # Staying in sync with nftables
 
-The schema in `lib/schema/` is hand-derived to be 1:1 with the nftables JSON
-parser. nftables keeps evolving — new statements, expressions, fields, enum
-values, and meta/ct/rt keys land in `src/parser_json.c` and its lookup tables
-every release. This document describes the mechanism that keeps the library in
-step with that moving target, and what to do when it fires.
+The schema in `lib/schema/` is hand-derived from nftables' JSON parser and
+serializer. nftables evolves over time, while this project must remain usable
+with the versions that Nix consumers actually install. The compatibility
+authorities are therefore the nftables packages carried by the two flake
+inputs—not a separate checkout of nftables upstream `master`.
 
-## The problem, precisely
+## Compatibility authorities
 
-The library has **three version surfaces** that can drift independently:
+There are four package-set snapshots:
 
-| | What it pins | How it moves |
+| Snapshot | Purpose | How it moves |
 |---|---|---|
-| **The derivation pin** | `nftables-src` in `flake.lock` — the exact `parser_json.c` the *types* encode | only by `nix flake update nftables-src` |
-| **The stable oracle** | `nft` (and `lib`) from the `nixpkgs` input — the current NixOS stable release, the floor consumers deploy on | by `nix flake update nixpkgs`, and deliberately repointed at each NixOS release |
-| **The unstable oracle** | `nft` (and `lib`) from the `nixpkgs-unstable` input — where a newer nftables lands first | by `nix flake update nixpkgs-unstable` |
+| Locked `nixpkgs` | Stable compatibility floor; plain check names | `nix flake update nixpkgs` or a deliberate stable-branch change |
+| Locked `nixpkgs-unstable` | Early-warning compatibility target; `-unstable` check suffix | `nix flake update nixpkgs-unstable` |
+| Current stable branch tip | Preview of the next stable input update | Resolved by the weekly/manual workflow |
+| Current unstable branch tip | Preview of the next unstable input update | Resolved by the weekly/manual workflow |
 
-These are decoupled on purpose: the schema is a careful transcription of one
-known revision (recorded in the README and `docs/spec-coverage.md`), while the
-live-parser tests want to run against every `nft` a consumer is likely to
-have — which for a Nix library means **both channels**. The job of this
-mechanism is to make any disagreement between these surfaces — and between any
-of them and current upstream — **visible and actionable**.
+Each snapshot is an oracle on three related surfaces:
 
-Each channel is an oracle on two axes, not one: its `nft` binary (what the
-rendered output must be accepted by) and its nixpkgs `lib` (the module system
-the schema types are built on — error-message shapes and `types.*` behavior
-can shift between nixpkgs releases). The per-channel check duplication below
-covers both.
+1. `pkgs.nftables`, the exact `nft` binary consumers run;
+2. `pkgs.nftables.src` plus `pkgs.nftables.patches`, the parser, serializer,
+   grammar, documentation, and test corpus from which that binary is built;
+3. the snapshot's nixpkgs `lib`, whose module-system behavior is used by the
+   schema.
 
-Drift has **two directions**, and one of them is invisible to the project's own
-tests:
+`flake.nix` materializes the source surface with `pkgs.applyPatches`. Using
+`pkgs.nftables.src` directly would be subtly wrong because it is the raw
+release archive and omits nixpkgs' downstream patches. The resulting trees are
+exposed as:
 
-- **D1 — schema too permissive.** The schema accepts something a newer parser
-  rejects. The integration suite catches this *if* a test case exercises that
-  path.
-- **D2 — schema too restrictive / incomplete.** A newer parser accepts a field
-  or enum value the schema doesn't model. **No hand-written test can catch
-  this** — you cannot write a test for a construct you don't know exists. Every
-  confirmed gap in `docs/spec-coverage.md` (G1 `rt key ipsec`, G3
-  `fib result check`, …) is a D2 gap that was found by manual audit. The layers
-  below find the next one automatically.
+```console
+nix build .#nftables-source
+nix build .#nftables-source-unstable
+```
 
-## The pipeline
+There are intentionally no `nftables-src` or `libnftnl-src` flake inputs. This
+avoids a second version authority and avoids direct Git access to
+`git.netfilter.org`. Fixed-output sources and patches are normally served by
+the Nix binary cache; the matching binaries remain ordinary nixpkgs packages.
+`channel-source-policy-tests` runs once—not per channel—and statically guards
+this design in both `flake.nix` and the scheduled workflow.
 
-Five layers, ordered by how much they're trusted. **Deterministic oracles
-decide; AI only drafts** — which preserves the project's core invariant that
-the parser, not anyone's reading of it, is the source of truth.
+### What this design does not cover
 
-| Layer | Check | Direction | Trust |
-|---|---|---|---|
-| 0 | `nftables-src` flake input — the pin, machine-readable | — | foundational |
-| 1 | `integration-tests-pinned` — DSL cases vs `nft` built from the pin | D1 | live parser |
-| 1 | full check set ×2 — every suite against stable `nixpkgs` (plain names) **and** `nixpkgs-unstable` (`-unstable` suffix) | D1 | live parser + module system |
-| 1 | `canary` CI job — integration suites vs the floating tip of **each** channel | D1 | live parser |
-| 2 | `upstream-corpus-tests` — nftables' own `tests/py` corpus vs the schema | **D2** | upstream's own truth |
-| 4 | `upstream-enum-extraction-tests` — C enum **and dispatch-tag** tables vs `nftlib.enums` + the statement/expression unions | **D2** | deterministic extraction |
-| 5 | `upstream-roundtrip-tests` — everything `nft -j list ruleset` emits vs the schema | **D2** (serializer side) | live serializer |
-| 3 | `drift-watch` workflow + AI triage — diff upstream parser, draft a report | both | AI (gated by 1/2/4/5) |
-| — | `upstream-tooling-selftests` — injected drift must turn each check red | meta | self-test |
+Changes present only on nftables upstream `master`, but not yet packaged by
+either nixpkgs channel, are out of scope. That is deliberate: this is a
+consumer-compatibility net, not an upstream-development early-warning service.
+Unstable becomes the leading signal once nixpkgs packages a change.
 
-(The numbering follows the order the layers were designed in, not CI order.)
+## Drift directions
 
-### Layer 0 — the pin (`flake.nix` / `flake.lock`)
+Drift has two directions:
 
-`nftables-src` is a non-flake git input pinned to the exact revision the schema
-was derived from. Bumping it (`nix flake update nftables-src`) is the
-deliberate, reviewable act of adopting a newer parser. Every other layer reads
-its source files from this input, so the pin and the checks can never silently
-disagree. A second input, `libnftnl-src`, exists only to build the pinned `nft`
-in Layer 1 (a post-1.1.6 nft needs libnftnl symbols newer than nixpkgs ships).
+- **D1 — schema or renderer too permissive.** The library emits a shape that a
+  channel's real parser rejects. Live-parser checks catch this when a case
+  exercises the path.
+- **D2 — schema too restrictive or incomplete.** A channel parser accepts or
+  emits a field, enum, tag, or object shape that the schema does not model.
+  Hand-written tests cannot reliably discover unknown constructs, so source,
+  corpus, extraction, and read-back checks cover this direction.
 
-The **library itself never depends on `nftables-src`** — only the checks do.
-`nftlib` stays usable standalone; the source tree is a test-time dependency.
+## Locked-input checks
 
-### Layer 1 — live-parser conformance, two channels, canary
+`flake.nix` instantiates the full channel-dependent check set twice. Stable
+owns the plain names; unstable uses the `-unstable` suffix. Thus both the
+channel's `nft` and its `lib` behavior are gated on every `nix flake check`.
 
-`nix build .#packages.<system>.nftables-pinned` builds `nft` from the pinned
-source. `integration-tests-pinned` runs the full DSL integration case set
-against it — "the types are accepted by the exact parser they claim to match."
+The nftables-facing checks are:
 
-The channel contract sits next to it: `flake.nix` instantiates the **entire
-channel-dependent check set twice**, once against stable `nixpkgs` (plain
-check names) and once against `nixpkgs-unstable` (`-unstable` suffix, e.g.
-`integration-tests-unstable`). Both run on every `nix flake check`, so "the
-library works on stable AND unstable" is PR-gated, not aspirational. The three
-pin-anchored checks (`upstream-corpus-tests`, `upstream-enum-extraction-tests`,
-`integration-tests-pinned`) are channel-independent and instantiated once, on
-stable.
+| Check | Surface | Direction |
+|---|---|---|
+| `integration-tests` | JSON rendered by the DSL, checked by the real channel `nft` | D1 |
+| `text-integration-tests` | Text rendered by the library, checked by the real channel `nft` | D1 |
+| `text-block-integration-tests` | Single-table block rendering | D1 |
+| `render-equivalence-tests` | JSON and text loaded separately, then listed and compared | D1 / semantics |
+| `nftables-source-provenance-tests` | Source and patch derivation identity vs `pkgs.nftables` | meta |
+| `nftables-corpus-tests` | nftables' own `tests/py` statement corpus vs the schema | D2 |
+| `nftables-enum-extraction-tests` | Parser enum and dispatch tables vs schema tokens | D2 |
+| `nftables-roundtrip-tests` | Real `nft -j list ruleset` output vs the schema | D2 / serializer |
+| `nftables-tooling-selftests` | Injected defects must turn the drift checks red | meta |
 
-The `canary` job in `.github/workflows/upstream-sync.yml` goes one step
-further: a matrix floats each channel input to its branch tip (ref read from
-`flake.lock`) and re-runs the integration suites — catching a channel moving
-past the locked revs between `nix flake update` runs. A green-pinned /
-red-canary split is D1 drift in parser acceptance, surfaced without failing
-the build.
+Every source-side check has a stable and unstable instance. If both channels
+package identical nftables source, Nix can reuse the fixed-output inputs and
+the checks should report the same parser surface; they remain separate so a
+future channel divergence is visible immediately.
 
-A handful of DSL cases depend on pre-existing kernel state (`add rule … handle
-N`) that `nft -c` in a fresh netns can't supply. The 1.1.6 release tolerates
-these in check mode; the stricter pinned dev parser rejects them. They're
-listed in `pinnedConformanceSkip` in `tests/dsl-integration.nix` and skipped
-for the pinned run only — a check-mode limitation, not a schema defect.
+### Corpus check
 
-### Layer 2 — upstream corpus (covers D2)
+nftables ships `tests/py/**/*.t.json`, containing the statement arrays its own
+tests expect. `tests/upstream-corpus.nix` validates those statements against
+`nftlib.types.statement`. Known intentional or not-yet-fixed gaps are
+classified in `knownDivergences`; an unclassified offender fails the check.
+Patterns that stop matching are reported as stale so the baseline can shrink.
 
-nftables ships `tests/py/**/*.t.json`: for every rule it tests, the exact
-libnftables-JSON `expr` array it expects. `upstream-corpus-tests`
-(`tests/upstream-corpus.nix`) validates every one of those statements against
-`nftlib.types.statement`. This is upstream telling the library what valid input
-looks like, revision by revision — including constructs nobody here thought to
-test. `tooling/normalize-corpus.py` flattens the corpus; the check runs the
-validation.
+### Deterministic token extraction
 
-The corpus already exercises shapes the schema rejects. They are **not**
-silently ignored — each is classified into a named pattern in
-`knownDivergences` (with the reason and parser evidence), and the check fails
-only on an offending statement matching **no** known pattern, i.e. *new* drift
-from a future bump. See [Known corpus divergences](#known-corpus-divergences).
+`tests/upstream-enums.nix` and `tooling/check-upstream-enums.py` inspect enum
+tables (`family_tbl`, `rt_key_tbl`, `fib_result_tbl`, `meta_templates`) and JSON
+dispatch tables (`stmt_parser_tbl`, `cb_tbl`). Every parser token must be
+represented by the corresponding schema enum or tagged union. Plausibility
+floors make a broken extraction regex fail loudly rather than pass vacuously.
 
-### Layer 4 — deterministic token extraction (covers D2)
+Tokens parsed through free-form `strcmp` ladders are outside this extractor and
+remain covered by the corpus, live-parser, source-diff, and review paths.
 
-`upstream-enum-extraction-tests` (`tests/upstream-enums.nix` →
-`tooling/check-upstream-enums.py`) reads the cleanly-structured C lookup tables
-in the pinned source and asserts every token they accept is in the schema.
-Zero AI, zero false positives. Two table families:
+### Read-back round trip
 
-- **enum tables** — `family_tbl`, `rt_key_tbl`, `fib_result_tbl` in
-  `parser_json.c` and `meta_templates` in `meta.c`, diffed against
-  `nftlib.enums`. Catches the exact historical drift class (G1 `rt key
-  ipsec`, G3 `fib result check`) and the highest-churn enum, `metaKey`.
-- **dispatch tables** — `stmt_parser_tbl` and `cb_tbl` in `parser_json.c`,
-  diffed against the `statement` / `taggedExpression` attrTag unions. This
-  makes "upstream added a whole new statement or expression kind" a
-  deterministic red instead of something only the corpus (if it happens to
-  use it) or the AI would notice. Schema-only leftovers are informational
-  (`vmap` dispatches outside the table; `xt` is modelled but
-  parser-rejected — both in spec-coverage.md).
+`tests/upstream-roundtrip.nix` really loads selected cases into an unprivileged
+network namespace with the selected channel's `nft`, captures
+`nft -j list ruleset`, and validates every emitted command. This covers
+`src/json.c` and object bodies, which the statement-only corpus does not.
 
-Every table also carries a **plausibility floor**: if extraction yields fewer
-tokens than the floor (an upstream reformat the regex no longer matches), the
-check fails loudly instead of passing vacuously.
-
-Enums parsed via `strcmp` ladders (`operator`, `socketKey`, `osfKey`) are out
-of reach and are listed as "not source-checked" in the check's output —
-they're the corpus check's and the AI watcher's job. The corpus check already
-demonstrated the split by catching the missing `!` (negation) operator, which
-`operator` being strcmp-parsed kept out of Layer 4.
-
-### Layer 5 — read-back round-trip (covers the serializer)
-
-`upstream-roundtrip-tests` (`tests/upstream-roundtrip.nix`) tests the
-direction every other suite ignores: the **output** side. Each integration
-case is really loaded (no `-c`) into a private netns with the pinned `nft`,
-`nft -j list ruleset` is captured, and every emitted command is validated
-against `nftlib.types.ruleset`. This is the README's "round-trip safe" claim
-as a test, and the only deterministic net for two surfaces nothing else
-covers: `src/json.c` (the serializer, which evolves independently of
-`parser_json.c`) and **object bodies** (the `tests/py` corpus carries only
-per-rule statement arrays). Divergences are baselined in
-`knownReadbackDivergences` — empty at the current pin — and a load-count
-floor refuses a vacuous pass if environment rot stops cases loading.
-
-Building this check surfaced a real upstream asymmetry worth knowing:
-`json.c` resolves l4 protocol numbers to names via glibc's
-`getprotobynumber`, i.e. `/etc/protocols`. On systems without that file
-(minimal containers), `ct helper`/`ct timeout`/`ct expectation` list back
-with `"protocol": 6` instead of `"tcp"` — a form `parser_json.c` **rejects**
-on input, so on such systems nftables' own listing does not round-trip
-through its own parser. The check provides `/etc/protocols` inside the
-namespace so the captured listing matches normal systems and stays
-deterministic.
+The runner provides `/etc/protocols` in the namespace. Without it, nftables may
+serialize protocol names as numbers, producing forms that its own JSON parser
+rejects on re-input. A load-count floor prevents environment failures from
+turning the check vacuously green.
 
 ### Tooling self-tests
 
-The worst failure mode for a drift net is rotting silently *green* — a dead
-extraction regex, an over-broad baseline, a validator that accepts anything.
-`upstream-tooling-selftests` (`tests/upstream-selftest.nix`) injects defects
-and asserts red: a schema stripped of `rt key ipsec` (G1 reintroduced) and of
-the `tproxy` statement tag must produce DRIFT; a renamed C table and a table
-the regex can no longer read must fail extraction (not report "no drift"); a
-fake corpus statement matching no baseline pattern must land in `newDrift`;
-and the `ruleset` validator must reject unknown top tags, fields, and
-statements while accepting bare listed objects with handles.
+`tests/upstream-selftest.nix` injects missing schema tokens, malformed source
+tables, an unbaselined corpus statement, and invalid read-back shapes. The
+tests prove that the drift machinery itself still fails in the intended ways.
 
-### Layer 3 — scheduled watcher + AI triage (the early warning)
+## Scheduled channel-tip workflow
 
-`.github/workflows/upstream-sync.yml` runs weekly. `drift-watch` compares
-upstream nftables HEAD against the pinned rev; on a difference it diffs every
-mirrored surface — `parser_json.c` and its lookup-table sources (`meta.c`,
-`rt.c`), the serializer (`json.c`), the text grammar the text renderer
-targets (`parser_bison.y`, `scanner.l`), and the adoc — and hands the diff to
-`tooling/drift-triage.sh`, which asks Claude (`claude-opus-4-8`) to classify
-each hunk and map it onto the schema, then files (or updates) a GitHub issue
-labelled `upstream-drift`.
+`.github/workflows/upstream-sync.yml` runs Mondays at 06:00 UTC and supports
+manual dispatch. It has two matrix jobs, one per channel.
 
-**Why AI fits here and nowhere else.** The mapping from a C `strcmp` ladder or
-`json_unpack` call to a Nix `attrTag` branch or `types.enum` entry is
-*semantic*, not syntactic — a plain text diff is too noisy (line shifts,
-refactors), and the deterministic checks only cover the structured cases. The
-schema files cite exact parser line numbers, which ground the model. But the
-output is a **draft for a human**, gated by Layers 1/2/4: an AI-hallucinated
-enum value dies at the conformance test against real `nft`. The watcher needs an
-`ANTHROPIC_API_KEY` repository secret; without it, `drift-watch` files a bare
-drift notice and skips triage.
+### `channel-source-watch`
 
-## Responding to the signals
+For each input, the job:
 
-| Signal | Means | Action |
+1. reads the locked branch and revision from `flake.lock`;
+2. resolves the branch tip once and pins the rest of the job to that immutable
+   nixpkgs revision;
+3. builds the locked and tip `nftables-source` packages;
+4. compares NAR content hashes of the fully patched source trees;
+5. if they differ, diffs the schema-relevant parser, serializer, grammar, and
+   documentation files and uploads `parser.diff`;
+6. if they differ, files or updates an issue labelled
+   `nixpkgs-nftables-drift`;
+7. if they match, closes any open drift issues for that channel as resolved.
+
+The comparison is content-based rather than version-string-based. Nixpkgs can
+backport patches without changing `pname`/`version`, and a newer nixpkgs commit
+does not necessarily carry newer nftables source.
+
+If `ANTHROPIC_API_KEY` exists, `tooling/drift-triage.sh` drafts a semantic
+report from the diff. If the secret is absent—or triage fails—the workflow
+still produces a deterministic basic report and files the issue. AI output is
+review assistance only; the real parser and deterministic checks are the gate.
+
+### `canary`
+
+For each input, the job resolves the channel tip to an immutable revision and
+temporarily applies `--override-input`. It runs these nine checks against the
+tip without changing `flake.lock`:
+
+```text
+integration-tests
+text-integration-tests
+text-block-integration-tests
+render-equivalence-tests
+nftables-source-provenance-tests
+nftables-corpus-tests
+nftables-enum-extraction-tests
+nftables-roundtrip-tests
+nftables-tooling-selftests
+```
+
+The canary runs even when the nftables source hash is unchanged. A channel can
+change `lib`, dependencies, build flags, or the resulting package while still
+reporting the same nftables version and source. Nix caching keeps unchanged
+work cheap. The job is non-gating (`continue-on-error`) so it reports upcoming
+breakage without blocking unrelated work.
+
+## Responding to signals
+
+| Signal | Meaning | Action |
 |---|---|---|
-| `upstream-enum-extraction-tests` red | parser accepts an enum token or statement/expression tag the schema lacks — or extraction fell below a plausibility floor | add the token where the report points (`primitives.nix` / `statements.nix` / `expressions.nix`); record a G-N entry in `docs/spec-coverage.md`. On EXTRACTION FAILURE, fix the extractor's registry |
-| `upstream-corpus-tests` red (new offender) | parser's own corpus uses a shape the schema rejects | extend the schema to accept it (and add a renderer + test), or, if intentionally unsupported, add a pattern to `knownDivergences` with the reason |
-| `upstream-roundtrip-tests` red | the pinned `nft -j list ruleset` emits a shape the schema rejects — serializer or object drift; read-back consumers break | extend the schema (preferred) or baseline in `knownReadbackDivergences` with the reason |
-| `upstream-tooling-selftests` red | the drift tooling itself regressed — a check would no longer go red on real drift | fix the tooling first; no other green can be trusted until this passes |
-| `integration-tests-pinned` red | the schema emits JSON the pinned `nft` rejects | the schema is too permissive — tighten it |
-| a `*-unstable` check red, stable twin green | the unstable channel moved — a newer `nft` rejects something stable accepts, or unstable's `lib` changed module-system behavior/messages | fix ahead of the next stable release, or add a per-oracle skip (the `pinnedConformanceSkip` pattern) with the reason |
-| a stable check red, `-unstable` twin green | regression against the deployment floor (rare: a stable-channel backport, or a library change that leans on unstable-only behavior) | treat as a release blocker — stable is the compatibility floor |
-| `canary` red for a channel, locked checks green | that channel's tip moved past the locked rev with a behavior change | `nix flake update <input>` and re-run; fix or skip-list what turns red |
-| `upstream-drift` issue filed | upstream moved past the pin | read the AI report, apply the confirmed schema changes, then bump the pin |
+| `nftables-source-provenance-tests` red | A source check no longer uses exactly the selected package's source and patch set | Fix the source derivation before trusting other source checks |
+| `nftables-enum-extraction-tests` red | The parser accepts a token/tag missing from the schema, or extraction broke | Add the confirmed token and tests, or repair the extractor |
+| `nftables-corpus-tests` red | The packaged corpus contains an unmodelled statement shape | Extend the schema/renderer/tests, or document and baseline an intentional gap |
+| `nftables-roundtrip-tests` red | The channel serializer emits a shape the schema rejects | Extend the schema, or explicitly baseline a justified divergence |
+| `nftables-tooling-selftests` red | The drift net itself is no longer trustworthy | Repair it before relying on any green source result |
+| `*-unstable` red while stable is green | Unstable packaged a relevant parser, serializer, dependency, or `lib` change first | Fix before it reaches the next stable channel |
+| Stable red while unstable is green | The deployment floor regressed or code relies on unstable-only behavior | Treat as a release blocker |
+| `canary` red while locked checks are green | The next update of that channel will break a compatibility check | Reproduce with the exact tip revision shown in the summary; fix before updating |
+| `nixpkgs-nftables-drift` issue | A channel tip carries different fully patched nftables source than its lock | Review the deterministic diff and canary results, then update/fix deliberately |
 
-## Bumping the pin
+## Updating inputs
 
-When adopting a newer nftables:
+Routine update:
 
-1. `nix flake update nftables-src` (and `libnftnl-src` if the pinned `nft` no
-   longer builds — a stale libnftnl pin is the first thing to check on a build
-   failure).
-2. `nix flake check` — Layers 2 and 4 will fail loudly on every new D2 gap, and
-   `integration-tests-pinned` on every new D1 gap.
-3. Apply the schema changes each red check points at (the AI report from
-   Layer 3, if one was filed, is a starting draft — verify it against the
-   checks, don't trust it).
-4. Re-run `nix flake check` until green; prune any now-stale entries the corpus
-   check reports.
-5. Update the README's "authoritative reference" line and `docs/spec-coverage.md`'s
-   "version audited" line to the new rev.
+```console
+nix flake update nixpkgs nixpkgs-unstable
+nix flake check
+```
 
-## Bumping the channels
+The weekly canary previews these moves. When a channel-source issue exists,
+review its source diff and canary result before updating. After a successful
+update, source hashes should converge and the watcher stops reporting drift.
 
-Routine (`nix flake update nixpkgs nixpkgs-unstable`) — moves both channels to
-their current tips; the duplicated check set makes any regression visible.
-The `canary` job previews exactly this move weekly, so a red canary tells you
-what the next update will break before you run it.
+When a new NixOS release becomes stable:
 
-When a new NixOS release becomes stable (May / November):
+1. change `inputs.nixpkgs.url` in `flake.nix` to the new `nixos-YY.MM` branch;
+2. run `nix flake lock`;
+3. run the complete check set;
+4. update any documented compatibility exceptions with exact parser evidence.
 
-1. Repoint `inputs.nixpkgs.url` in `flake.nix` to the new `nixos-YY.MM` branch
-   and `nix flake lock`. The canary matrix follows automatically — it reads
-   each input's branch ref from `flake.lock`.
-2. `nix flake check`. The old stable's `nft` is no longer tested; if the new
-   stable's `nft` is older than something the suite exercises, the failing
-   case gets a per-oracle skip (the `pinnedConformanceSkip` pattern in
-   `tests/dsl-integration.nix`) with the reason — that skip list *is* the
-   stable-compatibility contract, kept explicit.
-
-Note the naming asymmetry is deliberate: stable owns the plain check names
-because it is the floor consumers deploy on; unstable is the early-warning
-variant. Today both channels ship the same nftables (1.1.6), so the two sets
-are near-identical — the value shows the day they diverge.
+The workflow reads branch refs from `flake.lock`, so it follows the new stable
+branch automatically.
 
 ## Known corpus divergences
 
-Shapes the pinned parser accepts that the schema rejects, confirmed against
-`nft -c -j -f`. Baselined so Layer 2 gates on *new* drift; each is a real gap
-the schema could close (schema + renderer + tests) as follow-up work. The
-authoritative list with reasons is `knownDivergences` in
-`tests/upstream-corpus.nix`; as of the current pin:
+The authoritative baseline is `knownDivergences` in
+`tests/upstream-corpus.nix`. At the current packaged nftables source it covers:
 
 - **`null`-body statement forms** — `{reject:null}`, `{redirect:null}`,
-  `{masquerade:null}`, `{log:null}`, `{queue:null}`. The schema requires an
-  object body where the parser allows the bare form.
-- **`op:"!"` (negation)** — the `match` operator `!`, missing from the
-  `operator` enum. (Caught by Layer 2 because `operator` is strcmp-parsed and so
-  invisible to Layer 4.)
+  `{masquerade:null}`, `{log:null}`, and `{queue:null}`;
+- **`op:"!"`** — negation accepted by the parser but absent from the schema's
+  operator enum;
 - **stateful-object-via-map** — `counter`/`quota`/`limit`/`synproxy` with a
-  `{map:{…}}` body (the `<stmt> map { … }` form). The schema bodies have no
-  `map` key.
-- **`synproxy` flags-only** — a `synproxy` body with only `flags` (no
-  `mss`/`wscale`), which the schema over-requires.
+  `{map:{…}}` body;
+- **`synproxy` flags-only** — a `synproxy` body with `flags` but no
+  `mss`/`wscale`.
+
+Each is a real gap that can be removed by extending the schema, renderer, and
+tests. The baseline exists only so the checks gate on newly introduced drift.

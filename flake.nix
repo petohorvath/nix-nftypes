@@ -9,42 +9,20 @@
   # suffix — so a divergence between the two channels' `nft` (or `lib`
   # module system) turns a check red instead of surfacing in a consumer's
   # deployment. When a new NixOS release becomes stable, repoint `nixpkgs`
-  # here (see docs/upstream-sync.md, "Bumping the channels").
+  # here (see docs/upstream-sync.md, "Updating inputs").
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
   inputs.nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  # The exact nftables revision the schema in `lib/schema/` was hand-derived
-  # from. This is the machine-readable form of the README's "authoritative
-  # reference" pin and `docs/spec-coverage.md`'s "version audited" line —
-  # bumping it here (via `nix flake update nftables-src`) is the deliberate,
-  # reviewable act of adopting a newer parser. Every upstream-sync check
-  # (corpus conformance, enum extraction, the pinned-parser integration
-  # build) reads its source files from this input, so the pin and the
-  # checks can never silently disagree. `flake = false`: nftables ships no
-  # flake.nix, we only want its source tree. cgit snapshot tarballs are
-  # disabled on git.netfilter.org (HTTP 400), so this is a git input.
-  inputs.nftables-src = {
-    url = "git+https://git.netfilter.org/nftables?ref=master&rev=f7dc8269ddaed49fe643423a3a403b91ab1e50db";
-    flake = false;
-  };
-
-  # libnftnl for the Layer 1 conformance build only. A post-1.1.6 nftables
-  # needs libnftnl symbols (nftnl_set_elem_set_imm, …) newer than nixpkgs
-  # ships, so the pinned `nft` is built against this. Bump it together with
-  # `nftables-src` when adopting a newer parser — if a future nftables bump
-  # fails to build here, a stale libnftnl pin is the first thing to check.
-  inputs.libnftnl-src = {
-    url = "git+https://git.netfilter.org/libnftnl?ref=master&rev=363b0e32361969fc695c3eaf619f343abcf2f912";
-    flake = false;
-  };
+  # nftables has no independent flake input. Each compatibility surface uses
+  # the exact binary, release source, and downstream patches carried by its
+  # nixpkgs channel. This keeps the test oracle identical to what consumers
+  # install and avoids a second, fragile upstream-Git authority.
 
   outputs =
     {
       self,
       nixpkgs,
       nixpkgs-unstable,
-      nftables-src,
-      libnftnl-src,
     }:
     let
       systems = [
@@ -57,28 +35,31 @@
 
       mkLib = lib: import ./lib { inherit lib; };
 
-      # Layer 1 conformance oracle (docs/upstream-sync.md): `nft` built from
-      # the pinned `nftables-src` + matching libnftnl — the exact parser
-      # `lib/schema/` was derived from. Exposed under `packages` and consumed
-      # by the `integration-tests-pinned` check. Dropping nixpkgs'
-      # release-tarball patches and adding autoreconfHook is what lets a git
-      # checkout (no ./configure) build.
-      mkPinnedNft =
+      # Materialize the exact source tree a channel packages, including every
+      # downstream patch from its nftables derivation. Source-inspection checks
+      # consume this tree while live-parser checks consume `pkgs.nftables`, so
+      # both directions share one nixpkgs-controlled authority.
+      mkNftablesSource =
         pkgs:
         let
-          libnftnl = pkgs.libnftnl.overrideAttrs (old: {
-            version = "git-363b0e32";
-            src = libnftnl-src;
-            patches = [ ];
-            nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.autoreconfHook ];
-          });
+          nftables = pkgs.nftables;
+          prePatch = if nftables ? prePatch && nftables.prePatch != null then nftables.prePatch else "";
+          postPatch = if nftables ? postPatch && nftables.postPatch != null then nftables.postPatch else "";
+          sourceArgs = {
+            name = "nftables-${nftables.version}-nixpkgs-source";
+            version = nftables.version;
+            inherit (nftables) src;
+            inherit prePatch postPatch;
+            patches = nftables.patches or [ ];
+          }
+          // pkgs.lib.optionalAttrs (nftables ? patchFlags && nftables.patchFlags != null) {
+            inherit (nftables) patchFlags;
+          }
+          // pkgs.lib.optionalAttrs (prePatch != "" || postPatch != "") {
+            nativeBuildInputs = nftables.nativeBuildInputs or [ ];
+          };
         in
-        (pkgs.nftables.override { inherit libnftnl; }).overrideAttrs (old: {
-          version = "1.1.6-105-gf7dc8269";
-          src = nftables-src;
-          patches = [ ];
-          nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [ pkgs.autoreconfHook ];
-        });
+        pkgs.applyPatches sourceArgs;
 
       /*
         Channel-dependent check set, instantiated once per nixpkgs channel.
@@ -160,6 +141,26 @@
           restrictedTypes = import ./tests/restricted-types.nix {
             inherit (pkgs) lib;
             inherit nftlib;
+          };
+          nftablesSource = mkNftablesSource pkgs;
+          sourceProvenance = import ./tests/nftables-source-provenance.nix {
+            inherit pkgs nftablesSource;
+          };
+          nftablesCorpus = import ./tests/upstream-corpus.nix {
+            inherit pkgs nftlib;
+            nftablesSrc = nftablesSource;
+          };
+          nftablesEnums = import ./tests/upstream-enums.nix {
+            inherit pkgs nftlib;
+            nftablesSrc = nftablesSource;
+          };
+          nftablesRoundtrip = import ./tests/upstream-roundtrip.nix {
+            inherit pkgs nftlib;
+            nftables = pkgs.nftables;
+          };
+          nftablesSelftest = import ./tests/upstream-selftest.nix {
+            inherit pkgs nftlib;
+            nftablesSrc = nftablesSource;
           };
         in
         {
@@ -286,100 +287,46 @@
           # rest, throw on construction-time misuse, and stay in sync
           # with the schema unions (per-kind smoke loop).
           restricted-types-tests = restrictedTypes.runTests pkgs;
-        };
 
-      # ── Upstream-sync pipeline (docs/upstream-sync.md) ────────────────
-      # Keep the schema/DSL in step with the nftables JSON parser as it
-      # evolves. These checks are anchored to the `nftables-src` pin in
-      # `flake.lock` — not to a nixpkgs channel — so unlike the channel
-      # checks above they are instantiated once, on the stable channel
-      # (whose stdenv changes least often, minimizing gratuitous
-      # from-source rebuilds of the pinned `nft`).
-      mkPinChecks =
-        pkgs:
-        let
-          nftlib = mkLib pkgs.lib;
-          integration = import ./tests/dsl-integration.nix {
-            inherit (pkgs) lib;
-            inherit nftlib;
-          };
-          upstreamCorpus = import ./tests/upstream-corpus.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftables-src;
-          };
-          upstreamEnums = import ./tests/upstream-enums.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftables-src;
-          };
-          nftablesPinned = mkPinnedNft pkgs;
-          upstreamRoundtrip = import ./tests/upstream-roundtrip.nix {
-            inherit pkgs nftlib nftablesPinned;
-          };
-          upstreamSelftest = import ./tests/upstream-selftest.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftables-src;
-          };
-        in
-        {
-          # Layer 2 — nftables' own `tests/py` corpus validated against the
-          # schema. Catches the test-invisible "schema too restrictive"
-          # direction (D2): constructs the parser accepts that the schema
-          # rejects, baselined against a documented known-divergence set.
-          upstream-corpus-tests = upstreamCorpus.runTests pkgs;
-          # Layer 4 — deterministic enum extraction from the pinned parser's
-          # C tables (family_tbl, rt_key_tbl, fib_result_tbl, meta_templates)
-          # vs `nftlib.enums`. Zero-AI, zero-false-positive enum drift.
-          upstream-enum-extraction-tests = upstreamEnums.runTests pkgs;
-          # Layer 1 — the integration case set against `nft` built from the
-          # pinned `nftables-src` (the exact parser the schema claims to
-          # match), as opposed to `integration-tests` / `-unstable` which
-          # run against the channels' nft. A green-pinned / red-channel
-          # split is drift in parser acceptance.
-          integration-tests-pinned =
-            integration.runIntegrationTestsWithNft nftablesPinned pkgs
-              integration.cases;
-          # Layer 5 — read-back round-trip: really load each case with the
-          # pinned `nft`, capture `nft -j list ruleset`, validate every
-          # emitted command against the schema. The only deterministic net
-          # for serializer (src/json.c) and object-shape drift, and the
-          # test behind the README's "round-trip safe" claim.
-          upstream-roundtrip-tests = upstreamRoundtrip.runTests pkgs;
-          # Red-path self-tests: inject drift/defects into the tooling's
-          # inputs and assert every drift check actually goes red — the
-          # guard against the checks themselves rotting silently green
-          # (dead extraction regex, over-broad baseline, toothless
-          # validator).
-          upstream-tooling-selftests = upstreamSelftest.runTests pkgs;
+          # Source-side compatibility checks use the exact release archive and
+          # downstream patches carried by this channel's nftables derivation.
+          # They complement the live binary checks above by covering valid
+          # shapes the hand-written integration corpus cannot anticipate.
+          nftables-source-provenance-tests = sourceProvenance.runTests pkgs;
+          nftables-corpus-tests = nftablesCorpus.runTests pkgs;
+          nftables-enum-extraction-tests = nftablesEnums.runTests pkgs;
+          nftables-roundtrip-tests = nftablesRoundtrip.runTests pkgs;
+          nftables-tooling-selftests = nftablesSelftest.runTests pkgs;
         };
     in
     {
       lib = mkLib nixpkgs.lib;
 
       # Per system: the full channel check set against stable `nixpkgs`
-      # (plain names — the floor consumers deploy on), the same set against
+      # (plain names — the floor consumers deploy on) and the same set against
       # `nixpkgs-unstable` (`-unstable` suffix — where a newer nftables/lib
-      # lands first), and the pin-anchored upstream-sync checks once.
+      # lands first). This includes both live binaries and patched source.
       checks = nixpkgs.lib.genAttrs systems (
         system:
         let
+          stablePkgs = nixpkgs.legacyPackages.${system};
           suffixed =
             suffix: nixpkgs.lib.mapAttrs' (name: value: nixpkgs.lib.nameValuePair "${name}${suffix}" value);
+          sourcePolicy = import ./tests/channel-source-policy.nix { pkgs = stablePkgs; };
         in
-        mkChannelChecks nixpkgs.legacyPackages.${system}
+        mkChannelChecks stablePkgs
         // suffixed "-unstable" (mkChannelChecks nixpkgs-unstable.legacyPackages.${system})
-        // mkPinChecks nixpkgs.legacyPackages.${system}
+        // {
+          channel-source-policy-tests = sourcePolicy.runTests stablePkgs;
+        }
       );
 
-      /*
-        The pinned conformance `nft` (Layer 1) and matching libnftnl, exposed
-        for manual validation against the exact parser the schema was derived
-        from:
-
-          nix build .#nftables-pinned
-          ./result/bin/nft --version
-      */
-      packages = forAllSystems (pkgs: {
-        nftables-pinned = mkPinnedNft pkgs;
+      # Patched source trees are exposed for the scheduled channel comparison
+      # and for manual inspection. The matching binaries remain the ordinary
+      # `pkgs.nftables` packages from each flake input.
+      packages = nixpkgs.lib.genAttrs systems (system: {
+        nftables-source = mkNftablesSource nixpkgs.legacyPackages.${system};
+        nftables-source-unstable = mkNftablesSource nixpkgs-unstable.legacyPackages.${system};
       });
 
       formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);

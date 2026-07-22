@@ -4,8 +4,8 @@
   nftablesSrc,
 }:
 
-# Layer 2 of the upstream-sync pipeline (docs/upstream-sync.md): validate
-# nftables' *own* regression corpus against this library's schema.
+# Corpus check in the channel-source pipeline (docs/upstream-sync.md):
+# validate nftables' *own* regression corpus against this library's schema.
 #
 # nftables ships `tests/py/**/*.t.json` — for every rule the project tests,
 # the exact libnftables-JSON `expr` array it expects. That is upstream
@@ -27,8 +27,8 @@
 # silently ignored: each is classified into a named pattern in
 # `knownDivergences` (with the reason and the parser evidence). The check
 # fails only on an offending statement that matches NO known pattern — i.e.
-# *new* drift introduced by a future `nftables-src` bump. Patterns that stop
-# firing (schema fixed, or corpus changed) are reported as stale so the
+# *new* drift introduced by a future channel package update. Patterns that
+# stop firing (schema fixed, or corpus changed) are reported as stale so the
 # baseline can be pruned. Fixing a baselined gap (schema + renderer + tests)
 # is tracked separately in docs/upstream-sync.md; this check's job is to
 # stop the set from growing unnoticed.
@@ -85,7 +85,7 @@ let
 
   /*
     Baselined divergence patterns: parser accepts, schema rejects, confirmed
-    against the pinned `nft -c -j -f`. Value is the reason + fix pointer.
+    against the channel `nft -c -j -f`. Value is the reason + fix pointer.
     Keep in sync with docs/upstream-sync.md's "Known corpus divergences".
   */
   knownDivergences = {
@@ -96,7 +96,7 @@ let
     "null-body:log" = "bare `{log:null}` (log with no options); schema requires an object body";
     "null-body:queue" = "bare `{queue:null}`; schema requires an object body";
     "op-negation" =
-      "match `op:\"!\"` (unary negation); missing from the `operator` enum (strcmp-parsed, so Layer 4 cannot see it)";
+      "match `op:\"!\"` (unary negation); missing from the `operator` enum (strcmp-parsed, so the table extractor cannot see it)";
     "stmt-map:counter" =
       "`counter map { … }` (stateful object selected by map); counter body has no `map` key";
     "stmt-map:quota" = "`quota map { … }`; quota body has no `map` key";
@@ -123,18 +123,18 @@ let
   runTests =
     _pkgs:
     if newDrift == [ ] then
-      pkgs.runCommandLocal "upstream-corpus-tests-pass" { } ''
+      pkgs.runCommandLocal "nftables-corpus-tests-pass" { } ''
         cat <<'EOF'
-        upstream-corpus: ${toString entryCount} corpus rules validated against `statement`.
+        nftables-corpus: ${toString entryCount} corpus rules validated against `statement`.
         ${toString (builtins.length offending)} offending statements, all matching ${toString (builtins.length knownCategories)} baselined divergence patterns.
         ${staleNote}
         EOF
         touch $out
       ''
     else
-      pkgs.runCommandLocal "upstream-corpus-tests-fail" { } ''
+      pkgs.runCommandLocal "nftables-corpus-tests-fail" { } ''
         cat <<'EOF'
-        upstream-corpus: NEW drift — the pinned parser's own corpus contains
+        nftables-corpus: NEW drift — the channel parser's own corpus contains
         ${toString (builtins.length newDrift)} statement shape(s) the schema rejects and that match
         no baselined pattern. This is the test-invisible "schema too
         restrictive" direction (D2). Either extend the schema to accept them

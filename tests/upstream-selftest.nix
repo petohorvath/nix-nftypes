@@ -4,7 +4,7 @@
   nftablesSrc,
 }:
 
-# Red-path self-tests for the upstream-sync tooling (docs/upstream-sync.md).
+# Red-path self-tests for the channel-source tooling (docs/upstream-sync.md).
 #
 # The drift checks exist to turn silent schema rot into red CI — which
 # means the worst failure mode is the checks themselves rotting silently
@@ -121,7 +121,7 @@ let
 
   runTests =
     _pkgs:
-    pkgs.runCommandLocal "upstream-tooling-selftests"
+    pkgs.runCommandLocal "nftables-tooling-selftests"
       {
         nativeBuildInputs = [ pkgs.python3 ];
       }
