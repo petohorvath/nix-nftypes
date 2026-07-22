@@ -1,7 +1,7 @@
 {
   pkgs,
   nftlib,
-  nftablesPinned,
+  nftables,
 }:
 
 # Read-back round-trip check (docs/upstream-sync.md): everything
@@ -10,7 +10,7 @@
 # Every other suite tests the INPUT direction — our JSON/text is accepted
 # by a real parser. This one tests the OUTPUT direction, which is the
 # README's "round-trip safe" claim: each integration case is really loaded
-# (no `-c`) into a private netns with the pinned `nft`, the resulting
+# (no `-c`) into a private netns with the selected channel's `nft`, the resulting
 # `nft -j list ruleset` is captured, and every command in it is validated
 # against `nftlib.types.ruleset` (whose `topLevel` union deliberately
 # accepts bare listed objects alongside command wrappers).
@@ -27,15 +27,14 @@
 # The listing derivation is imported at eval time (IFD, same pattern as
 # upstream-corpus.nix) so the validation itself runs through evalModules
 # and failures are classified against a baseline. The listing content is
-# deterministic for a fixed pinned `nft`: handles are assigned
-# sequentially in a fresh netns and the metainfo version string is the
-# pinned build's own.
+# deterministic for a fixed channel `nft`: handles are assigned sequentially
+# in a fresh netns and the metainfo version string is that package's own.
 #
 # /etc/protocols note: json.c resolves l4 protocol numbers to names via
 # glibc (getprotobynumber → /etc/protocols). Without that file — as in
 # the bare Nix sandbox, or a minimal container — ct helper/timeout/
 # expectation list back with `"protocol": 6` instead of `"tcp"`, a form
-# parser_json.c REJECTS on input (verified against the pinned nft): on
+# parser_json.c REJECTS on input (verified against the channel nft): on
 # such systems nftables' own listing does not round-trip through its own
 # parser. The runner below bind-provides iana-etc's /etc/protocols
 # inside the namespace so the serializer behaves as on a normal system
@@ -58,7 +57,7 @@ let
   */
   knownNoLoad = {
     "add-rule-via-tree-and-standalone" =
-      "uses `handle 42`, which the pinned parser validates against live kernel state (same class as pinnedConformanceSkip)";
+      "uses `handle 42`, which real-load validates against live kernel state";
     "example-home-router-dsl" =
       "flowtable `flags offload` is rejected on dummy devices — real-load fails with 'Operation not supported'";
   };
@@ -79,7 +78,7 @@ let
     pkgs.runCommandLocal "nft-roundtrip-listings.json"
       {
         nativeBuildInputs = [
-          nftablesPinned
+          nftables
           pkgs.util-linux
           pkgs.iproute2
           pkgs.jq
@@ -155,11 +154,11 @@ let
   classify = cmd: "readback:${builtins.head (builtins.attrNames cmd)}";
 
   /*
-    Baselined read-back divergences: shapes the pinned `nft -j list
+    Baselined read-back divergences: shapes the channel `nft -j list
     ruleset` emits that the schema (deliberately or not-yet) rejects.
-    EMPTY today — every command the pinned serializer emits for the
+    EMPTY today — every command the channel serializer emits for the
     current case set validates, which is the round-trip claim holding.
-    A future `nftables-src` bump that makes json.c emit a new field
+    A future channel package update that makes json.c emit a new field
     lands here (or, preferably, in the schema).
   */
   knownReadbackDivergences = { };
@@ -183,9 +182,9 @@ let
   runTests =
     _pkgs:
     if newDrift == [ ] then
-      pkgs.runCommandLocal "upstream-roundtrip-tests-pass" { } ''
+      pkgs.runCommandLocal "nftables-roundtrip-tests-pass" { } ''
         cat <<'EOF'
-        upstream-roundtrip: ${toString (builtins.length loadedListings)} case listings, ${toString commandCount} read-back commands validated against `ruleset`.
+        nftables-roundtrip: ${toString (builtins.length loadedListings)} case listings, ${toString commandCount} read-back commands validated against `ruleset`.
         ${toString (builtins.length offending)} divergences (baseline has ${toString (builtins.length knownCategories)}).
         Skipped (cannot real-load in an unprivileged netns):
         ${skippedNote}
@@ -194,9 +193,9 @@ let
         touch $out
       ''
     else
-      pkgs.runCommandLocal "upstream-roundtrip-tests-fail" { } ''
+      pkgs.runCommandLocal "nftables-roundtrip-tests-fail" { } ''
         cat <<'EOF'
-        upstream-roundtrip: READ-BACK drift — the pinned `nft -j list ruleset`
+        nftables-roundtrip: READ-BACK drift — the channel `nft -j list ruleset`
         emits ${toString (builtins.length newDrift)} command shape(s) the schema rejects and that match
         no baselined pattern. This breaks the round-trip contract: state
         read back from the kernel no longer fits the model. Either extend

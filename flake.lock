@@ -1,41 +1,5 @@
 {
   "nodes": {
-    "libnftnl-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1774002320,
-        "narHash": "sha256-527s5TCaxSluw2W5IZI62g9C08LPJUqnJ7j2Etv53r4=",
-        "ref": "master",
-        "rev": "363b0e32361969fc695c3eaf619f343abcf2f912",
-        "revCount": 1069,
-        "type": "git",
-        "url": "https://git.netfilter.org/libnftnl"
-      },
-      "original": {
-        "ref": "master",
-        "rev": "363b0e32361969fc695c3eaf619f343abcf2f912",
-        "type": "git",
-        "url": "https://git.netfilter.org/libnftnl"
-      }
-    },
-    "nftables-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1776961128,
-        "narHash": "sha256-2Np9zsPOHdmq7QIEdZDZkhdYY1FWexX3LkzkDGGpTtY=",
-        "ref": "master",
-        "rev": "f7dc8269ddaed49fe643423a3a403b91ab1e50db",
-        "revCount": 4428,
-        "type": "git",
-        "url": "https://git.netfilter.org/nftables"
-      },
-      "original": {
-        "ref": "master",
-        "rev": "f7dc8269ddaed49fe643423a3a403b91ab1e50db",
-        "type": "git",
-        "url": "https://git.netfilter.org/nftables"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1782999065,
@@ -70,8 +34,6 @@
     },
     "root": {
       "inputs": {
-        "libnftnl-src": "libnftnl-src",
-        "nftables-src": "nftables-src",
         "nixpkgs": "nixpkgs",
         "nixpkgs-unstable": "nixpkgs-unstable"
       }

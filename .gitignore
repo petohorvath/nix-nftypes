@@ -1,5 +1,6 @@
 .claude/settings.local.json
 .mcp.json
 CLAUDE.md
+__pycache__/
 result
 result-*

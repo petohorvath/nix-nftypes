@@ -2,9 +2,9 @@
 """
 normalize-corpus.py — flatten nftables' own test corpus into one JSON doc.
 
-Layer 2 of the upstream-sync pipeline (see docs/upstream-sync.md). nftables
-ships a large regression corpus under `tests/py/**/*.t.json`: for each rule
-the project tests, the exact libnftables-JSON `expr` array it expects. That
+Corpus check in the channel-source pipeline (see docs/upstream-sync.md).
+nftables ships a large regression corpus under `tests/py/**/*.t.json`: for
+each rule the project tests, the exact libnftables-JSON `expr` array it expects. That
 corpus is upstream telling us, version by version, what valid input looks
 like — including constructs this library never thought to test. Running it
 through our schema catches the "schema too restrictive" drift direction

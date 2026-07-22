@@ -4,9 +4,10 @@
   nftablesSrc,
 }:
 
-# Layer 4 of the upstream-sync pipeline (docs/upstream-sync.md): deterministic
-# token drift detection. Runs `tooling/check-upstream-enums.py` against the
-# pinned nftables source and this library's accepted-token lists.
+# Deterministic token check in the channel-source pipeline
+# (docs/upstream-sync.md). Runs `tooling/check-upstream-enums.py` against the
+# selected channel package's patched nftables source and this library's
+# accepted-token lists.
 #
 # This is the zero-AI, zero-false-positive complement to the corpus check and
 # the AI watcher. Two families of C tables are read:
@@ -43,7 +44,7 @@ in
 {
   runTests =
     _pkgs:
-    pkgs.runCommandLocal "upstream-enum-extraction-tests"
+    pkgs.runCommandLocal "nftables-enum-extraction-tests"
       {
         nativeBuildInputs = [ pkgs.python3 ];
       }

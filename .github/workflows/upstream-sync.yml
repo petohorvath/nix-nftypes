@@ -1,19 +1,16 @@
 name: Upstream sync
 
-# Keeps the schema in step with nftables as the JSON parser evolves
-# (docs/upstream-sync.md). Two independent jobs, both non-gating:
+# Keeps the schema in step with the nftables packages consumers receive from
+# the stable and unstable nixpkgs channels (docs/upstream-sync.md). Two jobs:
 #
-#   drift-watch — compares upstream nftables HEAD against the pinned
-#     `nftables-src` rev. On a difference, diffs the parser source files and
-#     runs the AI triage (tooling/drift-triage.sh), then files/updates a
-#     GitHub issue with the report. Early warning that the pin is stale.
+#   channel-source-watch — compares each locked channel's fully patched
+#     nftables source tree with the same package at that channel's current tip.
+#     A content change produces a parser diff and a GitHub issue. All source
+#     material comes through nixpkgs; there is no independent upstream Git pin.
 #
-#   canary — runs the live-parser integration suite against the LATEST tip
-#     of each nixpkgs channel (stable `nixpkgs` and `nixpkgs-unstable`),
-#     floating past the locked revs. A red canary while the locked checks
-#     are green means that channel changed parser acceptance (drift
-#     direction D1); red-unstable with green-stable pinpoints which channel
-#     moved. continue-on-error so it reports without failing.
+#   canary — runs live-parser, patched-source, enum, corpus, and round-trip
+#     checks against an immutable snapshot of each channel's current tip.
+#     continue-on-error keeps this an early-warning signal rather than a gate.
 
 on:
   schedule:
@@ -29,83 +26,202 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  drift-watch:
+  channel-source-watch:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - input: nixpkgs
+            suffix: ""
+            label: stable
+          - input: nixpkgs-unstable
+            suffix: "-unstable"
+            label: unstable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Resolve pinned vs upstream revision
-        id: rev
+      - name: Compare locked and channel-tip nftables sources
+        id: source
+        shell: bash
         run: |
-          pinned=$(jq -r '.nodes."nftables-src".locked.rev' flake.lock)
-          latest=$(git ls-remote https://git.netfilter.org/nftables refs/heads/master | cut -f1)
-          echo "pinned=$pinned" >>"$GITHUB_OUTPUT"
-          echo "latest=$latest" >>"$GITHUB_OUTPUT"
-          if [ "$pinned" = "$latest" ]; then
+          set -euo pipefail
+
+          ref=$(jq -er '.nodes["${{ matrix.input }}"].original.ref' flake.lock)
+          locked_rev=$(jq -er '.nodes["${{ matrix.input }}"].locked.rev' flake.lock)
+          tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/$ref" | jq -er .revision)
+          tip_uri="github:NixOS/nixpkgs/$tip_rev"
+          source_attr="nftables-source${{ matrix.suffix }}"
+
+          locked_source=$(nix build --no-link --print-out-paths \
+            ".#packages.x86_64-linux.$source_attr")
+          tip_source=$(nix build --no-link --print-out-paths \
+            --override-input "${{ matrix.input }}" "$tip_uri" \
+            ".#packages.x86_64-linux.$source_attr")
+          test -d "$locked_source"
+          test -d "$tip_source"
+
+          locked_version=$(nix eval --raw ".#packages.x86_64-linux.$source_attr.version")
+          tip_version=$(nix eval --raw \
+            --override-input "${{ matrix.input }}" "$tip_uri" \
+            ".#packages.x86_64-linux.$source_attr.version")
+          locked_hash=$(nix hash path --type sha256 --base16 "$locked_source")
+          tip_hash=$(nix hash path --type sha256 --base16 "$tip_source")
+
+          printf '%s\n' "$locked_source" >"$RUNNER_TEMP/locked-nftables-source"
+          printf '%s\n' "$tip_source" >"$RUNNER_TEMP/tip-nftables-source"
+          {
+            echo "locked_rev=$locked_rev"
+            echo "tip_rev=$tip_rev"
+            echo "locked_version=$locked_version"
+            echo "tip_version=$tip_version"
+            echo "locked_hash=$locked_hash"
+            echo "tip_hash=$tip_hash"
+          } >>"$GITHUB_OUTPUT"
+
+          if [ "$locked_hash" = "$tip_hash" ]; then
             echo "drift=false" >>"$GITHUB_OUTPUT"
-            echo "No drift: pinned ($pinned) == upstream master ($latest)."
+            echo "No nftables source drift for ${{ matrix.input }}: $locked_version ($locked_hash)."
           else
             echo "drift=true" >>"$GITHUB_OUTPUT"
-            echo "Drift: pinned ($pinned) != upstream master ($latest)."
+            echo "nftables source drift for ${{ matrix.input }}: $locked_version ($locked_hash) -> $tip_version ($tip_hash)."
           fi
 
-      # Diff every surface the library mirrors: the JSON parser and its
-      # lookup-table sources (parser_json.c, meta.c, rt.c), the JSON
-      # serializer (json.c — read-back / round-trip drift), the text
-      # grammar the text renderer targets (parser_bison.y, scanner.l —
-      # e.g. new reserved words like the `offload` flowtable-name class),
-      # and the adoc for documentation context.
-      - name: Diff parser sources
-        if: steps.rev.outputs.drift == 'true'
-        run: |
-          git clone --quiet https://git.netfilter.org/nftables nftables-upstream
-          git -C nftables-upstream diff \
-            "${{ steps.rev.outputs.pinned }}" "${{ steps.rev.outputs.latest }}" -- \
-            src/parser_json.c src/json.c src/meta.c src/rt.c \
-            src/parser_bison.y src/scanner.l doc/libnftables-json.adoc \
-            > parser.diff || true
-          echo "diff bytes: $(wc -c <parser.diff)"
+          {
+            echo "### ${{ matrix.label }} nftables source comparison"
+            echo
+            echo "| | nixpkgs revision | nftables | patched-source SHA-256 |"
+            echo "|---|---|---|---|"
+            echo "| locked | \`${locked_rev:0:12}\` | \`$locked_version\` | \`${locked_hash:0:16}…\` |"
+            echo "| tip | \`${tip_rev:0:12}\` | \`$tip_version\` | \`${tip_hash:0:16}…\` |"
+          } >>"$GITHUB_STEP_SUMMARY"
 
-      - name: AI drift triage
-        if: steps.rev.outputs.drift == 'true'
+      - name: Close resolved channel drift issues
+        if: steps.source.outputs.drift == 'false'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          LOCKED_HASH: ${{ steps.source.outputs.locked_hash }}
+          TIP_HASH: ${{ steps.source.outputs.tip_hash }}
         run: |
-          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-            echo "ANTHROPIC_API_KEY secret not set — skipping AI triage, filing a bare drift notice." >&2
-            {
-              echo "# nftables upstream drift detected"
-              echo
-              echo "Pinned \`${{ steps.rev.outputs.pinned }}\` → upstream \`${{ steps.rev.outputs.latest }}\`."
-              echo "AI triage was skipped (no \`ANTHROPIC_API_KEY\` secret). Diff is attached to the run."
-            } > drift-report.md
+          set -euo pipefail
+          label=nixpkgs-nftables-drift
+          label_exists=$(gh label list --limit 1000 --json name \
+            | jq -r --arg label "$label" 'any(.[]; .name == $label)')
+          if [ "$label_exists" != true ]; then
+            echo "No $label label exists; there are no channel drift issues to close."
             exit 0
           fi
-          bash tooling/drift-triage.sh \
+
+          title_prefix="nixpkgs nftables drift (${{ matrix.label }}): "
+          issues=$(gh issue list --state open --label "$label" \
+            --limit 100 --json number,title \
+            | jq -r --arg prefix "$title_prefix" '.[] | select(.title | startswith($prefix)) | .number')
+          if [ -z "$issues" ]; then
+            echo "No open ${{ matrix.label }} channel drift issues need closing."
+            exit 0
+          fi
+
+          while IFS= read -r issue; do
+            gh issue close "$issue" --reason completed --comment \
+              "Resolved: the locked and channel-tip patched nftables sources now match at ${TIP_HASH:0:12} (locked ${LOCKED_HASH:0:12})."
+          done <<<"$issues"
+
+      - name: Diff schema-relevant source files
+        if: steps.source.outputs.drift == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          locked_source=$(<"$RUNNER_TEMP/locked-nftables-source")
+          tip_source=$(<"$RUNNER_TEMP/tip-nftables-source")
+          files=(
+            src/parser_json.c
+            src/json.c
+            src/meta.c
+            src/rt.c
+            src/parser_bison.y
+            src/scanner.l
+            doc/libnftables-json.adoc
+          )
+
+          : >parser.diff
+          for file in "${files[@]}"; do
+            locked_file="$locked_source/$file"
+            tip_file="$tip_source/$file"
+            [ -e "$locked_file" ] || locked_file=/dev/null
+            [ -e "$tip_file" ] || tip_file=/dev/null
+            if diff -u \
+              --label "locked/$file" "$locked_file" \
+              --label "tip/$file" "$tip_file" >>parser.diff; then
+              :
+            else
+              status=$?
+              [ "$status" -eq 1 ] || exit "$status"
+            fi
+          done
+          echo "diff bytes: $(wc -c <parser.diff)"
+
+      - name: Upload source diff
+        if: steps.source.outputs.drift == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nftables-source-diff-${{ matrix.label }}
+          path: parser.diff
+          if-no-files-found: error
+
+      - name: AI-assisted drift triage
+        if: steps.source.outputs.drift == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          write_basic_report() {
+            local reason=$1
+            cat >drift-report.md <<EOF
+          # nixpkgs nftables source drift detected
+
+          Channel: \`${{ matrix.input }}\`
+
+          - Locked nixpkgs: \`${{ steps.source.outputs.locked_rev }}\`
+          - Channel tip: \`${{ steps.source.outputs.tip_rev }}\`
+          - nftables: \`${{ steps.source.outputs.locked_version }}\` → \`${{ steps.source.outputs.tip_version }}\`
+          - Patched source: \`${{ steps.source.outputs.locked_hash }}\` → \`${{ steps.source.outputs.tip_hash }}\`
+
+          $reason The schema-relevant source diff is attached to the workflow run.
+          EOF
+          }
+
+          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+            write_basic_report "AI triage was skipped because no \`ANTHROPIC_API_KEY\` secret is configured."
+          elif ! bash tooling/drift-triage.sh \
             --diff parser.diff \
             --schema-dir lib/schema \
             --spec-coverage docs/spec-coverage.md \
-            --old-rev "${{ steps.rev.outputs.pinned }}" \
-            --new-rev "${{ steps.rev.outputs.latest }}" \
-            --out drift-report.md
+            --old-source "${{ matrix.input }}:${{ steps.source.outputs.locked_hash }}" \
+            --new-source "${{ matrix.input }}:${{ steps.source.outputs.tip_hash }}" \
+            --out drift-report.md; then
+            write_basic_report "AI triage failed; the deterministic source comparison remains authoritative."
+          fi
 
-      - name: File or update drift issue
-        if: steps.rev.outputs.drift == 'true'
+      - name: File or update channel drift issue
+        if: steps.source.outputs.drift == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          LATEST: ${{ steps.rev.outputs.latest }}
+          TIP_HASH: ${{ steps.source.outputs.tip_hash }}
         run: |
-          title="Upstream nftables drift: ${LATEST:0:12}"
-          # One issue per upstream rev — don't reopen a chorus on every run.
-          existing=$(gh issue list --state open --label upstream-drift \
-            --search "${LATEST:0:12} in:title" --json number --jq '.[0].number // empty')
-          gh label create upstream-drift --color FBCA04 \
-            --description "nftables parser moved past the pinned revision" 2>/dev/null || true
+          set -euo pipefail
+          title="nixpkgs nftables drift (${{ matrix.label }}): ${TIP_HASH:0:12}"
+          gh label create nixpkgs-nftables-drift --color FBCA04 \
+            --description "A nixpkgs channel carries nftables source different from the lock" 2>/dev/null || true
+          existing=$(gh issue list --state open --label nixpkgs-nftables-drift \
+            --limit 100 --json number,title \
+            | jq -r --arg title "$title" '[.[] | select(.title == $title)][0].number // empty')
           if [ -n "$existing" ]; then
-            echo "Issue #$existing already tracks $LATEST; appending a fresh report."
+            echo "Issue #$existing already tracks $TIP_HASH; appending a fresh report."
             gh issue comment "$existing" --body-file drift-report.md
           else
-            gh issue create --title "$title" --label upstream-drift --body-file drift-report.md
+            gh issue create --title "$title" --label nixpkgs-nftables-drift --body-file drift-report.md
           fi
 
   canary:
@@ -115,27 +231,60 @@ jobs:
         include:
           - input: nixpkgs # stable channel; plain check names
             suffix: ""
+            label: stable
           - input: nixpkgs-unstable
             suffix: "-unstable"
+            label: unstable
     runs-on: ubuntu-latest
     continue-on-error: true # non-gating: a red canary is a signal, not a failure
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: DeterminateSystems/nix-installer-action@main
       - name: Allow unshare to create user namespaces
         run: |
           sudo cp .github/apparmor/nix-unshare /etc/apparmor.d/nix-unshare
           sudo apparmor_parser -r /etc/apparmor.d/nix-unshare
-      # Float the channel input to its branch tip so the integration suite
-      # runs against the nft that channel ships TODAY, not the locked rev.
-      # The branch ref is read from flake.lock, so repointing `nixpkgs` at
-      # the next NixOS release updates the canary automatically.
-      - name: Integration suite vs latest ${{ matrix.input }} nft
+      # Resolve the branch once, then override with that immutable revision so
+      # every evaluation in this job sees exactly the same package set.
+      - name: Compatibility suite vs latest ${{ matrix.input }} nftables
+        shell: bash
         run: |
-          ref=$(jq -r '.nodes["${{ matrix.input }}"].original.ref' flake.lock)
-          locked=$(jq -r '.nodes["${{ matrix.input }}"].locked.rev' flake.lock | cut -c1-12)
-          echo "Floating ${{ matrix.input }} ($ref, locked at $locked) to its current tip."
+          set -euo pipefail
+          ref=$(jq -er '.nodes["${{ matrix.input }}"].original.ref' flake.lock)
+          locked_rev=$(jq -er '.nodes["${{ matrix.input }}"].locked.rev' flake.lock)
+          tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/$ref" | jq -er .revision)
+          tip_uri="github:NixOS/nixpkgs/$tip_rev"
+          source_attr="nftables-source${{ matrix.suffix }}"
+          locked_version=$(nix eval --raw ".#packages.x86_64-linux.$source_attr.version")
+          tip_version=$(nix eval --raw \
+            --override-input "${{ matrix.input }}" "$tip_uri" \
+            ".#packages.x86_64-linux.$source_attr.version")
+
+          echo "Floating ${{ matrix.input }} ($ref) from ${locked_rev:0:12} to ${tip_rev:0:12}."
+          echo "nftables package version: $locked_version -> $tip_version"
+
+          checks=(
+            integration-tests
+            text-integration-tests
+            text-block-integration-tests
+            render-equivalence-tests
+            nftables-source-provenance-tests
+            nftables-corpus-tests
+            nftables-enum-extraction-tests
+            nftables-roundtrip-tests
+            nftables-tooling-selftests
+          )
+          targets=()
+          for check in "${checks[@]}"; do
+            targets+=(".#checks.x86_64-linux.${check}${{ matrix.suffix }}")
+          done
+
           nix build -L \
-            --override-input ${{ matrix.input }} "github:NixOS/nixpkgs/$ref" \
-            '.#checks.x86_64-linux.integration-tests${{ matrix.suffix }}' \
-            '.#checks.x86_64-linux.text-integration-tests${{ matrix.suffix }}'
+            --override-input "${{ matrix.input }}" "$tip_uri" \
+            "${targets[@]}"
+
+          {
+            echo "### ${{ matrix.label }} channel-tip compatibility"
+            echo
+            echo "Passed ${#checks[@]} nftables-facing checks at nixpkgs \`${tip_rev:0:12}\` (nftables \`$tip_version\`)."
+          } >>"$GITHUB_STEP_SUMMARY"
