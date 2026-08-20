@@ -20,14 +20,14 @@
     priorityNameOf          — int → symbolic chain priority (reverse
                               of `resolvePriority`); ints with no
                               canonical symbol pass through unchanged.
-    chainTypeFor            — `(family, hook, priority)` → chain type
-                              (`"filter"` / `"nat"` / `"route"`); the
-                              type the kernel infers from the
-                              placement.
-    validChainPlacement     — `(family, chainType, hook)` → bool. True
-                              iff the kernel will accept a base chain
-                              with this triple.
-    toJson / toNix          — render a validated value to libnftables-json.
+    chainTypeFor            — `(family, hook, priority)` → the project's
+                              conventional `"filter"` / `"nat"` / `"route"`
+                              classification; not kernel introspection.
+    validChainPlacement     — `(family, chainType, hook)` → bool from the
+                              static compatibility tables; runtime/device
+                              requirements are outside its scope.
+    toJson                  — compact libnftables JSON serialization.
+    toNix                   — pretty Nix syntax for inspection.
     toText / toTextPretty   — render to nftables `.nft` text syntax in
                               imperative form (`add chain …` / `add rule …`).
     toTextBlock /
@@ -35,10 +35,14 @@
                               form (the contents of a
                               `table <fam> <name> { … }` wrapper, suitable
                               for embedding in a host module like nixpkgs'
-                              `networking.nftables.tables.<n>.content`).
-    cleanValue              — strip module-internal markers.
-    dsl                     — declarative builder producing values accepted
-                              by the types above.
+                              `networking.nftables.tables.<n>.content`);
+                              standalone `elements.<name>` commands are
+                              rejected because table-block grammar cannot
+                              represent them.
+    cleanValue              — strip module markers and unset nullable fields.
+    dsl                     — declarative builders plus an explicit raw-command
+                              escape hatch; renderers do not fully validate raw
+                              attrsets.
 */
 { lib }:
 
@@ -94,6 +98,17 @@ let
     inherit lib;
     objects = objects.all;
   };
+  dslMarkers = import ./dsl/internal/markers.nix { };
+  renderDslTableBlock =
+    renderer: node:
+    if !(builtins.isAttrs node && (node.${dslMarkers.table} or false)) then
+      throw "nix-nft-types: block-form text rendering expects one dsl.table node"
+    else if
+      node ? elements && !(builtins.isAttrs node.elements && builtins.attrNames node.elements == [ ])
+    then
+      throw "nix-nft-types: block-form text rendering cannot embed standalone table elements; put initial elements on the set/map definition or use an imperative renderer"
+    else
+      renderer (dsl.ruleset [ node ]);
   compatibility = import ./compatibility.nix;
 in
 {
@@ -134,6 +149,7 @@ in
     objects = objects.all;
     inherit (objects)
       addObject
+      createObject
       listObject
       flushObject
       resetObject
@@ -176,15 +192,18 @@ in
     chainTypeFor
     ;
 
-  # Render a validated value to libnftables-json.
+  # Serialize after cleaning. These functions do not run arbitrary raw input
+  # through `types.ruleset`; callers that need schema validation must do that
+  # explicitly.
   toJson = json.toJson;
   toNix = json.toNix;
   cleanValue = clean;
 
   /*
-    Render a validated value to the nftables `.nft` text syntax `nft -f`
+    Render schema-shaped values to the nftables `.nft` text syntax `nft -f`
     consumes. The imperative entries (`toText` / `toTextPretty`) accept
-    the same attrsets the types above produce. The block-form entries
+    the same attrset shapes the schema and DSL produce, but do not perform a
+    complete type-validation pass for raw attrsets. The block-form entries
     (`toTextBlock` / `toTextBlockPretty`) accept a single `dsl.table`
     value and emit only the contents of that table — no
     `table <fam> <name> { ... }` wrapper — so a host module like
@@ -194,13 +213,14 @@ in
   */
   toText = text.toText;
   toTextPretty = text.toTextPretty;
-  toTextBlock = node: text.toTextBlock (dsl.ruleset [ node ]);
-  toTextBlockPretty = node: text.toTextBlockPretty (dsl.ruleset [ node ]);
+  toTextBlock = renderDslTableBlock text.toTextBlock;
+  toTextBlockPretty = renderDslTableBlock text.toTextBlockPretty;
 
   /*
     DSL — path-based field access, top-level operators, variant namespaces,
-    declarative table structure. Produces attrsets accepted by the types
-    above.
+    and declarative table structure. Structured builders validate assembled
+    bodies; `dsl.ruleset` also preserves raw command attrsets as an escape
+    hatch.
   */
   inherit dsl;
 }

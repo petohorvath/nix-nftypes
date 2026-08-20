@@ -5,8 +5,8 @@
 # diff the canonical `nft list ruleset` output. If the JSON and text
 # renderers produce semantically equivalent rulesets the diff is empty.
 #
-# This is the strongest 1:1 guarantee — the schema, JSON renderer, text
-# renderer, and the live nft parsers (both -j and not) all agree.
+# This is the strongest equivalence evidence in the suite for the selected
+# cases: the schema, both renderers, and both live parser paths must agree.
 #
 # Cases that touch external state (rule handles, references to objects
 # the sandbox can't materialise) are excluded — they can't be `nft -f`
@@ -73,11 +73,11 @@ let
           text_status=$?
 
           if [ "$json_status" -ne 0 ] || [ "$text_status" -ne 0 ]; then
-            echo "SKIP: load failed (json=$json_status text=$text_status)"
-            continue
-          fi
-
-          if [ "$json_out" = "$text_out" ]; then
+            echo "FAIL: load failed (json=$json_status text=$text_status)"
+            printf '%s\n' "$json_out" | sed 's/^/    json: /'
+            printf '%s\n' "$text_out" | sed 's/^/    text: /'
+            failed=$((failed + 1))
+          elif [ "$json_out" = "$text_out" ]; then
             echo "PASS"
           else
             echo "FAIL: outputs differ"
@@ -89,7 +89,7 @@ let
           echo "$failed equivalence test(s) failed"
           exit 1
         fi
-        echo "All ${toString (builtins.length cases')} equivalence tests passed (${toString (builtins.length excluded)} skipped)"
+        echo "All ${toString (builtins.length cases')} equivalence tests passed (${toString (builtins.length excluded)} statically excluded)"
         touch $out
       '';
 in

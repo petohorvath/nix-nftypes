@@ -581,6 +581,26 @@ let
       expected = false;
     };
 
+    # nftables rejects `create rule` explicitly. `create` must not reuse the
+    # broader add-object union or raw typed input would accept an impossible
+    # command even though the DSL omits its constructor.
+    testCreateRuleRejected = {
+      expr =
+        (builtins.tryEval (
+          roundtrip nftlib.types.command {
+            create = {
+              rule = {
+                family = "inet";
+                table = "filter";
+                chain = "input";
+                expr = [ ];
+              };
+            };
+          }
+        )).success;
+      expected = false;
+    };
+
     # ------------------------------------------------------------------
     # Limit object: only fields the JSON parser actually reads
     # (parser_json.c:3863-3884). The previously-exposed `unit` field was

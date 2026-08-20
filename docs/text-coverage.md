@@ -1,58 +1,116 @@
-# Text renderer — coverage gaps
+# Text renderer coverage
 
-The text renderer (`lib/text/`) emits the multi-line `.nft` form that `nft -f rules.nft` consumes. Two surface forms:
+`lib/text/` converts schema-shaped values to nftables' native text grammar. It
+is a pure Nix renderer; it does not invoke `nft`.
 
-- `nftlib.toText` / `nftlib.toTextPretty` — full imperative ruleset (`add chain …` / `add rule …`), one command per line.
-- `nftlib.toTextBlock` / `nftlib.toTextBlockPretty` — contents of one `table { ... }` block (no wrapper, no `add` keyword, rules folded as inline statements inside their parent chain). For embedding in host modules that supply their own table wrapper, e.g. nixpkgs' `networking.nftables.tables.<n>.content`.
+The JSON renderer is the compatibility target. Text support is tested
+separately because JSON and text have different grammars, quoting rules, and
+runtime behavior.
 
-The JSON renderer is the authoritative path; the text renderers mirror it position-for-position in the pipeline.
+## Render modes
 
-Common-path coverage is enforced by:
+| Function | Form |
+| --- | --- |
+| `toText` | compact imperative commands |
+| `toTextPretty` | readable imperative commands |
+| `toTextBlock` | compact contents of one table block |
+| `toTextBlockPretty` | readable contents of one table block |
 
-- `tests/text-parity.nix` — ~30 schema-level expected-string assertions for `toText`.
-- `tests/text-integration.nix` — pipes each integration case's text rendering through `unshare -rn nft -c -f -`.
-- `tests/text-block-parity.nix` — expected-string assertions for `toTextBlock` / `toTextBlockPretty`, plus live-parser cases that wrap each output in `table <fam> <name> { ... }` and pipe through `nft -c -f -`.
-- `tests/render-equivalence.nix` — for ~9 cases (including the full basic-firewall-dsl example), loads JSON and text into separate netns and diffs `nft list ruleset` byte-for-byte. This is the 1:1 contract.
+Imperative output contains commands such as `add table`, `add chain`, and
+`add rule`. Block output accepts one `dsl.table` node, omits the table wrapper,
+and emits named objects and chains in block syntax with rules folded into their
+parent chains. It rejects top-level `elements.<name>` entries because the
+standalone `element` command has no representation inside table-block grammar;
+initial elements remain supported inside their set/map definitions.
 
-The items below are written from the nft docs without live-parser coverage. Real usage may surface issues. For anything on this list, the JSON path is the supported target.
+## Executable evidence
 
-## Items not covered by live-parser tests
+| Check | Current scope | Failure policy |
+| --- | --- | --- |
+| `text-parity-tests` | expected strings for statements, expressions, objects, and commands | any mismatch fails |
+| schema/text drift assertions in `schema-tests` | every schema statement/expression/object tag has a renderer registration | missing registration fails |
+| `text-integration-tests` | 9 of the 11 JSON integration cases through `nft -c -f` | any selected-case parse failure fails; 2 named exclusions |
+| `text-block-parity-tests` | 24 exact-output, structure, no-op, and rejection assertions | any mismatch fails |
+| `text-block-integration-tests` | 4 table cases in compact and pretty form through `nft -c -f` | any parse failure fails |
+| `render-equivalence-tests` | 6 selected cases loaded through JSON and text in separate network namespaces, then compared using `nft list ruleset` | a load failure or output difference fails; 5 cases are excluded before execution |
 
-### Tunnel objects (vxlan / erspan v1 / erspan v2 / geneve)
+Stable and unstable checks use the corresponding channel's `nft` binary.
 
-`add tunnel` with the various nested bodies has parity tests (`text-parity.nix`) but no live-parser integration. The sandboxed netns typically lacks the required kernel modules (vxlan, erspan, geneve), so `nft -c -f` either skips validation or rejects depending on the environment. The byte-level output follows the nft man page but isn't validated end-to-end.
+The equivalence suite is strong evidence for its six selected cases. It is not
+a universal 1:1 guarantee for every schema value.
 
-### Rare statements
+## Explicit integration exclusions
 
-The following statements have schema-level parity tests but no live-parser integration:
+`tests/text-integration.nix` excludes:
 
-- `xt` (deprecated xtables escape hatch — also rejected by JSON parser; see `docs/spec-coverage.md` E2)
-- `last` (matching-time tracking)
-- `mangle` (header-field rewrite)
-- `meter` (rate-limited statement)
-- `tproxy` (transparent proxy)
-- the inline `synproxy` statement form
-- the `reset tcp option` form
+1. `example-home-router-dsl`: its flowtable is named `offload` and a rule uses
+   `flow add @offload`. JSON accepts both, but the text grammar treats `offload`
+   as reserved in the flowtable-name and flowtable-reference positions.
+2. `add-rule-via-tree-and-standalone`: the text check resolves `handle 42`
+   against live kernel state and fails because that rule does not exist in the
+   isolated namespace. JSON check mode tolerates the dangling handle.
 
-### Reserved-word name collisions
+`tests/render-equivalence.nix` additionally excludes:
 
-`offload` as a flowtable name is known-broken in text — the text parser treats `offload` as a reserved word in flowtable position even though the JSON parser accepts it. Documented in `tests/text-integration.nix::knownTextLimitations`.
+- `list-table`, because a query cannot be loaded as persistent ruleset state;
+- `create-supported-kinds` and `delete-supported-kinds`, because selected
+  stateful object commands depend on kernel features unavailable in the test
+  namespace.
 
-Other nftables keywords (`route`, `filter`, `nat`, …) likely hit the same class of issue if used as object names. Not exhaustively tested.
+These exclusions are named in code rather than silently skipped at runtime.
+After filtering, every selected equivalence case must load successfully.
 
-### `in` operator with named-set refs
+## Coverage limits
 
-Exercised with anonymous sets (`meta iif in { eth0, eth1 }`). Behaviour with named-set references (`meta iif in @named`) is untested in the text renderer.
+### JSON-only names and values
 
-### Comment emission position
+The JSON API can represent strings without relying on the text lexer's keyword
+and identifier rules. A JSON-valid object name may therefore lack a safe text
+spelling. The `offload` flowtable example is the current live-test case.
 
-`comment "..."` is emitted at the canonical position for each kind per the nft man page, but not cross-checked byte-for-byte against `nft list ruleset` output. A subtle position-mismatch would round-trip through schema validation but might confuse byte-diffing tools.
+### Rare or kernel-dependent constructs
 
-## When a text-grammar issue surfaces
+Expected-string tests cover more syntax than the isolated live-parser suite can
+materialize. Tunnel objects and less common statements may require kernel
+modules, device state, or object support unavailable in an unprivileged network
+namespace. Their formatting is tested, but not every variant is real-loaded.
 
-1. Add a parity test to `tests/text-parity.nix` covering the case.
-2. Add a live-parser test to `tests/text-integration.nix`.
-3. If JSON↔text equivalence is expected, add to `tests/render-equivalence.nix`.
-4. Patch the renderer in `lib/text/`.
+### Command state
 
-The "test before patch" order is deliberate — the renderer is small enough that getting expected output right matters more than the patch itself.
+Commands using handles, indexes, reset/list output, or referenced objects can
+be syntactically valid while requiring state that a check-only or empty
+namespace does not contain. Those cases need a purpose-built fixture rather
+than being treated as generic renderer coverage.
+
+### Raw input
+
+The text renderer accepts raw attrsets for escape-hatch use, but it is not a
+schema validator. Defensive token and string assertions block known injection
+classes, yet callers should still validate raw configuration with
+`nftlib.types.ruleset`.
+
+### Quoting and safety
+
+Several text positions have no general escape syntax. The schema and renderer
+therefore reject unsafe quoted strings, interface names, bare scalar tokens,
+references, unit names, and priorities instead of emitting ambiguous text.
+JSON may be able to carry a value that the text path intentionally refuses.
+
+## Support policy
+
+Use `toJson` when:
+
+- parser compatibility is more important than human-readable output;
+- names or values interact with text keywords;
+- the construct is listed as a text limitation;
+- exact text-path evidence does not exist.
+
+Use `toText*` for cases covered by the parity/live suites or after adding a
+focused parser fixture for the required construct.
+
+When extending the renderer:
+
+1. add the expected text to the parity suite;
+2. add or update a live-parser case where the environment can support it;
+3. add an equivalence case when both paths can be real-loaded;
+4. record any necessary named exclusion and its exact external-state reason.

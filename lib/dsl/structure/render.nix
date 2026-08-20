@@ -36,6 +36,14 @@ let
   # sorted; this wrapper documents intent at call sites.
   sortedNames = builtins.attrNames;
 
+  # Object definitions are deterministic by kind, but standalone element
+  # commands must follow their set/map definitions. Keeping that dependency as
+  # the one explicit exception to alphabetical order prevents a same-table
+  # `elements.<name>` node from failing with ENOENT.
+  orderedObjectKindNames =
+    builtins.filter (name: name != "elements") (sortedNames objectKinds)
+    ++ lib.optional (objectKinds ? elements) "elements";
+
   # Emit one `add <kind>` command for a single named object.
   emitObject =
     ctx: pluralKey: name: userBody:
@@ -81,7 +89,7 @@ let
   emitObjects =
     ctx: body:
     let
-      presentKinds = builtins.filter (k: body ? ${k}) (sortedNames objectKinds);
+      presentKinds = builtins.filter (k: body ? ${k}) orderedObjectKindNames;
       emitKind =
         pluralKey:
         let
@@ -149,16 +157,17 @@ let
     lib.imap0 (idx: entry: emitRule (ctx // { chain = name; }) idx entry) (chainBodyValue.rules or [ ]);
 
   # Full expansion of a single table node into a flat command list.
-  # Emission order is chosen so cross-references within the atomic batch
-  # always resolve:
+  # Emission order covers dependencies represented by the table tree:
   #   1. add table
   #   2. add chain (all chains, empty shells) — must precede (3) because
   #      verdict-map elements and other objects may reference chains by
   #      name, and nftables expects the target chain to already be declared
   #      in the transaction.
-  #   3. add <object> (sets, maps, counters, …)
+  #   3. add named objects, with standalone elements after set/map definitions
   #   4. add rule (grouped by chain) — must come last because rules
   #      reference both chains (jump/goto) and objects (@name).
+  # Dependencies hidden inside raw nested bodies remain the caller's
+  # responsibility.
   expandTable =
     node:
     let
@@ -168,11 +177,31 @@ let
         "family"
         "name"
       ];
+      allowedBodyKeys = [
+        # Libraries layered on nftypes may tag values with `_type` for their
+        # own boundary checks. Preserve that documented composability marker
+        # while rejecting every other unknown structural key.
+        "_type"
+        "handle"
+        "flags"
+        "comment"
+        "chains"
+      ]
+      ++ sortedNames objectKinds;
+      unknownBodyKeys = lib.subtractLists allowedBodyKeys (builtins.attrNames body);
+      checkedBody =
+        if unknownBodyKeys == [ ] then
+          body
+        else
+          throw (
+            "nix-nft-types: dsl.table ${family}.${name} has unsupported key(s): "
+            + lib.concatStringsSep ", " unknownBodyKeys
+          );
       tableOpts = builtins.intersectAttrs {
         handle = null;
         flags = null;
         comment = null;
-      } body;
+      } checkedBody;
       tableFull = compact ({ inherit family name; } // tableOpts);
       tableValidated = validate {
         type = objects.tableBody;
@@ -189,12 +218,12 @@ let
         table = name;
       };
 
-      chains = body.chains or { };
+      chains = checkedBody.chains or { };
       chainNames = sortedNames chains;
       chainAdds = map (chainName: emitChainAdd ctx chainName chains.${chainName}) chainNames;
       ruleAdds = lib.concatMap (chainName: emitChainRules ctx chainName chains.${chainName}) chainNames;
     in
-    [ tableAdd ] ++ chainAdds ++ emitObjects ctx body ++ ruleAdds;
+    [ tableAdd ] ++ chainAdds ++ emitObjects ctx checkedBody ++ ruleAdds;
 
   # Process one child of a ruleset or nested list.
   #   table node → expanded command list

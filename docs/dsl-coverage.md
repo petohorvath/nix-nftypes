@@ -1,152 +1,166 @@
-# DSL coverage audit — `lib/dsl/` vs `lib/schema/`
+# DSL coverage
 
-This doc is the DSL counterpart of [`docs/spec-coverage.md`](spec-coverage.md). Where that one verifies the schema layer is 1:1 with `parser_json.c`, this one verifies the DSL layer is 1:1 with the schema. The README's claim is that "every DSL value reduces to a validated nft-types attrset — nothing bypasses the schema", and that the DSL exposes "every shape the schema accepts" via either pre-built constructors or escape hatches.
+`lib/dsl/` is a convenience layer over `lib/schema/`. It builds the same JSON
+shapes while supplying context, converting camel-case names, and validating
+assembled bodies.
 
-## Coverage summary
+This document describes reachability and validation. Parser fidelity belongs in
+[`spec-coverage.md`](spec-coverage.md); text rendering belongs in
+[`text-coverage.md`](text-coverage.md).
 
-| Surface | Schema bodies / tags | DSL constructors | Gaps fixed in this work |
-|---|---|---|---|
-| **Statement tags** | 37 (`statement` attrTag) | 40+ across `actions/` + `verdicts.nix` + `ops.nix` | 0 — full coverage already |
-| **Expression tags** | 34 (`taggedExpression`) | 27 in `exprs.nix` (covering 26 unique tags) + 180+ field leaves under `fields/` + 3 payload helpers in `payload.nix` | 2 field leaves (rt `ipsec`, fib `check`) + new `fields/osf.nix` for symmetry |
-| **Add-object kinds** | 16 | 16 (`create.<kind>`, `delete.<kind>`, `destroy.<kind>`, `list.<kind>`, plus the declarative `table` tree) | 0 — full coverage |
-| **Flush-object kinds** | 6 (table/chain/set/map/meter/ruleset) | 6 (`flush`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`) | 1 — added `flushMeter` |
-| **List-object kinds** | 17 (16 add-objects + metainfo + meter) | 17 (`list.<kind>`, `list.metainfo`, `list.meter`) | 1 — added `list.meter` |
-| **Reset-object kinds** | 6 | 6 | 0 |
-| **Commands** | 10 verbs | 10 (every verb has a top-level constructor) | 0 |
+## Construction path
 
-**DSL gaps fixed**: 5 (4 DSL convenience leaves/builders + 1 schema gap that this audit surfaced — `meter` was missing from `listObject`).
+```text
+field / expression / statement constructors
+                     │
+                     ▼
+       table tree and command builders
+                     │
+          schema-body validation
+                     │
+                     ▼
+       flat libnftables command attrsets
+                     │
+          JSON or text renderer
+```
 
-**Schema gap surfaced by this audit**: 1 — `listObject` didn't include `meter` even though `parser_json.c:4191` accepts `list meter`. Fixed alongside the DSL changes; logged here so a future schema audit is consistent.
+The table node is lazy. Validation runs when expansion is forced, normally by
+rendering `dsl.ruleset [...]`.
 
-## Methodology
+## Covered surfaces
 
-For every schema body and every parser-accepted form, check whether the DSL exposes a path that produces it. Two kinds of DSL surface count as coverage:
+### Expressions and fields
 
-1. **Pre-built constructor** — convenience builder that takes idiomatic camelCase args and emits the right schema attrset (e.g. `dsl.fields.tcp.dport`, `dsl.counter.auto`, `dsl.create.table {…}`).
-2. **Escape hatch** — generic builder that accepts any string / nested attrset and wraps it (e.g. `dsl.expr.rt {key = "ipsec"; family = "ip";}`, `dsl.payloadRaw {…}`, `dsl.match.raw {…}`). Escape hatches are the designed-in fallback for inputs the pre-built tree doesn't cover.
+The DSL provides:
 
-A DSL surface is **complete** for a schema body if either path can produce every shape the schema accepts. A surface is a **gap** only if both paths fail — i.e. the user has no idiomatic DSL way to produce some valid schema shape and falls back to writing the raw attrset.
+- protocol/metadata leaves under `fields`;
+- generic payload escape hatches;
+- structural expressions under `expr`;
+- comparison and membership helpers at the top level.
 
-## Confirmed gaps (fixed in this work)
+Pre-built leaves cover common payload, metadata, routing, connection-tracking,
+FIB, socket, OS fingerprint, and XFRM fields. `payload`, `payloadRaw`,
+`payloadTunnel`, and raw expression attrsets cover less common parser fields.
 
-### D1. `fields/rt.nix` missing `ipsec` leaf
+`expr.set` is the anonymous-set constructor; `expr.setRef` is the named-set
+reference. `expr.map` and `expr.mapRef` make the same distinction for maps.
 
-- **Schema**: `rtKey = enum [ "classid" "nexthop" "mtu" "ipsec" ]` after the spec-coverage G1 fix.
-- **DSL pre-built**: `fields/rt.nix` only exposed `classid`, `nexthop`, `mtu`.
-- **Escape hatch**: `dsl.expr.rt {key = "ipsec"; family = "ip";}` already worked.
-- **Fix**: add `"ipsec"` to the keys list in `fields/rt.nix`. Now `dsl.fields.rt.ipsec == { rt = { key = "ipsec"; }; }`.
+### Statements
 
-### D2. `fields/fib.nix` missing `check` leaf
+Every schema statement tag has either a named constructor or a raw body path.
+Common constructors are pre-built; less common variants use callable attrsets
+or `.raw`/body forms.
 
-- **Schema**: `fibResult = enum [ "oif" "oifname" "type" "check" ]` after the spec-coverage G3 fix.
-- **DSL pre-built**: `fields/fib.nix` only exposed `oif`, `oifname`, `type`.
-- **Escape hatch**: `dsl.expr.fib {result = "check"; flags = [...];}` already worked.
-- **Fix**: add `"check"` to the results list in `fields/fib.nix`. `parser_json.c:1213-1230` enforces flag combinations (saddr⊕daddr exactly one, iif⊕oif mutually exclusive), so a bare `dsl.fields.fib.check` is rejected by `nft -c` for everything but flag-using callers — the leaf is mostly useful in combination with the escape hatch's `flags`. Documented in the field file.
+Two names differ deliberately:
 
-### D3. No `flushMeter` builder
+- `setStmt` emits the `set` statement;
+- `mapStmt` emits the `map` statement.
 
-- **Schema**: `flushObject` accepts `meter` after the spec-coverage G5 fix (`parser_json.c:4302`).
-- **DSL pre-built**: `flush*` builders covered table/chain/set/map/ruleset only.
-- **Fix**: add `flushMeter = body: { flush = { meter = body; }; };` to `lib/dsl/structure/ruleset.nix`. Now `dsl.flushMeter {family;table;name;}` works.
+The shorter `set` and `map` names are already used by expression constructors.
 
-### D4. No `list.meter` builder
+`xt` exists for read-back compatibility even though nftables rejects it as new
+JSON input.
 
-- **Schema gap surfaced**: `parser_json.c:4191` (`json_parse_cmd_list` dispatch) accepts `{"meter", CMD_OBJ_METER, json_parse_cmd_add_set}`. The schema's `listObject` didn't include `meter`, so even `{list = {meter = …};}` failed at evaluation time.
-- **Fix (schema)**: add `meter = bodies.meterObjectBody;` to the `listObject` `attrTag`. Logged in this audit's coverage summary (line above) so a future schema-only audit doesn't re-flag it.
-- **Fix (DSL)**: add `meter = { tag = "meter"; body = lib.id; };` to `listObjectKinds` in `lib/dsl/structure/commands.nix`. `dsl.list.meter {family;table;name;}` works.
+### Declarative objects and rules
 
-### D5. Stale comment in `structure/ruleset.nix`
+`dsl.table family name body` supports table options, named objects, chains, and
+ordered rules. The object-kind registry in
+[`lib/dsl/structure/object-kinds.nix`](../lib/dsl/structure/object-kinds.nix)
+provides each plural DSL key, singular JSON tag, schema body, and key-renaming
+function from one source.
 
-- **Was**: comment said the schema accepts `flush flowtable` even though the parser rejects it, justifying the DSL omission.
-- **Now**: schema rejects it too (after spec-coverage G4). Comment updated to reflect that schema and DSL agree on omission.
+Expansion is deterministic:
 
-### D6. No `fields/osf.nix` (small consistency improvement)
+1. table;
+2. all chains, sorted by name;
+3. object kinds alphabetically, except standalone elements follow their set/map
+   definitions; names remain sorted within each kind;
+4. rules grouped by sorted chain name and kept in source order within each
+   chain.
 
-- **Schema**: `osfKey = enum [ "name" "version" ]` after the spec-coverage G2 fix.
-- **DSL pre-built**: no `osf` namespace under `fields/`.
-- **Escape hatch**: `dsl.expr.osf {key = "version"; ttl = "loose";}` works.
-- **Fix**: add a tiny `lib/dsl/fields/osf.nix` exposing both keys, mirroring the rt/fib/socket pattern. Keeps the field tree symmetric.
+This covers dependencies expressed by the table tree. Dependencies hidden in
+raw nested bodies remain the caller's responsibility.
 
-## Inverse audit — DSL → schema
+Each emitted body is validated with a path such as
+`chains.input.rules.0` or `sets.trusted`. Unknown table-body keys fail with the
+table name and offending key. This prevents misspellings such as `chians` from
+being silently dropped. The documented `_type` composability marker is accepted
+and removed during expansion.
 
-For every DSL constructor, verify the produced attrset is accepted by the schema. Walked module-by-module:
+### Commands
 
-- `actions/counter.nix`: emits `{counter = null}`, `{counter = "name"}`, or `{counter = {packets?; bytes?;}}`. Schema's `counterRefOrBody = oneOf [nullLiteral str submodule{packets,bytes}]` accepts all three. ✓
-- `actions/rate.nix` (limit, quota): emits ref-or-inline forms matching `limitRefOrBody` / `quotaRefOrBody`. Crucially, **does not emit the vestigial `unit` field** that the schema removed in spec-coverage E19. Verified by `grep '\bunit\b' lib/dsl/`. ✓
-- `actions/log.nix`: applies `rename.log` (`queueThreshold` → `queue-threshold`) before emission. ✓
-- `actions/synproxy.nix`: anonymous form requires both `mss` and `wscale`, matching the schema's `synproxyAnonBody`. (Spec-coverage E10 notes the schema is stricter than the parser here; the DSL inherits that posture.)
-- `actions/nat.nix`, `actions/queue.nix`, `actions/reject.nix`, `actions/ct.nix`, `actions/flow.nix`, `actions/misc.nix`: each constructor emits the exact body shape the corresponding schema body accepts.
-- `actions/flow.nix`: `flow {flowtable;}` defaults `op = "add"` — matches the schema's `flowOp = ["add"]` (parser only accepts "add").
-- `verdicts.nix`: emits `{accept = null;}` etc. and `{jump = {target = …;};}` matching the schema's verdict tags. ✓
-- `ops.nix`: every operator emits `{match = {left; right; op;};}` with `op` drawn from the schema's `operator` enum. ✓
-- `exprs.nix`: every constructor emits a tag listed in `expressions.nix:taggedExpression`. ✓
-- `fields/*.nix`: every leaf is `{TAG = {key|result|… = "...";};}` shaped for its schema body.
-- `structure/render.nix`: object-tree expansion emits per-kind `{add = {<TAG> = body;};}` with the right rename map applied. ✓
-- `structure/commands.nix`: per-verb namespace `{<verb> = {<TAG> = body;};}`, with rename for `set`/`map`/`element`/`tunnel` bodies. ✓
+The DSL exposes all modelled command verbs:
 
-No DSL constructor was found to emit a shape the schema rejects.
+- `rule`, `replace`, and `insert` for rule commands;
+- `create.<kind>`, excluding `rule`;
+- `delete.<kind>` and `destroy.<kind>` for the 16 add-object kinds;
+- `list.<kind>` plus `list.metainfo` and `list.meter`;
+- `reset.<kind>` for counter, quota, rule, set, map, and element;
+- `flush` plus explicit ruleset/table/chain/set/map/meter helpers;
+- `rename.chain`.
 
-## DSL-level validation
+`create.rule` and `flushFlowtable` are absent because the live JSON parser
+rejects those commands.
 
-Every DSL constructor that takes a user-supplied object body runs that body through `lib.evalModules` against the matching schema submodule before emitting JSON. Without this, a type-mismatched field would render to JSON unchecked and `nft -j -f` would silently drop the broken section (the canonical case: `chains.c.prio = "filter"` rendering to `"prio":"filter"`, which `nft` accepts as JSON but the kernel rejects, dropping the chain's base-chain attrs). With validation in place, the bad field throws at eval time naming the user's tree position.
+## Key renaming
 
-The wiring lives in `lib/dsl/internal/validate.nix`. It's invoked from the three structure modules:
+The DSL uses Nix-friendly camel case and translates only where nftables uses
+hyphenated names. Examples:
 
-- `lib/dsl/structure/commands.nix` — every `create.<kind>` / `delete.<kind>` / `destroy.<kind>` / `list.<kind>` / `reset.<kind>` namespace, plus `rename.chain`, `replace`, `insert`. Each per-kind config carries a `body` field (the schema submodule) alongside `tag` (JSON tag) and `renameBody` (camelCase → JSON-key rename); `mkNamespace` validates per invocation with prefix `[ verb tag ]`.
-- `lib/dsl/structure/ruleset.nix` — every `flush*` helper (`flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`, `flushRuleset`) plus the standalone `dsl.rule` constructor. The bare `flush` constant has no body to validate.
-- `lib/dsl/structure/render.nix` — the table-tree expansion. `expandTable` validates the table envelope; `emitChainAdd`, `emitRule`, and `emitObject` validate per-leaf with prefixes that name the user's tree path (`chains.<name>`, `chains.<name>.rules.<idx>`, `<pluralKey>.<name>`).
+| DSL | JSON |
+| --- | --- | --- |
+| `ctHelper` | `ct helper` |
+| `queueThreshold` | `queue-threshold` |
+| `gcInterval` | `gc-interval` |
+| `srcIpv4` | `src-ipv4` |
 
-Validate accepts a `prefix` argument (a list of path components) which evalModules prepends to error-message paths. Examples of resulting errors:
+The mapping is centralized in
+[`lib/dsl/internal/rename.nix`](../lib/dsl/internal/rename.nix).
 
-- `dsl.create.chain { …; prio = "filter"; }` → ``A definition for option `create.chain.prio' is not of type `null or signed integer'.``
-- Inside a table tree, `chains.c = { prio = "filter"; }` → ``A definition for option `chains.c.prio' is not of type `null or signed integer'.``
-- `dsl.flushTable { family = "wireguard"; name = "t"; }` → ``A definition for option `flushTable.family' is not of type `one of "ip", "ip6", "inet", "arp", "bridge", "netdev"'.``
+## Validation boundaries
 
-For schema submodule types (every body in `lib/schema/objects.nix` except `rulesetBody`), validate extracts the inner options via `getSubOptions [ ]` and passes them directly to `evalModules`, so errors show the field name without indirection. For `rulesetBody` (which is `oneOf [ nullLiteral, submodule { family; } ]` and therefore not a flat submodule) it falls back to wrapping in a top-level `value` option; `rulesetBody` is shallow enough that this indirection isn't burdensome.
+Not every value under `dsl` is validated at constructor call time. Nix is lazy,
+and leaf constructors generally build attrsets. Validation occurs when a
+command builder or table expansion applies the matching schema body and the
+result is forced.
 
-Action constructors (`actions/*.nix`), verdicts, expressions, payload helpers, ops, and field trees are not validated directly. They produce statement/expression-shaped attrsets that get embedded in rule bodies; the `ruleBody` submodule has `expr = listOf statement`, so the recursive type-check covers them transitively. The existing parity tests in `dsl-parity.nix` already prove these constructors emit schema-accepted shapes — no separate wiring required.
+`dsl.ruleset` also accepts raw command attrsets so callers can use parser forms
+not covered by the convenience API. Those raw children are passed through and
+are not validated automatically. The renderers likewise do not turn arbitrary
+raw input into a typed value.
 
-`tests/dsl-validation.nix` has one regression test per submodule wired up. `tests/dsl-validation-messages.nix` runs a representative subset through `nix-instantiate --eval` inside a sandboxed `runCommandLocal` and asserts the stderr names the expected option path — proving the "names the offending field" property end-to-end.
+Use `nftlib.types.ruleset` explicitly for raw user configuration. See
+[`api.md`](api.md#validation-model).
 
-## Edge cases and design choices
+## Intentional limits
 
-### E1. The `dsl.reset` `__functor` overload
+- Plural `list`/`reset` command-selector forms are not modelled by either schema
+  or DSL.
+- Some command verbs accept slimmer parser selector bodies than the shared
+  schema bodies expose.
+- Stateful-object map statements and several null-body statement spellings are
+  known schema gaps, so they have no typed DSL path.
+- Text rendering may impose stricter token and quoting rules than JSON.
+- A raw attrset remains the escape hatch for parser-valid shapes outside the
+  model.
 
-`reset` does double-duty as a rule-body **statement** (`reset tcpOption`) and a top-level **command** namespace (`reset.counter {…}`). Implemented via `internal/variant.nix`'s `__functor` helper: bare call → statement, sub-attribute access → command builder. This is the only place a single DSL name covers both a statement and a command.
-
-### E2. Binary operators are pairwise in the DSL but variadic in the schema
-
-`dsl.expr.bitor a b == { "|" = [a b]; }` — only handles two operands. The schema accepts `≥2` (`binaryOpBody = listOfMinLen 2`). For chained ops, users nest: `bitor a (bitor b c)`. Most realistic uses are pairwise; the nested form covers the rare longer chain. Not a gap, just a stylistic choice.
-
-### E3. Field leaves don't include conditional refinements
-
-`dsl.fields.rt.nexthop` → `{rt = {key = "nexthop";}}` — no `family`. The parser uses `family` to pick `NEXTHOP4` vs `NEXTHOP6` (rt is the only key where this matters). Users who need it write the escape hatch: `dsl.expr.rt {key = "nexthop"; family = "ip6";}`. Same pattern for `fields.ct.<key>` (no `dir`/`family` refinement) and `fields.fib.<result>` (no `flags`). The pre-built leaves are deliberately the bare minimum; refinements live in the escape hatches.
-
-### E4. `setStmt` / `mapStmt` rename to avoid collision
-
-`set` and `map` already exist as DSL expression constructors (`exprs.set xs == {set = xs;}` and `exprs.map {key; data;}`). The rule-body statements that modify a set/map (`{set = {op; elem; set;};}` and `{map = {op; elem; data; map;};}`) couldn't reuse the names without shadowing — so `actions/misc.nix` exposes them as `setStmt` and `mapStmt`. The DSL spelling is intentional; the resulting JSON shape is unchanged.
-
-### E5. `xt` statement is exposed in the DSL but rejected by the parser
-
-The DSL exposes `dsl.xt type name → {xt = {type; name;};}` for round-trip with `nft -j list ruleset` output. The parser rejects xt as input (`parser_json.c:2942-2944`); see spec-coverage E2. No-op for input use.
-
-### E6. Plural list/reset object kinds (`tables`, `chains`, …) not exposed
-
-Per spec-coverage E11, the schema doesn't model the plural list-multiple forms (read-back-only shapes from `nft -j list ruleset`). The DSL inherits that omission — `list.tables` is intentionally absent. If round-trip parsing of plural-list output is needed in the future, both layers extend together.
-
-### E7. Renames concentrated in `internal/rename.nix`
-
-The DSL hides hyphenated JSON keys (`queue-threshold`, `gc-interval`, `auto-merge`, `src-ipv4`, …) behind camelCase user-facing names. All renames live in `lib/dsl/internal/rename.nix` (14 explicit mappings) plus the `elements` → `elem` plural-for-lists DSL convention. Users never write hyphenated keys.
-
-## Out of scope for this audit
-
-- Text renderer coverage: see [`docs/text-coverage.md`](text-coverage.md).
-- Schema-vs-parser audit: see [`docs/spec-coverage.md`](spec-coverage.md).
-- DSL-internal refactorings (e.g. unifying the variant pattern, splitting large action modules): not a coverage concern, deferred.
+These are model limits, not hidden DSL parity claims.
 
 ## Verification
 
-`nix flake check` passes the full matrix:
+The relevant checks are:
 
-- `schema-tests` — 240+ assertions including 5 spec-coverage gap-fix tests plus 7 new DSL parity tests (rt ipsec, fib check, osf name, osf version, flushMeter, list.meter, alongside the existing rt/fib leaves).
-- `text-parity-tests`, `integration-tests`, `text-integration-tests`, `text-block-parity-tests`, `text-block-integration-tests`, `render-equivalence-tests` — all unchanged by the DSL additions.
+- `schema-tests` and DSL parity cases for byte-identical raw/DSL JSON;
+- `dsl-validation-tests` for rejected fields and unknown table keys;
+- `dsl-validation-message-tests` for useful error paths;
+- `integration-tests` for selected DSL output through `nft -c -j -f` and a
+  raw `create rule` parser-rejection case;
+- focused safety suites for comments, interface names, references, tokens,
+  units, priorities, and restricted types.
+
+Stable and unstable variants use their respective nixpkgs `lib` and `nft`
+packages.
+
+When adding a schema tag or object kind, add the constructor/registry entry,
+positive parity coverage, one invalid-body test, and the applicable live-parser
+case in the same change.

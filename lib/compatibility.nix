@@ -209,10 +209,10 @@ let
   /*
     resolvePriority :: family -> (int | symbol) -> int
 
-    Pass an int through unchanged; look a symbol up in the
-    family-appropriate table (bridge → priorityIntsBridge, every
-    other known family → priorityIntsDefault). Throws separately
-    for unknown family vs unknown symbol so the error message
+    Pass an int through unchanged without consulting `family`; look a symbol
+    up in the family-appropriate table (bridge → priorityIntsBridge, every
+    other known family → priorityIntsDefault). Symbolic lookup throws
+    separately for unknown family vs unknown symbol so the error message
     distinguishes the two.
 
     Scope: symbol-to-int translation only. The kernel accepts any
@@ -243,17 +243,15 @@ let
   /*
     validChainPlacement :: family -> chainType -> hook -> bool
 
-    True iff the kernel will accept a base chain with this
-    `(family, chainType, hook)` triple. Combines three checks:
+    True when the triple appears in the static compatibility tables:
       - `family` supports `chainType`        (familiesByChainType)
       - `family` exposes `hook`              (hooksByFamily)
       - `chainType` permits `hook`           (hooksByChainType)
-    All three must hold; any one failing means kernel rejection.
 
-    Useful for consumers that synthesize chain placements from
-    higher-level abstractions (e.g. zone-based firewalls) and want
-    to flag invalid combinations at compile time rather than at
-    `nft -f` time.
+    This intentionally does not model runtime requirements such as kernel
+    version/modules, devices, or `dev` on ingress chains. A true result is a
+    useful compile-time placement check, not a guarantee that `nft -f` will
+    accept a complete chain body.
   */
   validChainPlacement =
     family: chainType: hook:
@@ -269,10 +267,10 @@ let
   /*
     priorityNameOf :: family -> (int | symbol) -> (symbol | int)
 
-    Reverse of `resolvePriority`. Given a priority value, return
-    the canonical symbol if one exists for the family, else the
-    raw value unchanged. Symbols pass through unchanged (already
-    canonical). Throws on unknown family.
+    Reverse of `resolvePriority` for integer inputs. Given an int, return
+    the canonical symbol if one exists for the family, else the raw value
+    unchanged. This integer path throws on unknown family. Symbols pass
+    through unchanged without consulting `family`.
 
     Use case: consumers that key chain buckets by a stable
     `(hook, priorityName)` pair want int-form and symbol-form
@@ -300,8 +298,8 @@ let
   /*
     chainTypeFor :: family -> hook -> (int | symbol) -> (chainType | null)
 
-    Derive the nftables chain type (`"filter"` / `"nat"` /
-    `"route"`) implied by a `(family, hook, priority)` placement.
+    Classify a `(family, hook, priority)` placement according to this
+    library's conventional `"filter"` / `"nat"` / `"route"` policy.
     Returns `"filter"` for any placement that doesn't unambiguously
     pick another type; returns `null` only if `prio` is a symbol
     not in the family's priority table.

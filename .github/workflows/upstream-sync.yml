@@ -39,8 +39,8 @@ jobs:
             label: unstable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
 
       - name: Compare locked and channel-tip nftables sources
         id: source
@@ -163,7 +163,7 @@ jobs:
 
       - name: Upload source diff
         if: steps.source.outputs.drift == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: nftables-source-diff-${{ matrix.label }}
           path: parser.diff
@@ -238,8 +238,8 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true # non-gating: a red canary is a signal, not a failure
     steps:
-      - uses: actions/checkout@v5
-      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
       - name: Allow unshare to create user namespaces
         run: |
           sudo cp .github/apparmor/nix-unshare /etc/apparmor.d/nix-unshare
@@ -254,6 +254,13 @@ jobs:
           locked_rev=$(jq -er '.nodes["${{ matrix.input }}"].locked.rev' flake.lock)
           tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/$ref" | jq -er .revision)
           tip_uri="github:NixOS/nixpkgs/$tip_rev"
+
+          {
+            echo "### ${{ matrix.label }} channel-tip compatibility"
+            echo
+            echo "nixpkgs revision: \`$tip_rev\`."
+          } >>"$GITHUB_STEP_SUMMARY"
+
           source_attr="nftables-source${{ matrix.suffix }}"
           locked_version=$(nix eval --raw ".#packages.x86_64-linux.$source_attr.version")
           tip_version=$(nix eval --raw \
@@ -262,6 +269,7 @@ jobs:
 
           echo "Floating ${{ matrix.input }} ($ref) from ${locked_rev:0:12} to ${tip_rev:0:12}."
           echo "nftables package version: $locked_version -> $tip_version"
+          echo "nftables version: \`$tip_version\`." >>"$GITHUB_STEP_SUMMARY"
 
           checks=(
             integration-tests
@@ -283,8 +291,4 @@ jobs:
             --override-input "${{ matrix.input }}" "$tip_uri" \
             "${targets[@]}"
 
-          {
-            echo "### ${{ matrix.label }} channel-tip compatibility"
-            echo
-            echo "Passed ${#checks[@]} nftables-facing checks at nixpkgs \`${tip_rev:0:12}\` (nftables \`$tip_version\`)."
-          } >>"$GITHUB_STEP_SUMMARY"
+          echo "Passed ${#checks[@]} nftables-facing checks." >>"$GITHUB_STEP_SUMMARY"

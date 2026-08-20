@@ -1299,6 +1299,53 @@ in
         ];
       };
 
+  # A standalone element command depends on its set. The tree expander must
+  # emit the set before the element even though `elements` sorts before `sets`.
+  testRenderStandaloneElementsAfterSet =
+    pr
+      (dsl.ruleset [
+        (dsl.table "inet" "t" {
+          sets.blocked = {
+            type = "ipv4_addr";
+          };
+          elements.blocked = {
+            elements = [ "192.0.2.1" ];
+          };
+        })
+      ])
+      {
+        nftables = [
+          {
+            add = {
+              table = {
+                family = "inet";
+                name = "t";
+              };
+            };
+          }
+          {
+            add = {
+              set = {
+                family = "inet";
+                table = "t";
+                name = "blocked";
+                type = "ipv4_addr";
+              };
+            };
+          }
+          {
+            add = {
+              element = {
+                family = "inet";
+                table = "t";
+                name = "blocked";
+                elem = [ "192.0.2.1" ];
+              };
+            };
+          }
+        ];
+      };
+
   # Map with camelCase-aliased gcInterval (→ "gc-interval").
   testRenderMapGcInterval =
     pr

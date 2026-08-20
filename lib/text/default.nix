@@ -112,10 +112,15 @@ let
           in
           throw "text.toTextBlock: only `add` commands belong inside a table block; got [${verbs}]";
 
-      # Drop the `add table` self — the wrapper is the consumer's job —
-      # and partition the rest into rules (folded into their parent
-      # chain) and everything-else (rendered as top-level block decls).
-      bodyCmds = builtins.filter (c: !(c ? table)) (map unwrapAdd cmds);
+      # Require one table self-command, drop it (the wrapper is the consumer's
+      # job), then partition the body into rules (folded into their parent
+      # chain) and everything else (rendered as top-level block declarations).
+      # The public dsl.table wrapper already enforces this shape; these checks
+      # keep the lower-level hand-built-envelope contract fail-closed too.
+      addCmds = map unwrapAdd cmds;
+      tableCmds = builtins.filter (c: c ? table) addCmds;
+      bodyCmds = builtins.filter (c: !(c ? table)) addCmds;
+      standaloneElementCmds = builtins.filter (c: c ? element) bodyCmds;
       parted = lib.partition (c: c ? rule) bodyCmds;
       rulesByChain = lib.groupBy (r: r.chain) (map (c: c.rule) parted.right);
       nonRuleCmds = parted.wrong;
@@ -137,7 +142,11 @@ let
       chainNames = lib.concatMap (c: lib.optional (c ? chain) c.chain.name) nonRuleCmds;
       orphanChains = lib.subtractLists chainNames (builtins.attrNames rulesByChain);
     in
-    if orphanChains != [ ] then
+    if builtins.length tableCmds != 1 then
+      throw "text.toTextBlock: expected exactly one `add table` command, got ${toString (builtins.length tableCmds)}"
+    else if standaloneElementCmds != [ ] then
+      throw "text.toTextBlock: standalone `add element` commands cannot be represented inside a table block"
+    else if orphanChains != [ ] then
       throw "text.toTextBlock: rules reference undeclared chains [${lib.concatStringsSep ", " orphanChains}]"
     else
       lib.concatMapStringsSep "\n" renderTopLevel nonRuleCmds;
