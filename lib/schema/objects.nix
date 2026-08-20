@@ -680,6 +680,13 @@ let
 
   addObject = types.attrTag (lib.mapAttrs (_: tagOpt) addObjectBodies);
 
+  # `create` accepts every add-object kind except `rule`. nftables rejects
+  # `create rule` explicitly; keeping a separate union prevents raw typed
+  # commands from accepting a shape that the DSL already omits.
+  createObject = types.attrTag (
+    lib.mapAttrs (_: tagOpt) (builtins.removeAttrs addObjectBodies [ "rule" ])
+  );
+
   # parser_json.c:4174-4192 (json_parse_cmd_list dispatch): every add-object
   # kind plus `metainfo` (read-back-only shape) plus `meter` (singular form;
   # plural list-multiple forms are intentionally not modelled — see
@@ -724,6 +731,7 @@ in
   all = bodies // wrappers;
   inherit
     addObject
+    createObject
     listObject
     flushObject
     resetObject

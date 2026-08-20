@@ -396,6 +396,23 @@ rec {
       ];
     }
 
+    # -- standalone elements after set ----------------------------------
+    # The element command must be emitted after the set it names; nft reports
+    # ENOENT when the commands are reversed.
+    {
+      name = "standalone-elements-after-set";
+      ruleset = ruleset [
+        (dsl.table "inet" "element_order" {
+          sets.blocked = {
+            type = "ipv4_addr";
+          };
+          elements.blocked = {
+            elements = [ "192.0.2.1" ];
+          };
+        })
+      ];
+    }
+
     # -- list.table ------------------------------------------------------
     # Only `list.table` works in check mode; other kinds require an
     # existing kernel state that the sandboxed netns doesn't have.
@@ -453,6 +470,44 @@ rec {
     }
   ];
 
+  # Parser-negative cases pin distinctions that the schema must not erase.
+  # These raw attrsets intentionally bypass the schema so the selected
+  # channel's live JSON parser remains the behavioral oracle.
+  rejectionCases = [
+    {
+      name = "create-rule";
+      # The prelude makes the table and chain valid in the same batch, while
+      # the diagnostic assertion pins rejection to the unsupported command
+      # rather than an unrelated missing-state error.
+      expectedError = "Create command not available for rules";
+      ruleset = {
+        nftables = [
+          {
+            add.table = {
+              family = "inet";
+              name = "filter";
+            };
+          }
+          {
+            add.chain = {
+              family = "inet";
+              table = "filter";
+              name = "input";
+            };
+          }
+          {
+            create.rule = {
+              family = "inet";
+              table = "filter";
+              chain = "input";
+              expr = [ ];
+            };
+          }
+        ];
+      };
+    }
+  ];
+
   # Build a derivation that writes each case's JSON to a file and runs
   # `unshare -rn nft -c -j -f` against it. The Nix sandbox permits nested
   # user/network namespaces on Linux, so nft gets a private netfilter
@@ -503,11 +558,32 @@ rec {
             failed=$((failed + 1))
           fi
         '') cases}
+        ${lib.concatMapStringsSep "\n" (c: ''
+          printf '=== reject %s ===\n' ${lib.escapeShellArg c.name}
+          ruleset=$(cat <<'RULESET_EOF'
+          ${nftlib.toJson c.ruleset}
+          RULESET_EOF
+          )
+          expected_error=${lib.escapeShellArg c.expectedError}
+          if nft_err=$(unshare -rn nft -c -j -f - <<<"$ruleset" 2>&1); then
+            echo "FAIL: parser accepted a case that must be rejected"
+            echo "$ruleset" | sed 's/^/    | /'
+            failed=$((failed + 1))
+          elif [[ "$nft_err" == *"$expected_error"* ]]; then
+            echo "PASS (rejected for expected reason)"
+          else
+            echo "FAIL: parser rejected the case for an unexpected reason"
+            echo "    expected diagnostic substring: $expected_error"
+            echo "$nft_err" | sed 's/^/    /'
+            echo "$ruleset" | sed 's/^/    | /'
+            failed=$((failed + 1))
+          fi
+        '') rejectionCases}
         if [ "$failed" -gt 0 ]; then
           echo "$failed integration test(s) failed"
           exit 1
         fi
-        echo "All ${toString (builtins.length cases)} integration tests passed"
+        echo "All ${toString (builtins.length cases)} acceptance and ${toString (builtins.length rejectionCases)} rejection cases passed"
         touch $out
       '';
 

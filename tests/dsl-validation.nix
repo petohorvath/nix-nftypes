@@ -21,6 +21,27 @@ let
   renders = rulesetValue: (builtins.tryEval (toJson (dsl.ruleset rulesetValue))).success;
 
   tests = {
+    # Table trees are a structural DSL surface rather than a schema body.
+    # Reject misspelled collection names instead of silently dropping them
+    # while expanding the tree.
+    testTableUnknownCollectionRejected = {
+      expr = renders [
+        (dsl.table "inet" "t" {
+          chians.c = { };
+        })
+      ];
+      expected = false;
+    };
+
+    testTableTypeMarkerAccepted = {
+      expr = renders [
+        (dsl.table "inet" "t" {
+          _type = "example.table";
+        })
+      ];
+      expected = true;
+    };
+
     # The user's bug. Schema `chainBody.prio` is `nullOr int`; passing a
     # symbolic priority like "filter" used to render to `"prio":"filter"`
     # and the kernel silently dropped the base-chain attrs.

@@ -23,7 +23,9 @@ let
     lib.mapAttrs (_: tagOpt) {
       add = objects.addObject;
       replace = objects.all.rule;
-      create = objects.addObject;
+      # parser_json.c rejects `create rule`; the object union deliberately
+      # excludes that tag instead of reusing the broader `add` union.
+      create = objects.createObject;
       insert = objects.all.rule;
       delete = objects.addObject;
       destroy = objects.addObject;

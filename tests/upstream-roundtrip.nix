@@ -4,14 +4,15 @@
   nftables,
 }:
 
-# Read-back round-trip check (docs/upstream-sync.md): everything
-# `nft -j list ruleset` emits must validate against the schema.
+# Read-back round-trip check (docs/upstream-sync.md): every command emitted for
+# the selected successfully real-loaded fixtures must validate against the
+# schema.
 #
 # Every other suite tests the INPUT direction — our JSON/text is accepted
-# by a real parser. This one tests the OUTPUT direction, which is the
-# README's "round-trip safe" claim: each integration case is really loaded
-# (no `-c`) into a private netns with the selected channel's `nft`, the resulting
-# `nft -j list ruleset` is captured, and every command in it is validated
+# by a real parser. This one samples the OUTPUT direction: each selected
+# integration case is really loaded (no `-c`) into a private netns with the
+# selected channel's `nft`, the resulting `nft -j list ruleset` is captured,
+# and every command in it is validated
 # against `nftlib.types.ruleset` (whose `topLevel` union deliberately
 # accepts bare listed objects alongside command wrappers).
 #
@@ -52,8 +53,8 @@ let
   /*
     Cases that cannot be really loaded (as opposed to `nft -c` checked)
     in an unprivileged netns, with the observed reason. Everything not
-    listed here is expected to load; an unexpected load failure is
-    reported in the build log and eats into `minLoaded` below.
+    listed here is expected to load; an unexpected load failure fails the
+    check instead of silently reducing round-trip coverage.
   */
   knownNoLoad = {
     "add-rule-via-tree-and-standalone" =
@@ -86,6 +87,7 @@ let
       }
       ''
         loaded=0
+        load_failed=0
         : > entries.jsonl
         ${lib.concatMapStringsSep "\n" (c: ''
           printf '=== %s ===\n' ${lib.escapeShellArg c.name}
@@ -113,8 +115,13 @@ let
             sed 's/^/    /' ./err.txt
             jq -n --arg name ${lib.escapeShellArg c.name} \
               '{name: $name, loaded: false}' >> entries.jsonl
+            load_failed=$((load_failed + 1))
           fi
         '') loadCases}
+        if [ "$load_failed" -gt 0 ]; then
+          echo "$load_failed unexpected round-trip case(s) failed to load; refusing reduced coverage"
+          exit 1
+        fi
         if [ "$loaded" -lt ${toString minLoaded} ]; then
           echo "only $loaded case(s) produced a listing (< ${toString minLoaded});" \
                "refusing a vacuous pass — the environment cannot exercise the round-trip"

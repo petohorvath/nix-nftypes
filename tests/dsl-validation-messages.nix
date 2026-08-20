@@ -23,6 +23,17 @@ let
 
   cases = [
     {
+      name = "table-unknown-key";
+      body = ''
+        nftlib.toJson (nftlib.dsl.ruleset [
+          (nftlib.dsl.table "ip" "t" {
+            chians.c = { };
+          })
+        ])
+      '';
+      pathRegex = "dsl\\.table ip\\.t has unsupported key.*chians";
+    }
+    {
       name = "chains-c-prio";
       body = ''
         nftlib.toJson (nftlib.dsl.ruleset [

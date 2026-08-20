@@ -21,6 +21,17 @@ let
     toTextBlockPretty
     dsl
     ;
+  # Exercise the internal envelope renderer directly as a defence-in-depth
+  # boundary. Public callers go through lib/default.nix's stricter dsl.table
+  # wrapper, but the internal contract also promises one add.table command and
+  # no standalone element commands for hand-built envelopes.
+  internalText = import ../lib/text {
+    inherit lib;
+    clean = import ../lib/clean.nix { inherit lib; };
+    nftSafeString = import ../lib/nft-safe-string.nix { };
+    nftSafeIfname = import ../lib/nft-safe-ifname.nix { };
+    nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
+  };
 
   baseChain = {
     type = "filter";
@@ -38,6 +49,169 @@ let
     testEmptyTablePretty = {
       expr = toTextBlockPretty (dsl.table "inet" "fw" { });
       expected = "";
+    };
+
+    # An empty top-level elements collection emits no standalone command and is
+    # therefore a valid no-op for both public block renderers.
+    testEmptyElementsCollectionCompact = {
+      expr = toTextBlock (dsl.table "inet" "fw" { elements = { }; });
+      expected = "";
+    };
+
+    testEmptyElementsCollectionPretty = {
+      expr = toTextBlockPretty (dsl.table "inet" "fw" { elements = { }; });
+      expected = "";
+    };
+
+    # Block renderers accept only declarative table nodes. Raw commands must
+    # not be silently discarded or rendered without their table context.
+    testRawTableCommandRejected = {
+      expr =
+        (builtins.tryEval (toTextBlock {
+          add.table = {
+            family = "inet";
+            name = "fw";
+          };
+        })).success;
+      expected = false;
+    };
+
+    testRawChainCommandRejectedPretty = {
+      expr =
+        (builtins.tryEval (toTextBlockPretty {
+          add.chain = {
+            family = "inet";
+            table = "fw";
+            name = "input";
+          };
+        })).success;
+      expected = false;
+    };
+
+    # The lower-level envelope renderer has the same structural boundary. These
+    # tests bypass the public dsl.table wrapper so its checks cannot mask an
+    # internal regression.
+    testInternalEnvelopeSingleTableAccepted = {
+      expr = internalText.toTextBlock {
+        nftables = [
+          {
+            add.table = {
+              family = "inet";
+              name = "fw";
+            };
+          }
+        ];
+      };
+      expected = "";
+    };
+
+    testInternalEnvelopeWithoutTableRejected = {
+      expr =
+        (builtins.tryEval (
+          internalText.toTextBlock {
+            nftables = [
+              {
+                add.chain = {
+                  family = "inet";
+                  table = "fw";
+                  name = "input";
+                };
+              }
+            ];
+          }
+        )).success;
+      expected = false;
+    };
+
+    testInternalEnvelopeWithMultipleTablesRejected = {
+      expr =
+        (builtins.tryEval (
+          internalText.toTextBlock {
+            nftables = [
+              {
+                add.table = {
+                  family = "inet";
+                  name = "fw";
+                };
+              }
+              {
+                add.table = {
+                  family = "inet";
+                  name = "other";
+                };
+              }
+            ];
+          }
+        )).success;
+      expected = false;
+    };
+
+    testInternalEnvelopeWithStandaloneElementRejected = {
+      expr =
+        (builtins.tryEval (
+          internalText.toTextBlock {
+            nftables = [
+              {
+                add.table = {
+                  family = "inet";
+                  name = "fw";
+                };
+              }
+              {
+                add.element = {
+                  family = "inet";
+                  table = "fw";
+                  name = "blocked";
+                  elem = [ "192.0.2.1" ];
+                };
+              }
+            ];
+          }
+        )).success;
+      expected = false;
+    };
+
+    # Standalone `element` is an imperative command and has no legal form
+    # inside a `table ... {}` block. Block renderers must reject this DSL tree
+    # instead of emitting parser-invalid `element name { ... }` text.
+    testStandaloneElementsRejectedCompact = {
+      expr =
+        (builtins.tryEval (
+          toTextBlock (
+            dsl.table "inet" "fw" {
+              sets.blocked = {
+                type = "ipv4_addr";
+              };
+              elements.blocked = {
+                elements = [ "192.0.2.1" ];
+              };
+            }
+          )
+        )).success;
+      expected = false;
+    };
+
+    testStandaloneElementsRejectedPretty = {
+      expr =
+        (builtins.tryEval (
+          toTextBlockPretty (
+            dsl.table "inet" "fw" {
+              maps.services = {
+                type = "inet_service";
+                map = "inet_service";
+              };
+              elements.services = {
+                elements = [
+                  [
+                    80
+                    8080
+                  ]
+                ];
+              };
+            }
+          )
+        )).success;
+      expected = false;
     };
 
     # ---- chain only (base chain, no rules) -----------------------------
@@ -267,6 +441,15 @@ let
           flags = [ "interval" ];
         };
         counters.hits = { };
+      };
+    }
+    {
+      name = "set-with-inline-elements";
+      table = dsl.table "inet" "fw" {
+        sets.blocked = {
+          type = "ipv4_addr";
+          elements = [ "192.0.2.1" ];
+        };
       };
     }
   ];

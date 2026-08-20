@@ -31,6 +31,14 @@
         "x86_64-darwin"
         "aarch64-darwin"
       ];
+      # The library itself is platform-independent and formatters remain
+      # available on all four declared systems. Packages and checks invoke
+      # Linux-only nftables/network-namespace tooling; exposing them on Darwin
+      # only created flake outputs that failed during evaluation.
+      linuxSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
       mkLib = lib: import ./lib { inherit lib; };
@@ -306,7 +314,7 @@
       # (plain names — the floor consumers deploy on) and the same set against
       # `nixpkgs-unstable` (`-unstable` suffix — where a newer nftables/lib
       # lands first). This includes both live binaries and patched source.
-      checks = nixpkgs.lib.genAttrs systems (
+      checks = nixpkgs.lib.genAttrs linuxSystems (
         system:
         let
           stablePkgs = nixpkgs.legacyPackages.${system};
@@ -324,7 +332,7 @@
       # Patched source trees are exposed for the scheduled channel comparison
       # and for manual inspection. The matching binaries remain the ordinary
       # `pkgs.nftables` packages from each flake input.
-      packages = nixpkgs.lib.genAttrs systems (system: {
+      packages = nixpkgs.lib.genAttrs linuxSystems (system: {
         nftables-source = mkNftablesSource nixpkgs.legacyPackages.${system};
         nftables-source-unstable = mkNftablesSource nixpkgs-unstable.legacyPackages.${system};
       });
