@@ -2,7 +2,7 @@
 
 # Single source of truth for the DSL's object-kind registry — the table
 # both `commands.nix` (top-level `create.<kind>`/`delete.<kind>`/… builders)
-# and `render.nix` (the declarative table-tree expander) read to map each
+# and lib/table.nix (table preparation and rendering) read to map each
 # kind's DSL surface to its JSON command tag, the schema submodule used
 # for evalModules validation, and the DSL-key → JSON-key rename function
 # applied to user bodies before validation.
@@ -18,8 +18,8 @@
 #     `table` / `chain` / `rule` itself since those aren't table-tree
 #     kinds (chains live under `chains.<name>` and rules under
 #     `chains.<name>.rules`, both handled by the tree expander).
-#   - `render.nix` keys by plural (`objectKinds.sets`), iterating each
-#     present plural to emit one `add <tag>` per named entry.
+#   - lib/table.nix keys by plural (`objectKinds.sets`), iterating each
+#     present plural to prepare named entries for command or block output.
 
 let
   rename = import ../internal/rename.nix { inherit lib; };

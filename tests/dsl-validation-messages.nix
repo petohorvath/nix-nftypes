@@ -23,6 +23,61 @@ let
 
   cases = [
     {
+      name = "tree-rule-conflicting-chain";
+      body = ''
+        nftlib.toJson (nftlib.dsl.ruleset [
+          (nftlib.dsl.table "inet" "fw" {
+            chains.input.rules = [ { chain = "output"; expr = [ nftlib.dsl.accept ]; } ];
+            chains.output = { };
+          })
+        ])
+      '';
+      pathRegex = "chains\\.input\\.rules\\.0\\.chain must match its table-tree scope";
+    }
+    {
+      name = "block-chain-conflicting-table";
+      body = ''
+        nftlib.toTextBlockPretty (nftlib.dsl.table "inet" "fw" {
+          chains.input.table = "other";
+        })
+      '';
+      pathRegex = "chains\\.input\\.table must match its table-tree scope";
+    }
+    {
+      name = "block-object-conflicting-name";
+      body = ''
+        nftlib.toTextBlock (nftlib.dsl.table "inet" "fw" {
+          counters.hits.name = "other";
+        })
+      '';
+      pathRegex = "counters\\.hits\\.name must match its table-tree scope";
+    }
+    {
+      name = "block-chain-prio";
+      body = ''
+        nftlib.toTextBlock (nftlib.dsl.table "inet" "fw" {
+          chains.input.prio = "filter";
+        })
+      '';
+      pathRegex = "chains\\.input\\.prio";
+    }
+    {
+      name = "block-rule-handle";
+      body = ''
+        nftlib.toTextBlockPretty (nftlib.dsl.table "inet" "fw" {
+          chains.input.rules = [ { expr = [ nftlib.dsl.accept ]; handle = "invalid"; } ];
+        })
+      '';
+      pathRegex = "chains\\.input\\.rules\\.\"?0\"?\\.handle";
+    }
+    {
+      name = "block-empty-table-comment";
+      body = ''
+        nftlib.toTextBlock (nftlib.dsl.table "inet" "fw" { comment = 7; })
+      '';
+      pathRegex = "option .*comment.*not of type";
+    }
+    {
       name = "table-unknown-key";
       body = ''
         nftlib.toJson (nftlib.dsl.ruleset [

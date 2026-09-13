@@ -2,6 +2,7 @@
   lib,
   validate,
   objects,
+  expandTable,
 }:
 
 # Ruleset envelope and flush-family commands. For other command kinds
@@ -11,12 +12,27 @@
 #
 # Each `flush*` helper and the standalone `rule` constructor runs the
 # user body through the matching schema submodule before emitting; the
-# table-tree path is validated leaf-by-leaf in `render.nix`.
+# table-tree path is validated leaf-by-leaf in lib/table.nix.
 
 let
-  render = import ./render.nix { inherit lib validate objects; };
+  markers = import ../internal/markers.nix { };
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
+
+  # Table preparation belongs to the table module. The ruleset only knows
+  # how to combine tables, nested lists, and the raw-command escape hatch.
+  flattenChild =
+    child:
+    if builtins.isAttrs child && (child.${markers.table} or false) then
+      expandTable child
+    else if builtins.isList child then
+      flattenChildren child
+    else if builtins.isAttrs child then
+      [ child ]
+    else
+      throw "dsl.ruleset: invalid child — expected table node, command attrset, or list";
+
+  flattenChildren = children: lib.concatMap flattenChild children;
 
   # -- Flush commands -------------------------------------------------------
   # Schema (objects.nix `flushObject`) accepts: table, chain, set, map,
@@ -72,7 +88,7 @@ in
   # may be table nodes (expanded into multiple commands), bare command
   # attrsets, or lists of commands.
   ruleset = children: {
-    nftables = render.flattenChildren children;
+    nftables = flattenChildren children;
   };
 
   # Bare `flush ruleset` — the ubiquitous "flush everything" form.

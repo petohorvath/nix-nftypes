@@ -94,21 +94,15 @@ let
       nftSafeScalar
       ;
   };
+  tables = import ./table.nix {
+    inherit lib clean text;
+    objects = objects.all;
+  };
   dsl = import ./dsl {
     inherit lib;
     objects = objects.all;
+    inherit (tables) expandTable;
   };
-  dslMarkers = import ./dsl/internal/markers.nix { };
-  renderDslTableBlock =
-    renderer: node:
-    if !(builtins.isAttrs node && (node.${dslMarkers.table} or false)) then
-      throw "nix-nft-types: block-form text rendering expects one dsl.table node"
-    else if
-      node ? elements && !(builtins.isAttrs node.elements && builtins.attrNames node.elements == [ ])
-    then
-      throw "nix-nft-types: block-form text rendering cannot embed standalone table elements; put initial elements on the set/map definition or use an imperative renderer"
-    else
-      renderer (dsl.ruleset [ node ]);
   compatibility = import ./compatibility.nix;
 in
 {
@@ -213,8 +207,7 @@ in
   */
   toText = text.toText;
   toTextPretty = text.toTextPretty;
-  toTextBlock = renderDslTableBlock text.toTextBlock;
-  toTextBlockPretty = renderDslTableBlock text.toTextBlockPretty;
+  inherit (tables) toTextBlock toTextBlockPretty;
 
   /*
     DSL — path-based field access, top-level operators, variant namespaces,

@@ -13,6 +13,10 @@
 #     type, hook, prio, dev, policy, handle, comment, rules
 #   rules is a list (order-preserving); each element is either a bare list
 #   of statements or an attrset `{ expr = [...]; handle?; index?; comment?; }`.
+#
+# Nesting owns family/table/name/chain. Explicit matching fields in child
+# bodies are accepted, but conflicting values fail during rendering. Use
+# standalone commands to choose scope independently of the tree.
 
 let
   markers = import ../internal/markers.nix { inherit lib; };

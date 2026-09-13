@@ -11,21 +11,20 @@ This document describes reachability and validation. Parser fidelity belongs in
 ## Construction path
 
 ```text
-field / expression / statement constructors
-                     │
-                     ▼
-       table tree and command builders
-                     │
-          schema-body validation
-                     │
-                     ▼
-       flat libnftables command attrsets
-                     │
-          JSON or text renderer
+table tree
+    │
+    ▼
+table preparation (schema validation and scope checks)
+    ├── command expansion → JSON or imperative text
+    └── block emission    → table contents with rules inside chains
 ```
 
-The table node is lazy. Validation runs when expansion is forced, normally by
-rendering `dsl.ruleset [...]`.
+The table node is lazy. Validation runs when output is forced, either by
+rendering `dsl.ruleset [...]` or calling `toTextBlock*`. Both paths share
+[`lib/table.nix`](../lib/table.nix), which keeps rules with their chains until
+command expansion needs a flat list. Its prepared table shape stays private;
+block emission passes each chain's rules directly to the text spelling helper.
+Command builders validate their own bodies before wrapping them in commands.
 
 ## Covered surfaces
 
@@ -81,6 +80,13 @@ Expansion is deterministic:
 This covers dependencies expressed by the table tree. Dependencies hidden in
 raw nested bodies remain the caller's responsibility.
 
+Nesting owns scope. A named object's or chain's explicit `family`, `table`, and
+`name` must match the enclosing table and collection key. A rule's explicit
+`family`, `table`, and `chain` must match its parent table and chain. Matching
+fields are accepted for composition; conflicting fields fail with their tree
+path in both command and block output. Use standalone commands for scope that
+differs from the tree, including rules intended for another chain.
+
 Each emitted body is validated with a path such as
 `chains.input.rules.0` or `sets.trusted`. Unknown table-body keys fail with the
 table name and offending key. This prevents misspellings such as `chians` from
@@ -121,7 +127,7 @@ The mapping is centralized in
 
 Not every value under `dsl` is validated at constructor call time. Nix is lazy,
 and leaf constructors generally build attrsets. Validation occurs when a
-command builder or table expansion applies the matching schema body and the
+command builder or table preparation applies the matching schema body and the
 result is forced.
 
 `dsl.ruleset` also accepts raw command attrsets so callers can use parser forms

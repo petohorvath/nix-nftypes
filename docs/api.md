@@ -46,6 +46,14 @@ nftlib.toJson checked
 nodes are expanded and validated; raw command attrsets are deliberately passed
 through as an escape hatch.
 
+Table trees derive scope from nesting. Explicit `family`, `table`, and `name`
+fields on named objects and chains must match the enclosing table and collection
+key; `family`, `table`, and `chain` on rules must match their parent table and
+chain. Matching fields are accepted. Conflicts raise an error naming the field,
+for example `chains.input.rules.0.chain`, in both command and block rendering.
+Explicit command builders and raw commands remain available for independently
+chosen scope.
+
 ## Schema types
 
 `nftlib.types` combines primitive and composable types.

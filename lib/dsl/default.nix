@@ -1,4 +1,8 @@
-{ lib, objects }:
+{
+  lib,
+  objects,
+  expandTable,
+}:
 
 # Public entry point for the `dsl` layer — a declarative DSL emphasizing:
 #   - Path-based field access (`fields.tcp.dport` instead of `payload "tcp" "dport"`)
@@ -17,7 +21,14 @@ let
   exprs = import ./exprs.nix { inherit lib; };
   payload = import ./payload.nix { inherit lib; };
   actions = import ./actions { inherit lib; };
-  ruleset = import ./structure/ruleset.nix { inherit lib validate objects; };
+  ruleset = import ./structure/ruleset.nix {
+    inherit
+      lib
+      validate
+      objects
+      expandTable
+      ;
+  };
   table = import ./structure/table.nix { inherit lib; };
   commands = import ./structure/commands.nix { inherit lib validate objects; };
   variant = import ./internal/variant.nix { inherit lib; };

@@ -202,12 +202,17 @@ let
       commentLine = lib.optional (
         (body.comment or null) != null
       ) "comment ${primitives.string body.comment}";
-      # In block form, rules render inline inside the chain block; the
-      # toTextBlock walker passes them via `ctx.rulesByChain.<name>`.
-      # Imperative renderers leave the field unset and the list collapses.
-      blockRuleLines = map (renderRuleStmtsAndComment ctx) (ctx.rulesByChain.${body.name} or [ ]);
     in
-    baseLine ++ policyLine ++ commentLine ++ blockRuleLines;
+    baseLine ++ policyLine ++ commentLine;
+
+  # The table module supplies this chain's rules explicitly. Formatting
+  # context contains no table data, and imperative chain declarations keep
+  # their usual body without inline rules.
+  renderChainBlock =
+    ctx: body: rules:
+    "chain ${rIdent body.name}${
+      block ctx (renderChainBody ctx body ++ map (renderRuleStmtsAndComment ctx) rules)
+    }";
 
   # rule: `<family> <table> <chain> <statements> [handle/index] [comment]`.
   # Rules do not use a brace block; statements are inline.
@@ -237,7 +242,7 @@ let
       # element separator); `;` `{` `}` `"` `\` `#` similarly break or
       # corrupt the text grammar. The DSL emit step catches this at
       # eval time naming the user's tree path
-      # (lib/dsl/structure/render.nix); the assert here is the
+      # (lib/table.nix); the assert here is the
       # defence-in-depth backstop for callers bypassing the DSL (raw
       # attrsets, third-party DSLs, hand-built ruleset values).
       ifnameBad = nftSafeIfname.badIfnameElement body;
@@ -661,6 +666,7 @@ in
   inherit
     renderObject
     renderObjectHeader
+    renderChainBlock
     ;
   # The kind set this renderer's dispatch table accepts. Read by the
   # schema↔text drift test (tests/default.nix) to assert every object
