@@ -110,10 +110,13 @@ raw values.
 - command builders under `create`, `delete`, `destroy`, `list`, `reset`,
   `replace`, `insert`, and `rename`.
 
-Table trees validate each assembled object, chain, and rule while expanding to
-flat nftables commands. Unknown table-tree keys are rejected instead of being
-silently ignored. `create.rule` is intentionally absent because nftables rejects
-that command; use `dsl.rule` or a table tree's `rules` list.
+Table trees validate each assembled object, chain, and rule when command or
+block output is requested. Nesting determines scope: explicit `family`, `table`,
+`name`, or `chain` fields must match their table or chain and collection key.
+Conflicts and unknown table-tree keys are rejected with the offending path.
+Use explicit commands when choosing scope independently of a table tree.
+`create.rule` is intentionally absent because nftables rejects that command;
+use `dsl.rule` or a table tree's `rules` list.
 
 Raw command attrsets may be mixed into `dsl.ruleset`, but those raw children are
 passed through unchanged. Validate them with `nftlib.types.ruleset` when they
@@ -200,6 +203,19 @@ nix fmt -- --ci
 nix flake check
 ```
 
+For ad-hoc parser checks, `nix develop .#review` supplies `nft` and `unshare`
+from the locked stable input. To check that the host supports private
+user/network namespaces before running a command:
+
+```console
+bash tooling/review-env.sh nix flake check -L
+```
+
+The wrapper reuses an existing upstream Nix installation. Disposable review
+sandboxes without Nix can opt into the bootstrap described in
+[`.greptile/rules.md`](.greptile/rules.md); restricted sandbox kernels may
+still need provider-side namespace support.
+
 For the exact check list:
 
 ```console
@@ -221,7 +237,8 @@ non-gating and does not modify `flake.lock`.
 
 ```text
 lib/schema/   schema types
-lib/dsl/      ergonomic constructors and table-tree expansion
+lib/dsl/      ergonomic constructors and ruleset composition
+lib/table.nix shared table preparation, command expansion, and block rendering
 lib/json/     JSON and diagnostic Nix rendering
 lib/text/     nftables text rendering
 examples/     raw and DSL examples

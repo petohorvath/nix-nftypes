@@ -21,17 +21,6 @@ let
     toTextBlockPretty
     dsl
     ;
-  # Exercise the internal envelope renderer directly as a defence-in-depth
-  # boundary. Public callers go through lib/default.nix's stricter dsl.table
-  # wrapper, but the internal contract also promises one add.table command and
-  # no standalone element commands for hand-built envelopes.
-  internalText = import ../lib/text {
-    inherit lib;
-    clean = import ../lib/clean.nix { inherit lib; };
-    nftSafeString = import ../lib/nft-safe-string.nix { };
-    nftSafeIfname = import ../lib/nft-safe-ifname.nix { };
-    nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
-  };
 
   baseChain = {
     type = "filter";
@@ -88,85 +77,105 @@ let
       expected = false;
     };
 
-    # The lower-level envelope renderer has the same structural boundary. These
-    # tests bypass the public dsl.table wrapper so its checks cannot mask an
-    # internal regression.
-    testInternalEnvelopeSingleTableAccepted = {
-      expr = internalText.toTextBlock {
-        nftables = [
-          {
-            add.table = {
-              family = "inet";
-              name = "fw";
-            };
-          }
-        ];
-      };
+    # Assertions cross the public table interface. The old internal command
+    # envelope and its partition/regroup protocol no longer exist.
+    testRulesetEnvelopeRejected = {
+      expr = (builtins.tryEval (toTextBlock (dsl.ruleset [ (dsl.table "inet" "fw" { }) ]))).success;
+      expected = false;
+    };
+
+    testTableListRejectedPretty = {
+      expr =
+        (builtins.tryEval (toTextBlockPretty [
+          (dsl.table "inet" "fw" { })
+          (dsl.table "inet" "other" { })
+        ])).success;
+      expected = false;
+    };
+
+    testUnknownTableKeyRejected = {
+      expr = (builtins.tryEval (toTextBlock (dsl.table "inet" "fw" { chians.input = { }; }))).success;
+      expected = false;
+    };
+
+    # Omitting wrapper fields from output must not skip their validation,
+    # including when there are no declarations to render.
+    testInvalidEmptyTableFamilyRejected = {
+      expr = (builtins.tryEval (toTextBlock (dsl.table "invalid" "fw" { }))).success;
+      expected = false;
+    };
+
+    testInvalidEmptyTableFlagsRejectedPretty = {
+      expr =
+        (builtins.tryEval (toTextBlockPretty (dsl.table "inet" "fw" { flags = [ "invalid" ]; }))).success;
+      expected = false;
+    };
+
+    testInvalidEmptyTableCommentRejected = {
+      expr = (builtins.tryEval (toTextBlock (dsl.table "inet" "fw" { comment = 7; }))).success;
+      expected = false;
+    };
+
+    testTableOptionsBelongToOmittedWrapper = {
+      expr = toTextBlock (
+        dsl.table "inet" "fw" {
+          comment = "table";
+          flags = [ "dormant" ];
+          handle = 7;
+        }
+      );
       expected = "";
     };
 
-    testInternalEnvelopeWithoutTableRejected = {
+    testInvalidChainPriorityRejected = {
       expr =
         (builtins.tryEval (
-          internalText.toTextBlock {
-            nftables = [
-              {
-                add.chain = {
-                  family = "inet";
-                  table = "fw";
-                  name = "input";
-                };
-              }
-            ];
-          }
+          toTextBlock (
+            dsl.table "inet" "fw" {
+              chains.input = baseChain // {
+                prio = "filter";
+              };
+            }
+          )
         )).success;
       expected = false;
     };
 
-    testInternalEnvelopeWithMultipleTablesRejected = {
+    testInvalidRuleHandleRejectedPretty = {
       expr =
         (builtins.tryEval (
-          internalText.toTextBlock {
-            nftables = [
-              {
-                add.table = {
-                  family = "inet";
-                  name = "fw";
-                };
-              }
-              {
-                add.table = {
-                  family = "inet";
-                  name = "other";
-                };
-              }
-            ];
-          }
+          toTextBlockPretty (
+            dsl.table "inet" "fw" {
+              chains.input.rules = [
+                {
+                  expr = [ dsl.accept ];
+                  handle = "invalid";
+                }
+              ];
+            }
+          )
         )).success;
       expected = false;
     };
 
-    testInternalEnvelopeWithStandaloneElementRejected = {
+    testInvalidNamedObjectRejected = {
+      expr =
+        (builtins.tryEval (toTextBlock (dsl.table "inet" "fw" { counters.hits.packets = "lots"; })))
+        .success;
+      expected = false;
+    };
+
+    testUnsafeIfnameElementRejectedPretty = {
       expr =
         (builtins.tryEval (
-          internalText.toTextBlock {
-            nftables = [
-              {
-                add.table = {
-                  family = "inet";
-                  name = "fw";
-                };
-              }
-              {
-                add.element = {
-                  family = "inet";
-                  table = "fw";
-                  name = "blocked";
-                  elem = [ "192.0.2.1" ];
-                };
-              }
-            ];
-          }
+          toTextBlockPretty (
+            dsl.table "inet" "fw" {
+              sets.interfaces = {
+                type = "ifname";
+                elements = [ "eth0,eth1" ];
+              };
+            }
+          )
         )).success;
       expected = false;
     };
@@ -286,6 +295,34 @@ let
         }'';
     };
 
+    testMatchingScopeAndCleanedRule = {
+      expr = toTextBlock (
+        dsl.table "inet" "fw" {
+          _type = "example.table";
+          chains.input = {
+            family = "inet";
+            table = "fw";
+            name = "input";
+            comment = null;
+            rules = [
+              {
+                family = "inet";
+                table = "fw";
+                chain = "input";
+                expr = [
+                  (dsl.counter { packets = 1; })
+                  dsl.accept
+                ];
+                comment = "allow";
+                handle = 7;
+              }
+            ];
+          };
+        }
+      );
+      expected = "chain input { counter packets 1 accept comment \"allow\"; }";
+    };
+
     # ---- set / map / counter (block-form decls, no add prefix) ---------
     testSetBlockCompact = {
       expr = toTextBlock (
@@ -402,6 +439,70 @@ let
           drop;
         }'';
     };
+
+    testReferencesAndOrderingCompact = {
+      expr = toTextBlock referencedTable;
+      expected = ''
+        chain input { type filter hook input priority 0; tcp dport vmap @dispatch; }
+        chain service { ip saddr @trusted counter name "hits" accept; drop; }
+        counter hits { }
+        map dispatch { type inet_service : verdict; elements = { 22 : jump service }; }
+        set trusted { type ipv4_addr; elements = { 192.0.2.1 }; }'';
+    };
+
+    testReferencesAndOrderingPretty = {
+      expr = toTextBlockPretty referencedTable;
+      expected = ''
+        chain input {
+          type filter hook input priority 0;
+          tcp dport vmap @dispatch;
+        }
+        chain service {
+          ip saddr @trusted counter name "hits" accept;
+          drop;
+        }
+        counter hits { }
+        map dispatch {
+          type inet_service : verdict;
+          elements = { 22 : jump service };
+        }
+        set trusted {
+          type ipv4_addr;
+          elements = { 192.0.2.1 };
+        }'';
+    };
+  };
+
+  # Exercise references in both directions: chains use named objects,
+  # and verdict-map elements refer back to a chain. Intentionally declare
+  # fields out of output order; rules within service must keep source order.
+  referencedTable = dsl.table "inet" "fw" {
+    chains.service.rules = [
+      [
+        (dsl.inSet dsl.fields.ip.saddr "@trusted")
+        (dsl.counter.ref "hits")
+        dsl.accept
+      ]
+      [ dsl.drop ]
+    ];
+    chains.input = baseChain // {
+      rules = [ [ (dsl.vmap dsl.fields.tcp.dport "@dispatch") ] ];
+    };
+    sets.trusted = {
+      type = "ipv4_addr";
+      elements = [ "192.0.2.1" ];
+    };
+    maps.dispatch = {
+      type = "inet_service";
+      map = "verdict";
+      elements = [
+        [
+          22
+          (dsl.jump "service")
+        ]
+      ];
+    };
+    counters.hits = { };
   };
 
   runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
@@ -414,6 +515,10 @@ let
   # `unshare -rn nft -c -f -` to verify the upstream parser accepts the
   # round-trip. Same harness shape as tests/text-integration.nix.
   integrationCases = [
+    {
+      name = "chain-object-references";
+      table = referencedTable;
+    }
     {
       name = "minimal-base-chain";
       table = dsl.table "inet" "fw" { chains.input = baseChain; };

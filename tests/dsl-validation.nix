@@ -20,7 +20,123 @@ let
   # evalModules call is triggered.
   renders = rulesetValue: (builtins.tryEval (toJson (dsl.ruleset rulesetValue))).success;
 
+  # Ownership is a property of table trees, shared by command and block
+  # output. Use valid but conflicting values so schema type errors cannot
+  # mask a missing scope check. The sibling exists in the rule-chain case:
+  # redirecting a rule to another declared chain must still be rejected.
+  scopeConflicts = {
+    chainFamily.chains.input.family = "ip";
+    chainTable.chains.input.table = "other";
+    chainName.chains.input.name = "other";
+    objectFamily.counters.hits.family = "ip";
+    objectTable.counters.hits.table = "other";
+    objectName.counters.hits.name = "other";
+    ruleFamily.chains.input.rules = [
+      {
+        family = "ip";
+        expr = [ dsl.accept ];
+      }
+    ];
+    ruleTable.chains.input.rules = [
+      {
+        table = "other";
+        expr = [ dsl.accept ];
+      }
+    ];
+    ruleChain.chains = {
+      input.rules = [
+        {
+          chain = "output";
+          expr = [ dsl.accept ];
+        }
+      ];
+      output = { };
+    };
+  };
+  tableRenderers = {
+    json = node: toJson (dsl.ruleset [ node ]);
+    text = node: nftlib.toText (dsl.ruleset [ node ]);
+    textPretty = node: nftlib.toTextPretty (dsl.ruleset [ node ]);
+    block = nftlib.toTextBlock;
+    blockPretty = nftlib.toTextBlockPretty;
+  };
+  scopeTests = lib.concatMapAttrs (
+    name: body:
+    lib.mapAttrs' (
+      form: render:
+      lib.nameValuePair "testTreeScope_${name}_${form}" {
+        expr = (builtins.tryEval (render (dsl.table "inet" "fw" body))).success;
+        expected = false;
+      }
+    ) tableRenderers
+  ) scopeConflicts;
+
   tests = {
+    testTableAndRulesetConstructionStayLazy = {
+      expr =
+        let
+          node = dsl.table "inet" "fw" { chains.input.prio = "invalid"; };
+        in
+        {
+          table = (builtins.tryEval node).success;
+          ruleset = (builtins.tryEval (dsl.ruleset [ node ])).success;
+          rendered = (builtins.tryEval (toJson (dsl.ruleset [ node ]))).success;
+        };
+      expected = {
+        table = true;
+        ruleset = true;
+        rendered = false;
+      };
+    };
+
+    testChainDeclarationDoesNotForceRuleBodies = {
+      expr = toJson (
+        builtins.elemAt
+          (dsl.ruleset [
+            (dsl.table "inet" "fw" { chains.input.rules = [ (throw "rule body forced") ]; })
+          ]).nftables
+          1
+      );
+      expected = toJson {
+        add.chain = {
+          family = "inet";
+          table = "fw";
+          name = "input";
+        };
+      };
+    };
+
+    testTreeMatchingExplicitScopeAccepted = {
+      expr = lib.mapAttrs (
+        _: render:
+        (builtins.tryEval (
+          render (
+            dsl.table "inet" "fw" {
+              chains.input = {
+                family = "inet";
+                table = "fw";
+                name = "input";
+                rules = [
+                  {
+                    family = "inet";
+                    table = "fw";
+                    chain = "input";
+                    expr = [ dsl.accept ];
+                  }
+                ];
+              };
+              counters.hits = {
+                family = "inet";
+                table = "fw";
+                name = "hits";
+              };
+            }
+          )
+        )).success
+      ) tableRenderers;
+      expected = lib.mapAttrs (_: _: true) tableRenderers;
+    };
+
     # Table trees are a structural DSL surface rather than a schema body.
     # Reject misspelled collection names instead of silently dropping them
     # while expanding the tree.
@@ -269,10 +385,10 @@ let
       expected = false;
     };
 
-    # ----- table-tree leaves (render.nix path) ----------------------------
+    # ----- table-tree leaves (lib/table.nix) ------------------------------
     # One per plural-keyed object container, each picking a clearly-bad
     # value for the matching schema submodule. Asserts the leaf-validation
-    # in render.nix routes every kind through the right body type.
+    # in lib/table.nix routes every kind through the right body type.
 
     testTreeTableBadFlagsRejected = {
       expr = renders [
@@ -471,7 +587,8 @@ let
         )).success;
       expected = true;
     };
-  };
+  }
+  // scopeTests;
 
   runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
     name = "dsl-validation-tests";

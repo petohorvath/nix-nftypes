@@ -337,6 +337,21 @@
         nftables-source-unstable = mkNftablesSource nixpkgs-unstable.legacyPackages.${system};
       });
 
+      # Ad-hoc parser checks use the same stable nftables as the check matrix.
+      # Nix itself is supplied by the caller's upstream Nix installation.
+      devShells = nixpkgs.lib.genAttrs linuxSystems (system: {
+        review =
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+          in
+          pkgs.mkShellNoCC {
+            packages = [
+              pkgs.nftables
+              pkgs.util-linux
+            ];
+          };
+      });
+
       formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);
     };
 }

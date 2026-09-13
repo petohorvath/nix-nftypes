@@ -18,7 +18,7 @@
 #
 # Surfaces fixed:
 #   - set/map elements (the audit-flagged path). DSL emit
-#     (lib/dsl/structure/render.nix) cross-field-checks set/map `type`
+#     (lib/table.nix) cross-field-checks set/map `type`
 #     vs `elem` siblings at evalModules time and throws naming the
 #     user's tree path; the text renderer
 #     (lib/text/objects.nix `renderSetOrMapBody`) repeats the assert

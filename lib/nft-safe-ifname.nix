@@ -48,7 +48,7 @@ let
   # Walk a set/map body and return the first plain-string element that
   # fails `isSafe`, or `null` if every plain-string element is safe (or
   # the body's `type` isn't `"ifname"` at all). Two callers — the DSL
-  # emit step (lib/dsl/structure/render.nix) and the text renderer
+  # preparation step (lib/table.nix) and the text renderer
   # (lib/text/objects.nix) — share this walker so the validation rule
   # cannot drift between layers.
   #

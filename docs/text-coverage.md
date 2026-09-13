@@ -1,7 +1,9 @@
 # Text renderer coverage
 
-`lib/text/` converts schema-shaped values to nftables' native text grammar. It
-is a pure Nix renderer; it does not invoke `nft`.
+`lib/text/` spells schema-shaped values in nftables' native text grammar.
+`lib/table.nix` owns table-tree validation and block emission, retaining each
+chain's rules throughout preparation. Both are pure Nix; they do not invoke
+`nft`.
 
 The JSON renderer is the compatibility target. Text support is tested
 separately because JSON and text have different grammars, quoting rules, and
@@ -30,8 +32,8 @@ initial elements remain supported inside their set/map definitions.
 | `text-parity-tests` | expected strings for statements, expressions, objects, and commands | any mismatch fails |
 | schema/text drift assertions in `schema-tests` | every schema statement/expression/object tag has a renderer registration | missing registration fails |
 | `text-integration-tests` | 9 of the 11 JSON integration cases through `nft -c -f` | any selected-case parse failure fails; 2 named exclusions |
-| `text-block-parity-tests` | 24 exact-output, structure, no-op, and rejection assertions | any mismatch fails |
-| `text-block-integration-tests` | 4 table cases in compact and pretty form through `nft -c -f` | any parse failure fails |
+| `text-block-parity-tests` | 34 exact-output, structure, validation, ordering, and rejection assertions through the public table interface | any mismatch fails |
+| `text-block-integration-tests` | 5 table cases in compact and pretty form through `nft -c -f`, including chain/object references | any parse failure fails |
 | `render-equivalence-tests` | 6 selected cases loaded through JSON and text in separate network namespaces, then compared using `nft list ruleset` | a load failure or output difference fails; 5 cases are excluded before execution |
 
 Stable and unstable checks use the corresponding channel's `nft` binary.
