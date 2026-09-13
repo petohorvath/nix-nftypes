@@ -203,6 +203,19 @@ nix fmt -- --ci
 nix flake check
 ```
 
+For ad-hoc parser checks, `nix develop .#review` supplies `nft` and `unshare`
+from the locked stable input. To check that the host supports private
+user/network namespaces before running a command:
+
+```console
+bash tooling/review-env.sh nix flake check -L
+```
+
+The wrapper reuses an existing upstream Nix installation. Disposable review
+sandboxes without Nix can opt into the bootstrap described in
+[`.greptile/rules.md`](.greptile/rules.md); restricted sandbox kernels may
+still need provider-side namespace support.
+
 For the exact check list:
 
 ```console

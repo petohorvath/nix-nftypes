@@ -20,6 +20,8 @@ jobs:
         run: |
           sudo cp .github/apparmor/nix-unshare /etc/apparmor.d/nix-unshare
           sudo apparmor_parser -r /etc/apparmor.d/nix-unshare
+      - name: Check review environment
+        run: bash tooling/review-env.sh true
       - run: nix flake check -L
 
   format:
