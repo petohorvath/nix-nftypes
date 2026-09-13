@@ -84,6 +84,6 @@ nix develop --no-write-lock-file .#review --command bash -euo pipefail -c '
     echo "Review environment blocked: the nftables parser/kernel probe failed (see error above)." >&2
     exit 125
   fi
-  echo "Review environment ready: upstream Nix, pinned nftables, and private namespaces."
+  echo "Review environment ready: Nix, pinned nftables, and private namespaces."
   exec "$@"
 ' review-env "$@"
