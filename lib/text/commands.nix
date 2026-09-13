@@ -2,7 +2,7 @@
   lib,
   primitives,
   objects,
-  expressions,
+  limit,
 }:
 
 # Renderer for the top-level command attrTag (lib/schema/commands.nix).
@@ -22,7 +22,6 @@
 
 let
   inherit (objects) renderObject renderObjectHeader;
-  inherit (expressions) safeToken;
 
   # Unwrap `{ <kind>: <body> }` into a (kind, body) pair, then prefix
   # with the verb. `renderFn` is either `renderObject` (emits header +
@@ -70,24 +69,7 @@ let
       "${head}${toString body.bytes} bytes"
       + lib.optionalString ((body.used or null) != null) " used ${toString body.used} bytes";
 
-    limit =
-      body:
-      let
-        head = lib.optionalString ((body.inv or null) == true) "over ";
-        # rate_unit / burst_unit are types.str rendered bare; route both
-        # through `safeToken` so a parser-meta byte in the unit name is
-        # rejected at render time.
-        rateUnit = lib.optionalString ((body.rate_unit or null) != null) " ${safeToken body.rate_unit}";
-        burst =
-          if (body.burst or null) == null then
-            ""
-          else
-            let
-              u = if (body.burst_unit or null) != null then safeToken body.burst_unit else "packets";
-            in
-            " burst ${toString body.burst} ${u}";
-      in
-      "rate ${head}${toString body.rate}${rateUnit}/${body.per}${burst}";
+    limit = limit.renderCreate;
 
     synproxy =
       body:

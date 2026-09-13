@@ -12,10 +12,9 @@
 # dropped a fresh chain into the rendered file — accepted by `nft -f`
 # as a real chain at attacker-chosen priority.
 #
-# The renderer (statement form in lib/text/statements.nix, object form
-# in lib/text/objects.nix, positional `create` form in
-# lib/text/commands.nix) now routes each unit name through `safeToken`
-# / the shared `nft-safe-scalar` predicate.
+# Limit statements, named objects, and positional `create` commands share
+# lib/text/limit.nix. Limit and quota units pass through `safeToken` /
+# the shared `nft-safe-scalar` predicate.
 
 let
   dsl = nftlib.dsl;
@@ -89,6 +88,20 @@ let
       })
     ];
 
+  rulesetCreateLimit =
+    field: value:
+    dsl.ruleset [
+      (dsl.create.limit {
+        family = "inet";
+        table = "fw";
+        name = "fast";
+        rate = 10;
+        per = "second";
+        burst = 5;
+        ${field} = value;
+      })
+    ];
+
   surfaces = {
     limitStmt_rate_unit = rulesetLimitStmt "rate_unit";
     limitStmt_burst_unit = rulesetLimitStmt "burst_unit";
@@ -96,6 +109,8 @@ let
     quotaStmt_used_unit = rulesetQuotaStmt "used_unit";
     limitObject_rate_unit = rulesetLimitObject "rate_unit";
     limitObject_burst_unit = rulesetLimitObject "burst_unit";
+    createLimit_rate_unit = rulesetCreateLimit "rate_unit";
+    createLimit_burst_unit = rulesetCreateLimit "burst_unit";
   };
 
   badInputs = {
@@ -155,35 +170,13 @@ let
       expr = evalSucceeds (toTextPretty (rulesetLimitObject "burst_unit" badInputs.newline));
       expected = false;
     };
+    testPrettyRejects_createLimit_burst_unit_newline = {
+      expr = evalSucceeds (toTextPretty (rulesetCreateLimit "burst_unit" badInputs.newline));
+      expected = false;
+    };
   };
 
-  # Positional `create.limit` is the third surface (separate code path
-  # in lib/text/commands.nix). Exercise it through the dsl.create.limit
-  # entry so the cmd-renderer's `safeToken` wiring is pinned.
-  rulesetCreateLimit =
-    field: value:
-    dsl.ruleset [
-      (dsl.create.limit {
-        family = "inet";
-        table = "fw";
-        name = "fast";
-        rate = 10;
-        per = "second";
-        ${field} = value;
-      })
-    ];
-
-  createTests = lib.listToAttrs (
-    lib.mapAttrsToList (badName: badValue: {
-      name = "testRendererRejects_createLimit_rate_unit_${badName}";
-      value = {
-        expr = rendererRejects (rulesetCreateLimit "rate_unit" badValue);
-        expected = true;
-      };
-    }) badInputs
-  );
-
-  tests = rejectionTests // acceptanceTests // prettyTests // createTests;
+  tests = rejectionTests // acceptanceTests // prettyTests;
 
   runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
     name = "unit-name-safety-tests";
