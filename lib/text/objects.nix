@@ -4,6 +4,7 @@
   primitives,
   expressions,
   statements,
+  limit,
   nftSafeIfname,
   nftSafeScalar,
 }:
@@ -354,38 +355,8 @@ let
     in
     head ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
-  # limit object: `rate [over] <r> [<unit>]/<per> [burst N <unit>]`.
+  # Limit clauses and comments are spelled by limit.nix.
   renderLimitHeader = ctx: body: scope2 ctx body;
-
-  renderLimitBody =
-    _ctx: body:
-    let
-      # `rate_unit` and `burst_unit` are `types.str` in the schema and
-      # render bare here; route both through the shared `safeToken`
-      # helper so a parser-meta byte truncating the clause is rejected
-      # at render time rather than splitting into separate statements
-      # at nft load.
-      head =
-        "rate"
-        + lib.optionalString ((body.inv or null) == true) " over"
-        + " ${toString body.rate}"
-        + lib.optionalString ((body.rate_unit or null) != null) " ${safeToken body.rate_unit}"
-        + "/${body.per}"
-        + (
-          if (body.burst or null) == null then
-            ""
-          else
-            # nft -f requires an explicit unit after `burst <N>`. Default
-            # to "packets" when none is set (same as the limit statement
-            # renderer in lib/text/statements.nix).
-            let
-              burstUnit = if (body.burst_unit or null) != null then safeToken body.burst_unit else "packets";
-            in
-            " burst ${toString body.burst} ${burstUnit}"
-        );
-    in
-    [ head ]
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
   # ct helper object. nft text wants `type "T" protocol P` joined as a
   # single statement (the parser only accepts a `type` clause when
@@ -582,7 +553,7 @@ let
     };
     limit = {
       header = renderLimitHeader;
-      body = renderLimitBody;
+      body = _ctx: limit.renderObjectBody;
     };
     "ct helper" = {
       header = renderCtHelperHeader;

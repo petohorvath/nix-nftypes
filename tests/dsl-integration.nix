@@ -89,6 +89,8 @@ rec {
             name = "lim";
             rate = 5;
             per = "second";
+            inv = true;
+            burst = 10;
           }
         ))
         (create.set (

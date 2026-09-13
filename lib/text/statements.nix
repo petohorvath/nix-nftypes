@@ -3,6 +3,7 @@
   context,
   primitives,
   expressions,
+  limit,
   nftSafeIfname,
 }:
 
@@ -178,33 +179,6 @@ let
             + optionalString ((body.used_unit or null) != null) " ${safeToken body.used_unit}";
       in
       head + valPart + usedPart;
-
-  # limit: str → named ref; attrset → `limit rate [over] <r> [<unit>]/<per> [burst N <unit>]`.
-  # `rate_unit` / `burst_unit` are `types.str` rendered bare; same
-  # `safeToken` treatment as quota above.
-  renderLimit =
-    _ctx: body:
-    if builtins.isString body then
-      "limit name ${primitives.string body}"
-    else
-      let
-        head = "limit rate" + optionalString ((body.inv or null) == true) " over";
-        rateUnit = optionalString ((body.rate_unit or null) != null) " ${safeToken body.rate_unit}";
-        ratePart = " ${toString body.rate}${rateUnit}/${body.per}";
-        burstPart =
-          if (body.burst or null) == null then
-            ""
-          else
-            # nft -f requires an explicit unit after `burst <N>`. The
-            # libnftables JSON path treats burst_unit as optional and
-            # defaults to "packets" when rate is in packets; the text
-            # parser doesn't infer this, so we emit it explicitly.
-            let
-              burstUnit = if (body.burst_unit or null) != null then safeToken body.burst_unit else "packets";
-            in
-            " burst ${toString body.burst} ${burstUnit}";
-      in
-      head + ratePart + burstPart;
 
   # fwd: `fwd to <dev>` or `fwd to <addr> family <fam> via <dev>`.
   renderFwd =
@@ -438,7 +412,7 @@ let
     counter = renderCounter;
     mangle = renderMangle;
     quota = renderQuota;
-    limit = renderLimit;
+    limit = _ctx: limit.renderStatement;
     fwd = renderFwd;
     dup = renderDup;
     snat = renderNat "snat";

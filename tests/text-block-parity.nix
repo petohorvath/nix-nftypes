@@ -471,6 +471,51 @@ let
           elements = { 192.0.2.1 };
         }'';
     };
+
+    testLimitsCompact = {
+      expr = toTextBlock limitTable;
+      expected = ''
+        chain input { limit rate over 10 kbytes/minute burst 5 bytes; limit name "slow" accept; }
+        limit slow { rate 5/second burst 10 packets; comment "packet budget"; }'';
+    };
+
+    testLimitsPretty = {
+      expr = toTextBlockPretty limitTable;
+      expected = ''
+        chain input {
+          limit rate over 10 kbytes/minute burst 5 bytes;
+          limit name "slow" accept;
+        }
+        limit slow {
+          rate 5/second burst 10 packets;
+          comment "packet budget";
+        }'';
+    };
+  };
+
+  limitTable = dsl.table "inet" "fw" {
+    chains.input.rules = [
+      [
+        (dsl.limit {
+          rate = 10;
+          per = "minute";
+          inv = true;
+          rate_unit = "kbytes";
+          burst = 5;
+          burst_unit = "bytes";
+        })
+      ]
+      [
+        (dsl.limit.ref "slow")
+        dsl.accept
+      ]
+    ];
+    limits.slow = {
+      rate = 5;
+      per = "second";
+      burst = 10;
+      comment = "packet budget";
+    };
   };
 
   # Exercise references in both directions: chains use named objects,
@@ -515,6 +560,10 @@ let
   # `unshare -rn nft -c -f -` to verify the upstream parser accepts the
   # round-trip. Same harness shape as tests/text-integration.nix.
   integrationCases = [
+    {
+      name = "inline-and-named-limits";
+      table = limitTable;
+    }
     {
       name = "chain-object-references";
       table = referencedTable;

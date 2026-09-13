@@ -23,6 +23,10 @@
 let
   context = import ./context.nix { inherit lib; };
   primitives = import ./primitives.nix { inherit lib nftSafeString; };
+  limit = import ./limit.nix {
+    inherit lib primitives;
+    inherit (expressions) safeToken;
+  };
   # Mutual reference: `statements` consumes `expressions.renderExpression`,
   # while `renderElem` (in expressions) calls back into
   # `statements.renderStatement` to render element-attached `stmt` lists.
@@ -42,6 +46,7 @@ let
       context
       primitives
       expressions
+      limit
       nftSafeIfname
       ;
   };
@@ -52,6 +57,7 @@ let
       primitives
       expressions
       statements
+      limit
       nftSafeIfname
       nftSafeScalar
       ;
@@ -61,7 +67,7 @@ let
       lib
       primitives
       objects
-      expressions
+      limit
       ;
   };
 

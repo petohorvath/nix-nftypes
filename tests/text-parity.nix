@@ -14,6 +14,29 @@ let
   # Wrap a single command in a ruleset so toText's entry contract is met.
   one = cmd: toText { nftables = [ cmd ]; };
 
+  # Exercise the same limit body through all three public command forms.
+  limitForms =
+    body:
+    let
+      named = body // {
+        family = "ip";
+        table = "t";
+        name = "lim";
+      };
+    in
+    {
+      statement = one {
+        add.rule = {
+          family = "ip";
+          table = "t";
+          chain = "c";
+          expr = [ { limit = body; } ];
+        };
+      };
+      object = one { add.limit = named; };
+      create = one { create.limit = named; };
+    };
+
   tests = {
     # ---- expressions (rendered via the match statement) -----------------
     testMatchPayloadEq = {
@@ -213,23 +236,118 @@ let
     };
 
     testLimitDefaultBurst = {
-      expr = one {
-        add.rule = {
-          family = "ip";
-          table = "t";
-          chain = "c";
-          expr = [
-            {
-              limit = {
-                rate = 10;
-                per = "minute";
-                burst = 5;
-              };
-            }
-          ];
-        };
+      expr = limitForms {
+        rate = 10;
+        per = "minute";
+        burst = 5;
       };
-      expected = "add rule ip t c limit rate 10/minute burst 5 packets";
+      expected = {
+        statement = "add rule ip t c limit rate 10/minute burst 5 packets";
+        object = "add limit ip t lim { rate 10/minute burst 5 packets; }";
+        create = "create limit ip t lim rate 10/minute burst 5 packets";
+      };
+    };
+
+    testLimitRateOnly = {
+      expr = limitForms {
+        rate = 10;
+        per = "minute";
+      };
+      expected = {
+        statement = "add rule ip t c limit rate 10/minute";
+        object = "add limit ip t lim { rate 10/minute; }";
+        create = "create limit ip t lim rate 10/minute";
+      };
+    };
+
+    testLimitNullOptions = {
+      expr = limitForms {
+        rate = 10;
+        per = "minute";
+        inv = null;
+        rate_unit = null;
+        burst = null;
+        burst_unit = null;
+      };
+      expected = {
+        statement = "add rule ip t c limit rate 10/minute";
+        object = "add limit ip t lim { rate 10/minute; }";
+        create = "create limit ip t lim rate 10/minute";
+      };
+    };
+
+    testLimitExplicitUnitsOver = {
+      expr = limitForms {
+        rate = 10;
+        per = "minute";
+        inv = true;
+        rate_unit = "kbytes";
+        burst = 5;
+        burst_unit = "bytes";
+      };
+      expected = {
+        statement = "add rule ip t c limit rate over 10 kbytes/minute burst 5 bytes";
+        object = "add limit ip t lim { rate over 10 kbytes/minute burst 5 bytes; }";
+        create = "create limit ip t lim rate over 10 kbytes/minute burst 5 bytes";
+      };
+    };
+
+    testLimitZeroBurst = {
+      expr = limitForms {
+        rate = 10;
+        per = "minute";
+        inv = false;
+        burst = 0;
+        burst_unit = "packets";
+      };
+      expected = {
+        statement = "add rule ip t c limit rate 10/minute burst 0 packets";
+        object = "add limit ip t lim { rate 10/minute burst 0 packets; }";
+        create = "create limit ip t lim rate 10/minute burst 0 packets";
+      };
+    };
+
+    testLimitCommentAndReferencePretty = {
+      expr = nftlib.toTextPretty {
+        nftables = [
+          {
+            add.limit = {
+              family = "ip";
+              table = "t";
+              name = "lim";
+              rate = 10;
+              per = "minute";
+              burst = 5;
+              comment = "packet budget";
+            };
+          }
+          {
+            add.rule = {
+              family = "ip";
+              table = "t";
+              chain = "c";
+              expr = [ { limit = "lim"; } ];
+            };
+          }
+          {
+            create.limit = {
+              family = "ip";
+              table = "t";
+              name = "fast";
+              rate = 20;
+              per = "second";
+              burst = 10;
+            };
+          }
+        ];
+      };
+      expected = ''
+        add limit ip t lim {
+          rate 10/minute burst 5 packets;
+          comment "packet budget";
+        }
+        add rule ip t c limit name "lim"
+        create limit ip t fast rate 20/second burst 10 packets'';
     };
 
     testRejectIcmp = {
@@ -458,20 +576,6 @@ let
         };
       };
       expected = "add quota ip filter q { over 1000000 bytes; }";
-    };
-
-    testLimitObject = {
-      expr = one {
-        add.limit = {
-          family = "ip";
-          table = "filter";
-          name = "lim";
-          rate = 5;
-          per = "second";
-          burst = 10;
-        };
-      };
-      expected = "add limit ip filter lim { rate 5/second burst 10 packets; }";
     };
 
     testCtTimeoutPolicy = {
