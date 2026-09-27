@@ -1,10 +1,11 @@
 { lib }:
 
-# OS-fingerprint key leaves. For `ttl` ("loose"/"skip"), use the escape
-# hatch `dsl.expr.osf { key = …; ttl = "loose"; }`.
+# OS-fingerprint key leaves (parser_json.c:486-489). For `ttl`
+# ("loose"/"skip"), use the escape hatch
+# `dsl.expr.osf { key = …; ttl = "loose"; }`.
 #
 #   fields.osf.name    == { osf = { key = "name"; }; }
-#   fields.osf.version == { osf = { key = "version"; }; }   # parser_json.c:486-489
+#   fields.osf.version == { osf = { key = "version"; }; }
 
 let
   keys = [

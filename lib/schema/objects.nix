@@ -331,7 +331,8 @@ let
     };
 
     ctHelperObjectBody = types.submodule {
-      # All fields optional per parser_json.c:3782-3809 (all json_unpack, no _err).
+      # All fields optional per parser_json.c:3782-3809 (all json_unpack,
+      # no _err).
       options = commonObjectOptions // {
         type = mkOption {
           type = types.nullOr types.str;
@@ -385,7 +386,8 @@ let
       };
     };
 
-    # ct timeout object: parser_json.c:3811-3833 — all fields optional on JSON path.
+    # ct timeout object: parser_json.c:3811-3833 — all fields optional on
+    # the JSON path.
     ctTimeoutObjectBody = types.submodule {
       options = commonObjectOptions // {
         protocol = mkOption {
@@ -406,7 +408,8 @@ let
       };
     };
 
-    # ct expectation object: parser_json.c:3835-3860 — all fields optional on JSON path.
+    # ct expectation object: parser_json.c:3835-3860 — all fields optional
+    # on the JSON path.
     ctExpectationObjectBody = types.submodule {
       options = commonObjectOptions // {
         l3proto = mkOption {

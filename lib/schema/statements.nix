@@ -465,7 +465,8 @@ let
         };
       };
     };
-    # synproxy statement: null (empty), anonymous config, or named reference string/expr.
+    # synproxy statement: null (empty), anonymous config, or named reference
+    # string/expr.
     synproxyStatementBody = types.oneOf [
       nullLiteral
       synproxyAnonBody

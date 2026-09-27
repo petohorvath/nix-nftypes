@@ -16,8 +16,10 @@
 #   dsl.destroy.set { family; table; name; type; }
 #   dsl.list.table { family; name; }
 #   dsl.rename.chain { family; table; name; newname; }
-#   dsl.reset.counter { family; table; name; }      # command (sub-attr)
-#   dsl.reset tcpOption                              # statement (via __functor, wired in default.nix)
+#   dsl.reset.counter { family; table; name; }   # command (sub-attr)
+#   dsl.reset tcpOption                           # statement (__functor)
+#
+# The statement form of `reset` is wired in default.nix.
 #
 # `replace` and `insert` accept only rule bodies per the schema, so they're
 # plain single-argument functions rather than namespaces.
@@ -90,7 +92,8 @@ let
       ;
   };
 
-  # Build a namespace `{ dslKey = body: { cmdTag = { jsonTag = validated; }; }; … }`.
+  # Build a namespace
+  # `{ dslKey = body: { cmdTag = { jsonTag = validated; }; }; … }`.
   # `validated` is the renamed user body run through evalModules against the
   # kind's schema body; the prefix names the verb and kind so error messages
   # read like `create.chain.prio: …`.

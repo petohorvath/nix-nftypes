@@ -97,9 +97,7 @@ let
     if !(builtins.isString name) || nftSafeScalar.isSafe name then
       true
     else
-      throw ''
-        nftypes: refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '"', '\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}.
-      '';
+      throw "nftypes: refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}.\n";
 
   # Render a setDatatype: string → "ipv4_addr"; list → "ipv4_addr . port";
   # { typeof = expr } → "typeof <expr>".
@@ -139,9 +137,7 @@ let
     if bad == null then
       true
     else
-      throw ''
-        nftypes: refusing to render a chain/flowtable device ${builtins.toJSON bad} that contains a character unsafe for nft's unquoted device-list grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '"' '\' '#' and control characters, because nft renders multi-dev lists bare as `devices = { ... }` and those characters either widen the list silently or corrupt the parser. Offending value: ${builtins.toJSON bad}.
-      '';
+      throw "nftypes: refusing to render a chain/flowtable device ${builtins.toJSON bad} that contains a character unsafe for nft's unquoted device-list grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '\"' '\\' '#' and control characters, because nft renders multi-dev lists bare as `devices = { ... }` and those characters either widen the list silently or corrupt the parser. Offending value: ${builtins.toJSON bad}.\n";
 
   # Render a chain `dev` field — either a bare string ("eth0") or a list.
   # Single device: `device "eth0"`; multiple: `devices = { eth0, eth1 }`.
@@ -251,9 +247,7 @@ let
         if ifnameBad == null then
           true
         else
-          throw ''
-            nftypes: refusing to render an ifname-typed set/map element ${builtins.toJSON ifnameBad} that contains a character unsafe for nft's unquoted element grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '"' '\' '#' and control characters, because nft renders ifname elements bare into `elements = { ... }` and those characters either widen the set silently or corrupt the parser. Offending value: ${builtins.toJSON ifnameBad}.
-          '';
+          throw "nftypes: refusing to render an ifname-typed set/map element ${builtins.toJSON ifnameBad} that contains a character unsafe for nft's unquoted element grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '\"' '\\' '#' and control characters, because nft renders ifname elements bare into `elements = { ... }` and those characters either widen the set silently or corrupt the parser. Offending value: ${builtins.toJSON ifnameBad}.\n";
       elemList =
         if (body.elem or null) == null then
           [ ]
@@ -383,7 +377,8 @@ let
     ++ lib.optional ((body.l3proto or null) != null) "l3proto ${body.l3proto}"
     ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
 
-  # ct timeout object: `protocol tcp; l3proto ip; policy = { established: 300, ... };`.
+  # ct timeout object:
+  # `protocol tcp; l3proto ip; policy = { established: 300, ... };`.
   renderCtTimeoutHeader = ctx: body: scope2 ctx body;
 
   renderCtTimeoutBody =

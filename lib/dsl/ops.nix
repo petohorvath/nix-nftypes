@@ -1,6 +1,7 @@
 { lib }:
 
-# Match operators. Each returns a statement (`{ match = { left; right; op; }; }`).
+# Match operators. Each returns a statement
+# (`{ match = { left; right; op; }; }`).
 # Top-level operator names read naturally: `eq tcp.dport 22`.
 #
 # `inSet` / `notInSet` auto-wrap a list rhs as `{ set = [...]; }` and pass a

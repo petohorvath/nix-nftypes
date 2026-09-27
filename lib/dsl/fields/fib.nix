@@ -8,7 +8,9 @@
 # explicit-flag callers.
 #
 #   fields.fib.oif   == { fib = { result = "oif"; }; }
-#   fields.fib.check == { fib = { result = "check"; }; }   # NFT_FIB_F_PRESENT predicate
+#   fields.fib.check == { fib = { result = "check"; }; }
+#
+# `check` is the NFT_FIB_F_PRESENT predicate.
 
 let
   results = [

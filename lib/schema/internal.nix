@@ -53,6 +53,7 @@ in
   tagOpt = type: mkOption { inherit type; };
 
   # Single-tag attrTag wrapper:
-  #   wrap "table" tableBody == types.attrTag { table = mkOption { type = …; }; }
+  #   wrap "table" tableBody
+  #   == types.attrTag { table = mkOption { type = …; }; }
   wrap = key: body: types.attrTag { ${key} = mkOption { type = body; }; };
 }

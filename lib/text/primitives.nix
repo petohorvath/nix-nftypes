@@ -92,9 +92,7 @@ let
     if builtins.isInt v then
       toString v
     else
-      throw ''
-        nftypes: refusing to render a non-integer chain/flowtable priority ${builtins.toJSON v}. The schema types `prio` as `nullOr int`; symbolic priorities ("filter", "filter + 10", …) flow through `nftlib.resolvePriority` to an int before reaching the renderer. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements.
-      '';
+      throw "nftypes: refusing to render a non-integer chain/flowtable priority ${builtins.toJSON v}. The schema types `prio` as `nullOr int`; symbolic priorities (\"filter\", \"filter + 10\", …) flow through `nftlib.resolvePriority` to an int before reaching the renderer. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements.\n";
 in
 {
   inherit

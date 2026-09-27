@@ -1,13 +1,15 @@
 { lib }:
 
 # Recursively clean a Nix value for rendering:
-#   - Drop null-valued attrs from multi-key attrsets (these are unset option defaults)
+#   - Drop null-valued attrs from multi-key attrsets (these are unset option
+#     defaults)
 #   - Drop `_type` attrs from multi-key attrsets — libraries built on top of
 #     nftypes tag values with `_type = "<lib>.<kind>"` for boundary checks
 #     (matching nix-libnet's convention); the tag must not leak into rendered
 #     output since `nft -j -f` rejects unknown top-level keys
-#   - Preserve { k = null; } where k is the only key (verdicts like accept/drop and
-#     `{ ruleset = null; }` rely on null being significant there)
+#   - Preserve { k = null; } where k is the only key (verdicts like
+#     accept/drop and `{ ruleset = null; }` rely on null being significant
+#     there)
 #   - Recurse into lists
 #
 # Both the JSON renderer (lib/json) and the text renderer (lib/text) call this

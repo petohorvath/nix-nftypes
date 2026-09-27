@@ -5,12 +5,14 @@
 }:
 
 # Public entry point for the `dsl` layer — a declarative DSL emphasizing:
-#   - Path-based field access (`fields.tcp.dport` instead of `payload "tcp" "dport"`)
+#   - Path-based field access (`fields.tcp.dport` instead of
+#     `payload "tcp" "dport"`)
 #   - Top-level operator functions (`eq`, `ne`, `inSet`, `within`, …)
 #   - Variant namespaces via `__functor` (`counter {…}` vs `counter.auto`)
 #   - Declarative table structure (`chains.<name>.rules = [...]`) in place
 #     of context-threading builders
-#   - CamelCase aliases for hyphenated JSON keys (handled by internal/rename.nix)
+#   - CamelCase aliases for hyphenated JSON keys (handled by
+#     internal/rename.nix)
 
 let
   validate = import ./internal/validate.nix { inherit lib; };
@@ -64,7 +66,9 @@ in
 // ops # eq, ne, lt, gt, le, ge, inSet, notInSet, within, match
 // verdicts # accept, drop, continue, return, notrack, jump, goto
 // actionsWithoutReset # counter, log, limit, snat, … (reset handled above)
-// ruleset # ruleset, rule, flush, flushTable, flushChain, flushSet, flushMap, flushMeter, flushRuleset
+# ruleset, rule, flush, flushTable, flushChain, flushSet, flushMap,
+# flushMeter, flushRuleset
+// ruleset
 # create / delete / destroy / list / rename / replace / insert / reset are
 # exposed above via `inherit (commands) …` so they live at the top of the
 # attrset (not lost among `//` layers).

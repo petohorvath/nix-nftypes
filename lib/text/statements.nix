@@ -126,9 +126,7 @@ let
           if bad == null then
             primitives.string right
           else
-            throw ''
-              nftypes: refusing to render an ifname-typed match RHS ${builtins.toJSON bad} that is not a safe interface name (see lib/nft-safe-ifname.nix). The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '"' '\' '#' and control characters, because such a value can never resolve to a real interface and nft's text parser may also misread unquoted special characters as operators. Offending value: ${builtins.toJSON bad}.
-            ''
+            throw "nftypes: refusing to render an ifname-typed match RHS ${builtins.toJSON bad} that is not a safe interface name (see lib/nft-safe-ifname.nix). The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '\"' '\\' '#' and control characters, because such a value can never resolve to a real interface and nft's text parser may also misread unquoted special characters as operators. Offending value: ${builtins.toJSON bad}.\n"
         else
           rExpr ctx right;
     in
@@ -156,7 +154,8 @@ let
   # sides; payload/meta/ct mangling all flow through this shape.
   renderMangle = ctx: { key, value }: "${rExpr ctx key} set ${rExpr ctx value}";
 
-  # quota: str → named ref; attrset → `quota [over] <val> <unit> [used <u> <unit>]`.
+  # quota: str → named ref;
+  # attrset → `quota [over] <val> <unit> [used <u> <unit>]`.
   # `inv = true` flips the implicit "until" to "over". `val_unit` and
   # `used_unit` are `types.str` in the schema and render bare into the
   # output, so each flows through `safeToken` to reject parser-meta
@@ -245,7 +244,8 @@ let
     else
       "reject with ${type}" + optionalString (expr != null) " ${rExpr ctx expr}";
 
-  # set/map dynamic-update statement: `<op> @<set> { <elem>[ : <data>] [stmt]* }`.
+  # set/map dynamic-update statement:
+  # `<op> @<set> { <elem>[ : <data>] [stmt]* }`.
   # The schema types `set`/`map` as `types.str`; the renderer prepends `@`
   # and would otherwise emit the rest bare. `safeToken` rejects any byte
   # outside the bare-token grammar, including a newline + trailing statement
@@ -285,7 +285,8 @@ let
     in
     "${op} @${safeToken map} { ${rExpr ctx elem} : ${rExpr ctx data}${stmts} }";
 
-  # log: `log [prefix "..."] [group N] [snaplen N] [queue-threshold N] [level L] [flags ...]`.
+  # log: `log [prefix "..."] [group N] [snaplen N] [queue-threshold N]
+  # [level L] [flags ...]`.
   renderLog =
     _ctx: body:
     let

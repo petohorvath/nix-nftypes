@@ -66,9 +66,7 @@ let
         if bad == null then
           body
         else
-          throw ''
-            ${pluralKey}.${name}: set has type = "ifname" but element ${builtins.toJSON bad} is not a safe interface name (see lib/nft-safe-ifname.nix). nft renders ifname elements bare into `elements = { ... }`, so unsafe characters can silently widen the set or break the text parser.
-          '';
+          throw "${pluralKey}.${name}: set has type = \"ifname\" but element ${builtins.toJSON bad} is not a safe interface name (see lib/nft-safe-ifname.nix). nft renders ifname elements bare into `elements = { ... }`, so unsafe characters can silently widen the set or break the text parser.\n";
     };
 
   prepareRule =

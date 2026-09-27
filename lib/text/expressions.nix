@@ -58,9 +58,7 @@ let
     if nftSafeScalar.isSafe s then
       s
     else
-      throw ''
-        nftypes: refusing to render a bare nft token ${builtins.toJSON s} that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '"', '\', '#', and control characters; legitimate field/key names are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON s}.
-      '';
+      throw "nftypes: refusing to render a bare nft token ${builtins.toJSON s} that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate field/key names are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON s}.\n";
 
   # Render a numeric/string/bool atom.
   renderScalar =

@@ -26,7 +26,7 @@ let
   # limit.
   nftQuotedString = mkOptionType {
     name = "nftQuotedString";
-    description = ''nft-safe quoted string (no '"', '\', or control characters; ≤128 bytes)'';
+    description = "nft-safe quoted string (no '\"', '\\', or control characters; ≤128 bytes)";
     descriptionClass = "noun";
     check = s: builtins.isString s && nftSafeString.isSafe s && builtins.stringLength s <= 128;
     merge = lib.mergeEqualOption;
@@ -39,7 +39,7 @@ let
   # the predicate as defence-in-depth.
   ifname = mkOptionType {
     name = "ifname";
-    description = ''nft-safe interface name (≤15 bytes; no '/' ':' whitespace ',' ';' '{' '}' '"' '\' '#' or control chars; not '.' or '..')'';
+    description = "nft-safe interface name (≤15 bytes; no '/' ':' whitespace ',' ';' '{' '}' '\"' '\\' '#' or control chars; not '.' or '..')";
     descriptionClass = "noun";
     check = nftSafeIfname.isSafe;
     merge = lib.mergeEqualOption;

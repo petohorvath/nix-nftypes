@@ -139,11 +139,9 @@ let
     route = [ "output" ];
   };
 
-  /*
-    Symbolic chain priority → int. Default table from `man nft`
-    Table 6 (applies to ip / ip6 / inet / arp / netdev). Mirrors
-    NF_IP_PRI_* in `include/uapi/linux/netfilter_ipv4.h`.
-  */
+  # Symbolic chain priority → int. Default table from `man nft` Table 6
+  # (applies to ip / ip6 / inet / arp / netdev). Mirrors NF_IP_PRI_* in
+  # `include/uapi/linux/netfilter_ipv4.h`.
   priorityIntsDefault = {
     raw = -300;
     mangle = -150;
