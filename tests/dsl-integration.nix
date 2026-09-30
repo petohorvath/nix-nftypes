@@ -474,7 +474,7 @@ rec {
 
   # Parser-negative cases pin distinctions that the schema must not erase.
   # These raw attrsets intentionally bypass the schema so the selected
-  # channel's live JSON parser remains the behavioral oracle.
+  # package set's live JSON parser remains the behavioral oracle.
   rejectionCases = [
     {
       name = "create-rule";
@@ -516,7 +516,7 @@ rec {
   # instance and can exercise its real parser without root.
   #
   # Parameterized over the `nft` package so the same case set is instantiated
-  # against the stable and unstable nixpkgs channels by flake.nix.
+  # against the stable and unstable nixpkgs package sets by flake.nix.
   mkIntegrationTests =
     { name, nft }:
     pkgs: cases:
@@ -589,7 +589,8 @@ rec {
         touch $out
       '';
 
-  # Channel oracle: the exact nftables package from the selected nixpkgs input.
+  # Package-set oracle: the exact nftables package from the selected nixpkgs
+  # input.
   runIntegrationTests =
     pkgs: cases:
     mkIntegrationTests {

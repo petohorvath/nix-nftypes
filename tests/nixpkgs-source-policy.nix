@@ -6,7 +6,7 @@
   docsFile ? ../docs/upstream-sync.md,
 }:
 
-# Static regression guard for the channel-authority design. The project must
+# Static regression guard for the nixpkgs-authority design. The project must
 # not grow a second, independently pinned Netfilter source or reintroduce a
 # direct upstream Git dependency in the scheduled workflow.
 let
@@ -43,6 +43,7 @@ let
   canaryScript = lib.last (lib.splitString "Compatibility suite vs latest" workflowText);
   canaryEvaluationMarker = "          locked_version=$(nix eval --raw";
   canaryPreEvaluation = builtins.head (lib.splitString canaryEvaluationMarker canaryScript);
+  canaryRevisionEcho = ''echo "nixpkgs revision: \`$tip_rev\`."'';
 
   forbidden = [
     {
@@ -58,11 +59,11 @@ let
       present = lib.hasInfix "git+https://git.netfilter.org" flakeText;
     }
     {
-      name = "git ls-remote in channel watcher";
+      name = "git ls-remote in source watcher";
       present = lib.hasInfix "git ls-remote" workflowText;
     }
     {
-      name = "git clone in channel watcher";
+      name = "git clone in source watcher";
       present = lib.hasInfix "git clone" workflowText;
     }
     {
@@ -85,7 +86,7 @@ let
       present = lib.hasInfix "pkgs.applyPatches" flakeText;
     }
     {
-      name = "floating channel override";
+      name = "floating branch-tip override";
       present = lib.hasInfix "--override-input" workflowText;
     }
     {
@@ -93,11 +94,11 @@ let
       present = lib.hasInfix "nix hash path" workflowText;
     }
     {
-      name = "stable channel authority";
+      name = "stable flake input authority";
       present = lib.hasInfix "- input: nixpkgs\n" workflowText;
     }
     {
-      name = "unstable channel authority";
+      name = "unstable flake input authority";
       present = lib.hasInfix "- input: nixpkgs-unstable\n" workflowText;
     }
     {
@@ -109,10 +110,10 @@ let
       present = lib.hasInfix "gh issue close" workflowText;
     }
     {
-      name = "full channel-tip revision recorded before canary evaluation";
+      name = "full branch-tip revision recorded before canary evaluation";
       present =
         lib.hasInfix canaryEvaluationMarker canaryScript
-        && lib.hasInfix ''echo "nixpkgs revision: \`$tip_rev\`."'' canaryPreEvaluation;
+        && lib.hasInfix canaryRevisionEcho canaryPreEvaluation;
     }
     {
       name = "full-source hash distinguished from selected-file diagnostic";
@@ -138,7 +139,7 @@ let
     name = "documented canary target ${name}";
     present =
       lib.hasInfix ("            " + name) canaryScript
-      && lib.hasInfix ("\".#checks.x86_64-linux." + name + "$" + "{suffix}\"") docsText;
+      && lib.hasInfix "\".#checks.x86_64-linux.${name}\${suffix}\"" docsText;
   }) canaryCheckNames;
 
   failures =
@@ -152,14 +153,14 @@ in
   runTests =
     _pkgs:
     if failures == [ ] then
-      pkgs.runCommandLocal "channel-source-policy-tests" { } ''
-        echo "channel source policy assertions passed"
+      pkgs.runCommandLocal "nixpkgs-source-policy-tests" { } ''
+        echo "nixpkgs source policy assertions passed"
         touch $out
       ''
     else
-      pkgs.runCommandLocal "channel-source-policy-tests-fail" { } ''
+      pkgs.runCommandLocal "nixpkgs-source-policy-tests-fail" { } ''
         cat >&2 <<'EOF'
-        channel source policy assertions failed:
+        nixpkgs source policy assertions failed:
         ${failureMessage}
         EOF
         exit 1

@@ -2,7 +2,7 @@
 """
 normalize-corpus.py — flatten nftables' own test corpus into one JSON doc.
 
-Corpus check in the channel-source pipeline (see docs/upstream-sync.md).
+Corpus check in the nixpkgs-source pipeline (see docs/upstream-sync.md).
 nftables ships a large regression corpus under `tests/py/**/*.t.json`: for
 each rule the project tests, the exact libnftables-JSON `expr` array it expects. That
 corpus is upstream telling us, version by version, what valid input looks

@@ -1,15 +1,15 @@
 name: Upstream sync
 
 # Keeps the schema in step with the nftables packages consumers receive from
-# the stable and unstable nixpkgs channels (docs/upstream-sync.md). Two jobs:
+# the stable and unstable nixpkgs branches (docs/upstream-sync.md). Two jobs:
 #
-#   channel-source-watch — compares each locked channel's fully patched
-#     nftables source tree with the same package at that channel's current tip.
+#   nixpkgs-source-watch — compares each locked flake input's fully patched
+#     nftables source tree with the same package at its branch's current tip.
 #     A content change produces a parser diff and a GitHub issue. All source
 #     material comes through nixpkgs; there is no independent upstream Git pin.
 #
 #   canary — runs live-parser, patched-source, enum, corpus, and round-trip
-#     checks against an immutable snapshot of each channel's current tip.
+#     checks against an immutable snapshot of each branch's current tip.
 #     continue-on-error keeps this an early-warning signal rather than a gate.
 
 on:
@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  channel-source-watch:
+  nixpkgs-source-watch:
     strategy:
       fail-fast: false
       matrix:
@@ -42,7 +42,7 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1; upstream Nix
 
-      - name: Compare locked and channel-tip nftables sources
+      - name: Compare locked and branch-tip nftables sources
         id: source
         shell: bash
         run: |
@@ -97,7 +97,7 @@ jobs:
             echo "| tip | \`${tip_rev:0:12}\` | \`$tip_version\` | \`${tip_hash:0:16}…\` |"
           } >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Close resolved channel drift issues
+      - name: Close resolved drift issues
         if: steps.source.outputs.drift == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -109,7 +109,7 @@ jobs:
           label_exists=$(gh label list --limit 1000 --json name \
             | jq -r --arg label "$label" 'any(.[]; .name == $label)')
           if [ "$label_exists" != true ]; then
-            echo "No $label label exists; there are no channel drift issues to close."
+            echo "No $label label exists; there are no drift issues to close."
             exit 0
           fi
 
@@ -118,13 +118,13 @@ jobs:
             --limit 100 --json number,title \
             | jq -r --arg prefix "$title_prefix" '.[] | select(.title | startswith($prefix)) | .number')
           if [ -z "$issues" ]; then
-            echo "No open ${{ matrix.label }} channel drift issues need closing."
+            echo "No open ${{ matrix.label }} drift issues need closing."
             exit 0
           fi
 
           while IFS= read -r issue; do
             gh issue close "$issue" --reason completed --comment \
-              "Resolved: the locked and channel-tip patched nftables sources now match at ${TIP_HASH:0:12} (locked ${LOCKED_HASH:0:12})."
+              "Resolved: the locked and branch-tip patched nftables sources now match at ${TIP_HASH:0:12} (locked ${LOCKED_HASH:0:12})."
           done <<<"$issues"
 
       - name: Diff schema-relevant source files
@@ -181,10 +181,10 @@ jobs:
             cat >drift-report.md <<EOF
           # nixpkgs nftables source drift detected
 
-          Channel: \`${{ matrix.input }}\`
+          Flake input: \`${{ matrix.input }}\`
 
           - Locked nixpkgs: \`${{ steps.source.outputs.locked_rev }}\`
-          - Channel tip: \`${{ steps.source.outputs.tip_rev }}\`
+          - Branch tip: \`${{ steps.source.outputs.tip_rev }}\`
           - nftables: \`${{ steps.source.outputs.locked_version }}\` → \`${{ steps.source.outputs.tip_version }}\`
           - Patched source: \`${{ steps.source.outputs.locked_hash }}\` → \`${{ steps.source.outputs.tip_hash }}\`
 
@@ -204,7 +204,7 @@ jobs:
             write_basic_report "AI triage failed; the deterministic source comparison remains authoritative."
           fi
 
-      - name: File or update channel drift issue
+      - name: File or update drift issue
         if: steps.source.outputs.drift == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -213,7 +213,7 @@ jobs:
           set -euo pipefail
           title="nixpkgs nftables drift (${{ matrix.label }}): ${TIP_HASH:0:12}"
           gh label create nixpkgs-nftables-drift --color FBCA04 \
-            --description "A nixpkgs channel carries nftables source different from the lock" 2>/dev/null || true
+            --description "A nixpkgs branch carries nftables source different from the lock" 2>/dev/null || true
           existing=$(gh issue list --state open --label nixpkgs-nftables-drift \
             --limit 100 --json number,title \
             | jq -r --arg title "$title" '[.[] | select(.title == $title)][0].number // empty')
@@ -226,10 +226,10 @@ jobs:
 
   canary:
     strategy:
-      fail-fast: false # let each channel report independently
+      fail-fast: false # let each flake input report independently
       matrix:
         include:
-          - input: nixpkgs # stable channel; plain check names
+          - input: nixpkgs # stable flake input; plain check names
             suffix: ""
             label: stable
           - input: nixpkgs-unstable
@@ -256,7 +256,7 @@ jobs:
           tip_uri="github:NixOS/nixpkgs/$tip_rev"
 
           {
-            echo "### ${{ matrix.label }} channel-tip compatibility"
+            echo "### ${{ matrix.label }} branch-tip compatibility"
             echo
             echo "nixpkgs revision: \`$tip_rev\`."
           } >>"$GITHUB_STEP_SUMMARY"

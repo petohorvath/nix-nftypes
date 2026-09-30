@@ -19,12 +19,12 @@ separate nftables or libnftnl flake inputs.
 
 ## Locked-input matrix
 
-`flake.nix` creates every channel-dependent check twice:
+`flake.nix` creates every package-set-dependent check twice:
 
 - plain name: stable package set;
 - `-unstable` suffix: unstable package set.
 
-One additional `channel-source-policy-tests` check statically guards the
+One additional `nixpkgs-source-policy-tests` check statically guards the
 single-authority design. Evaluate the exact current list rather than relying on
 a copied count:
 
@@ -54,8 +54,8 @@ The exact attribute names remain the machine-readable source of truth.
 ### Source provenance
 
 `nftables-source-provenance-tests` verifies that source analysis receives the
-selected channel's release source and full patch list. Other source results are
-not trustworthy if this check fails.
+selected package set's release source and full patch list. Other source
+results are not trustworthy if this check fails.
 
 ### Upstream statement corpus
 
@@ -120,7 +120,7 @@ themselves.
 Named exclusions and text-only limits are documented in
 [`text-coverage.md`](text-coverage.md).
 
-## Weekly channel-tip workflow
+## Weekly branch-tip workflow
 
 [`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml)
 runs Mondays at 06:00 UTC and on manual dispatch. Stable and unstable run
@@ -128,9 +128,9 @@ independently.
 
 ### Patched-source watch
 
-For each channel, the job:
+For each flake input, the job:
 
-1. reads the channel branch and locked revision from `flake.lock`;
+1. reads the input's branch and locked revision from `flake.lock`;
 2. resolves the branch tip once to an immutable nixpkgs revision;
 3. builds locked and tip patched-source outputs;
 4. compares their NAR content hashes;
@@ -166,7 +166,7 @@ nine nftables-facing checks:
 The job is `continue-on-error: true`: it is an early-warning signal, not a merge
 gate. It does not update `flake.lock`.
 
-The source-watch and canary jobs each resolve their own immutable tip. A channel
+The source-watch and canary jobs each resolve their own immutable tip. A branch
 can move between those resolutions, so compare the revisions shown in the job
 summaries when correlating results.
 
@@ -178,11 +178,11 @@ summaries when correlating results.
 | enum extraction red | extracted parser token/tag drift or extractor failure | inspect the patched source and plausibility output |
 | corpus red | a packaged upstream statement no longer fits the known schema/baseline | extend the model or justify a named baseline |
 | round trip red | a selected case failed to load or emitted an unmodelled command | inspect load logs and serializer output; do not reduce coverage silently |
-| JSON integration red | selected rendered JSON is rejected by the channel parser | fix schema/DSL/renderer or narrow the claim with evidence |
+| JSON integration red | selected rendered JSON is rejected by the packaged parser | fix schema/DSL/renderer or narrow the claim with evidence |
 | text/equivalence red | selected native syntax is rejected or differs semantically | fix text rendering or add a narrowly justified named exclusion |
 | unstable-only red | likely future stable incompatibility | fix before updating the stable floor |
 | canary-only red | one of the nine selected tip-revision checks failed, or its job environment/tooling failed, while the locked checks remained green | reproduce at the reported immutable revision and inspect the failing check |
-| drift issue | patched source at the channel tip differs from the lock | review the artifact and canary before updating |
+| drift issue | patched source at the branch tip differs from the lock | review the artifact and canary before updating |
 
 ## Updating inputs
 

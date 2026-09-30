@@ -2,9 +2,9 @@
 """
 check-upstream-enums.py — deterministic enum + dispatch-tag drift detector.
 
-Deterministic token check in the channel-source pipeline
+Deterministic token check in the nixpkgs-source pipeline
 (see docs/upstream-sync.md). Extracts accepted-token sets from the
-cleanly-structured C tables in the selected channel package's patched nftables
+cleanly-structured C tables in the selected package set's patched nftables
 source tree and diffs them against this library's schema: the
 primitive enums (`nftlib.enums`) and the statement/expression tag unions
 (the `attrTag` sets behind `types.statement` / `types.taggedExpression`).
@@ -48,7 +48,7 @@ import sys
 
 
 # Registry: check name -> how to extract accepted tokens from the selected
-# channel package's nftables source, and which schema token list to diff
+# package set's nftables source, and which schema token list to diff
 # against. Each entry names the source file (relative to the tree root), the C
 # symbol holding the table, its shape, and a `floor` (minimum plausible token
 # count —
@@ -218,7 +218,7 @@ def main(argv):
         print(f"  {enum:<12} {why}")
 
     if drift:
-        print("\nDRIFT DETECTED — the channel parser accepts tokens the schema rejects:")
+        print("\nDRIFT DETECTED — the packaged parser accepts tokens the schema rejects:")
         for name, toks in sorted(drift.items()):
             fix = REGISTRY.get(name, {}).get("fix", "lib/schema/primitives.nix")
             print(f"  {name}: add {toks} — {fix}")

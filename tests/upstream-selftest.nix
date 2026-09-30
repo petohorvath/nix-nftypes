@@ -4,7 +4,7 @@
   nftablesSrc,
 }:
 
-# Red-path self-tests for the channel-source tooling (docs/upstream-sync.md).
+# Red-path self-tests for the nixpkgs-source tooling (docs/upstream-sync.md).
 #
 # The drift checks exist to turn silent schema rot into red CI — which
 # means the worst failure mode is the checks themselves rotting silently
