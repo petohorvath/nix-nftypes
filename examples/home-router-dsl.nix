@@ -19,29 +19,29 @@
 
 let
   inherit (nftlib.dsl)
-    ruleset
-    flush
-    table
-    eq
-    inSet
     accept
-    drop
-    jump
     counter
+    dnat
+    drop
+    eq
+    flow
+    flush
+    inSet
+    jump
     limit
     log
-    reject
     masquerade
-    dnat
-    flow
+    reject
+    ruleset
+    table
     vmap
     ;
   inherit (nftlib.dsl.fields)
-    tcp
-    ip
-    icmp
     ct
+    icmp
+    ip
     meta
+    tcp
     ;
   inherit (nftlib.dsl.expr)
     concat

@@ -1,7 +1,7 @@
 {
   pkgs,
   nftlib,
-  nftablesSrc,
+  nftablesSource,
 }:
 
 # Deterministic token check in the nixpkgs-source pipeline
@@ -49,7 +49,8 @@ in
         nativeBuildInputs = [ pkgs.python3 ];
       }
       ''
-        python3 ${../tooling/check-upstream-enums.py} ${nftablesSrc} ${schemaJson}
+        python3 ${../tooling/check-upstream-enums.py} \
+          ${nftablesSource} ${schemaJson}
         touch $out
       '';
 }

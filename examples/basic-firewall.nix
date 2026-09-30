@@ -18,7 +18,7 @@ let
     };
   };
 
-  payload = protocol: field: { payload = { inherit protocol field; }; };
+  payload = protocol: field: { payload = { inherit field protocol; }; };
   meta = key: { meta = { inherit key; }; };
   prefix = addr: len: { prefix = { inherit addr len; }; };
 in

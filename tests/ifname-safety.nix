@@ -317,8 +317,8 @@ let
     }
     // payload;
 
-  malRaw = rawWideningRuleset { } wideningPayload;
-  safeRaw = rawWideningRuleset { } "eth0";
+  maliciousRawRuleset = rawWideningRuleset { } wideningPayload;
+  safeRawRuleset = rawWideningRuleset { } "eth0";
 
   # Raw chain (netdev family) with a malicious dev list. Bypasses the
   # DSL — the renderer's `assertSafeDev` must catch it.
@@ -454,15 +454,15 @@ let
 
   rendererTests = {
     testTextThrowsOnMaliciousRaw = {
-      expr = evalSucceeds (toText malRaw);
+      expr = evalSucceeds (toText maliciousRawRuleset);
       expected = false;
     };
     testTextPrettyThrowsOnMaliciousRaw = {
-      expr = evalSucceeds (toTextPretty malRaw);
+      expr = evalSucceeds (toTextPretty maliciousRawRuleset);
       expected = false;
     };
     testTextAcceptsSafeRaw = {
-      expr = evalSucceeds (toText safeRaw);
+      expr = evalSucceeds (toText safeRawRuleset);
       expected = true;
     };
     testTextThrowsOnMaliciousChainDev = {
@@ -480,8 +480,8 @@ let
     # not the silent widening that motivated this PR. Pin the encoding
     # so a future refactor that re-injects bytes breaks here.
     testJsonRoundTripsLiteralBytes = {
-      expr = toJson malRaw;
-      expected = ''{"nftables":[{"add":{"set":{"elem":["eth0,eth1"],"family":"inet","name":"iifs","table":"fw","type":"ifname"}}}]}'';
+      expr = toJson maliciousRawRuleset;
+      expected = "{\"nftables\":[{\"add\":{\"set\":{\"elem\":[\"eth0,eth1\"],\"family\":\"inet\",\"name\":\"iifs\",\"table\":\"fw\",\"type\":\"ifname\"}}}]}";
     };
   };
 
@@ -539,10 +539,12 @@ let
           unshare -rn -- sh -c "
             set -e
             nft $loader_flag -f $file
-            got=\$(nft -j list set inet fw iifs | jq '[.nftables[] | select(.set) | .set.elem[]] | length')
+            got=\$(nft -j list set inet fw iifs |
+              jq '[.nftables[] | select(.set) | .set.elem[]] | length')
             want=$expected_count
             if [ \"\$got\" != \"\$want\" ]; then
-              printf '%s: element-count mismatch\n  want: %s\n  got:  %s\n' \"$label\" \"\$want\" \"\$got\" >&2
+              printf '%s: element-count mismatch\n  want: %s\n  got:  %s\n' \
+                \"$label\" \"\$want\" \"\$got\" >&2
               nft list set inet fw iifs >&2
               exit 1
             fi
@@ -577,5 +579,5 @@ let
   };
 in
 {
-  inherit tests runTests runIntegrationTests;
+  inherit runIntegrationTests runTests tests;
 }

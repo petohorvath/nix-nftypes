@@ -30,27 +30,27 @@
 let
   dsl = nftlib.dsl;
   inherit (dsl)
-    ruleset
-    flush
     accept
-    drop
     create
     delete
     destroy
+    drop
+    flush
+    flushChain
+    flushMap
+    flushRuleset
+    flushSet
+    flushTable
     list
     reset
-    flushRuleset
-    flushTable
-    flushChain
-    flushSet
-    flushMap
+    ruleset
     ;
 
-  tbl = {
+  tableScope = {
     family = "ip";
     table = "t";
   };
-  tbl4 = {
+  tableIdentity = {
     family = "ip";
     name = "t";
   };
@@ -65,9 +65,9 @@ rec {
       name = "create-supported-kinds";
       ruleset = ruleset [
         flush
-        (create.table tbl4)
+        (create.table tableIdentity)
         (create.chain (
-          tbl
+          tableScope
           // {
             name = "c";
             type = "filter";
@@ -75,16 +75,16 @@ rec {
             prio = 0;
           }
         ))
-        (create.counter (tbl // { name = "ctr"; }))
+        (create.counter (tableScope // { name = "ctr"; }))
         (create.quota (
-          tbl
+          tableScope
           // {
             name = "q";
             bytes = 1000000;
           }
         ))
         (create.limit (
-          tbl
+          tableScope
           // {
             name = "lim";
             rate = 5;
@@ -94,14 +94,14 @@ rec {
           }
         ))
         (create.set (
-          tbl
+          tableScope
           // {
             name = "s";
             type = "ipv4_addr";
           }
         ))
         (create.map (
-          tbl
+          tableScope
           // {
             name = "m";
             type = "inet_service";
@@ -109,14 +109,14 @@ rec {
           }
         ))
         (create.element (
-          tbl
+          tableScope
           // {
             name = "s";
             elements = [ "1.2.3.4" ];
           }
         ))
         (create.flowtable (
-          tbl
+          tableScope
           // {
             name = "ft";
             hook = "ingress";
@@ -125,7 +125,7 @@ rec {
           }
         ))
         (create.ctHelper (
-          tbl
+          tableScope
           // {
             name = "h";
             type = "ftp";
@@ -134,7 +134,7 @@ rec {
           }
         ))
         (create.ctTimeout (
-          tbl
+          tableScope
           // {
             name = "cto";
             protocol = "tcp";
@@ -145,7 +145,7 @@ rec {
           }
         ))
         (create.ctExpectation (
-          tbl
+          tableScope
           // {
             name = "cte";
             protocol = "tcp";
@@ -156,7 +156,7 @@ rec {
           }
         ))
         (create.synproxy (
-          tbl
+          tableScope
           // {
             name = "sp";
             mss = 1460;
@@ -202,18 +202,18 @@ rec {
       name = "delete-supported-kinds";
       ruleset = ruleset [
         flush
-        (create.table tbl4)
-        (create.chain (tbl // { name = "c"; }))
-        (create.counter (tbl // { name = "ctr"; }))
+        (create.table tableIdentity)
+        (create.chain (tableScope // { name = "c"; }))
+        (create.counter (tableScope // { name = "ctr"; }))
         (create.quota (
-          tbl
+          tableScope
           // {
             name = "q";
             bytes = 1;
           }
         ))
         (create.limit (
-          tbl
+          tableScope
           // {
             name = "lim";
             rate = 1;
@@ -221,14 +221,14 @@ rec {
           }
         ))
         (create.set (
-          tbl
+          tableScope
           // {
             name = "s";
             type = "ipv4_addr";
           }
         ))
         (create.map (
-          tbl
+          tableScope
           // {
             name = "m";
             type = "inet_service";
@@ -236,7 +236,7 @@ rec {
           }
         ))
         (create.flowtable (
-          tbl
+          tableScope
           // {
             name = "ft";
             hook = "ingress";
@@ -245,7 +245,7 @@ rec {
           }
         ))
         (create.ctHelper (
-          tbl
+          tableScope
           // {
             name = "h";
             type = "ftp";
@@ -254,7 +254,7 @@ rec {
           }
         ))
         (create.synproxy (
-          tbl
+          tableScope
           // {
             name = "sp";
             mss = 1460;
@@ -262,16 +262,16 @@ rec {
           }
         ))
         # Now delete. set/map still need `type` per the shared schema.
-        (delete.counter (tbl // { name = "ctr"; }))
+        (delete.counter (tableScope // { name = "ctr"; }))
         (delete.quota (
-          tbl
+          tableScope
           // {
             name = "q";
             bytes = 1;
           }
         ))
         (delete.limit (
-          tbl
+          tableScope
           // {
             name = "lim";
             rate = 1;
@@ -279,14 +279,14 @@ rec {
           }
         ))
         (delete.set (
-          tbl
+          tableScope
           // {
             name = "s";
             type = "ipv4_addr";
           }
         ))
         (delete.map (
-          tbl
+          tableScope
           // {
             name = "m";
             type = "inet_service";
@@ -294,7 +294,7 @@ rec {
           }
         ))
         (delete.flowtable (
-          tbl
+          tableScope
           // {
             name = "ft";
             hook = "ingress";
@@ -303,7 +303,7 @@ rec {
           }
         ))
         (delete.ctHelper (
-          tbl
+          tableScope
           // {
             name = "h";
             type = "ftp";
@@ -312,15 +312,15 @@ rec {
           }
         ))
         (delete.synproxy (
-          tbl
+          tableScope
           // {
             name = "sp";
             mss = 1460;
             wscale = 7;
           }
         ))
-        (delete.chain (tbl // { name = "c"; }))
-        (delete.table tbl4)
+        (delete.chain (tableScope // { name = "c"; }))
+        (delete.table tableIdentity)
       ];
     }
 
@@ -330,14 +330,14 @@ rec {
       name = "destroy-idempotent";
       ruleset = ruleset [
         flush
-        (create.table tbl4)
-        (create.chain (tbl // { name = "c"; }))
-        (create.counter (tbl // { name = "ctr"; }))
-        (destroy.counter (tbl // { name = "ctr"; }))
-        (destroy.counter (tbl // { name = "never_existed"; }))
-        (destroy.chain (tbl // { name = "c"; }))
-        (destroy.chain (tbl // { name = "also_never"; }))
-        (destroy.table tbl4)
+        (create.table tableIdentity)
+        (create.chain (tableScope // { name = "c"; }))
+        (create.counter (tableScope // { name = "ctr"; }))
+        (destroy.counter (tableScope // { name = "ctr"; }))
+        (destroy.counter (tableScope // { name = "never_existed"; }))
+        (destroy.chain (tableScope // { name = "c"; }))
+        (destroy.chain (tableScope // { name = "also_never"; }))
+        (destroy.table tableIdentity)
         (destroy.table {
           family = "ip";
           name = "never";
@@ -352,40 +352,40 @@ rec {
       name = "flush-variants";
       ruleset = ruleset [
         flush
-        (create.table tbl4)
-        (create.chain (tbl // { name = "c"; }))
+        (create.table tableIdentity)
+        (create.chain (tableScope // { name = "c"; }))
         (create.set (
-          tbl
+          tableScope
           // {
             name = "s";
             type = "ipv4_addr";
           }
         ))
         (create.map (
-          tbl
+          tableScope
           // {
             name = "m";
             type = "inet_service";
             map = "inet_service";
           }
         ))
-        (flushChain (tbl // { name = "c"; }))
+        (flushChain (tableScope // { name = "c"; }))
         (flushSet (
-          tbl
+          tableScope
           // {
             name = "s";
             type = "ipv4_addr";
           }
         ))
         (flushMap (
-          tbl
+          tableScope
           // {
             name = "m";
             type = "inet_service";
             map = "inet_service";
           }
         ))
-        (flushTable tbl4)
+        (flushTable tableIdentity)
       ];
     }
 
@@ -422,8 +422,8 @@ rec {
       name = "list-table";
       ruleset = ruleset [
         flush
-        (create.table tbl4)
-        (list.table tbl4)
+        (create.table tableIdentity)
+        (list.table tableIdentity)
       ];
     }
 
@@ -434,18 +434,18 @@ rec {
       name = "reset-counters-and-quotas";
       ruleset = ruleset [
         flush
-        (create.table tbl4)
-        (create.counter (tbl // { name = "ctr"; }))
+        (create.table tableIdentity)
+        (create.counter (tableScope // { name = "ctr"; }))
         (create.quota (
-          tbl
+          tableScope
           // {
             name = "q";
             bytes = 1;
           }
         ))
-        (reset.counter (tbl // { name = "ctr"; }))
+        (reset.counter (tableScope // { name = "ctr"; }))
         (reset.quota (
-          tbl
+          tableScope
           // {
             name = "q";
             bytes = 1;
@@ -543,7 +543,7 @@ rec {
           # flowtable.dev / chain.dev against the netns's link table, so
           # rules referencing real-NIC names need stand-ins. Cases without
           # the field expand to an empty for-loop.
-          ifaces=${lib.escapeShellArg (lib.concatStringsSep " " (c.interfaces or [ ]))}
+          ifaces=${lib.escapeShellArg (toString (c.interfaces or [ ]))}
           # `$out` is Nix's output path — use a different name for the
           # captured stderr.
           if nft_err=$(unshare -rn bash -c "
@@ -585,7 +585,8 @@ rec {
           echo "$failed integration test(s) failed"
           exit 1
         fi
-        echo "All ${toString (builtins.length cases)} acceptance and ${toString (builtins.length rejectionCases)} rejection cases passed"
+        echo "All ${toString (builtins.length cases)} acceptance and" \
+          "${toString (builtins.length rejectionCases)} rejection cases passed"
         touch $out
       '';
 

@@ -4,14 +4,13 @@
 # Sets and maps carry a `type` field naming the element datatype
 # (`ipv4_addr`, `ether_addr`, `inet_service`, `ifname`, …). The text
 # renderer emitted that name bare into `type <X>`; a value like
-# `"ipv4_addr\n}\nadd chain inet fw pwned { … }\nadd set inet fw dummy { type ipv4_addr"`
-# closed the set body early and dropped a fresh `add chain` into the
-# rendered file, accepted by `nft -f` as a real chain at attacker-
-# chosen priority.
+# `"ipv4_addr\n}\nadd chain inet fw pwned { … }\nadd set …"` closed the
+# set body early and dropped a fresh `add chain` into the rendered file,
+# accepted by `nft -f` as a real chain at attacker-chosen priority.
 #
-# Concatenated keys render the list joined by ` . ` (`ipv4_addr . inet_service`);
-# every list element flows through the same bare path and is now
-# checked individually.
+# Concatenated keys render the list joined by ` . `
+# (`ipv4_addr . inet_service`); every list element flows through the same
+# bare path and is now checked individually.
 #
 # Renderer-level fix: `renderDatatype` in lib/text/objects.nix
 # asserts each name string against the shared `nft-safe-scalar`
@@ -170,5 +169,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

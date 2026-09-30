@@ -94,7 +94,7 @@ let
           cat > ./in.json <<'RULESET_EOF'
           ${nftlib.toJson c.ruleset}
           RULESET_EOF
-          ifaces=${lib.escapeShellArg (lib.concatStringsSep " " (c.interfaces or [ ]))}
+          ifaces=${lib.escapeShellArg (toString (c.interfaces or [ ]))}
           # -m: mount namespace so a tmpfs can shadow /etc and carry
           # /etc/protocols (see the /etc/protocols note above).
           if unshare -rnm bash -c "
@@ -106,8 +106,10 @@ let
               nft -j -f $PWD/in.json >/dev/null || exit 9
               exec nft -j list ruleset
             " > ./listing.json 2> ./err.txt; then
-            echo "LOADED ($(jq '.nftables | length' ./listing.json) objects listed)"
-            jq -n --arg name ${lib.escapeShellArg c.name} --slurpfile l ./listing.json \
+            echo "LOADED ($(jq '.nftables | length' ./listing.json)" \
+              "objects listed)"
+            jq -n --arg name ${lib.escapeShellArg c.name} \
+              --slurpfile l ./listing.json \
               '{name: $name, loaded: true, listing: $l[0]}' >> entries.jsonl
             loaded=$((loaded + 1))
           else
@@ -119,12 +121,14 @@ let
           fi
         '') loadCases}
         if [ "$load_failed" -gt 0 ]; then
-          echo "$load_failed unexpected round-trip case(s) failed to load; refusing reduced coverage"
+          echo "$load_failed unexpected round-trip case(s) failed to load;" \
+            "refusing reduced coverage"
           exit 1
         fi
         if [ "$loaded" -lt ${toString minLoaded} ]; then
-          echo "only $loaded case(s) produced a listing (< ${toString minLoaded});" \
-               "refusing a vacuous pass — the environment cannot exercise the round-trip"
+          echo "only $loaded case(s) produced a listing" \
+            "(< ${toString minLoaded}); refusing a vacuous pass — the" \
+            "environment cannot exercise the round-trip"
           exit 1
         fi
         jq -s '.' entries.jsonl > $out
@@ -154,9 +158,11 @@ let
     )).success;
 
   # Read-back commands the schema rejects, deduped by JSON form.
-  offending = lib.unique (
-    lib.flatten (map (e: builtins.filter (c: !(validates c)) e.listing.nftables) loadedListings)
-  );
+  offending = lib.pipe loadedListings [
+    (map (e: builtins.filter (c: !(validates c)) e.listing.nftables))
+    lib.flatten
+    lib.unique
+  ];
 
   classify = cmd: "readback:${builtins.head (builtins.attrNames cmd)}";
 
@@ -175,7 +181,7 @@ let
   staleCategories = lib.subtractLists (lib.unique (map classify offending)) knownCategories;
 
   commandCount = lib.foldl' (n: e: n + builtins.length e.listing.nftables) 0 loadedListings;
-  fmtList = items: lib.concatMapStringsSep "\n" (x: "    ${x}") items;
+  formatList = items: lib.concatMapStringsSep "\n" (x: "    ${x}") items;
   skippedNote = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (name: why: "    ${name}: ${why}") knownNoLoad
   );
@@ -184,15 +190,17 @@ let
       ""
     else
       "\nStale baseline patterns (no longer emitted — prune from knownReadbackDivergences):\n"
-      + fmtList staleCategories;
+      + formatList staleCategories;
 
   runTests =
     _pkgs:
     if newDrift == [ ] then
       pkgs.runCommandLocal "nftables-roundtrip-tests-pass" { } ''
         cat <<'EOF'
-        nftables-roundtrip: ${toString (builtins.length loadedListings)} case listings, ${toString commandCount} read-back commands validated against `ruleset`.
-        ${toString (builtins.length offending)} divergences (baseline has ${toString (builtins.length knownCategories)}).
+        nftables-roundtrip: ${toString (builtins.length loadedListings)} case
+        listings, ${toString commandCount} read-back commands validated against
+        `ruleset`. ${toString (builtins.length offending)} divergences (baseline
+        has ${toString (builtins.length knownCategories)}).
         Skipped (cannot real-load in an unprivileged netns):
         ${skippedNote}
         ${staleNote}
@@ -210,19 +218,19 @@ let
         or baseline it in `knownReadbackDivergences` with the reason.
 
         New offending read-back commands:
-        ${fmtList (map builtins.toJSON newDrift)}
+        ${formatList (map builtins.toJSON newDrift)}
         EOF
         exit 1
       '';
 in
 {
   inherit
-    runTests
-    listings
-    offending
-    newDrift
-    validates
     knownNoLoad
     knownReadbackDivergences
+    listings
+    newDrift
+    offending
+    runTests
+    validates
     ;
 }

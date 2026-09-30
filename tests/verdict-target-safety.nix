@@ -27,9 +27,7 @@ let
   # Payload from the chain-injection audit — `nft -c -f` accepted this
   # pre-fix as a real `add chain` at priority -200 with `policy accept`,
   # ahead of every user rule.
-  injectionPayload = ''
-    evil
-    add chain inet filter pwned { type filter hook input priority -200; policy accept; }'';
+  injectionPayload = "evil\nadd chain inet filter pwned { type filter hook input priority -200; policy accept; }";
 
   evalSucceeds = expr: (builtins.tryEval expr).success;
 
@@ -113,7 +111,7 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererQuotes_${surface}_${badName}";
         value = {
-          expr = lib.hasInfix ''"${badValue}"'' (toText (surfaces.${surface} badValue));
+          expr = lib.hasInfix "\"${badValue}\"" (toText (surfaces.${surface} badValue));
           expected = true;
         };
       }) quotingInputs
@@ -151,5 +149,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

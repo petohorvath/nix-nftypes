@@ -7,7 +7,7 @@
 # `nft -j -f` silently drops broken sections).
 #
 # Companion suite: tests/dsl-validation-messages.nix runs representative
-# cases through `nix-instantiate --eval` and asserts the stderr names the
+# cases through `nix eval --file` and asserts the stderr names the
 # offending path (e.g. "chains.c.prio: …"). This file checks the failure;
 # that one checks the message format.
 
@@ -596,5 +596,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

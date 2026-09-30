@@ -60,33 +60,33 @@ let
       # lazily by Nix's recursive `let`.
       expressions = import ../lib/text/expressions.nix {
         inherit
-          lib
           context
+          lib
+          nftSafeScalar
           primitives
           statements
-          nftSafeScalar
           ;
       };
       statements = import ../lib/text/statements.nix {
         inherit
-          lib
           context
-          primitives
           expressions
+          lib
           limit
           nftSafeIfname
+          primitives
           ;
       };
       objects = import ../lib/text/objects.nix {
         inherit
-          lib
           context
-          primitives
           expressions
-          statements
+          lib
           limit
           nftSafeIfname
           nftSafeScalar
+          primitives
+          statements
           ;
       };
 
@@ -94,8 +94,8 @@ let
       # the offenders verbatim, which makes the failure output
       # self-explanatory.
       missing = xs: ys: lib.subtractLists ys xs;
-      stmtTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
-      exprTags = builtins.attrNames nftlib.types.taggedExpression.functor.payload.tags;
+      statementTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
+      expressionTags = builtins.attrNames nftlib.types.taggedExpression.functor.payload.tags;
       # Renderable object kinds: every union tag in addObject ∪ listObject
       # (the latter adds `metainfo` and `meter`) plus `ruleset`, which
       # appears only as a command-level envelope but still needs a
@@ -112,11 +112,11 @@ let
       # renderable (otherwise renderStatement/Expression/Object throws
       # at render time).
       testTextDrift_statementTagsCovered = {
-        expr = missing stmtTags statements.tags;
+        expr = missing statementTags statements.tags;
         expected = [ ];
       };
       testTextDrift_expressionTagsCovered = {
-        expr = missing exprTags expressions.tags;
+        expr = missing expressionTags expressions.tags;
         expected = [ ];
       };
       testTextDrift_objectKindsCovered = {
@@ -128,11 +128,11 @@ let
       # must correspond to a real schema tag (otherwise it's dead code
       # — unreachable because no schema route emits that tag).
       testTextDrift_statementRendererHasNoOrphans = {
-        expr = missing statements.tags stmtTags;
+        expr = missing statements.tags statementTags;
         expected = [ ];
       };
       testTextDrift_expressionRendererHasNoOrphans = {
-        expr = missing expressions.tags exprTags;
+        expr = missing expressions.tags expressionTags;
         expected = [ ];
       };
       testTextDrift_objectRendererHasNoOrphans = {
@@ -182,7 +182,7 @@ let
           op = "==";
         };
       };
-      expected = ''{"match":{"left":{"payload":{"field":"dport","protocol":"tcp"}},"op":"==","right":22}}'';
+      expected = "{\"match\":{\"left\":{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}},\"op\":\"==\",\"right\":22}}";
     };
 
     # ------------------------------------------------------------------
@@ -206,7 +206,7 @@ let
           op = "==";
         };
       };
-      expected = ''{"match":{"left":{"payload":{"field":"saddr","protocol":"ip6"}},"op":"==","right":{"prefix":{"addr":"2001:db8::","len":32}}}}'';
+      expected = "{\"match\":{\"left\":{\"payload\":{\"field\":\"saddr\",\"protocol\":\"ip6\"}},\"op\":\"==\",\"right\":{\"prefix\":{\"addr\":\"2001:db8::\",\"len\":32}}}}";
     };
 
     # ------------------------------------------------------------------
@@ -244,7 +244,7 @@ let
           op = "==";
         };
       };
-      expected = ''{"match":{"left":{"payload":{"field":"dport","protocol":"tcp"}},"op":"==","right":{"set":[22,80,443]}}}'';
+      expected = "{\"match\":{\"left\":{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}},\"op\":\"==\",\"right\":{\"set\":[22,80,443]}}}";
     };
 
     # ------------------------------------------------------------------
@@ -263,7 +263,7 @@ let
           op = "==";
         };
       };
-      expected = ''{"match":{"left":{"payload":{"field":"dport","protocol":"tcp"}},"op":"==","right":"@allowed_ports"}}'';
+      expected = "{\"match\":{\"left\":{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}},\"op\":\"==\",\"right\":\"@allowed_ports\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -287,7 +287,7 @@ let
           op = "==";
         };
       };
-      expected = ''{"match":{"left":{"meta":{"key":"iifname"}},"op":"==","right":{"set":"@trusted"}}}'';
+      expected = "{\"match\":{\"left\":{\"meta\":{\"key\":\"iifname\"}},\"op\":\"==\",\"right\":{\"set\":\"@trusted\"}}}";
     };
 
     # ------------------------------------------------------------------
@@ -317,7 +317,7 @@ let
           ];
         };
       };
-      expected = ''{"snat":{"addr":"192.0.2.1","flags":["random","persistent"]}}'';
+      expected = "{\"snat\":{\"addr\":\"192.0.2.1\",\"flags\":[\"random\",\"persistent\"]}}";
     };
 
     # ------------------------------------------------------------------
@@ -350,7 +350,7 @@ let
           ];
         };
       };
-      expected = ''{"set":{"elem":[{"prefix":{"addr":"10.0.0.0","len":8}},"192.168.1.1"],"family":"inet","flags":["interval"],"name":"trusted_hosts","table":"filter","type":"ipv4_addr"}}'';
+      expected = "{\"set\":{\"elem\":[{\"prefix\":{\"addr\":\"10.0.0.0\",\"len\":8}},\"192.168.1.1\"],\"family\":\"inet\",\"flags\":[\"interval\"],\"name\":\"trusted_hosts\",\"table\":\"filter\",\"type\":\"ipv4_addr\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -376,7 +376,7 @@ let
           flags = [ "interval" ];
         };
       };
-      expected = ''{"map":{"family":"ip","flags":["interval"],"map":["ipv4_addr","inet_service"],"name":"port_forward","table":"nat","type":["ipv4_addr","inet_service"]}}'';
+      expected = "{\"map\":{\"family\":\"ip\",\"flags\":[\"interval\"],\"map\":[\"ipv4_addr\",\"inet_service\"],\"name\":\"port_forward\",\"table\":\"nat\",\"type\":[\"ipv4_addr\",\"inet_service\"]}}";
     };
 
     # ------------------------------------------------------------------
@@ -393,7 +393,7 @@ let
           data = "@iifname_vmap";
         };
       };
-      expected = ''{"vmap":{"data":"@iifname_vmap","key":{"meta":{"key":"iifname"}}}}'';
+      expected = "{\"vmap\":{\"data\":\"@iifname_vmap\",\"key\":{\"meta\":{\"key\":\"iifname\"}}}}";
     };
 
     # ------------------------------------------------------------------
@@ -453,7 +453,7 @@ let
           ];
         };
       };
-      expected = ''{"log":{"flags":["tcp options","ip options"],"level":"info","prefix":"DROPPED: "}}'';
+      expected = "{\"log\":{\"flags\":[\"tcp options\",\"ip options\"],\"level\":\"info\",\"prefix\":\"DROPPED: \"}}";
     };
 
     # ------------------------------------------------------------------
@@ -562,7 +562,7 @@ let
           };
         };
       };
-      expected = ''{"flush":{"meter":{"family":"inet","name":"rate_meter","table":"filter"}}}'';
+      expected = "{\"flush\":{\"meter\":{\"family\":\"inet\",\"name\":\"rate_meter\",\"table\":\"filter\"}}}";
     };
 
     # ------------------------------------------------------------------
@@ -623,7 +623,7 @@ let
           burst = 10;
         };
       };
-      expected = ''{"limit":{"burst":10,"family":"inet","name":"slow","per":"second","rate":5,"table":"filter"}}'';
+      expected = "{\"limit\":{\"burst\":10,\"family\":\"inet\",\"name\":\"slow\",\"per\":\"second\",\"rate\":5,\"table\":\"filter\"}}";
     };
 
     testLimitObjectUnitRejected = {
@@ -677,7 +677,7 @@ let
           }
         ];
       };
-      expected = ''{"concat":[{"payload":{"field":"saddr","protocol":"ip"}},{"payload":{"field":"dport","protocol":"tcp"}}]}'';
+      expected = "{\"concat\":[{\"payload\":{\"field\":\"saddr\",\"protocol\":\"ip\"}},{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}}]}";
     };
 
     # ------------------------------------------------------------------
@@ -708,7 +708,7 @@ let
           policy = "drop";
         };
       };
-      expected = ''{"chain":{"family":"inet","hook":"input","name":"input","policy":"drop","prio":0,"table":"filter","type":"filter"}}'';
+      expected = "{\"chain\":{\"family\":\"inet\",\"hook\":\"input\",\"name\":\"input\",\"policy\":\"drop\",\"prio\":0,\"table\":\"filter\",\"type\":\"filter\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -743,7 +743,7 @@ let
           ];
         };
       };
-      expected = ''{"rule":{"chain":"input","expr":[{"match":{"left":{"payload":{"field":"dport","protocol":"tcp"}},"op":"==","right":22}},{"counter":{"bytes":0,"packets":0}},{"accept":null}],"family":"inet","table":"filter"}}'';
+      expected = "{\"rule\":{\"chain\":\"input\",\"expr\":[{\"match\":{\"left\":{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}},\"op\":\"==\",\"right\":22}},{\"counter\":{\"bytes\":0,\"packets\":0}},{\"accept\":null}],\"family\":\"inet\",\"table\":\"filter\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -794,7 +794,7 @@ let
           }
         ];
       };
-      expected = ''{"nftables":[{"flush":{"ruleset":null}},{"add":{"table":{"family":"inet","name":"filter"}}}]}'';
+      expected = "{\"nftables\":[{\"flush\":{\"ruleset\":null}},{\"add\":{\"table\":{\"family\":\"inet\",\"name\":\"filter\"}}}]}";
     };
 
     # ------------------------------------------------------------------
@@ -812,7 +812,7 @@ let
           ];
         };
       };
-      expected = ''{"element":{"elem":["1.2.3.4","5.6.7.8"],"family":"inet","name":"blocklist","table":"filter"}}'';
+      expected = "{\"element\":{\"elem\":[\"1.2.3.4\",\"5.6.7.8\"],\"family\":\"inet\",\"name\":\"blocklist\",\"table\":\"filter\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -828,7 +828,7 @@ let
           stmt = [ { counter = "tracker-hits"; } ];
         };
       };
-      expected = ''{"elem":{"stmt":[{"counter":"tracker-hits"}],"timeout":60,"val":"1.2.3.4"}}'';
+      expected = "{\"elem\":{\"stmt\":[{\"counter\":\"tracker-hits\"}],\"timeout\":60,\"val\":\"1.2.3.4\"}}";
     };
 
     # Element body with multiple stateful statements (counter + limit).
@@ -852,7 +852,7 @@ let
           ];
         };
       };
-      expected = ''{"elem":{"stmt":[{"counter":{"bytes":0,"packets":0}},{"limit":{"per":"second","rate":5}}],"val":"10.0.0.1"}}'';
+      expected = "{\"elem\":{\"stmt\":[{\"counter\":{\"bytes\":0,\"packets\":0}},{\"limit\":{\"per\":\"second\",\"rate\":5}}],\"val\":\"10.0.0.1\"}}";
     };
 
     # Element body inside a set object — full add-set command shape with
@@ -876,7 +876,7 @@ let
           ];
         };
       };
-      expected = ''{"set":{"elem":[{"elem":{"stmt":[{"counter":"tracker-hits"}],"timeout":60,"val":"1.2.3.4"}}],"family":"ip","name":"tracker","table":"filter","type":"ipv4_addr"}}'';
+      expected = "{\"set\":{\"elem\":[{\"elem\":{\"stmt\":[{\"counter\":\"tracker-hits\"}],\"timeout\":60,\"val\":\"1.2.3.4\"}}],\"family\":\"ip\",\"name\":\"tracker\",\"table\":\"filter\",\"type\":\"ipv4_addr\"}}";
     };
 
     # An invalid statement shape inside `stmt` must fail validation —
@@ -928,7 +928,7 @@ let
           };
         };
       };
-      expected = ''{"meter":{"key":{"meta":{"key":"iifname"}},"name":"http_ratelimit","stmt":{"limit":{"per":"second","rate":100}}}}'';
+      expected = "{\"meter\":{\"key\":{\"meta\":{\"key\":\"iifname\"}},\"name\":\"http_ratelimit\",\"stmt\":{\"limit\":{\"per\":\"second\",\"rate\":100}}}}";
     };
 
     # ------------------------------------------------------------------
@@ -1077,7 +1077,7 @@ let
           ];
         };
       };
-      expected = ''{"synproxy":{"flags":["timestamp","sack-perm"],"mss":1460,"wscale":7}}'';
+      expected = "{\"synproxy\":{\"flags\":[\"timestamp\",\"sack-perm\"],\"mss\":1460,\"wscale\":7}}";
     };
 
     # ------------------------------------------------------------------
@@ -1153,7 +1153,7 @@ let
           context = "system_u:object_r:http_packet_t:s0";
         };
       };
-      expected = ''{"secmark":{"context":"system_u:object_r:http_packet_t:s0","family":"inet","name":"sec_http","table":"filter"}}'';
+      expected = "{\"secmark\":{\"context\":\"system_u:object_r:http_packet_t:s0\",\"family\":\"inet\",\"name\":\"sec_http\",\"table\":\"filter\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1170,7 +1170,7 @@ let
           flags = [ "timestamp" ];
         };
       };
-      expected = ''{"synproxy":{"family":"inet","flags":["timestamp"],"mss":1460,"name":"sp1","table":"filter","wscale":7}}'';
+      expected = "{\"synproxy\":{\"family\":\"inet\",\"flags\":[\"timestamp\"],\"mss\":1460,\"name\":\"sp1\",\"table\":\"filter\",\"wscale\":7}}";
     };
 
     # ------------------------------------------------------------------
@@ -1219,7 +1219,7 @@ let
           };
         };
       };
-      expected = ''{"tunnel":{"dst-ipv4":"10.0.0.2","family":"inet","id":42,"name":"v","src-ipv4":"10.0.0.1","table":"t","tunnel":{"gbp":100},"type":"vxlan"}}'';
+      expected = "{\"tunnel\":{\"dst-ipv4\":\"10.0.0.2\",\"family\":\"inet\",\"id\":42,\"name\":\"v\",\"src-ipv4\":\"10.0.0.1\",\"table\":\"t\",\"tunnel\":{\"gbp\":100},\"type\":\"vxlan\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1238,7 +1238,7 @@ let
           };
         };
       };
-      expected = ''{"tunnel":{"family":"inet","name":"e1","table":"t","tunnel":{"index":7,"version":1},"type":"erspan"}}'';
+      expected = "{\"tunnel\":{\"family\":\"inet\",\"name\":\"e1\",\"table\":\"t\",\"tunnel\":{\"index\":7,\"version\":1},\"type\":\"erspan\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1258,7 +1258,7 @@ let
           };
         };
       };
-      expected = ''{"tunnel":{"family":"inet","name":"e2","table":"t","tunnel":{"dir":"ingress","hwid":3,"version":2},"type":"erspan"}}'';
+      expected = "{\"tunnel\":{\"family\":\"inet\",\"name\":\"e2\",\"table\":\"t\",\"tunnel\":{\"dir\":\"ingress\",\"hwid\":3,\"version\":2},\"type\":\"erspan\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1280,7 +1280,7 @@ let
           ];
         };
       };
-      expected = ''{"tunnel":{"family":"inet","name":"g","table":"t","tunnel":[{"class":258,"data":"deadbeef","opt-type":128}],"type":"geneve"}}'';
+      expected = "{\"tunnel\":{\"family\":\"inet\",\"name\":\"g\",\"table\":\"t\",\"tunnel\":[{\"class\":258,\"data\":\"deadbeef\",\"opt-type\":128}],\"type\":\"geneve\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1329,7 +1329,7 @@ let
           size = 4096;
         };
       };
-      expected = ''{"meter":{"key":{"meta":{"key":"iifname"}},"name":"m","size":4096,"stmt":{"counter":{"bytes":0,"packets":0}}}}'';
+      expected = "{\"meter\":{\"key\":{\"meta\":{\"key\":\"iifname\"}},\"name\":\"m\",\"size\":4096,\"stmt\":{\"counter\":{\"bytes\":0,\"packets\":0}}}}";
     };
 
     # nat.type_flags (parser_json.c:2353)
@@ -1343,7 +1343,7 @@ let
           ];
         };
       };
-      expected = ''{"dnat":{"addr":"10.0.0.0/24","type_flags":["interval","prefix"]}}'';
+      expected = "{\"dnat\":{\"addr\":\"10.0.0.0/24\",\"type_flags\":[\"interval\",\"prefix\"]}}";
     };
 
     # ip option expression (parser_json.c:822)
@@ -1378,7 +1378,7 @@ let
           field = "daddr";
         };
       };
-      expected = ''{"payload":{"field":"daddr","protocol":"ip","tunnel":"vxlan"}}'';
+      expected = "{\"payload\":{\"field\":\"daddr\",\"protocol\":\"ip\",\"tunnel\":\"vxlan\"}}";
     };
 
     # payload base "ih" (inner header)
@@ -1409,7 +1409,7 @@ let
           ];
         };
       };
-      expected = ''{"chain":{"dev":["eth0","eth1"],"family":"netdev","hook":"ingress","name":"ingress","prio":-500,"table":"filter","type":"filter"}}'';
+      expected = "{\"chain\":{\"dev\":[\"eth0\",\"eth1\"],\"family\":\"netdev\",\"hook\":\"ingress\",\"name\":\"ingress\",\"prio\":-500,\"table\":\"filter\",\"type\":\"filter\"}}";
     };
 
     # secmark object: context is optional (parser_json.c:3769)
@@ -1527,7 +1527,7 @@ let
           };
         };
       };
-      expected = ''{"ct timeout":{"family":"ip","l3proto":"ip","name":"fast_tcp","policy":{"close":5,"established":300,"syn_sent":30},"protocol":"tcp","table":"filter"}}'';
+      expected = "{\"ct timeout\":{\"family\":\"ip\",\"l3proto\":\"ip\",\"name\":\"fast_tcp\",\"policy\":{\"close\":5,\"established\":300,\"syn_sent\":30},\"protocol\":\"tcp\",\"table\":\"filter\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1549,7 +1549,7 @@ let
           ];
         };
       };
-      expected = ''{"set":{"elem":"10.0.0.1","op":"delete","set":"@blocked","stmt":[{"counter":{"bytes":0,"packets":0}}]}}'';
+      expected = "{\"set\":{\"elem\":\"10.0.0.1\",\"op\":\"delete\",\"set\":\"@blocked\",\"stmt\":[{\"counter\":{\"bytes\":0,\"packets\":0}}]}}";
     };
 
     # ------------------------------------------------------------------
@@ -1564,7 +1564,7 @@ let
           map = "@cache";
         };
       };
-      expected = ''{"map":{"data":42,"elem":"10.0.0.1","map":"@cache","op":"update"}}'';
+      expected = "{\"map\":{\"data\":42,\"elem\":\"10.0.0.1\",\"map\":\"@cache\",\"op\":\"update\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1578,7 +1578,7 @@ let
           comment = "main firewall";
         };
       };
-      expected = ''{"table":{"comment":"main firewall","family":"inet","name":"filter"}}'';
+      expected = "{\"table\":{\"comment\":\"main firewall\",\"family\":\"inet\",\"name\":\"filter\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1593,7 +1593,7 @@ let
           comment = "accept established";
         };
       };
-      expected = ''{"chain":{"comment":"accept established","family":"inet","name":"input","table":"filter"}}'';
+      expected = "{\"chain\":{\"comment\":\"accept established\",\"family\":\"inet\",\"name\":\"input\",\"table\":\"filter\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -1608,7 +1608,7 @@ let
           comment = "HTTP hits";
         };
       };
-      expected = ''{"counter":{"comment":"HTTP hits","family":"ip","name":"pkts","table":"filter"}}'';
+      expected = "{\"counter\":{\"comment\":\"HTTP hits\",\"family\":\"ip\",\"name\":\"pkts\",\"table\":\"filter\"}}";
     };
 
     # ------------------------------------------------------------------
@@ -2034,5 +2034,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

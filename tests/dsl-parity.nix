@@ -2185,7 +2185,8 @@ in
               };
             };
           }
-          # Object-adds next — `wan`/`lan` already exist so verdict elements resolve.
+          # Object-adds next — `wan`/`lan` already exist so verdict elements
+          # resolve.
           {
             add = {
               map = {
@@ -2362,10 +2363,11 @@ in
         ];
       };
 
-  # Concatenated-key port-forward: (ip daddr . tcp dport) → (ipv4_addr . inet_service).
-  # Both the key and value sides are tuple types; elements must wrap each
-  # side in `{ concat: [...] }` and `map` must be a list of datatypes (the
-  # dot-separated string form is not accepted by the nftables JSON parser).
+  # Concatenated-key port-forward: (ip daddr . tcp dport) →
+  # (ipv4_addr . inet_service). Both the key and value sides are tuple
+  # types; elements must wrap each side in `{ concat: [...] }` and `map`
+  # must be a list of datatypes (the dot-separated string form is not
+  # accepted by the nftables JSON parser).
   testRenderConcatenatedPortForward =
     pr
       (dsl.ruleset [

@@ -2,7 +2,7 @@
 
 # End-to-end check on validation error-message format. Each case is a Nix
 # expression that should fail to evaluate, paired with a regex the stderr
-# from `nix-instantiate --eval` must match. Confirms the "names the
+# from `nix eval --file` must match. Confirms the "names the
 # offending path" property: when the DSL catches a bad value, the error
 # says *where* the bad value lives, not just *that* it's bad.
 #
@@ -27,7 +27,9 @@ let
       body = ''
         nftlib.toJson (nftlib.dsl.ruleset [
           (nftlib.dsl.table "inet" "fw" {
-            chains.input.rules = [ { chain = "output"; expr = [ nftlib.dsl.accept ]; } ];
+            chains.input.rules = [
+              { chain = "output"; expr = [ nftlib.dsl.accept ]; }
+            ];
             chains.output = { };
           })
         ])
@@ -65,7 +67,9 @@ let
       name = "block-rule-handle";
       body = ''
         nftlib.toTextBlockPretty (nftlib.dsl.table "inet" "fw" {
-          chains.input.rules = [ { expr = [ nftlib.dsl.accept ]; handle = "invalid"; } ];
+          chains.input.rules = [
+            { expr = [ nftlib.dsl.accept ]; handle = "invalid"; }
+          ];
         })
       '';
       pathRegex = "chains\\.input\\.rules\\.\"?0\"?\\.handle";
@@ -141,7 +145,7 @@ let
     }
   ];
 
-  # `nix-instantiate --eval` against each expression file inside the
+  # `nix eval --file` against each expression file inside the
   # sandbox. Sandboxed Nix needs a writable HOME / state dir for its
   # in-process eval cache; we point it at fresh tempdirs so it doesn't
   # try to use /homeless-shelter.
@@ -164,11 +168,13 @@ let
           ${preamble}
           ${c.body}
           EXPR_EOF
-          err=$(nix-instantiate --eval --strict --read-write-mode "$exprFile" 2>&1 || true)
-          if printf '%s\n' "$err" | grep -qE ${lib.escapeShellArg c.pathRegex}; then
+          err=$(nix --extra-experimental-features nix-command \
+            eval --file "$exprFile" 2>&1 || true)
+          pattern=${lib.escapeShellArg c.pathRegex}
+          if printf '%s\n' "$err" | grep -qE "$pattern"; then
             echo "PASS"
           else
-            echo "FAIL: expected stderr to match ${lib.escapeShellArg c.pathRegex}"
+            echo "FAIL: expected stderr to match '$pattern'"
             printf '%s\n' "$err" | sed 's/^/    /'
             failed=$((failed + 1))
           fi
@@ -178,7 +184,8 @@ let
           echo "$failed message-format test(s) failed"
           exit 1
         fi
-        echo "All ${toString (builtins.length cases)} message-format tests passed"
+        echo "All ${toString (builtins.length cases)}" \
+          "message-format tests passed"
         touch $out
       '';
 in

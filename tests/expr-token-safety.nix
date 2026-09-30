@@ -222,5 +222,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

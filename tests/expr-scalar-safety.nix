@@ -22,13 +22,11 @@
 
 let
   dsl = nftlib.dsl;
-  inherit (nftlib) toText toTextPretty toJson;
+  inherit (nftlib) toJson toText toTextPretty;
 
   nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
 
-  injectionPayload = ''
-    established
-    add chain inet fw pwned { type filter hook input priority -200; policy accept; }'';
+  injectionPayload = "established\nadd chain inet fw pwned { type filter hook input priority -200; policy accept; }";
 
   evalSucceeds = expr: (builtins.tryEval expr).success;
 
@@ -200,5 +198,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

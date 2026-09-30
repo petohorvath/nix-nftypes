@@ -33,7 +33,7 @@ let
 
   # The audit's malicious comment payload — verified end-to-end to inject
   # a chain at priority -10 with `policy accept` pre-fix.
-  injectionPayload = ''X"; chain bypass { type filter hook input priority -10; policy accept; }; #'';
+  injectionPayload = "X\"; chain bypass { type filter hook input priority -10; policy accept; }; #";
 
   evalSucceeds = expr: (builtins.tryEval expr).success;
 
@@ -260,7 +260,7 @@ let
     # any future refactor that re-injects via JSON breaks here.
     testJsonRoundTripsLiteralBytes = {
       expr = toJson rawInjectionRuleset;
-      expected = ''{"nftables":[{"add":{"table":{"comment":"X\"; chain bypass { type filter hook input priority -10; policy accept; }; #","family":"inet","name":"t"}}}]}'';
+      expected = "{\"nftables\":[{\"add\":{\"table\":{\"comment\":\"X\\\"; chain bypass { type filter hook input priority -10; policy accept; }; #\",\"family\":\"inet\",\"name\":\"t\"}}}]}";
     };
   };
 
@@ -300,10 +300,12 @@ let
         unshare -rn -- sh -c '
           set -e
           nft -f rules.nft
-          got=$(nft -j list ruleset | jq -r ".nftables[] | select(.table) | .table.comment")
+          got=$(nft -j list ruleset |
+            jq -r ".nftables[] | select(.table) | .table.comment")
           want="${safeComment}"
           if [ "$got" != "$want" ]; then
-            printf "text round-trip mismatch\n  want: %s\n  got:  %s\n" "$want" "$got" >&2
+            printf "text round-trip mismatch\n  want: %s\n  got:  %s\n" \
+              "$want" "$got" >&2
             exit 1
           fi
         '
@@ -312,10 +314,12 @@ let
         unshare -rn -- sh -c '
           set -e
           nft -j -f rules.json
-          got=$(nft -j list ruleset | jq -r ".nftables[] | select(.table) | .table.comment")
+          got=$(nft -j list ruleset |
+            jq -r ".nftables[] | select(.table) | .table.comment")
           want="${safeComment}"
           if [ "$got" != "$want" ]; then
-            printf "json round-trip mismatch\n  want: %s\n  got:  %s\n" "$want" "$got" >&2
+            printf "json round-trip mismatch\n  want: %s\n  got:  %s\n" \
+              "$want" "$got" >&2
             exit 1
           fi
         '
@@ -330,5 +334,5 @@ let
   };
 in
 {
-  inherit tests runTests runIntegrationTests;
+  inherit runIntegrationTests runTests tests;
 }

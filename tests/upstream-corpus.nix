@@ -1,7 +1,7 @@
 {
   pkgs,
   nftlib,
-  nftablesSrc,
+  nftablesSource,
 }:
 
 # Corpus check in the nixpkgs-source pipeline (docs/upstream-sync.md):
@@ -37,9 +37,15 @@ let
   inherit (pkgs) lib;
 
   # Normalize the corpus to `[ { file, title, expr }, … ]` (IFD).
-  corpusJson = pkgs.runCommandLocal "nft-corpus.json" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-    python3 ${../tooling/normalize-corpus.py} ${nftablesSrc}/tests/py > $out
-  '';
+  corpusJson =
+    pkgs.runCommandLocal "nft-corpus.json"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+      }
+      ''
+        python3 ${../tooling/normalize-corpus.py} ${nftablesSource}/tests/py \
+          > $out
+      '';
   corpus = builtins.fromJSON (builtins.readFile corpusJson);
 
   # True iff `s` type-checks as a `statement`. deepSeq forces the lazy
@@ -58,9 +64,11 @@ let
     )).success;
 
   # Every corpus statement the schema rejects, deduped by JSON form.
-  offending = lib.unique (
-    lib.flatten (map (entry: builtins.filter (s: !(validates s)) entry.expr) corpus)
-  );
+  offending = lib.pipe corpus [
+    (map (entry: builtins.filter (s: !(validates s)) entry.expr))
+    lib.flatten
+    lib.unique
+  ];
 
   # Classify an offending statement into a stable pattern name. Coarser than
   # exact JSON so corpus value-churn (a renamed counter, a different port)
@@ -110,21 +118,24 @@ let
   staleCategories = lib.subtractLists categoriesSeen knownCategories;
 
   entryCount = builtins.length corpus;
-  fmtList = items: lib.concatMapStringsSep "\n" (x: "    ${x}") items;
+  formatList = items: lib.concatMapStringsSep "\n" (x: "    ${x}") items;
   staleNote =
     if staleCategories == [ ] then
       ""
     else
       "\nStale baseline patterns (no longer in corpus — prune from knownDivergences):\n"
-      + fmtList staleCategories;
+      + formatList staleCategories;
 
   runTests =
     _pkgs:
     if newDrift == [ ] then
       pkgs.runCommandLocal "nftables-corpus-tests-pass" { } ''
         cat <<'EOF'
-        nftables-corpus: ${toString entryCount} corpus rules validated against `statement`.
-        ${toString (builtins.length offending)} offending statements, all matching ${toString (builtins.length knownCategories)} baselined divergence patterns.
+        nftables-corpus: ${toString entryCount} corpus rules validated
+        against `statement`. ${toString (builtins.length offending)} offending
+        statements, all matching
+        ${toString (builtins.length knownCategories)} baselined divergence
+        patterns.
         ${staleNote}
         EOF
         touch $out
@@ -140,17 +151,17 @@ let
         unsupported, add a pattern to `knownDivergences` with the reason.
 
         New offending statements:
-        ${fmtList (map builtins.toJSON newDrift)}
+        ${formatList (map builtins.toJSON newDrift)}
         EOF
         exit 1
       '';
 in
 {
   inherit
-    runTests
     corpus
-    offending
-    newDrift
     knownDivergences
+    newDrift
+    offending
+    runTests
     ;
 }

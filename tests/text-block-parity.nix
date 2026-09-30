@@ -17,15 +17,72 @@
 let
   inherit (pkgs) lib;
   inherit (nftlib)
+    dsl
     toTextBlock
     toTextBlockPretty
-    dsl
     ;
 
   baseChain = {
     type = "filter";
     hook = "input";
     prio = 0;
+  };
+
+  limitTable = dsl.table "inet" "fw" {
+    chains.input.rules = [
+      [
+        (dsl.limit {
+          rate = 10;
+          per = "minute";
+          inv = true;
+          rate_unit = "kbytes";
+          burst = 5;
+          burst_unit = "bytes";
+        })
+      ]
+      [
+        (dsl.limit.ref "slow")
+        dsl.accept
+      ]
+    ];
+    limits.slow = {
+      rate = 5;
+      per = "second";
+      burst = 10;
+      comment = "packet budget";
+    };
+  };
+
+  # Exercise references in both directions: chains use named objects,
+  # and verdict-map elements refer back to a chain. Intentionally declare
+  # fields out of output order; rules within service must keep source order.
+  referencedTable = dsl.table "inet" "fw" {
+    chains.service.rules = [
+      [
+        (dsl.inSet dsl.fields.ip.saddr "@trusted")
+        (dsl.counter.ref "hits")
+        dsl.accept
+      ]
+      [ dsl.drop ]
+    ];
+    chains.input = baseChain // {
+      rules = [ [ (dsl.vmap dsl.fields.tcp.dport "@dispatch") ] ];
+    };
+    sets.trusted = {
+      type = "ipv4_addr";
+      elements = [ "192.0.2.1" ];
+    };
+    maps.dispatch = {
+      type = "inet_service";
+      map = "verdict";
+      elements = [
+        [
+          22
+          (dsl.jump "service")
+        ]
+      ];
+    };
+    counters.hits = { };
   };
 
   tests = {
@@ -442,12 +499,13 @@ let
 
     testReferencesAndOrderingCompact = {
       expr = toTextBlock referencedTable;
-      expected = ''
-        chain input { type filter hook input priority 0; tcp dport vmap @dispatch; }
-        chain service { ip saddr @trusted counter name "hits" accept; drop; }
-        counter hits { }
-        map dispatch { type inet_service : verdict; elements = { 22 : jump service }; }
-        set trusted { type ipv4_addr; elements = { 192.0.2.1 }; }'';
+      expected = lib.concatStringsSep "\n" [
+        "chain input { type filter hook input priority 0; tcp dport vmap @dispatch; }"
+        "chain service { ip saddr @trusted counter name \"hits\" accept; drop; }"
+        "counter hits { }"
+        "map dispatch { type inet_service : verdict; elements = { 22 : jump service }; }"
+        "set trusted { type ipv4_addr; elements = { 192.0.2.1 }; }"
+      ];
     };
 
     testReferencesAndOrderingPretty = {
@@ -474,9 +532,10 @@ let
 
     testLimitsCompact = {
       expr = toTextBlock limitTable;
-      expected = ''
-        chain input { limit rate over 10 kbytes/minute burst 5 bytes; limit name "slow" accept; }
-        limit slow { rate 5/second burst 10 packets; comment "packet budget"; }'';
+      expected = lib.concatStringsSep "\n" [
+        "chain input { limit rate over 10 kbytes/minute burst 5 bytes; limit name \"slow\" accept; }"
+        "limit slow { rate 5/second burst 10 packets; comment \"packet budget\"; }"
+      ];
     };
 
     testLimitsPretty = {
@@ -491,63 +550,6 @@ let
           comment "packet budget";
         }'';
     };
-  };
-
-  limitTable = dsl.table "inet" "fw" {
-    chains.input.rules = [
-      [
-        (dsl.limit {
-          rate = 10;
-          per = "minute";
-          inv = true;
-          rate_unit = "kbytes";
-          burst = 5;
-          burst_unit = "bytes";
-        })
-      ]
-      [
-        (dsl.limit.ref "slow")
-        dsl.accept
-      ]
-    ];
-    limits.slow = {
-      rate = 5;
-      per = "second";
-      burst = 10;
-      comment = "packet budget";
-    };
-  };
-
-  # Exercise references in both directions: chains use named objects,
-  # and verdict-map elements refer back to a chain. Intentionally declare
-  # fields out of output order; rules within service must keep source order.
-  referencedTable = dsl.table "inet" "fw" {
-    chains.service.rules = [
-      [
-        (dsl.inSet dsl.fields.ip.saddr "@trusted")
-        (dsl.counter.ref "hits")
-        dsl.accept
-      ]
-      [ dsl.drop ]
-    ];
-    chains.input = baseChain // {
-      rules = [ [ (dsl.vmap dsl.fields.tcp.dport "@dispatch") ] ];
-    };
-    sets.trusted = {
-      type = "ipv4_addr";
-      elements = [ "192.0.2.1" ];
-    };
-    maps.dispatch = {
-      type = "inet_service";
-      map = "verdict";
-      elements = [
-        [
-          22
-          (dsl.jump "service")
-        ]
-      ];
-    };
-    counters.hits = { };
   };
 
   runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
@@ -656,15 +658,16 @@ let
           echo "$failed text-block-integration test(s) failed"
           exit 1
         fi
-        echo "All ${toString (builtins.length caseForms)} text-block-integration tests passed"
+        echo "All ${toString (builtins.length caseForms)}" \
+          "text-block-integration tests passed"
         touch $out
       '';
 in
 {
   inherit
-    tests
-    runTests
     integrationCases
     runIntegrationTests
+    runTests
+    tests
     ;
 }

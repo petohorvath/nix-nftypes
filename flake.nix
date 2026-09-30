@@ -58,7 +58,7 @@
             name = "nftables-${nftables.version}-nixpkgs-source";
             version = nftables.version;
             inherit (nftables) src;
-            inherit prePatch postPatch;
+            inherit postPatch prePatch;
             patches = nftables.patches or [ ];
           }
           // pkgs.lib.optionalAttrs (nftables ? patchFlags && nftables.patchFlags != null) {
@@ -84,13 +84,13 @@
         pkgs:
         let
           nftlib = mkLib pkgs.lib;
-          tests = import ./tests { inherit pkgs nftlib; };
+          tests = import ./tests { inherit nftlib pkgs; };
           integration = import ./tests/dsl-integration.nix {
             inherit (pkgs) lib;
             inherit nftlib;
           };
-          textParity = import ./tests/text-parity.nix { inherit pkgs nftlib; };
-          textBlockParity = import ./tests/text-block-parity.nix { inherit pkgs nftlib; };
+          textParity = import ./tests/text-parity.nix { inherit nftlib pkgs; };
+          textBlockParity = import ./tests/text-block-parity.nix { inherit nftlib pkgs; };
           textIntegration = import ./tests/text-integration.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -153,23 +153,20 @@
           };
           nftablesSource = mkNftablesSource pkgs;
           sourceProvenance = import ./tests/nftables-source-provenance.nix {
-            inherit pkgs nftablesSource;
+            inherit nftablesSource pkgs;
           };
           nftablesCorpus = import ./tests/upstream-corpus.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftablesSource;
+            inherit nftablesSource nftlib pkgs;
           };
           nftablesEnums = import ./tests/upstream-enums.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftablesSource;
+            inherit nftablesSource nftlib pkgs;
           };
           nftablesRoundtrip = import ./tests/upstream-roundtrip.nix {
-            inherit pkgs nftlib;
+            inherit nftlib pkgs;
             nftables = pkgs.nftables;
           };
           nftablesSelftest = import ./tests/upstream-selftest.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftablesSource;
+            inherit nftablesSource nftlib pkgs;
           };
         in
         {
@@ -208,7 +205,7 @@
           # field rendered to JSON and `nft -j -f` dropped the section).
           dsl-validation-tests = validation.runTests pkgs;
           # End-to-end check on validation error-message format: each case
-          # runs `nix-instantiate --eval` against a bad expression and
+          # runs `nix eval --file` against a bad expression and
           # asserts the stderr names the offending option path. Companion
           # to dsl-validation-tests, which checks the failure but not the
           # message shape.
