@@ -5,7 +5,8 @@
 # code, logging, and a vmap dispatching on input interface.
 #
 # Hand-written raw-attrset form — kept as a reference for users who prefer
-# to bypass the DSL. For DSL-style authoring see examples/basic-firewall-nft.nix.
+# to bypass the DSL. For DSL-style authoring see
+# examples/basic-firewall-dsl.nix.
 let
   tableName = "main";
 
@@ -17,7 +18,7 @@ let
     };
   };
 
-  payload = protocol: field: { payload = { inherit protocol field; }; };
+  payload = protocol: field: { payload = { inherit field protocol; }; };
   meta = key: { meta = { inherit key; }; };
   prefix = addr: len: { prefix = { inherit addr len; }; };
 in

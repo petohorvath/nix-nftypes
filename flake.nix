@@ -1,12 +1,12 @@
 {
   description = "Nix type definitions mirroring the libnftables-json schema";
 
-  # The library targets BOTH nixpkgs channels: `nixpkgs` is the current
+  # The library targets BOTH nixpkgs flake inputs: `nixpkgs` is the current
   # NixOS stable release (the compatibility floor consumers deploy on) and
-  # `nixpkgs-unstable` tracks the channel where a newer nftables lands
-  # first. Every channel-dependent check is instantiated against both — the
+  # `nixpkgs-unstable` tracks the branch where a newer nftables lands first.
+  # Every package-set-dependent check is instantiated against both — the
   # stable set keeps the plain names, the unstable set gets an `-unstable`
-  # suffix — so a divergence between the two channels' `nft` (or `lib`
+  # suffix — so a divergence between the two package sets' `nft` (or `lib`
   # module system) turns a check red instead of surfacing in a consumer's
   # deployment. When a new NixOS release becomes stable, repoint `nixpkgs`
   # here (see docs/upstream-sync.md, "Updating inputs").
@@ -15,8 +15,8 @@
 
   # nftables has no independent flake input. Each compatibility surface uses
   # the exact binary, release source, and downstream patches carried by its
-  # nixpkgs channel. This keeps the test oracle identical to what consumers
-  # install and avoids a second, fragile upstream-Git authority.
+  # nixpkgs package set. This keeps the test oracle identical to what
+  # consumers install and avoids a second, fragile upstream-Git authority.
 
   outputs =
     {
@@ -43,10 +43,11 @@
 
       mkLib = lib: import ./lib { inherit lib; };
 
-      # Materialize the exact source tree a channel packages, including every
-      # downstream patch from its nftables derivation. Source-inspection checks
-      # consume this tree while live-parser checks consume `pkgs.nftables`, so
-      # both directions share one nixpkgs-controlled authority.
+      # Materialize the exact source tree a package set provides, including
+      # every downstream patch from its nftables derivation. Source-inspection
+      # checks consume this tree while live-parser checks consume
+      # `pkgs.nftables`, so both directions share one nixpkgs-controlled
+      # authority.
       mkNftablesSource =
         pkgs:
         let
@@ -57,7 +58,7 @@
             name = "nftables-${nftables.version}-nixpkgs-source";
             version = nftables.version;
             inherit (nftables) src;
-            inherit prePatch postPatch;
+            inherit postPatch prePatch;
             patches = nftables.patches or [ ];
           }
           // pkgs.lib.optionalAttrs (nftables ? patchFlags && nftables.patchFlags != null) {
@@ -70,26 +71,26 @@
         pkgs.applyPatches sourceArgs;
 
       /*
-        Channel-dependent check set, instantiated once per nixpkgs channel.
-        Everything here depends on the channel through one of two surfaces:
-        the eval-time suites exercise the channel's `lib` (module system,
-        error-message shapes — dsl-validation-message-tests asserts message
-        format, which can shift between nixpkgs releases), and the
-        live-parser suites exercise the channel's `nft` binary. Running the
-        set against both channels is the "compatible with stable AND
-        unstable" contract, enforced on every `nix flake check`.
+        Package-set-dependent check set, instantiated once per nixpkgs flake
+        input. Everything here depends on the package set through one of two
+        surfaces: the eval-time suites exercise the package set's `lib`
+        (module system, error-message shapes — dsl-validation-message-tests
+        asserts message format, which can shift between nixpkgs releases),
+        and the live-parser suites exercise the package set's `nft` binary.
+        Running the set against both package sets is the "compatible with
+        stable AND unstable" contract, enforced on every `nix flake check`.
       */
-      mkChannelChecks =
+      mkPackageSetChecks =
         pkgs:
         let
           nftlib = mkLib pkgs.lib;
-          tests = import ./tests { inherit pkgs nftlib; };
+          tests = import ./tests { inherit nftlib pkgs; };
           integration = import ./tests/dsl-integration.nix {
             inherit (pkgs) lib;
             inherit nftlib;
           };
-          textParity = import ./tests/text-parity.nix { inherit pkgs nftlib; };
-          textBlockParity = import ./tests/text-block-parity.nix { inherit pkgs nftlib; };
+          textParity = import ./tests/text-parity.nix { inherit nftlib pkgs; };
+          textBlockParity = import ./tests/text-block-parity.nix { inherit nftlib pkgs; };
           textIntegration = import ./tests/text-integration.nix {
             inherit (pkgs) lib;
             inherit nftlib;
@@ -152,23 +153,20 @@
           };
           nftablesSource = mkNftablesSource pkgs;
           sourceProvenance = import ./tests/nftables-source-provenance.nix {
-            inherit pkgs nftablesSource;
+            inherit nftablesSource pkgs;
           };
           nftablesCorpus = import ./tests/upstream-corpus.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftablesSource;
+            inherit nftablesSource nftlib pkgs;
           };
           nftablesEnums = import ./tests/upstream-enums.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftablesSource;
+            inherit nftablesSource nftlib pkgs;
           };
           nftablesRoundtrip = import ./tests/upstream-roundtrip.nix {
-            inherit pkgs nftlib;
+            inherit nftlib pkgs;
             nftables = pkgs.nftables;
           };
           nftablesSelftest = import ./tests/upstream-selftest.nix {
-            inherit pkgs nftlib;
-            nftablesSrc = nftablesSource;
+            inherit nftablesSource nftlib pkgs;
           };
         in
         {
@@ -207,7 +205,7 @@
           # field rendered to JSON and `nft -j -f` dropped the section).
           dsl-validation-tests = validation.runTests pkgs;
           # End-to-end check on validation error-message format: each case
-          # runs `nix-instantiate --eval` against a bad expression and
+          # runs `nix eval --file` against a bad expression and
           # asserts the stderr names the offending option path. Companion
           # to dsl-validation-tests, which checks the failure but not the
           # message shape.
@@ -233,9 +231,9 @@
           # let `nft -f` parse the trailing bytes as a fresh top-level
           # command. Renderer now routes the target through
           # `primitives.identQuote`, which either emits the bare ident
-          # or asserts via `escape` (rejecting '"', '\', control chars)
-          # and quotes the rest — where nft rejects the quoted form in
-          # identifier position.
+          # or asserts via `assertSafeString` (rejecting '"', '\', control
+          # chars) and quotes the rest — where nft rejects the quoted form
+          # in identifier position.
           verdict-target-safety-tests = verdictTargetSafety.runTests pkgs;
           # Regression pin for the expression-scalar injection class: a
           # bare string in expression position (match RHS, NAT addr,
@@ -259,7 +257,7 @@
           # bodies expose `types.str` fields (protocol, field, name,
           # key) that the renderer used to interpolate bare into the
           # surrounding clause. A new `safeToken` helper in
-          # lib/text/expressions.nix routes each through the shared
+          # lib/text/primitives.nix routes each through the shared
           # `nft-safe-scalar` predicate so an unsafe byte truncating
           # the clause no longer reaches `nft -f`.
           expr-token-safety-tests = exprTokenSafety.runTests pkgs;
@@ -297,9 +295,10 @@
           restricted-types-tests = restrictedTypes.runTests pkgs;
 
           # Source-side compatibility checks use the exact release archive and
-          # downstream patches carried by this channel's nftables derivation.
-          # They complement the live binary checks above by covering valid
-          # shapes the hand-written integration corpus cannot anticipate.
+          # downstream patches carried by this package set's nftables
+          # derivation. They complement the live binary checks above by
+          # covering valid shapes the hand-written integration corpus cannot
+          # anticipate.
           nftables-source-provenance-tests = sourceProvenance.runTests pkgs;
           nftables-corpus-tests = nftablesCorpus.runTests pkgs;
           nftables-enum-extraction-tests = nftablesEnums.runTests pkgs;
@@ -310,7 +309,7 @@
     {
       lib = mkLib nixpkgs.lib;
 
-      # Per system: the full channel check set against stable `nixpkgs`
+      # Per system: the full package-set check set against stable `nixpkgs`
       # (plain names — the floor consumers deploy on) and the same set against
       # `nixpkgs-unstable` (`-unstable` suffix — where a newer nftables/lib
       # lands first). This includes both live binaries and patched source.
@@ -320,16 +319,16 @@
           stablePkgs = nixpkgs.legacyPackages.${system};
           suffixed =
             suffix: nixpkgs.lib.mapAttrs' (name: value: nixpkgs.lib.nameValuePair "${name}${suffix}" value);
-          sourcePolicy = import ./tests/channel-source-policy.nix { pkgs = stablePkgs; };
+          sourcePolicy = import ./tests/nixpkgs-source-policy.nix { pkgs = stablePkgs; };
         in
-        mkChannelChecks stablePkgs
-        // suffixed "-unstable" (mkChannelChecks nixpkgs-unstable.legacyPackages.${system})
+        mkPackageSetChecks stablePkgs
+        // suffixed "-unstable" (mkPackageSetChecks nixpkgs-unstable.legacyPackages.${system})
         // {
-          channel-source-policy-tests = sourcePolicy.runTests stablePkgs;
+          nixpkgs-source-policy-tests = sourcePolicy.runTests stablePkgs;
         }
       );
 
-      # Patched source trees are exposed for the scheduled channel comparison
+      # Patched source trees are exposed for the scheduled branch-tip comparison
       # and for manual inspection. The matching binaries remain the ordinary
       # `pkgs.nftables` packages from each flake input.
       packages = nixpkgs.lib.genAttrs linuxSystems (system: {

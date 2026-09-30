@@ -1,10 +1,11 @@
-{ lib }:
+/*
+  Routing-data leaves. For `family`, use the escape hatch
+  `dsl.expr.rt { key = …; family = "ip6"; }`.
 
-# Routing-data leaves. For `family`, use the escape hatch
-# `dsl.expr.rt { key = …; family = "ip6"; }`.
-#
-#   fields.rt.mtu   == { rt = { key = "mtu"; }; }
-#   fields.rt.ipsec == { rt = { key = "ipsec"; }; }
+    fields.rt.mtu   == { rt = { key = "mtu"; }; }
+    fields.rt.ipsec == { rt = { key = "ipsec"; }; }
+*/
+{ lib }:
 
 let
   keys = [

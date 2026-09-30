@@ -67,9 +67,11 @@ let
           # observed values, and `-j` makes those JSON whereas the
           # text path emits text. Those load-time prints aren't part
           # of what we're comparing.
-          json_out=$(unshare -rn bash -c "nft -j -f $PWD/in.json >/dev/null && nft list ruleset" 2>&1)
+          json_out=$(unshare -rn bash -c \
+            "nft -j -f $PWD/in.json >/dev/null && nft list ruleset" 2>&1)
           json_status=$?
-          text_out=$(unshare -rn bash -c "nft -f $PWD/in.nft >/dev/null && nft list ruleset" 2>&1)
+          text_out=$(unshare -rn bash -c \
+            "nft -f $PWD/in.nft >/dev/null && nft list ruleset" 2>&1)
           text_status=$?
 
           if [ "$json_status" -ne 0 ] || [ "$text_status" -ne 0 ]; then
@@ -89,7 +91,8 @@ let
           echo "$failed equivalence test(s) failed"
           exit 1
         fi
-        echo "All ${toString (builtins.length cases')} equivalence tests passed (${toString (builtins.length excluded)} statically excluded)"
+        echo "All ${toString (builtins.length cases')} equivalence tests" \
+          "passed (${toString (builtins.length excluded)} statically excluded)"
         touch $out
       '';
 in

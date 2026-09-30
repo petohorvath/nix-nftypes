@@ -6,28 +6,28 @@
 }:
 
 let
-  inherit (lib) types mkOption;
-  inherit (internal) refOrInline;
+  inherit (lib) mkOption types;
+  inherit (internal) refOrInline taggedUnion;
+  inherit (expressions) verdictTargetBody;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
-    operator
-    logLevel
+    flowOp
+    ipFamily
     logFlag
+    logLevel
     natFlag
     natTypeFlag
-    ipFamily
-    synproxyFlag
-    flowOp
+    nftQuotedString
+    nullLiteral
+    operator
+    perUnit
     queueFlag
     rejectType
     setOp
+    synproxyFlag
     xtType
-    perUnit
-    nullLiteral
-    nftQuotedString
     ;
   expr = expressions.expression;
-  inherit (expressions) verdictTargetBody;
 
   bodies = rec {
     matchBody = types.submodule {
@@ -203,7 +203,9 @@ let
         flags = mkOption {
           type = types.nullOr (listOrSingleton natFlag);
           default = null;
-          description = "NAT mapping flags (random/fully-random/persistent/netmap)";
+          description = ''
+            NAT mapping flags (random/fully-random/persistent/netmap)
+          '';
         };
         type_flags = mkOption {
           type = types.nullOr (listOrSingleton natTypeFlag);
@@ -465,7 +467,8 @@ let
         };
       };
     };
-    # synproxy statement: null (empty), anonymous config, or named reference string/expr.
+    # synproxy statement: null (empty), anonymous config, or named reference
+    # string/expr.
     synproxyStatementBody = types.oneOf [
       nullLiteral
       synproxyAnonBody
@@ -525,7 +528,7 @@ let
       tunnel = expr;
     };
 
-    statement = types.attrTag (lib.mapAttrs (_: type: mkOption { inherit type; }) statementBodies);
+    statement = taggedUnion statementBodies;
 
     /*
       `statementOf : [ String ] -> Type` — restrict a `statement`-typed
@@ -550,9 +553,6 @@ let
         valid = lib.attrNames statementBodies;
         invalid = lib.subtractLists valid kinds;
         renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
-        base = types.attrTag (
-          lib.mapAttrs (_: type: mkOption { inherit type; }) (lib.getAttrs kinds statementBodies)
-        );
       in
       if !(builtins.isList kinds) then
         throw "nftypes.types.statementOf: argument must be a list of strings"
@@ -564,7 +564,7 @@ let
           + "${renderList invalid}. Valid kinds: ${renderList valid}."
         )
       else
-        base
+        taggedUnion (lib.getAttrs kinds statementBodies)
         // {
           description = "statement (one of: ${renderList kinds})";
         };

@@ -4,9 +4,9 @@
 }:
 
 # Contract test for the source tree consumed by the corpus and enum checks.
-# It must be derived from the exact source and patch set of the channel's
-# nftables package—not from an independent upstream pin and not from the raw,
-# unpatched release archive.
+# It must be derived from the exact source and patch set of the package
+# set's nftables package—not from an independent upstream pin and not from
+# the raw, unpatched release archive.
 let
   inherit (pkgs) lib;
   nftables = pkgs.nftables;

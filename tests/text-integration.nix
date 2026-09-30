@@ -68,15 +68,17 @@ let
           echo "$failed text-integration test(s) failed"
           exit 1
         fi
-        echo "All ${toString (builtins.length cases')} text-integration tests passed (${toString (builtins.length knownTextLimitations)} skipped due to known text-grammar limitations)"
+        echo "All ${toString (builtins.length cases')} text-integration tests" \
+          "passed (${toString (builtins.length knownTextLimitations)} skipped" \
+          "due to known text-grammar limitations)"
         touch $out
       '';
 in
 {
   inherit
     cases
-    textCases
     knownTextLimitations
     runIntegrationTests
+    textCases
     ;
 }

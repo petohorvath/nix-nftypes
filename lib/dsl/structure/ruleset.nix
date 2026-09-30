@@ -1,18 +1,19 @@
-{
-  lib,
-  validate,
-  objects,
-  expandTable,
-}:
+/*
+  Ruleset envelope and flush-family commands. For other command kinds
+  (create, delete, destroy, list, rename, reset, replace, insert) see
+  ./commands.nix. The ruleset renderer passes any bare command attrset
+  through unchanged, so users can always drop to raw JSON if needed.
 
-# Ruleset envelope and flush-family commands. For other command kinds
-# (create, delete, destroy, list, rename, reset, replace, insert) see
-# ./commands.nix. The ruleset renderer passes any bare command attrset
-# through unchanged, so users can always drop to raw JSON if needed.
-#
-# Each `flush*` helper and the standalone `rule` constructor runs the
-# user body through the matching schema submodule before emitting; the
-# table-tree path is validated leaf-by-leaf in lib/table.nix.
+  Each `flush*` helper and the standalone `rule` constructor runs the
+  user body through the matching schema submodule before emitting; the
+  table-tree path is validated leaf-by-leaf in lib/table.nix.
+*/
+{
+  expandTable,
+  lib,
+  objects,
+  validate,
+}:
 
 let
   markers = import ../internal/markers.nix { };
@@ -75,6 +76,12 @@ let
     };
   };
 
+  /*
+    One builder per `flushKinds` entry. Each takes the object body (DSL
+    spellings for sets and maps), validates it against the kind's schema
+    body with the builder name as the error prefix, and returns
+    `{ flush = { <tag> = validated; }; }`.
+  */
   flushHelpers = lib.mapAttrs (name: cfg: body: {
     flush.${cfg.tag} = validate {
       type = cfg.body;
@@ -84,9 +91,12 @@ let
   }) flushKinds;
 in
 {
-  # Envelope: flat-maps children into { nftables = [ commands ]; }. Children
-  # may be table nodes (expanded into multiple commands), bare command
-  # attrsets, or lists of commands.
+  /*
+    Assemble the top-level ruleset envelope. `children` is a list of table
+    nodes (expanded into their commands), bare command attrsets (passed
+    through unvalidated), or nested lists of either. Returns
+    `{ nftables = [ commands ]; }` and throws on any other child.
+  */
   ruleset = children: {
     nftables = flattenChildren children;
   };
@@ -99,8 +109,14 @@ in
   };
 
   # -- Standalone rule ------------------------------------------------------
-  # For use outside a table tree — typically with an explicit handle or
-  # index (e.g. to append a rule after a specific existing rule).
+
+  /*
+    Add a rule outside a table tree, typically with an explicit handle or
+    index (e.g. to append after a specific existing rule). `family`,
+    `table`, and `chain` locate the rule, `expr` is its statement list, and
+    `handle`, `index`, and `comment` are optional. Returns the validated
+    `{ add = { rule = …; }; }` command; throws when the body fails the schema.
+  */
   rule =
     {
       family,

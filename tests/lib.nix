@@ -23,7 +23,7 @@
     let
       results = lib.runTests tests;
       count = toString (builtins.length (builtins.attrNames tests));
-      fmt = lib.generators.toPretty { };
+      toPretty = lib.generators.toPretty { };
     in
     if results == [ ] then
       pkgs.runCommandLocal "${name}-pass" { } ''
@@ -34,7 +34,7 @@
       pkgs.runCommandLocal "${name}-fail" { } ''
         cat <<'EOF'
         ${name} failed:
-        ${fmt results}
+        ${toPretty results}
         EOF
         exit 1
       '';

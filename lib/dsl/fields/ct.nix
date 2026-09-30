@@ -1,9 +1,10 @@
-{ lib }:
+/*
+  Conntrack-key leaves — plain value for each common key. For optional
+  refinements (`dir` / `family`) use the escape hatch `dsl.expr.ct {…}`.
 
-# Conntrack-key leaves — plain value for each common key. For optional
-# refinements (`dir` / `family`) use the escape hatch `dsl.expr.ct {…}`.
-#
-#   fields.ct.state == { ct = { key = "state"; }; }
+    fields.ct.state == { ct = { key = "state"; }; }
+*/
+{ lib }:
 
 let
   mkLeaf = key: { ct = { inherit key; }; };

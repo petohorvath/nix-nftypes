@@ -10,7 +10,7 @@
 #   - Schema: commentOption, elemBody.comment, logBody.prefix are now
 #     `nftQuotedString` — '"' / '\' / control / >128B rejected at
 #     `evalModules` time.
-#   - Renderer: `primitives.escape` / `quoteString` assert on the same
+#   - Renderer: `primitives.assertSafeString` / `quoteString` assert on the same
 #     character set, so any caller bypassing the schema (raw attrsets,
 #     third-party DSLs) fails loudly instead of producing broken text.
 #
@@ -28,11 +28,12 @@ let
   textPrimitives = import ../lib/text/primitives.nix {
     inherit lib;
     nftSafeString = import ../lib/nft-safe-string.nix { };
+    nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
   };
 
   # The audit's malicious comment payload — verified end-to-end to inject
   # a chain at priority -10 with `policy accept` pre-fix.
-  injectionPayload = ''X"; chain bypass { type filter hook input priority -10; policy accept; }; #'';
+  injectionPayload = "X\"; chain bypass { type filter hook input priority -10; policy accept; }; #";
 
   evalSucceeds = expr: (builtins.tryEval expr).success;
 
@@ -219,14 +220,14 @@ let
       expected = true;
     };
     testEscapeIsIdentityForSafe = {
-      expr = textPrimitives.escape "abc";
+      expr = textPrimitives.assertSafeString "abc";
       expected = "abc";
     };
   };
 
   # Regression PoC: a raw attrset (NOT routed through dsl.ruleset, so no
   # schema validation) whose comment WOULD have rendered to injectable
-  # text pre-fix. Post-fix the renderer's escape-assert catches it.
+  # text pre-fix. Post-fix the renderer's `assertSafeString` catches it.
   #
   # Documents *why* the renderer assert exists: even if a future
   # refactor weakens the schema, the renderer still refuses to emit
@@ -259,7 +260,7 @@ let
     # any future refactor that re-injects via JSON breaks here.
     testJsonRoundTripsLiteralBytes = {
       expr = toJson rawInjectionRuleset;
-      expected = ''{"nftables":[{"add":{"table":{"comment":"X\"; chain bypass { type filter hook input priority -10; policy accept; }; #","family":"inet","name":"t"}}}]}'';
+      expected = "{\"nftables\":[{\"add\":{\"table\":{\"comment\":\"X\\\"; chain bypass { type filter hook input priority -10; policy accept; }; #\",\"family\":\"inet\",\"name\":\"t\"}}}]}";
     };
   };
 
@@ -299,10 +300,12 @@ let
         unshare -rn -- sh -c '
           set -e
           nft -f rules.nft
-          got=$(nft -j list ruleset | jq -r ".nftables[] | select(.table) | .table.comment")
+          got=$(nft -j list ruleset |
+            jq -r ".nftables[] | select(.table) | .table.comment")
           want="${safeComment}"
           if [ "$got" != "$want" ]; then
-            printf "text round-trip mismatch\n  want: %s\n  got:  %s\n" "$want" "$got" >&2
+            printf "text round-trip mismatch\n  want: %s\n  got:  %s\n" \
+              "$want" "$got" >&2
             exit 1
           fi
         '
@@ -311,10 +314,12 @@ let
         unshare -rn -- sh -c '
           set -e
           nft -j -f rules.json
-          got=$(nft -j list ruleset | jq -r ".nftables[] | select(.table) | .table.comment")
+          got=$(nft -j list ruleset |
+            jq -r ".nftables[] | select(.table) | .table.comment")
           want="${safeComment}"
           if [ "$got" != "$want" ]; then
-            printf "json round-trip mismatch\n  want: %s\n  got:  %s\n" "$want" "$got" >&2
+            printf "json round-trip mismatch\n  want: %s\n  got:  %s\n" \
+              "$want" "$got" >&2
             exit 1
           fi
         '
@@ -329,5 +334,5 @@ let
   };
 in
 {
-  inherit tests runTests runIntegrationTests;
+  inherit runIntegrationTests runTests tests;
 }

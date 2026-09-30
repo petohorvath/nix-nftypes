@@ -1,12 +1,12 @@
 {
   pkgs,
   nftlib,
-  nftablesSrc,
+  nftablesSource,
 }:
 
-# Deterministic token check in the channel-source pipeline
+# Deterministic token check in the nixpkgs-source pipeline
 # (docs/upstream-sync.md). Runs `tooling/check-upstream-enums.py` against the
-# selected channel package's patched nftables source and this library's
+# selected package set's patched nftables source and this library's
 # accepted-token lists.
 #
 # This is the zero-AI, zero-false-positive complement to the corpus check and
@@ -49,7 +49,8 @@ in
         nativeBuildInputs = [ pkgs.python3 ];
       }
       ''
-        python3 ${../tooling/check-upstream-enums.py} ${nftablesSrc} ${schemaJson}
+        python3 ${../tooling/check-upstream-enums.py} \
+          ${nftablesSource} ${schemaJson}
         touch $out
       '';
 }

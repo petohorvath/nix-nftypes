@@ -1,3 +1,18 @@
+/*
+  Renderer for the object kinds in lib/schema/objects.nix.
+
+  Each object kind renders as the body of an `add <kind>` command (or
+  `flush <kind>`, `delete <kind>`, etc — the command renderer in
+  lib/text/commands.nix prepends the verb).
+
+  Bodies generally take the form:
+
+    <family> <table> [<chain>|<set>|<...>] <name> [{ <opt>; <opt>; ... }]
+
+  Required header (family/table/chain/name) goes on the same line as the
+  verb; optional clauses go inside braces. For pretty mode, opts inside
+  braces are one-per-line indented; for compact mode, separated by `; `.
+*/
 {
   lib,
   context,
@@ -9,31 +24,13 @@
   nftSafeScalar,
 }:
 
-# Renderer for the object kinds in lib/schema/objects.nix.
-#
-# Each object kind renders as the body of an `add <kind>` command (or
-# `flush <kind>`, `delete <kind>`, etc — the command renderer in
-# lib/text/commands.nix prepends the verb).
-#
-# Bodies generally take the form:
-#
-#   <family> <table> [<chain>|<set>|<...>] <name> [{ <opt>; <opt>; ... }]
-#
-# Required header (family/table/chain/name) goes on the same line as the
-# verb; optional clauses go inside braces. For pretty mode, opts inside
-# braces are one-per-line indented; for compact mode, separated by `; `.
-
 let
-  inherit (context)
-    withDepth
-    indent
-    resetPrec
-    ;
-  inherit (expressions) renderExpression renderSetElement safeToken;
+  inherit (context) indent resetPrec withDepth;
+  inherit (expressions) renderExpression renderSetElement;
+  inherit (primitives) identQuote safeToken;
   inherit (statements) renderRuleExpr;
 
-  rExpr = ctx: e: renderExpression (resetPrec ctx) e;
-  rIdent = primitives.identQuote;
+  renderInnerExpression = ctx: e: renderExpression (resetPrec ctx) e;
 
   # Wrap a list of body lines in `{ ... }`. The text grammar requires `;`
   # after every statement inside braces in both compact and pretty modes,
@@ -78,11 +75,13 @@ let
   # quoting form that works in this position.
   #
   # In block-form rendering (`ctx.block`), the enclosing `table { ... }`
-  # implies family/table, so `scope2` collapses to just the object's
-  # name. `scope1` is unaffected — the only caller (the table header
-  # itself) is never rendered in block form.
-  scope1 = body: "${body.family} ${rIdent body.table}";
-  scope2 = ctx: body: if ctx.block then rIdent body.name else "${scope1 body} ${rIdent body.name}";
+  # implies family/table, so `renderObjectScope` collapses to just the
+  # object's name. `renderTableScope` is unaffected — the only caller (the
+  # table header itself) is never rendered in block form.
+  renderTableScope = body: "${body.family} ${identQuote body.table}";
+  renderObjectScope =
+    ctx: body:
+    if ctx.block then identQuote body.name else "${renderTableScope body} ${identQuote body.name}";
 
   # SECURITY-CRITICAL: a string datatype renders bare into the set/map
   # `type <X>` clause; a list renders bare joined with ` . `. An unsafe
@@ -92,25 +91,23 @@ let
   # datatype set is identifier-shaped (`ipv4_addr`, `inet_service`,
   # `ifname`, …), so the shared `nft-safe-scalar` predicate captures
   # exactly the safe subset.
-  assertSafeDt =
+  assertSafeDatatype =
     name:
     if !(builtins.isString name) || nftSafeScalar.isSafe name then
       true
     else
-      throw ''
-        nftypes: refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '"', '\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}.
-      '';
+      throw "nftypes: refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}.\n";
 
   # Render a setDatatype: string → "ipv4_addr"; list → "ipv4_addr . port";
   # { typeof = expr } → "typeof <expr>".
   renderDatatype =
     ctx: dt:
     if builtins.isString dt then
-      lib.seq (assertSafeDt dt) dt
+      lib.seq (assertSafeDatatype dt) dt
     else if builtins.isList dt then
-      lib.seq (lib.all assertSafeDt dt) (lib.concatStringsSep " . " dt)
+      lib.seq (lib.all assertSafeDatatype dt) (lib.concatStringsSep " . " dt)
     else if builtins.isAttrs dt && dt ? typeof then
-      "typeof ${rExpr ctx dt.typeof}"
+      "typeof ${renderInnerExpression ctx dt.typeof}"
     else
       throw "text.objects: unrecognized datatype shape";
 
@@ -126,7 +123,7 @@ let
   # SECURITY-CRITICAL: a multi-device list renders bare into
   # `devices = { eth0, eth1 }`. An element containing `,` would split as
   # two devices (silent widening); other nft-special bytes corrupt the
-  # parser. Single-device rendering uses `primitives.string` which
+  # parser. Single-device rendering uses `primitives.quoteString` which
   # already asserts no `"` / `\` / control chars, but doesn't enforce
   # the ifname-specific restrictions — wire the predicate in for both
   # paths so the renderer never emits an unsafe device name regardless
@@ -134,14 +131,12 @@ let
   assertSafeDev =
     devs:
     let
-      bad = nftSafeIfname.firstUnsafe devs;
+      bad = nftSafeIfname.findUnsafeOrNull devs;
     in
     if bad == null then
       true
     else
-      throw ''
-        nftypes: refusing to render a chain/flowtable device ${builtins.toJSON bad} that contains a character unsafe for nft's unquoted device-list grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '"' '\' '#' and control characters, because nft renders multi-dev lists bare as `devices = { ... }` and those characters either widen the list silently or corrupt the parser. Offending value: ${builtins.toJSON bad}.
-      '';
+      throw "nftypes: refusing to render a chain/flowtable device ${builtins.toJSON bad} that contains a character unsafe for nft's unquoted device-list grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '\"' '\\' '#' and control characters, because nft renders multi-dev lists bare as `devices = { ... }` and those characters either widen the list silently or corrupt the parser. Offending value: ${builtins.toJSON bad}.\n";
 
   # Render a chain `dev` field — either a bare string ("eth0") or a list.
   # Single device: `device "eth0"`; multiple: `devices = { eth0, eth1 }`.
@@ -149,7 +144,7 @@ let
     dev:
     lib.seq (assertSafeDev dev) (
       if builtins.isString dev then
-        "device ${primitives.string dev}"
+        "device ${primitives.quoteString dev}"
       else
         "devices = { ${lib.concatStringsSep ", " dev} }"
     );
@@ -158,7 +153,7 @@ let
 
   renderTableHeader =
     _ctx: body:
-    scope1 {
+    renderTableScope {
       family = body.family;
       table = body.name;
     };
@@ -169,10 +164,10 @@ let
       "flags ${primitives.flags { sep = ", "; } body.flags}"
     ]
     ++ lib.optionals ((body.comment or null) != null) [
-      "comment ${primitives.string body.comment}"
+      "comment ${primitives.quoteString body.comment}"
     ];
 
-  renderChainHeader = ctx: body: scope2 ctx body;
+  renderChainHeader = ctx: body: renderObjectScope ctx body;
 
   # Shared between renderRuleHeader (imperative `add rule …`) and the
   # block-form rule lines folded into a chain's brace block: the
@@ -183,7 +178,7 @@ let
     let
       stmts = renderRuleExpr ctx body.expr;
       commentClause =
-        if (body.comment or null) == null then "" else " comment ${primitives.string body.comment}";
+        if (body.comment or null) == null then "" else " comment ${primitives.quoteString body.comment}";
     in
     "${stmts}${commentClause}";
 
@@ -202,7 +197,7 @@ let
       policyLine = lib.optional ((body.policy or null) != null) "policy ${body.policy}";
       commentLine = lib.optional (
         (body.comment or null) != null
-      ) "comment ${primitives.string body.comment}";
+      ) "comment ${primitives.quoteString body.comment}";
     in
     baseLine ++ policyLine ++ commentLine;
 
@@ -211,7 +206,7 @@ let
   # their usual body without inline rules.
   renderChainBlock =
     ctx: body: rules:
-    "chain ${rIdent body.name}${
+    "chain ${identQuote body.name}${
       block ctx (renderChainBody ctx body ++ map (renderRuleStmtsAndComment ctx) rules)
     }";
 
@@ -228,7 +223,7 @@ let
         else
           "";
     in
-    "${body.family} ${rIdent body.table} ${rIdent body.chain}${pos} ${renderRuleStmtsAndComment ctx body}";
+    "${body.family} ${identQuote body.table} ${identQuote body.chain}${pos} ${renderRuleStmtsAndComment ctx body}";
 
   # Shared body renderer for set and map objects. They differ only in the
   # type clause: sets emit `type <K>`; maps emit `type <K> : <V>`. Every
@@ -246,28 +241,26 @@ let
       # (lib/table.nix); the assert here is the
       # defence-in-depth backstop for callers bypassing the DSL (raw
       # attrsets, third-party DSLs, hand-built ruleset values).
-      ifnameBad = nftSafeIfname.badIfnameElement body;
-      _checked =
+      ifnameBad = nftSafeIfname.findUnsafeIfnameElementOrNull body;
+      ifnameElementsChecked =
         if ifnameBad == null then
           true
         else
-          throw ''
-            nftypes: refusing to render an ifname-typed set/map element ${builtins.toJSON ifnameBad} that contains a character unsafe for nft's unquoted element grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '"' '\' '#' and control characters, because nft renders ifname elements bare into `elements = { ... }` and those characters either widen the set silently or corrupt the parser. Offending value: ${builtins.toJSON ifnameBad}.
-          '';
+          throw "nftypes: refusing to render an ifname-typed set/map element ${builtins.toJSON ifnameBad} that contains a character unsafe for nft's unquoted element grammar. The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '\"' '\\' '#' and control characters, because nft renders ifname elements bare into `elements = { ... }` and those characters either widen the set silently or corrupt the parser. Offending value: ${builtins.toJSON ifnameBad}.\n";
       elemList =
         if (body.elem or null) == null then
           [ ]
         else if builtins.isList body.elem then
-          lib.seq _checked body.elem
+          lib.seq ifnameElementsChecked body.elem
         else
-          lib.seq _checked [ body.elem ];
+          lib.seq ifnameElementsChecked [ body.elem ];
       # Stateful statements attached to elements are rendered as
       # `counter; quota` etc. inside the body.
       stmtLines =
         if (body.stmt or null) == null then
           [ ]
         else
-          map (s: statements.renderStatement (resetPrec ctx) s) body.stmt;
+          map (statements.renderStatement (resetPrec ctx)) body.stmt;
     in
     [ (typeLineFor ctx body) ]
     ++
@@ -280,16 +273,16 @@ let
     ++ lib.optional ((body."auto-merge" or null) == true) "auto-merge"
     ++ stmtLines
     ++ lib.optional (elemList != [ ]) (renderElements ctx elemList)
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
   # set: header `<family> <table> <name>`; body covers type/flags/policy/
   # size/timeout/gc-interval/auto-merge/elements/comment/stmt.
-  renderSetHeader = ctx: body: scope2 ctx body;
+  renderSetHeader = ctx: body: renderObjectScope ctx body;
   renderSetBody = renderSetOrMapBody (ctx: body: "type ${renderDatatype ctx body.type}");
 
   # map: same as set but the type clause is `type K : V` and elements are
   # `k : v` pairs (handled by renderSetElement).
-  renderMapHeader = ctx: body: scope2 ctx body;
+  renderMapHeader = ctx: body: renderObjectScope ctx body;
   renderMapBody = renderSetOrMapBody (
     ctx: body: "type ${renderDatatype ctx body.type} : ${renderDatatype ctx body.map}"
   );
@@ -303,10 +296,10 @@ let
       elemList = if builtins.isList body.elem then body.elem else [ body.elem ];
       inner = lib.concatMapStringsSep ", " (renderSetElement (resetPrec ctx)) elemList;
     in
-    "element ${scope2 ctx body} { ${inner} }";
+    "element ${renderObjectScope ctx body} { ${inner} }";
 
   # flowtable: `hook <hook> priority <prio>; devices = { ... };`.
-  renderFlowtableHeader = ctx: body: scope2 ctx body;
+  renderFlowtableHeader = ctx: body: renderObjectScope ctx body;
 
   renderFlowtableBody =
     _ctx: body:
@@ -328,7 +321,7 @@ let
     hookLine ++ devLine;
 
   # counter: bare body (`add counter ...`) or with packets/bytes/comment.
-  renderCounterHeader = ctx: body: scope2 ctx body;
+  renderCounterHeader = ctx: body: renderObjectScope ctx body;
 
   renderCounterBody =
     _ctx: body:
@@ -339,10 +332,10 @@ let
         + (lib.optionalString ((body.bytes or null) != null) "bytes ${toString body.bytes}")
       )
     ]
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
   # quota object: `[over] <bytes> bytes [used N bytes]`.
-  renderQuotaHeader = ctx: body: scope2 ctx body;
+  renderQuotaHeader = ctx: body: renderObjectScope ctx body;
 
   renderQuotaBody =
     _ctx: body:
@@ -353,16 +346,17 @@ let
         ++ lib.optional ((body.used or null) != null) "used ${toString body.used} bytes";
       head = if headParts == [ ] then [ ] else [ (lib.concatStringsSep " " headParts) ];
     in
-    head ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    head
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
   # Limit clauses and comments are spelled by limit.nix.
-  renderLimitHeader = ctx: body: scope2 ctx body;
+  renderLimitHeader = ctx: body: renderObjectScope ctx body;
 
   # ct helper object. nft text wants `type "T" protocol P` joined as a
   # single statement (the parser only accepts a `type` clause when
   # `protocol` follows it inline, no separator). `l3proto` and `comment`
   # are then separate statements with their own `;`.
-  renderCtHelperHeader = ctx: body: scope2 ctx body;
+  renderCtHelperHeader = ctx: body: renderObjectScope ctx body;
 
   renderCtHelperBody =
     _ctx: body:
@@ -371,9 +365,9 @@ let
       hasProto = (body.protocol or null) != null;
       typeProtoLine =
         if hasType && hasProto then
-          [ "type ${primitives.string body.type} protocol ${body.protocol}" ]
+          [ "type ${primitives.quoteString body.type} protocol ${body.protocol}" ]
         else if hasType then
-          [ "type ${primitives.string body.type}" ]
+          [ "type ${primitives.quoteString body.type}" ]
         else if hasProto then
           [ "protocol ${body.protocol}" ]
         else
@@ -381,10 +375,11 @@ let
     in
     typeProtoLine
     ++ lib.optional ((body.l3proto or null) != null) "l3proto ${body.l3proto}"
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
-  # ct timeout object: `protocol tcp; l3proto ip; policy = { established: 300, ... };`.
-  renderCtTimeoutHeader = ctx: body: scope2 ctx body;
+  # ct timeout object:
+  # `protocol tcp; l3proto ip; policy = { established: 300, ... };`.
+  renderCtTimeoutHeader = ctx: body: renderObjectScope ctx body;
 
   renderCtTimeoutBody =
     _ctx: body:
@@ -407,10 +402,9 @@ let
     lib.optional ((body.protocol or null) != null) "protocol ${body.protocol}"
     ++ lib.optional ((body.l3proto or null) != null) "l3proto ${body.l3proto}"
     ++ policyLine
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
-  # ct expectation object.
-  renderCtExpectationHeader = ctx: body: scope2 ctx body;
+  renderCtExpectationHeader = ctx: body: renderObjectScope ctx body;
 
   renderCtExpectationBody =
     _ctx: body:
@@ -419,18 +413,16 @@ let
     ++ lib.optional ((body.timeout or null) != null) "timeout ${toString body.timeout}s"
     ++ lib.optional ((body.size or null) != null) "size ${toString body.size}"
     ++ lib.optional ((body.l3proto or null) != null) "l3proto ${body.l3proto}"
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
-  # secmark object.
-  renderSecmarkHeader = ctx: body: scope2 ctx body;
+  renderSecmarkHeader = ctx: body: renderObjectScope ctx body;
 
   renderSecmarkBody =
     _ctx: body:
-    lib.optional ((body.context or null) != null) (primitives.string body.context)
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    lib.optional ((body.context or null) != null) (primitives.quoteString body.context)
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
-  # synproxy object.
-  renderSynproxyHeader = ctx: body: scope2 ctx body;
+  renderSynproxyHeader = ctx: body: renderObjectScope ctx body;
 
   renderSynproxyBody =
     _ctx: body:
@@ -442,17 +434,19 @@ let
     in
     [ head ]
     ++ flagsLine
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
   # tunnel object: id/src-ipv4/dst-ipv4/sport/dport/ttl/tos/type and the
   # nested encapsulation-specific block.
-  renderTunnelHeader = ctx: body: scope2 ctx body;
+  renderTunnelHeader = ctx: body: renderObjectScope ctx body;
 
   renderTunnelBody =
     ctx: body:
     let
-      mkAddr = key: lib.optional ((body.${key} or null) != null) "${key} ${rExpr ctx body.${key}}";
-      mkInt = key: lib.optional ((body.${key} or null) != null) "${key} ${toString body.${key}}";
+      optionalExpressionLine =
+        key: lib.optional ((body.${key} or null) != null) "${key} ${renderInnerExpression ctx body.${key}}";
+      optionalIntegerLine =
+        key: lib.optional ((body.${key} or null) != null) "${key} ${toString body.${key}}";
       typeLine = lib.optional ((body.type or null) != null) "type ${body.type}";
       nestedLine =
         if (body.tunnel or null) == null then
@@ -462,7 +456,7 @@ let
           let
             entries = lib.concatMapStringsSep ", " (
               opt:
-              "{ class ${toString opt.class}, opt-type ${toString opt."opt-type"}, data ${primitives.string opt.data} }"
+              "{ class ${toString opt.class}, opt-type ${toString opt."opt-type"}, data ${primitives.quoteString opt.data} }"
             ) body.tunnel;
           in
           [ "geneve = { ${entries} }" ]
@@ -477,18 +471,18 @@ let
         else
           throw "text.objects: unrecognized tunnel encapsulation";
     in
-    mkInt "id"
-    ++ mkAddr "src-ipv4"
-    ++ mkAddr "src-ipv6"
-    ++ mkAddr "dst-ipv4"
-    ++ mkAddr "dst-ipv6"
-    ++ mkInt "sport"
-    ++ mkInt "dport"
-    ++ mkInt "ttl"
-    ++ mkInt "tos"
+    optionalIntegerLine "id"
+    ++ optionalExpressionLine "src-ipv4"
+    ++ optionalExpressionLine "src-ipv6"
+    ++ optionalExpressionLine "dst-ipv4"
+    ++ optionalExpressionLine "dst-ipv6"
+    ++ optionalIntegerLine "sport"
+    ++ optionalIntegerLine "dport"
+    ++ optionalIntegerLine "ttl"
+    ++ optionalIntegerLine "tos"
     ++ typeLine
     ++ nestedLine
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
   # metainfo (for list output): version/release_name/json_schema_version.
   # Only meaningful in `nft -j list` output; the `list metainfo` verb
@@ -499,7 +493,7 @@ let
   # meter (for list/flush output): family/table/name only. There's no
   # `add meter` — meters are anonymous, created via the `meter`
   # statement — so the header-only form is the entire surface.
-  renderMeterHeader = ctx: body: scope2 ctx body;
+  renderMeterHeader = ctx: body: renderObjectScope ctx body;
 
   # ruleset envelope: null → bare; { family } → `<verb> ruleset <family>`.
   renderRulesetHeader =
@@ -613,10 +607,10 @@ let
               header = cfg.header ctx body;
               bodyLines = if withBody then cfg.body ctx body else [ ];
               noBraces = cfg.noBraces or false;
-              blockStr = if noBraces then "" else block ctx bodyLines;
+              blockClause = if noBraces then "" else block ctx bodyLines;
               headerSep = lib.optionalString (header != "") " ";
             in
-            "${kind}${headerSep}${header}${blockStr}";
+            "${kind}${headerSep}${header}${blockClause}";
       in
       lib.removeSuffix " " rendered;
 
@@ -635,9 +629,9 @@ let
 in
 {
   inherit
+    renderChainBlock
     renderObject
     renderObjectHeader
-    renderChainBlock
     ;
   # The kind set this renderer's dispatch table accepts. Read by the
   # schema↔text drift test (tests/default.nix) to assert every object

@@ -34,7 +34,7 @@ bash tooling/review-env.sh nix build --no-link -L \
 For a custom reproduction, pass its command and arguments to the wrapper.
 Run every `nft` invocation inside `unshare -rn`, including `nft -c`: the parser
 consults kernel state, and mutating commands must stay in a private namespace.
-The full CI command is `nix flake check -L`; it covers both locked channels.
+The full CI command is `nix flake check -L`; it covers both locked flake inputs.
 
 Success means the namespace/parser probe and the requested test commands
 actually exited zero. Exit 125 from the wrapper means environment setup is

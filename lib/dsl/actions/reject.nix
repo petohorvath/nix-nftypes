@@ -1,18 +1,20 @@
+# Reject statement, which drops a packet and answers the sender.
 { lib }:
-
-# Reject statement. Six forms:
-#   reject { type?; expr?; }    — arbitrary reject body
-#   reject.plain                — empty reject (defaults)
-#   reject.icmp code            — ICMP reject with code
-#   reject.icmpv6 code          — ICMPv6 reject with code
-#   reject.icmpx code           — ICMPX (family-independent) reject with code
-#   reject.tcpReset             — TCP RST reject
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
   variant = import ../internal/variant.nix { inherit lib; };
 in
 {
+  /*
+    Reject matching packets.
+
+    `reject { type?; expr?; }` builds an arbitrary reject body.
+    `reject.plain` is the empty form. `reject.icmp code`,
+    `reject.icmpv6 code`, and `reject.icmpx code` answer with an ICMP,
+    ICMPv6, or family-independent ICMPX `code`. `reject.tcpReset` answers
+    with a TCP RST. Each returns a reject statement.
+  */
   reject =
     variant
       (

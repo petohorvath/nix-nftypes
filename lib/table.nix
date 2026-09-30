@@ -1,14 +1,18 @@
+/*
+  One table tree, two renderings: `expandTable` turns a `dsl.table` node into
+  imperative commands, and `toTextBlock` / `toTextBlockPretty` render it in
+  block form. Preparation keeps validated rules with their chains; only
+  command expansion flattens them. The prepared shape is private to this
+  module, so block rendering never has to recover ownership from commands or
+  pass rules through the text renderer's formatting context.
+*/
 {
+  clean,
   lib,
   objects,
-  clean,
   text,
 }:
 
-# One table tree, two renderings. Preparation keeps validated rules with
-# their chains; only command expansion flattens them. The prepared shape is
-# private to this module, so block rendering never has to recover ownership
-# from commands or pass rules through the text renderer's formatting context.
 let
   validate = import ./dsl/internal/validate.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
@@ -58,22 +62,24 @@ let
       # Cross-field validation supplements the schema: ifname set/map
       # elements render bare, so unsafe characters can widen a set or break
       # the parser. The text object renderer also checks raw callers.
-      bad = if cfg.tag == "set" || cfg.tag == "map" then nftSafeIfname.badIfnameElement body else null;
+      unsafeElement =
+        if cfg.tag == "set" || cfg.tag == "map" then
+          nftSafeIfname.findUnsafeIfnameElementOrNull body
+        else
+          null;
     in
     {
       kind = cfg.tag;
       body =
-        if bad == null then
+        if unsafeElement == null then
           body
         else
-          throw ''
-            ${pluralKey}.${name}: set has type = "ifname" but element ${builtins.toJSON bad} is not a safe interface name (see lib/nft-safe-ifname.nix). nft renders ifname elements bare into `elements = { ... }`, so unsafe characters can silently widen the set or break the text parser.
-          '';
+          throw "${pluralKey}.${name}: set has type = \"ifname\" but element ${builtins.toJSON unsafeElement} is not a safe interface name (see lib/nft-safe-ifname.nix). nft renders ifname elements bare into `elements = { ... }`, so unsafe characters can silently widen the set or break the text parser.\n";
     };
 
   prepareRule =
-    scope: idx: entry:
-    prepareBody objects.ruleBody [ "chains" scope.chain "rules" (toString idx) ] scope (
+    scope: index: entry:
+    prepareBody objects.ruleBody [ "chains" scope.chain "rules" (toString index) ] scope (
       if builtins.isList entry then { expr = entry; } else entry
     );
 
@@ -110,7 +116,7 @@ let
             "nix-nft-types: dsl.table ${family}.${name} has unsupported key(s): "
             + lib.concatStringsSep ", " unknownBodyKeys
           );
-      tableOpts = builtins.intersectAttrs {
+      tableOptions = builtins.intersectAttrs {
         handle = null;
         flags = null;
         comment = null;
@@ -123,7 +129,7 @@ let
       presentKinds = builtins.filter (kind: checkedBody ? ${kind}) orderedObjectKindNames;
     in
     {
-      body = prepareBody objects.tableBody [ ] { inherit family name; } tableOpts;
+      body = prepareBody objects.tableBody [ ] { inherit family name; } tableOptions;
       chains = map (name: prepareChain scope name chains.${name}) (sortedNames chains);
       objects = lib.concatMap (
         kind:
@@ -147,6 +153,14 @@ let
     ++ map (object: add object.kind object.body) table.objects
     ++ lib.concatMap (chain: map (add "rule") chain.rules) table.chains;
 
+  /*
+    Render one `dsl.table` node's contents in block form. `pretty` selects
+    multi-line output and `node` is the table node. Returns the chain and
+    object declarations joined by newlines, without the
+    `table <family> <name> { … }` wrapper. Throws when `node` is not a table
+    node or has standalone `elements` entries, which block grammar cannot
+    represent.
+  */
   renderTableBlock =
     pretty: node:
     if !(builtins.isAttrs node && (node.${markers.table} or false)) then
@@ -172,6 +186,20 @@ let
 in
 {
   inherit expandTable;
+
+  /*
+    Render a `dsl.table` node for a host module that supplies the
+    `table <family> <name> { … }` wrapper itself, such as nixpkgs'
+    `networking.nftables.tables.<name>.content`. Takes the table node and
+    returns compact block-form text; see `renderTableBlock` for failures.
+  */
   toTextBlock = renderTableBlock false;
+
+  /*
+    Multi-line variant of `toTextBlock`, for readable generated
+    configuration. Takes the table node and returns block-form text with
+    each statement on its own indented line; see `renderTableBlock` for
+    failures.
+  */
   toTextBlockPretty = renderTableBlock true;
 }

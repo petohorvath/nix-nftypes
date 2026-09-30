@@ -16,7 +16,7 @@
 # accepted by `nft -f` as a real chain at attacker-chosen priority.
 #
 # Renderer-level fix: a shared `safeToken` helper in
-# lib/text/expressions.nix runs each value through the
+# lib/text/primitives.nix runs each value through the
 # `nft-safe-scalar` predicate before interpolation. The JSON path is
 # unaffected (libnftables receives literal bytes; the kernel rejects
 # unknown protocol / field / key names at the syscall layer).
@@ -222,5 +222,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

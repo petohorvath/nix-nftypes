@@ -11,7 +11,7 @@
 # Every other suite tests the INPUT direction — our JSON/text is accepted
 # by a real parser. This one samples the OUTPUT direction: each selected
 # integration case is really loaded (no `-c`) into a private netns with the
-# selected channel's `nft`, the resulting `nft -j list ruleset` is captured,
+# selected package set's `nft`, the resulting `nft -j list ruleset` is captured,
 # and every command in it is validated
 # against `nftlib.types.ruleset` (whose `topLevel` union deliberately
 # accepts bare listed objects alongside command wrappers).
@@ -28,14 +28,14 @@
 # The listing derivation is imported at eval time (IFD, same pattern as
 # upstream-corpus.nix) so the validation itself runs through evalModules
 # and failures are classified against a baseline. The listing content is
-# deterministic for a fixed channel `nft`: handles are assigned sequentially
+# deterministic for a fixed packaged `nft`: handles are assigned sequentially
 # in a fresh netns and the metainfo version string is that package's own.
 #
 # /etc/protocols note: json.c resolves l4 protocol numbers to names via
 # glibc (getprotobynumber → /etc/protocols). Without that file — as in
 # the bare Nix sandbox, or a minimal container — ct helper/timeout/
 # expectation list back with `"protocol": 6` instead of `"tcp"`, a form
-# parser_json.c REJECTS on input (verified against the channel nft): on
+# parser_json.c REJECTS on input (verified against the packaged nft): on
 # such systems nftables' own listing does not round-trip through its own
 # parser. The runner below bind-provides iana-etc's /etc/protocols
 # inside the namespace so the serializer behaves as on a normal system
@@ -94,7 +94,7 @@ let
           cat > ./in.json <<'RULESET_EOF'
           ${nftlib.toJson c.ruleset}
           RULESET_EOF
-          ifaces=${lib.escapeShellArg (lib.concatStringsSep " " (c.interfaces or [ ]))}
+          ifaces=${lib.escapeShellArg (toString (c.interfaces or [ ]))}
           # -m: mount namespace so a tmpfs can shadow /etc and carry
           # /etc/protocols (see the /etc/protocols note above).
           if unshare -rnm bash -c "
@@ -106,8 +106,10 @@ let
               nft -j -f $PWD/in.json >/dev/null || exit 9
               exec nft -j list ruleset
             " > ./listing.json 2> ./err.txt; then
-            echo "LOADED ($(jq '.nftables | length' ./listing.json) objects listed)"
-            jq -n --arg name ${lib.escapeShellArg c.name} --slurpfile l ./listing.json \
+            echo "LOADED ($(jq '.nftables | length' ./listing.json)" \
+              "objects listed)"
+            jq -n --arg name ${lib.escapeShellArg c.name} \
+              --slurpfile l ./listing.json \
               '{name: $name, loaded: true, listing: $l[0]}' >> entries.jsonl
             loaded=$((loaded + 1))
           else
@@ -119,12 +121,14 @@ let
           fi
         '') loadCases}
         if [ "$load_failed" -gt 0 ]; then
-          echo "$load_failed unexpected round-trip case(s) failed to load; refusing reduced coverage"
+          echo "$load_failed unexpected round-trip case(s) failed to load;" \
+            "refusing reduced coverage"
           exit 1
         fi
         if [ "$loaded" -lt ${toString minLoaded} ]; then
-          echo "only $loaded case(s) produced a listing (< ${toString minLoaded});" \
-               "refusing a vacuous pass — the environment cannot exercise the round-trip"
+          echo "only $loaded case(s) produced a listing" \
+            "(< ${toString minLoaded}); refusing a vacuous pass — the" \
+            "environment cannot exercise the round-trip"
           exit 1
         fi
         jq -s '.' entries.jsonl > $out
@@ -154,18 +158,20 @@ let
     )).success;
 
   # Read-back commands the schema rejects, deduped by JSON form.
-  offending = lib.unique (
-    lib.flatten (map (e: builtins.filter (c: !(validates c)) e.listing.nftables) loadedListings)
-  );
+  offending = lib.pipe loadedListings [
+    (map (e: builtins.filter (c: !(validates c)) e.listing.nftables))
+    lib.flatten
+    lib.unique
+  ];
 
   classify = cmd: "readback:${builtins.head (builtins.attrNames cmd)}";
 
   /*
-    Baselined read-back divergences: shapes the channel `nft -j list
+    Baselined read-back divergences: shapes the packaged `nft -j list
     ruleset` emits that the schema (deliberately or not-yet) rejects.
-    EMPTY today — every command the channel serializer emits for the
+    EMPTY today — every command the packaged serializer emits for the
     current case set validates, which is the round-trip claim holding.
-    A future channel package update that makes json.c emit a new field
+    A future nixpkgs package update that makes json.c emit a new field
     lands here (or, preferably, in the schema).
   */
   knownReadbackDivergences = { };
@@ -175,7 +181,7 @@ let
   staleCategories = lib.subtractLists (lib.unique (map classify offending)) knownCategories;
 
   commandCount = lib.foldl' (n: e: n + builtins.length e.listing.nftables) 0 loadedListings;
-  fmtList = items: lib.concatMapStringsSep "\n" (x: "    ${x}") items;
+  formatList = items: lib.concatMapStringsSep "\n" (x: "    ${x}") items;
   skippedNote = lib.concatStringsSep "\n" (
     lib.mapAttrsToList (name: why: "    ${name}: ${why}") knownNoLoad
   );
@@ -184,15 +190,17 @@ let
       ""
     else
       "\nStale baseline patterns (no longer emitted — prune from knownReadbackDivergences):\n"
-      + fmtList staleCategories;
+      + formatList staleCategories;
 
   runTests =
     _pkgs:
     if newDrift == [ ] then
       pkgs.runCommandLocal "nftables-roundtrip-tests-pass" { } ''
         cat <<'EOF'
-        nftables-roundtrip: ${toString (builtins.length loadedListings)} case listings, ${toString commandCount} read-back commands validated against `ruleset`.
-        ${toString (builtins.length offending)} divergences (baseline has ${toString (builtins.length knownCategories)}).
+        nftables-roundtrip: ${toString (builtins.length loadedListings)} case
+        listings, ${toString commandCount} read-back commands validated against
+        `ruleset`. ${toString (builtins.length offending)} divergences (baseline
+        has ${toString (builtins.length knownCategories)}).
         Skipped (cannot real-load in an unprivileged netns):
         ${skippedNote}
         ${staleNote}
@@ -202,27 +210,27 @@ let
     else
       pkgs.runCommandLocal "nftables-roundtrip-tests-fail" { } ''
         cat <<'EOF'
-        nftables-roundtrip: READ-BACK drift — the channel `nft -j list ruleset`
-        emits ${toString (builtins.length newDrift)} command shape(s) the schema rejects and that match
-        no baselined pattern. This breaks the round-trip contract: state
-        read back from the kernel no longer fits the model. Either extend
-        the schema to accept the shape (preferred) or baseline it in
-        `knownReadbackDivergences` with the reason.
+        nftables-roundtrip: READ-BACK drift — the packaged `nft -j list ruleset`
+        emits ${toString (builtins.length newDrift)} command shape(s) the schema
+        rejects and that match no baselined pattern. This breaks the
+        round-trip contract: state read back from the kernel no longer fits
+        the model. Either extend the schema to accept the shape (preferred)
+        or baseline it in `knownReadbackDivergences` with the reason.
 
         New offending read-back commands:
-        ${fmtList (map builtins.toJSON newDrift)}
+        ${formatList (map builtins.toJSON newDrift)}
         EOF
         exit 1
       '';
 in
 {
   inherit
-    runTests
-    listings
-    offending
-    newDrift
-    validates
     knownNoLoad
     knownReadbackDivergences
+    listings
+    newDrift
+    offending
+    runTests
+    validates
     ;
 }

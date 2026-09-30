@@ -5,7 +5,7 @@
 }:
 
 let
-  inherit (lib) types mkOptionType;
+  inherit (lib) mkOptionType types;
 
   nullLiteral = mkOptionType {
     name = "null";
@@ -20,13 +20,13 @@ let
 
   # A free-form string safe for rendering into nft's quoted-string syntax
   # (`comment "…"`, `log prefix "…"`). The safe-character set lives in
-  # lib/nft-safe-string.nix; the text renderer's defense-in-depth `escape`
-  # asserts the same predicate, so neither path can drift. 128-byte length
-  # cap matches kernel NFTNL_UDATA_COMMENT_MAXLEN; log-prefix has the same
-  # limit.
+  # lib/nft-safe-string.nix; the text renderer's defense-in-depth
+  # `assertSafeString` asserts the same predicate, so neither path can
+  # drift. 128-byte length cap matches kernel NFTNL_UDATA_COMMENT_MAXLEN;
+  # log-prefix has the same limit.
   nftQuotedString = mkOptionType {
     name = "nftQuotedString";
-    description = ''nft-safe quoted string (no '"', '\', or control characters; ≤128 bytes)'';
+    description = "nft-safe quoted string (no '\"', '\\', or control characters; ≤128 bytes)";
     descriptionClass = "noun";
     check = s: builtins.isString s && nftSafeString.isSafe s && builtins.stringLength s <= 128;
     merge = lib.mergeEqualOption;
@@ -39,7 +39,7 @@ let
   # the predicate as defence-in-depth.
   ifname = mkOptionType {
     name = "ifname";
-    description = ''nft-safe interface name (≤15 bytes; no '/' ':' whitespace ',' ';' '{' '}' '"' '\' '#' or control chars; not '.' or '..')'';
+    description = "nft-safe interface name (≤15 bytes; no '/' ':' whitespace ',' ';' '{' '}' '\"' '\\' '#' or control chars; not '.' or '..')";
     descriptionClass = "noun";
     check = nftSafeIfname.isSafe;
     merge = lib.mergeEqualOption;
@@ -343,91 +343,19 @@ let
     ];
   };
 
-  family = types.enum enumValues.family;
-  hook = types.enum enumValues.hook;
-  policy = types.enum enumValues.policy;
-  chainType = types.enum enumValues.chainType;
-  operator = types.enum enumValues.operator;
-  tableFlag = types.enum enumValues.tableFlag;
-  setFlag = types.enum enumValues.setFlag;
-  setPolicy = types.enum enumValues.setPolicy;
-  logLevel = types.enum enumValues.logLevel;
-  logFlag = types.enum enumValues.logFlag;
-  natFlag = types.enum enumValues.natFlag;
-  natTypeFlag = types.enum enumValues.natTypeFlag;
-  synproxyFlag = types.enum enumValues.synproxyFlag;
-  flowOp = types.enum enumValues.flowOp;
-  xfrmDir = types.enum enumValues.xfrmDir;
-  xfrmKey = types.enum enumValues.xfrmKey;
-  tunnelKey = types.enum enumValues.tunnelKey;
-  tunnelType = types.enum enumValues.tunnelType;
-  queueFlag = types.enum enumValues.queueFlag;
-  rejectType = types.enum enumValues.rejectType;
-  setOp = types.enum enumValues.setOp;
-  metaKey = types.enum enumValues.metaKey;
-  rtKey = types.enum enumValues.rtKey;
-  ipFamily = types.enum enumValues.ipFamily;
-  ctDirection = types.enum enumValues.ctDirection;
-  ngMode = types.enum enumValues.ngMode;
-  fibResult = types.enum enumValues.fibResult;
-  fibFlag = types.enum enumValues.fibFlag;
-  payloadBase = types.enum enumValues.payloadBase;
-  osfKey = types.enum enumValues.osfKey;
-  osfTtl = types.enum enumValues.osfTtl;
-  socketKey = types.enum enumValues.socketKey;
-  tcpUdpProto = types.enum enumValues.tcpUdpProto;
-  xtType = types.enum enumValues.xtType;
-  limitUnit = types.enum enumValues.limitUnit;
-  perUnit = types.enum enumValues.perUnit;
-
   listOrSingleton = elemType: types.either elemType (types.listOf elemType);
 in
 {
-  inherit listOrSingleton enumValues;
+  inherit enumValues listOrSingleton;
 
-  types = {
+  # One `types.enum` per `enumValues` entry, plus the non-enum primitives.
+  types = lib.mapAttrs (_: types.enum) enumValues // {
     inherit
-      family
-      hook
-      policy
-      chainType
-      operator
-      tableFlag
-      setFlag
-      setPolicy
-      logLevel
-      logFlag
-      natFlag
-      natTypeFlag
-      synproxyFlag
-      flowOp
-      xfrmDir
-      xfrmKey
-      tunnelKey
-      tunnelType
-      queueFlag
-      rejectType
-      setOp
-      metaKey
-      rtKey
-      ipFamily
-      ctDirection
-      ngMode
-      fibResult
-      fibFlag
-      payloadBase
-      osfKey
-      osfTtl
-      socketKey
-      tcpUdpProto
-      xtType
-      limitUnit
-      perUnit
+      ifname
+      nftQuotedString
+      nullLiteral
       portNumber
       prefixLength
-      nullLiteral
-      nftQuotedString
-      ifname
       ;
   };
 }

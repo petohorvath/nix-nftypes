@@ -11,26 +11,26 @@
 
 let
   inherit (nftlib.dsl)
-    ruleset
-    flush
-    table
-    eq
-    inSet
     accept
     counter
+    dnat
+    eq
+    flush
+    inSet
     limit
     log
     reject
-    dnat
+    ruleset
     snat
+    table
     ;
   inherit (nftlib.dsl.fields)
-    tcp
-    ip
     ct
+    ip
     meta
+    tcp
     ;
-  inherit (nftlib.dsl.expr) prefix map;
+  inherit (nftlib.dsl.expr) map prefix;
 in
 ruleset [
   flush

@@ -8,7 +8,7 @@
 #
 # Chain names elsewhere in the renderer go through `primitives.identQuote`
 # which either renders bare (matching the unquoted-identifier rule) or
-# quoted-and-escape-asserted (where the assert rejects '"', '\', or any
+# quoted after `assertSafeString` (where the assert rejects '"', '\', or any
 # control character — the parser-meta set). Verdict targets now follow
 # the same path, so newline / quote / control-char injection throws at
 # render time, and the other invalid bytes that nft rejects in
@@ -27,9 +27,7 @@ let
   # Payload from the chain-injection audit — `nft -c -f` accepted this
   # pre-fix as a real `add chain` at priority -200 with `policy accept`,
   # ahead of every user rule.
-  injectionPayload = ''
-    evil
-    add chain inet filter pwned { type filter hook input priority -200; policy accept; }'';
+  injectionPayload = "evil\nadd chain inet filter pwned { type filter hook input priority -200; policy accept; }";
 
   evalSucceeds = expr: (builtins.tryEval expr).success;
 
@@ -70,7 +68,7 @@ let
   };
 
   # The renderer's first-line defence: identQuote routes any input
-  # that isn't a bare identifier through `escape`, which rejects '"',
+  # that isn't a bare identifier through `assertSafeString`, which rejects '"',
   # '\', and control characters. The audit's newline-based injection
   # PoC sits inside that set, so it now throws at render time.
   throwingInputs = {
@@ -80,7 +78,7 @@ let
     tab = "x\ttab";
   };
 
-  # Parser-meta bytes that aren't in `escape`'s blocklist but also
+  # Parser-meta bytes that aren't in `assertSafeString`'s blocklist but also
   # don't match the bare-identifier rule — these fall through to the
   # quoted-string fallback `"…"`, which nft itself rejects in verdict-
   # target position. Pin that the rendered output contains the leading
@@ -113,7 +111,7 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererQuotes_${surface}_${badName}";
         value = {
-          expr = lib.hasInfix ''"${badValue}"'' (toText (surfaces.${surface} badValue));
+          expr = lib.hasInfix "\"${badValue}\"" (toText (surfaces.${surface} badValue));
           expected = true;
         };
       }) quotingInputs
@@ -151,5 +149,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

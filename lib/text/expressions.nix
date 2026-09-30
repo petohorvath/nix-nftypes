@@ -1,3 +1,20 @@
+/*
+  Renderer for the recursive `expression` type. Mirrors the schema layout
+  in lib/schema/expressions.nix:
+    - scalar fallbacks: string, int, bool;
+    - bare list (used inside set/concat/range bodies);
+    - tagged union (taggedExpression) dispatched by single key.
+
+  Two contexts in which expressions appear:
+    - default — top-level, statement RHS, etc.
+    - inside another binop — caller sets ctx.parentPrec; this renderer
+      wraps the result in parens iff our precedence is lower than parent.
+
+  `set` / `map` / `elem` carry context-sensitive surface forms; the cases
+  here cover the in-expression form (anonymous set literal, map lookup,
+  element-with-options). The object renderer in lib/text/objects.nix calls
+  its own variants for the named-object forms.
+*/
 {
   lib,
   context,
@@ -11,27 +28,9 @@
   nftSafeScalar,
 }:
 
-# Renderer for the recursive `expression` type. Mirrors the schema layout
-# in lib/schema/expressions.nix:
-#   - scalar fallbacks: string, int, bool;
-#   - bare list (used inside set/concat/range bodies);
-#   - tagged union (taggedExpression) dispatched by single key.
-#
-# Two contexts in which expressions appear:
-#   - default — top-level, statement RHS, etc.
-#   - inside another binop — caller sets ctx.parentPrec; this renderer
-#     wraps the result in parens iff our precedence is lower than parent.
-#
-# `set` / `map` / `elem` carry context-sensitive surface forms; the cases
-# here cover the in-expression form (anonymous set literal, map lookup,
-# element-with-options). The object renderer in lib/text/objects.nix calls
-# its own variants for the named-object forms.
-
 let
-  inherit (context)
-    withPrec
-    resetPrec
-    ;
+  inherit (context) resetPrec withPrec;
+  inherit (primitives) safeToken;
 
   # C-style precedence of the binary operators. Higher = tighter binding.
   # `nft -f` accepts redundant parens, so adding more is always safe; we
@@ -43,24 +42,6 @@ let
     "<<" = 4;
     ">>" = 4;
   };
-
-  # SECURITY-CRITICAL: tagged-body field strings (payload protocol /
-  # field, exthdr name, ip/tcp/sctp option name / field, ct key, …)
-  # render bare into the surrounding nft text. The schema types these
-  # as `types.str`, so the renderer is the last line of defence — an
-  # unsafe byte either truncates the clause or splits the token,
-  # letting trailing input parse as fresh nft commands. Wraps the
-  # shared `nft-safe-scalar` predicate so call sites read as
-  # `${safeToken body.protocol}` and a refactor that drops the wrap
-  # surfaces immediately.
-  safeToken =
-    s:
-    if nftSafeScalar.isSafe s then
-      s
-    else
-      throw ''
-        nftypes: refusing to render a bare nft token ${builtins.toJSON s} that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '"', '\', '#', and control characters; legitimate field/key names are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON s}.
-      '';
 
   # Render a numeric/string/bool atom.
   renderScalar =
@@ -241,7 +222,7 @@ let
   renderFib =
     _ctx: body:
     let
-      flagsStr =
+      flagsPrefix =
         if (body.flags or null) == null then
           ""
         else if builtins.isList body.flags then
@@ -249,7 +230,7 @@ let
         else
           body.flags + " ";
     in
-    "fib ${flagsStr}${body.result}";
+    "fib ${flagsPrefix}${body.result}";
 
   renderSocket = _ctx: body: "socket ${body.key}";
 
@@ -290,13 +271,13 @@ let
     renderExpression (resetPrec ctx) val
     + lib.optionalString (timeout != null) " timeout ${toString timeout}s"
     + lib.optionalString (expires != null) " expires ${toString expires}s"
-    + lib.optionalString (comment != null) " comment ${primitives.string comment}"
+    + lib.optionalString (comment != null) " comment ${primitives.quoteString comment}"
     + lib.optionalString (stmt != null) (
       " " + lib.concatMapStringsSep " " (statements.renderStatement (resetPrec ctx)) stmt
     );
 
   # Verdict target is a chain name; route through identQuote so the
-  # renderer's `escape` assert catches the parser-meta injection set
+  # renderer's `assertSafeString` assert catches the parser-meta injection set
   # ('"', '\', control chars) and other invalid bytes land in the
   # quoted-form fallback that nft rejects in identifier position.
   renderJump = _ctx: { target }: "jump ${primitives.identQuote target}";
@@ -402,14 +383,13 @@ let
 in
 {
   inherit
-    renderExpression
-    renderSetElement
-    renderElem
-    renderVerdict
-    renderJump
-    renderGoto
     binopPrec
-    safeToken
+    renderElem
+    renderExpression
+    renderGoto
+    renderJump
+    renderSetElement
+    renderVerdict
     ;
   # The tag set this renderer's dispatch table accepts. Read by the
   # schema↔text drift test (tests/default.nix) to assert every tagged

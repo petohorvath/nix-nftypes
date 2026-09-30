@@ -11,9 +11,9 @@ The authorities are the nftables packages in the two locked flake inputs:
 - stable `nixpkgs`;
 - `nixpkgs-unstable`.
 
-For each channel, source checks use `pkgs.nftables.src` plus the derivation's
-complete downstream patch set. Live checks use that same channel's `nft`
-binary. There is no independent Netfilter Git input.
+For each package set, source checks use `pkgs.nftables.src` plus the
+derivation's complete downstream patch set. Live checks use that same package
+set's `nft` binary. There is no independent Netfilter Git input.
 
 The parser (`src/parser_json.c`) defines accepted JSON input. The serializer
 (`src/json.c`) defines read-back shapes. The libnftables JSON manual is useful
@@ -80,7 +80,7 @@ Additional command and selector differences are not statement-corpus shapes:
 - delete-by-handle variants for some object kinds are not represented exactly.
 
 Use direct JSON only when one of these parser forms is required, and validate
-it with the real channel parser.
+it with the real packaged parser.
 
 ### 2. Schema intentionally more permissive
 
@@ -135,15 +135,15 @@ passed through. See [`api.md`](api.md) for an explicit `evalModules` example.
 | Check | What it proves | Important limit |
 | --- | --- | --- |
 | `schema-tests` and focused safety suites | Nix-level accepted/rejected values and renderer regressions | hand-written cases cannot discover unknown upstream syntax |
-| `integration-tests` | selected JSON renderings pass the channel's `nft -c -j -f`, and a raw `create rule` parser-negative case is rejected | selected cases only; check mode is not a real load |
+| `integration-tests` | selected JSON renderings pass the package set's `nft -c -j -f`, and a raw `create rule` parser-negative case is rejected | selected cases only; check mode is not a real load |
 | `nftables-source-provenance-tests` | source analysis uses the selected package source and patches | provenance, not semantic coverage |
 | `nftables-enum-extraction-tests` | extracted parser tokens/tags match schema lists and plausibility floors | extractor covers enumerated patterns, not every conditional branch |
 | `nftables-corpus-tests` | upstream statement corpus has no unclassified schema rejection | 11 categories are explicitly baselined |
 | `nftables-roundtrip-tests` | every command emitted by nine real-loaded selected cases validates as `types.ruleset` | two cases are explicitly excluded; it is sampled serializer coverage |
 | `nftables-tooling-selftests` | injected source/corpus/token defects make the drift checks fail | tests the tooling's chosen fault classes |
 
-All channel-dependent checks are instantiated separately for locked stable and
-unstable package sets on each Linux check system.
+All package-set-dependent checks are instantiated separately for locked stable
+and unstable package sets on each Linux check system.
 
 ## Updating the schema
 

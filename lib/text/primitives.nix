@@ -1,23 +1,27 @@
-{ lib, nftSafeString }:
+/*
+  Primitive atoms used by every higher-level renderer.
 
-# Primitive atoms used by every higher-level renderer.
-#
-#   identQuote     — render an identifier (table/chain/set name etc.); bare
-#                    when it matches the unquoted-identifier rule, else
-#                    double-quoted (asserted-safe). Note nft REJECTS quoted
-#                    strings in most identifier positions, so the fallback
-#                    is mostly a load-bearing parse error.
-#   string         — render a free-form string (comment, log prefix); always
-#                    double-quoted (asserted-safe).
-#   flags          — render a flag value that the schema accepts as either a
-#                    bare string or a list (listOrSingleton). Joined with `,`.
-#   handle         — render a `handle <n>` clause when handle is non-null.
-#   comment        — render a trailing `comment "<text>"` clause when
-#                    comment is non-null.
-#   priority       — render a chain priority value. Schema types prio as
-#                    `nullOr int`; this helper enforces the same on the
-#                    render side. Symbolic priorities go through
-#                    `nftlib.resolvePriority` upstream.
+    identQuote     — render an identifier (table/chain/set name etc.); bare
+                     when it matches the unquoted-identifier rule, else
+                     double-quoted (asserted-safe). Note nft REJECTS quoted
+                     strings in most identifier positions, so the fallback
+                     is mostly a load-bearing parse error.
+    quoteString    — render a free-form string (comment, log prefix); always
+                     double-quoted (asserted-safe).
+    safeToken      — assert that a string is safe to emit as a bare token
+                     and return it unchanged.
+    flags          — render a flag value that the schema accepts as either a
+                     bare string or a list (listOrSingleton). Joined with `,`.
+    priority       — render a chain priority value. Schema types prio as
+                     `nullOr int`; this helper enforces the same on the
+                     render side. Symbolic priorities go through
+                     `nftlib.resolvePriority` upstream.
+*/
+{
+  lib,
+  nftSafeString,
+  nftSafeScalar,
+}:
 
 let
   # Matches the subset of nftables scanner.l string-token rule that's safe
@@ -46,7 +50,7 @@ let
   # at eval time; this assert is the defense-in-depth backstop for any
   # caller that bypasses the schema (tests, third-party DSLs, hand-built
   # attrsets).
-  escape =
+  assertSafeString =
     s:
     if !nftSafeString.isSafe s then
       throw ''
@@ -59,11 +63,25 @@ let
     else
       s;
 
-  quoteString = s: ''"${escape s}"'';
+  quoteString = s: ''"${assertSafeString s}"'';
 
   identQuote = s: if isBareIdent s then s else quoteString s;
 
-  string = quoteString;
+  # SECURITY-CRITICAL: tagged-body field strings (payload protocol /
+  # field, exthdr name, ip/tcp/sctp option name / field, ct key, …)
+  # render bare into the surrounding nft text. The schema types these
+  # as `types.str`, so the renderer is the last line of defence — an
+  # unsafe byte either truncates the clause or splits the token,
+  # letting trailing input parse as fresh nft commands. Wraps the
+  # shared `nft-safe-scalar` predicate so call sites read as
+  # `${safeToken body.protocol}` and a refactor that drops the wrap
+  # surfaces immediately.
+  safeToken =
+    s:
+    if nftSafeScalar.isSafe s then
+      s
+    else
+      throw "nftypes: refusing to render a bare nft token ${builtins.toJSON s} that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate field/key names are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON s}.\n";
 
   # Render a listOrSingleton flag value. Default separator matches
   # `nft list ruleset` output (`, `). Some flag positions use space
@@ -73,10 +91,6 @@ let
       sep ? ", ",
     }:
     v: if builtins.isList v then lib.concatStringsSep sep v else v;
-
-  handle = v: if v == null then "" else " handle ${toString v}";
-
-  comment = v: if v == null then "" else " comment ${quoteString v}";
 
   # Chain priority. The schema types `prio` as `types.nullOr types.int`
   # (chainBody / flowtableBody), so the renderer mirrors that contract
@@ -92,20 +106,16 @@ let
     if builtins.isInt v then
       toString v
     else
-      throw ''
-        nftypes: refusing to render a non-integer chain/flowtable priority ${builtins.toJSON v}. The schema types `prio` as `nullOr int`; symbolic priorities ("filter", "filter + 10", …) flow through `nftlib.resolvePriority` to an int before reaching the renderer. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements.
-      '';
+      throw "nftypes: refusing to render a non-integer chain/flowtable priority ${builtins.toJSON v}. The schema types `prio` as `nullOr int`; symbolic priorities (\"filter\", \"filter + 10\", …) flow through `nftlib.resolvePriority` to an int before reaching the renderer. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements.\n";
 in
 {
   inherit
-    isBareIdent
-    escape
-    quoteString
-    identQuote
-    string
+    assertSafeString
     flags
-    handle
-    comment
+    identQuote
+    isBareIdent
     priority
+    quoteString
+    safeToken
     ;
 }

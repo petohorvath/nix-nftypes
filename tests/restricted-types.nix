@@ -43,13 +43,13 @@ let
             { x = v; }
           ];
         }).config.x;
-      r = builtins.tryEval (builtins.deepSeq cfg cfg);
+      result = builtins.tryEval (builtins.deepSeq cfg cfg);
     in
-    r.success;
+    result.success;
 
   # Representative values for each tested kind. Built once at the top
   # so individual tests stay focused on the assertion, not the data.
-  matchVal = {
+  matchValue = {
     match = {
       left = {
         meta.key = "iif";
@@ -58,27 +58,27 @@ let
       op = "==";
     };
   };
-  acceptVal = {
+  acceptValue = {
     accept = null;
   };
-  jumpVal = {
+  jumpValue = {
     jump = {
       target = "next";
     };
   };
-  counterVal = {
+  counterValue = {
     counter = null;
   };
-  payloadVal = {
+  payloadValue = {
     payload = {
       protocol = "tcp";
       field = "dport";
     };
   };
-  metaVal = {
+  metaValue = {
     meta.key = "iif";
   };
-  ctVal = {
+  ctValue = {
     ct.key = "state";
   };
 
@@ -101,49 +101,49 @@ let
     # kind. Pinned with three negatives so a regression in the body
     # type wouldn't be masked by a stale "accepts" pass.
     testMatchStatementAcceptsMatch = {
-      expr = accepts types.matchStatement [ matchVal ];
+      expr = accepts types.matchStatement [ matchValue ];
       expected = true;
     };
     testMatchStatementRejectsAccept = {
-      expr = accepts types.matchStatement [ acceptVal ];
+      expr = accepts types.matchStatement [ acceptValue ];
       expected = false;
     };
     testMatchStatementRejectsJump = {
-      expr = accepts types.matchStatement [ jumpVal ];
+      expr = accepts types.matchStatement [ jumpValue ];
       expected = false;
     };
     testMatchStatementRejectsCounter = {
-      expr = accepts types.matchStatement [ counterVal ];
+      expr = accepts types.matchStatement [ counterValue ];
       expected = false;
     };
 
     # `statementOf [ "match" ]` must behave identically to the
     # `matchStatement` alias — same value sets pass and fail.
     testStatementOfMatchMatchesAlias = {
-      expr = accepts (types.statementOf [ "match" ]) [ matchVal ];
+      expr = accepts (types.statementOf [ "match" ]) [ matchValue ];
       expected = true;
     };
     testStatementOfMatchRejectsAccept = {
-      expr = accepts (types.statementOf [ "match" ]) [ acceptVal ];
+      expr = accepts (types.statementOf [ "match" ]) [ acceptValue ];
       expected = false;
     };
 
     # Verdict-only subset — the other common downstream restriction.
     # Accepts every verdict, rejects match and counter.
     testStatementOfVerdictAcceptsAccept = {
-      expr = accepts (types.statementOf verdictKinds) [ acceptVal ];
+      expr = accepts (types.statementOf verdictKinds) [ acceptValue ];
       expected = true;
     };
     testStatementOfVerdictAcceptsJump = {
-      expr = accepts (types.statementOf verdictKinds) [ jumpVal ];
+      expr = accepts (types.statementOf verdictKinds) [ jumpValue ];
       expected = true;
     };
     testStatementOfVerdictRejectsMatch = {
-      expr = accepts (types.statementOf verdictKinds) [ matchVal ];
+      expr = accepts (types.statementOf verdictKinds) [ matchValue ];
       expected = false;
     };
     testStatementOfVerdictRejectsCounter = {
-      expr = accepts (types.statementOf verdictKinds) [ counterVal ];
+      expr = accepts (types.statementOf verdictKinds) [ counterValue ];
       expected = false;
     };
 
@@ -157,8 +157,8 @@ let
             "counter"
           ])
           [
-            matchVal
-            counterVal
+            matchValue
+            counterValue
           ];
       expected = true;
     };
@@ -170,8 +170,8 @@ let
             "counter"
           ])
           [
-            matchVal
-            acceptVal
+            matchValue
+            acceptValue
           ];
       expected = false;
     };
@@ -186,8 +186,8 @@ let
             "meta"
           ])
           [
-            payloadVal
-            metaVal
+            payloadValue
+            metaValue
           ];
       expected = true;
     };
@@ -195,7 +195,7 @@ let
       expr = accepts (types.expressionOf [
         "payload"
         "meta"
-      ]) [ ctVal ];
+      ]) [ ctValue ];
       expected = false;
     };
   };
@@ -383,5 +383,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

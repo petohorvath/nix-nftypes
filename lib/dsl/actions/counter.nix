@@ -1,15 +1,23 @@
+/*
+  Counter statement in its three forms (parser_json.c:1914): an inline
+  anonymous counter, a reference to a named counter, and the stateless null
+  form (e.g. `nft -j list --stateless`).
+*/
 { lib }:
-
-# Counter statement. Three forms (parser_json.c:1914):
-#   counter { packets?; bytes?; }    — inline anonymous counter
-#   counter.ref "name"               — reference to a named counter
-#   counter.auto                     — stateless null form (e.g. `nft -j list --stateless`)
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
   variant = import ../internal/variant.nix { inherit lib; };
 in
 {
+  /*
+    Count packets and bytes that reach this statement.
+
+    `counter { packets?; bytes?; }` builds an inline anonymous counter; the
+    optional arguments seed its values. `counter.ref name` references a named
+    counter object. `counter.auto` is the stateless `{ counter = null; }`
+    form. Each returns a counter statement.
+  */
   counter =
     variant
       (

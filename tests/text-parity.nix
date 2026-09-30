@@ -451,7 +451,7 @@ let
           dev = "eth0";
         };
       };
-      expected = ''add chain netdev filter ingress { type filter hook ingress device "eth0" priority -100; }'';
+      expected = "add chain netdev filter ingress { type filter hook ingress device \"eth0\" priority -100; }";
     };
 
     testSetWithFlagsAndElems = {
@@ -532,7 +532,7 @@ let
           ];
         };
       };
-      expected = ''add element ip filter tracker { 1.2.3.4 timeout 60s counter name "tracker-hits" }'';
+      expected = "add element ip filter tracker { 1.2.3.4 timeout 60s counter name \"tracker-hits\" }";
     };
 
     testFlowtable = {
@@ -883,5 +883,5 @@ let
   };
 in
 {
-  inherit tests runTests;
+  inherit runTests tests;
 }

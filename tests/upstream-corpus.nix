@@ -1,10 +1,10 @@
 {
   pkgs,
   nftlib,
-  nftablesSrc,
+  nftablesSource,
 }:
 
-# Corpus check in the channel-source pipeline (docs/upstream-sync.md):
+# Corpus check in the nixpkgs-source pipeline (docs/upstream-sync.md):
 # validate nftables' *own* regression corpus against this library's schema.
 #
 # nftables ships `tests/py/**/*.t.json` — for every rule the project tests,
@@ -27,7 +27,7 @@
 # silently ignored: each is classified into a named pattern in
 # `knownDivergences` (with the reason and the parser evidence). The check
 # fails only on an offending statement that matches NO known pattern — i.e.
-# *new* drift introduced by a future channel package update. Patterns that
+# *new* drift introduced by a future nixpkgs package update. Patterns that
 # stop firing (schema fixed, or corpus changed) are reported as stale so the
 # baseline can be pruned. Fixing a baselined gap (schema + renderer + tests)
 # is tracked separately in docs/upstream-sync.md; this check's job is to
@@ -37,9 +37,15 @@ let
   inherit (pkgs) lib;
 
   # Normalize the corpus to `[ { file, title, expr }, … ]` (IFD).
-  corpusJson = pkgs.runCommandLocal "nft-corpus.json" { nativeBuildInputs = [ pkgs.python3 ]; } ''
-    python3 ${../tooling/normalize-corpus.py} ${nftablesSrc}/tests/py > $out
-  '';
+  corpusJson =
+    pkgs.runCommandLocal "nft-corpus.json"
+      {
+        nativeBuildInputs = [ pkgs.python3 ];
+      }
+      ''
+        python3 ${../tooling/normalize-corpus.py} ${nftablesSource}/tests/py \
+          > $out
+      '';
   corpus = builtins.fromJSON (builtins.readFile corpusJson);
 
   # True iff `s` type-checks as a `statement`. deepSeq forces the lazy
@@ -58,9 +64,11 @@ let
     )).success;
 
   # Every corpus statement the schema rejects, deduped by JSON form.
-  offending = lib.unique (
-    lib.flatten (map (entry: builtins.filter (s: !(validates s)) entry.expr) corpus)
-  );
+  offending = lib.pipe corpus [
+    (map (entry: builtins.filter (s: !(validates s)) entry.expr))
+    lib.flatten
+    lib.unique
+  ];
 
   # Classify an offending statement into a stable pattern name. Coarser than
   # exact JSON so corpus value-churn (a renamed counter, a different port)
@@ -83,11 +91,9 @@ let
     else
       "UNCLASSIFIED";
 
-  /*
-    Baselined divergence patterns: parser accepts, schema rejects, confirmed
-    against the channel `nft -c -j -f`. Value is the reason + fix pointer.
-    Keep in sync with docs/upstream-sync.md's "Known corpus divergences".
-  */
+  # Baselined divergence patterns: parser accepts, schema rejects, confirmed
+  # against the packaged `nft -c -j -f`. Value is the reason + fix pointer.
+  # Keep in sync with docs/upstream-sync.md's "Known corpus divergences".
   knownDivergences = {
     "null-body:reject" =
       "bare `{reject:null}` (default icmp/icmpx reject); schema requires an object body";
@@ -112,21 +118,24 @@ let
   staleCategories = lib.subtractLists categoriesSeen knownCategories;
 
   entryCount = builtins.length corpus;
-  fmtList = items: lib.concatMapStringsSep "\n" (x: "    ${x}") items;
+  formatList = items: lib.concatMapStringsSep "\n" (x: "    ${x}") items;
   staleNote =
     if staleCategories == [ ] then
       ""
     else
       "\nStale baseline patterns (no longer in corpus — prune from knownDivergences):\n"
-      + fmtList staleCategories;
+      + formatList staleCategories;
 
   runTests =
     _pkgs:
     if newDrift == [ ] then
       pkgs.runCommandLocal "nftables-corpus-tests-pass" { } ''
         cat <<'EOF'
-        nftables-corpus: ${toString entryCount} corpus rules validated against `statement`.
-        ${toString (builtins.length offending)} offending statements, all matching ${toString (builtins.length knownCategories)} baselined divergence patterns.
+        nftables-corpus: ${toString entryCount} corpus rules validated
+        against `statement`. ${toString (builtins.length offending)} offending
+        statements, all matching
+        ${toString (builtins.length knownCategories)} baselined divergence
+        patterns.
         ${staleNote}
         EOF
         touch $out
@@ -134,25 +143,25 @@ let
     else
       pkgs.runCommandLocal "nftables-corpus-tests-fail" { } ''
         cat <<'EOF'
-        nftables-corpus: NEW drift — the channel parser's own corpus contains
-        ${toString (builtins.length newDrift)} statement shape(s) the schema rejects and that match
-        no baselined pattern. This is the test-invisible "schema too
-        restrictive" direction (D2). Either extend the schema to accept them
-        (preferred) or, if intentionally unsupported, add a pattern to
-        `knownDivergences` with the reason.
+        nftables-corpus: NEW drift — the packaged parser's own corpus contains
+        ${toString (builtins.length newDrift)} statement shape(s) the schema
+        rejects and that match no baselined pattern. This is the
+        test-invisible "schema too restrictive" direction (D2). Either extend
+        the schema to accept them (preferred) or, if intentionally
+        unsupported, add a pattern to `knownDivergences` with the reason.
 
         New offending statements:
-        ${fmtList (map builtins.toJSON newDrift)}
+        ${formatList (map builtins.toJSON newDrift)}
         EOF
         exit 1
       '';
 in
 {
   inherit
-    runTests
     corpus
-    offending
-    newDrift
     knownDivergences
+    newDrift
+    offending
+    runTests
     ;
 }

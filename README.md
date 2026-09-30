@@ -186,7 +186,7 @@ See:
 - [`docs/text-coverage.md`](docs/text-coverage.md) — text-renderer evidence and
   limitations;
 - [`docs/upstream-sync.md`](docs/upstream-sync.md) — locked checks and the
-  weekly channel-tip canary.
+  weekly branch-tip canary.
 
 ## Verification
 
@@ -222,7 +222,7 @@ For the exact check list:
 nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
 ```
 
-Each channel-dependent check is instantiated against both locked inputs:
+Each package-set-dependent check is instantiated against both locked inputs:
 plain names use stable `nixpkgs`, and `-unstable` names use
 `nixpkgs-unstable`. The matrix includes Nix-level schema/DSL tests, JSON and
 text parser tests in private network namespaces, selected JSON/text semantic
@@ -230,7 +230,7 @@ equivalence cases, safety regressions, source provenance, upstream corpus and
 enum extraction, read-back validation, and tooling self-tests.
 
 A scheduled Monday canary repeats the nine nftables-facing checks against an
-immutable snapshot of each channel's current tip. It is deliberately
+immutable snapshot of each branch's current tip. It is deliberately
 non-gating and does not modify `flake.lock`.
 
 ## Repository layout

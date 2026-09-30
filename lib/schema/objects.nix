@@ -7,26 +7,26 @@
 }:
 
 let
-  inherit (lib) types mkOption;
-  inherit (internal) discriminatedSubmodule tagOpt wrap;
+  inherit (lib) mkOption types;
+  inherit (internal) discriminatedSubmodule taggedUnion wrap;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
+    chainType
     family
     hook
+    ifname
+    ipFamily
+    nftQuotedString
+    nullLiteral
+    perUnit
     policy
-    chainType
-    tableFlag
+    portNumber
     setFlag
     setPolicy
-    tcpUdpProto
-    perUnit
-    ipFamily
     synproxyFlag
+    tableFlag
+    tcpUdpProto
     tunnelType
-    portNumber
-    nullLiteral
-    nftQuotedString
-    ifname
     ;
   expr = expressions.expression;
   stmt = statements.statement;
@@ -115,7 +115,7 @@ let
   };
 
   # Used by every named object (counter/quota/limit/ct helper/ct timeout/ct
-  # expectation/secmark/synproxy/tunnel) — the original `commonObjectOptions`.
+  # expectation/secmark/synproxy/tunnel).
   commonObjectOptions = namedInTableOptions // commentOption;
 
   # Shared by sets and maps (parser_json.c:3307-3436 — both routed to
@@ -163,7 +163,9 @@ let
     stmt = mkOption {
       type = types.nullOr (types.listOf stmt);
       default = null;
-      description = "stateful statements (counter/limit/quota/…) attached to elements";
+      description = ''
+        stateful statements (counter/limit/quota/…) attached to elements
+      '';
     };
   };
 
@@ -331,7 +333,8 @@ let
     };
 
     ctHelperObjectBody = types.submodule {
-      # All fields optional per parser_json.c:3782-3809 (all json_unpack, no _err).
+      # All fields optional per parser_json.c:3782-3809 (all json_unpack,
+      # no _err).
       options = commonObjectOptions // {
         type = mkOption {
           type = types.nullOr types.str;
@@ -365,7 +368,9 @@ let
         rate_unit = mkOption {
           type = types.nullOr types.str;
           default = null;
-          description = "unit of rate (packets/kbytes/mbytes/…); defaults to packets";
+          description = ''
+            unit of rate (packets/kbytes/mbytes/…); defaults to packets
+          '';
         };
         burst = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -385,7 +390,8 @@ let
       };
     };
 
-    # ct timeout object: parser_json.c:3811-3833 — all fields optional on JSON path.
+    # ct timeout object: parser_json.c:3811-3833 — all fields optional on
+    # the JSON path.
     ctTimeoutObjectBody = types.submodule {
       options = commonObjectOptions // {
         protocol = mkOption {
@@ -401,12 +407,15 @@ let
         policy = mkOption {
           type = types.nullOr (types.attrsOf types.ints.unsigned);
           default = null;
-          description = "connection-state → timeout-seconds (e.g. { established = 300; })";
+          description = ''
+            connection-state → timeout-seconds (e.g. { established = 300; })
+          '';
         };
       };
     };
 
-    # ct expectation object: parser_json.c:3835-3860 — all fields optional on JSON path.
+    # ct expectation object: parser_json.c:3835-3860 — all fields optional
+    # on the JSON path.
     ctExpectationObjectBody = types.submodule {
       options = commonObjectOptions // {
         l3proto = mkOption {
@@ -556,7 +565,6 @@ let
       (types.listOf tunnelGeneveOpt)
     ];
 
-    # Tunnel named object.
     tunnelObjectBody = types.submodule {
       options = commonObjectOptions // {
         id = mkOption {
@@ -612,7 +620,9 @@ let
         tunnel = mkOption {
           type = types.nullOr tunnelNestedBody;
           default = null;
-          description = "encapsulation-specific nested parameters (shape depends on `type`)";
+          description = ''
+            encapsulation-specific nested parameters (shape depends on `type`)
+          '';
         };
       };
     };
@@ -678,62 +688,54 @@ let
     tunnel = bodies.tunnelObjectBody;
   };
 
-  addObject = types.attrTag (lib.mapAttrs (_: tagOpt) addObjectBodies);
+  addObject = taggedUnion addObjectBodies;
 
   # `create` accepts every add-object kind except `rule`. nftables rejects
   # `create rule` explicitly; keeping a separate union prevents raw typed
   # commands from accepting a shape that the DSL already omits.
-  createObject = types.attrTag (
-    lib.mapAttrs (_: tagOpt) (builtins.removeAttrs addObjectBodies [ "rule" ])
-  );
+  createObject = taggedUnion (removeAttrs addObjectBodies [ "rule" ]);
 
   # parser_json.c:4174-4192 (json_parse_cmd_list dispatch): every add-object
   # kind plus `metainfo` (read-back-only shape) plus `meter` (singular form;
   # plural list-multiple forms are intentionally not modelled — see
   # docs/spec-coverage.md E11).
-  listObject = types.attrTag (
-    lib.mapAttrs (_: tagOpt) (
-      addObjectBodies
-      // {
-        metainfo = bodies.metainfoBody;
-        meter = bodies.meterObjectBody;
-      }
-    )
+  listObject = taggedUnion (
+    addObjectBodies
+    // {
+      metainfo = bodies.metainfoBody;
+      meter = bodies.meterObjectBody;
+    }
   );
 
   # parser_json.c:4297-4304 (json_parse_cmd_flush dispatch table):
   # table, chain, set, map, meter, ruleset. `flowtable` is intentionally
   # absent — the parser rejects `flush flowtable` ("Unknown object passed
   # to flush command.").
-  flushObject = types.attrTag (
-    lib.mapAttrs (_: tagOpt) {
-      table = bodies.tableBody;
-      chain = bodies.chainBody;
-      set = bodies.setObjectBody;
-      map = bodies.mapObjectBody;
-      meter = bodies.meterObjectBody;
-      ruleset = bodies.rulesetBody;
-    }
-  );
+  flushObject = taggedUnion {
+    table = bodies.tableBody;
+    chain = bodies.chainBody;
+    set = bodies.setObjectBody;
+    map = bodies.mapObjectBody;
+    meter = bodies.meterObjectBody;
+    ruleset = bodies.rulesetBody;
+  };
 
-  resetObject = types.attrTag (
-    lib.mapAttrs (_: tagOpt) {
-      counter = bodies.counterObjectBody;
-      quota = bodies.quotaObjectBody;
-      rule = bodies.ruleBody;
-      set = bodies.setObjectBody;
-      map = bodies.mapObjectBody;
-      element = bodies.elementBody;
-    }
-  );
+  resetObject = taggedUnion {
+    counter = bodies.counterObjectBody;
+    quota = bodies.quotaObjectBody;
+    rule = bodies.ruleBody;
+    set = bodies.setObjectBody;
+    map = bodies.mapObjectBody;
+    element = bodies.elementBody;
+  };
 in
 {
   all = bodies // wrappers;
   inherit
     addObject
     createObject
-    listObject
     flushObject
+    listObject
     resetObject
     ;
 }
