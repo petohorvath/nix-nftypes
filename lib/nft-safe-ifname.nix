@@ -38,7 +38,7 @@ let
   # pass through). Shared scanner for the ifname-list surfaces — set/map
   # element walker, `chain.dev`, `flowtable.dev` — so callers can embed
   # the bad bytes in their error message verbatim.
-  firstUnsafe =
+  findUnsafeOrNull =
     values:
     let
       valueList = if builtins.isList values then values else [ values ];
@@ -58,7 +58,7 @@ let
   # strings carrying the ifname value. For map elements `[k, v]` the
   # KEY is what's typed `ifname` (the set/map's `type` field describes
   # the key datatype).
-  badIfnameElement =
+  findUnsafeIfnameElementOrNull =
     body:
     let
       isIfname = (body.type or null) == "ifname";
@@ -79,12 +79,12 @@ let
         else
           e;
     in
-    if !isIfname then null else firstUnsafe (map valueOf elemList);
+    if !isIfname then null else findUnsafeOrNull (map valueOf elemList);
 in
 {
   inherit
-    badIfnameElement
-    firstUnsafe
+    findUnsafeIfnameElementOrNull
+    findUnsafeOrNull
     isSafe
     regex
     ;

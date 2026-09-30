@@ -20,10 +20,10 @@ let
 
   # A free-form string safe for rendering into nft's quoted-string syntax
   # (`comment "…"`, `log prefix "…"`). The safe-character set lives in
-  # lib/nft-safe-string.nix; the text renderer's defense-in-depth `escape`
-  # asserts the same predicate, so neither path can drift. 128-byte length
-  # cap matches kernel NFTNL_UDATA_COMMENT_MAXLEN; log-prefix has the same
-  # limit.
+  # lib/nft-safe-string.nix; the text renderer's defense-in-depth
+  # `assertSafeString` asserts the same predicate, so neither path can
+  # drift. 128-byte length cap matches kernel NFTNL_UDATA_COMMENT_MAXLEN;
+  # log-prefix has the same limit.
   nftQuotedString = mkOptionType {
     name = "nftQuotedString";
     description = "nft-safe quoted string (no '\"', '\\', or control characters; ≤128 bytes)";

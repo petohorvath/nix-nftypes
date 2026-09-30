@@ -277,7 +277,7 @@ let
     );
 
   # Verdict target is a chain name; route through identQuote so the
-  # renderer's `escape` assert catches the parser-meta injection set
+  # renderer's `assertSafeString` assert catches the parser-meta injection set
   # ('"', '\', control chars) and other invalid bytes land in the
   # quoted-form fallback that nft rejects in identifier position.
   renderJump = _ctx: { target }: "jump ${primitives.identQuote target}";

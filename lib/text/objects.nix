@@ -131,7 +131,7 @@ let
   assertSafeDev =
     devs:
     let
-      bad = nftSafeIfname.firstUnsafe devs;
+      bad = nftSafeIfname.findUnsafeOrNull devs;
     in
     if bad == null then
       true
@@ -241,7 +241,7 @@ let
       # (lib/table.nix); the assert here is the
       # defence-in-depth backstop for callers bypassing the DSL (raw
       # attrsets, third-party DSLs, hand-built ruleset values).
-      ifnameBad = nftSafeIfname.badIfnameElement body;
+      ifnameBad = nftSafeIfname.findUnsafeIfnameElementOrNull body;
       ifnameElementsChecked =
         if ifnameBad == null then
           true

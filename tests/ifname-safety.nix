@@ -13,8 +13,8 @@
 # Common predicate (lib/nft-safe-ifname.nix): rejects `,` `;` `{` `}`
 # `"` `\` `#` and control chars on top of the kernel's `dev_valid_name`
 # rules (no `/` `:` whitespace, not `.` / `..`, ≤15 bytes). Both schema
-# and renderer consult `isSafe` / `firstUnsafe` / `badIfnameElement`
-# so the two layers can't drift.
+# and renderer consult `isSafe` / `findUnsafeOrNull` /
+# `findUnsafeIfnameElementOrNull` so the two layers can't drift.
 #
 # Surfaces fixed:
 #   - set/map elements (the audit-flagged path). DSL emit

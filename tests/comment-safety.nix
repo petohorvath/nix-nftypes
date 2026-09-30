@@ -10,7 +10,7 @@
 #   - Schema: commentOption, elemBody.comment, logBody.prefix are now
 #     `nftQuotedString` — '"' / '\' / control / >128B rejected at
 #     `evalModules` time.
-#   - Renderer: `primitives.escape` / `quoteString` assert on the same
+#   - Renderer: `primitives.assertSafeString` / `quoteString` assert on the same
 #     character set, so any caller bypassing the schema (raw attrsets,
 #     third-party DSLs) fails loudly instead of producing broken text.
 #
@@ -220,14 +220,14 @@ let
       expected = true;
     };
     testEscapeIsIdentityForSafe = {
-      expr = textPrimitives.escape "abc";
+      expr = textPrimitives.assertSafeString "abc";
       expected = "abc";
     };
   };
 
   # Regression PoC: a raw attrset (NOT routed through dsl.ruleset, so no
   # schema validation) whose comment WOULD have rendered to injectable
-  # text pre-fix. Post-fix the renderer's escape-assert catches it.
+  # text pre-fix. Post-fix the renderer's `assertSafeString` catches it.
   #
   # Documents *why* the renderer assert exists: even if a future
   # refactor weakens the schema, the renderer still refuses to emit

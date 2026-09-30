@@ -231,9 +231,9 @@
           # let `nft -f` parse the trailing bytes as a fresh top-level
           # command. Renderer now routes the target through
           # `primitives.identQuote`, which either emits the bare ident
-          # or asserts via `escape` (rejecting '"', '\', control chars)
-          # and quotes the rest — where nft rejects the quoted form in
-          # identifier position.
+          # or asserts via `assertSafeString` (rejecting '"', '\', control
+          # chars) and quotes the rest — where nft rejects the quoted form
+          # in identifier position.
           verdict-target-safety-tests = verdictTargetSafety.runTests pkgs;
           # Regression pin for the expression-scalar injection class: a
           # bare string in expression position (match RHS, NAT addr,

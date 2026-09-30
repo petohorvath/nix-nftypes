@@ -5,7 +5,7 @@
   control characters (incl. NUL/\n) corrupt the rendered output. The
   regex below covers the exact subset that's safe to emit; both the
   schema type (`nftQuotedString`) and the text renderer's defense-in-depth
-  `escape` assert use it so neither path can drift from the other.
+  `assertSafeString` assert use it so neither path can drift from the other.
 */
 _:
 

@@ -50,7 +50,7 @@ let
   # at eval time; this assert is the defense-in-depth backstop for any
   # caller that bypasses the schema (tests, third-party DSLs, hand-built
   # attrsets).
-  escape =
+  assertSafeString =
     s:
     if !nftSafeString.isSafe s then
       throw ''
@@ -63,7 +63,7 @@ let
     else
       s;
 
-  quoteString = s: ''"${escape s}"'';
+  quoteString = s: ''"${assertSafeString s}"'';
 
   identQuote = s: if isBareIdent s then s else quoteString s;
 
@@ -110,7 +110,7 @@ let
 in
 {
   inherit
-    escape
+    assertSafeString
     flags
     identQuote
     isBareIdent

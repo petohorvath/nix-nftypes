@@ -63,7 +63,10 @@ let
       # elements render bare, so unsafe characters can widen a set or break
       # the parser. The text object renderer also checks raw callers.
       unsafeElement =
-        if cfg.tag == "set" || cfg.tag == "map" then nftSafeIfname.badIfnameElement body else null;
+        if cfg.tag == "set" || cfg.tag == "map" then
+          nftSafeIfname.findUnsafeIfnameElementOrNull body
+        else
+          null;
     in
     {
       kind = cfg.tag;
