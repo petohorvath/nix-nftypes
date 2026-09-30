@@ -16,8 +16,7 @@ in
 applyPatches (
   {
     name = "nftables-${nftables.version}-nixpkgs-source";
-    version = nftables.version;
-    inherit (nftables) src;
+    inherit (nftables) src version;
     inherit postPatch prePatch;
     patches = nftables.patches or [ ];
   }

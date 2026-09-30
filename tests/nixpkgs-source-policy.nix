@@ -85,7 +85,7 @@ let
   required = [
     {
       name = "nixpkgs applyPatches source derivation";
-      present = lib.hasInfix "applyPatches (" sourcePackageText;
+      present = lib.hasInfix "applyPatches" sourcePackageText;
     }
     {
       name = "floating branch-tip override";

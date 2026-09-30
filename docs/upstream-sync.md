@@ -196,8 +196,12 @@ nix flake update nixpkgs-unstable
 nix flake check -L
 ```
 
-The `flake-parts` input only assembles the flake outputs and follows `nixpkgs`
-for its library. Update it separately with `nix flake update flake-parts`.
+When a new NixOS release becomes stable, point `inputs.nixpkgs.url` in
+`flake.nix` at its branch before updating.
+
+The `flake-parts` input only assembles the flake outputs; its `nixpkgs-lib`
+input follows `nixpkgs`. Update it separately with
+`nix flake update flake-parts`.
 
 Before merging an input update:
 
