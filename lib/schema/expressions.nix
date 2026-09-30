@@ -12,27 +12,32 @@
 }:
 
 let
-  inherit (lib) types mkOption;
-  inherit (internal) discriminatedSubmodule listOfLen listOfMinLen;
+  inherit (lib) mkOption types;
+  inherit (internal)
+    discriminatedSubmodule
+    listOfLen
+    listOfMinLen
+    taggedUnion
+    ;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
-    metaKey
-    rtKey
-    ipFamily
     ctDirection
-    ngMode
-    fibResult
     fibFlag
-    payloadBase
+    fibResult
+    ipFamily
+    metaKey
+    nftQuotedString
+    ngMode
+    nullLiteral
     osfKey
     osfTtl
+    payloadBase
+    prefixLength
+    rtKey
     socketKey
+    tunnelKey
     xfrmDir
     xfrmKey
-    tunnelKey
-    nullLiteral
-    prefixLength
-    nftQuotedString
     ;
 
   # Fixed-point recursion so bodies and the top-level `expression` type can
@@ -494,9 +499,7 @@ let
     };
 
     # Tagged union of everything represented as `{ <key>: <body> }`.
-    taggedExpression = types.attrTag (
-      lib.mapAttrs (_: type: mkOption { inherit type; }) expressionBodies
-    );
+    taggedExpression = taggedUnion expressionBodies;
 
     expression = types.oneOf [
       types.str
@@ -519,8 +522,10 @@ let
           (nftypes.types.expressionOf [ "payload" "meta" ])
         ]
 
-      Throws at *type construction* time on unknown kinds so typos
-      surface immediately rather than at module evaluation.
+      `kinds` is a non-empty list of tag names from the `expression`
+      union. Returns a `types.attrTag` of those kinds whose description
+      names them. Throws at *type construction* time on unknown kinds so
+      typos surface immediately rather than at module evaluation.
     */
     expressionOf =
       kinds:
@@ -528,9 +533,6 @@ let
         valid = lib.attrNames expressionBodies;
         invalid = lib.subtractLists valid kinds;
         renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
-        base = types.attrTag (
-          lib.mapAttrs (_: type: mkOption { inherit type; }) (lib.getAttrs kinds expressionBodies)
-        );
       in
       if !(builtins.isList kinds) then
         throw "nftypes.types.expressionOf: argument must be a list of strings"
@@ -542,7 +544,7 @@ let
           + "${renderList invalid}. Valid kinds: ${renderList valid}."
         )
       else
-        base
+        taggedUnion (lib.getAttrs kinds expressionBodies)
         // {
           description = "tagged expression (one of: ${renderList kinds})";
         };
@@ -551,9 +553,9 @@ in
 {
   inherit (exprs)
     expression
+    expressionOf
     taggedExpression
     verdictTargetBody
-    expressionOf
     ;
   all = removeAttrs exprs [
     "expression"

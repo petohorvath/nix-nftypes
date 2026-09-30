@@ -1,10 +1,23 @@
+/*
+  Helpers shared across schema modules. Kept private to lib/schema/; none
+  of these are part of the public API.
+*/
 { lib }:
 
-# Helpers shared across schema modules. Kept private to lib/schema/ — none of
-# these are part of the public API.
-
 let
-  inherit (lib) types mkOption;
+  inherit (lib) mkOption types;
+
+  # Leaf option for one `types.attrTag` choice. Tag values are deliberately
+  # required, so the option has no default.
+  tagOption =
+    tag: type:
+    mkOption {
+      inherit type;
+      description = "`${tag}` body";
+    };
+
+  # `types.attrTag` over an attrset of tag → body type.
+  taggedUnion = bodies: types.attrTag (lib.mapAttrs tagOption bodies);
 in
 {
   # Submodule with a key-presence (and optional value) discriminator. Wraps
@@ -26,11 +39,13 @@ in
       extraCheck ? null,
     }:
     let
-      sub = types.submodule { inherit options; };
-      base =
+      submodule = types.submodule { inherit options; };
+      hasExpectedKeys =
         v: builtins.isAttrs v && lib.all (k: v ? ${k}) requireKeys && lib.all (k: !(v ? ${k})) forbidKeys;
     in
-    types.addCheck sub (v: base v && (if extraCheck == null then true else extraCheck v));
+    types.addCheck submodule (
+      v: hasExpectedKeys v && (if extraCheck == null then true else extraCheck v)
+    );
 
   # Like `types.listOf t` but constrained to exactly `n` elements
   # (e.g. range expressions are 2-element lists).
@@ -48,12 +63,10 @@ in
   # at the call site rather than parameterising this helper.
   refOrInline = inlineBody: types.either types.str inlineBody;
 
-  # Trivial mkOption with just a `type` set — used as the leaf option for
-  # `types.attrTag` discriminated unions.
-  tagOpt = type: mkOption { inherit type; };
+  inherit taggedUnion;
 
   # Single-tag attrTag wrapper:
   #   wrap "table" tableBody
-  #   == types.attrTag { table = mkOption { type = …; }; }
-  wrap = key: body: types.attrTag { ${key} = mkOption { type = body; }; };
+  #   == taggedUnion { table = tableBody; }
+  wrap = key: body: taggedUnion { ${key} = body; };
 }

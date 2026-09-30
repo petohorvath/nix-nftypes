@@ -1,7 +1,8 @@
+/*
+  Socket-key leaves.
+    fields.socket.transparent == { socket = { key = "transparent"; }; }
+*/
 { lib }:
-
-# Socket-key leaves.
-#   fields.socket.transparent == { socket = { key = "transparent"; }; }
 
 let
   keys = [

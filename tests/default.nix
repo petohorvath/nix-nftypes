@@ -52,11 +52,10 @@ let
       nftSafeIfname = import ../lib/nft-safe-ifname.nix { };
       nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
       context = import ../lib/text/context.nix { inherit lib; };
-      primitives = import ../lib/text/primitives.nix { inherit lib nftSafeString; };
-      limit = import ../lib/text/limit.nix {
-        inherit lib primitives;
-        inherit (expressions) safeToken;
+      primitives = import ../lib/text/primitives.nix {
+        inherit lib nftSafeScalar nftSafeString;
       };
+      limit = import ../lib/text/limit.nix { inherit lib primitives; };
       # Mutual reference between statements and expressions — resolved
       # lazily by Nix's recursive `let`.
       expressions = import ../lib/text/expressions.nix {

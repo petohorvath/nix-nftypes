@@ -1,7 +1,8 @@
+/*
+  Rate-limiting statements: `limit` and `quota`. Each supports an inline
+  form plus a `.ref "name"` form for references to named objects.
+*/
 { lib }:
-
-# Rate-limiting statements: `limit` and `quota`. Each supports an inline form
-# plus a `.ref "name"` form for references to named objects.
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
@@ -50,10 +51,26 @@ let
     };
 in
 {
+  /*
+    Match packets within a rate.
+
+    `limit { rate; per; rate_unit?; burst?; burst_unit?; inv?; }` builds an
+    inline limit: `rate` per time unit `per`, with an optional unit, burst,
+    and inversion. `limit.ref name` references a named limit object. Each
+    returns a limit statement.
+  */
   limit = variant limitBase {
     ref = name: { limit = name; };
   };
 
+  /*
+    Match until a byte quota is used up.
+
+    `quota { val; val_unit?; used?; used_unit?; inv?; }` builds an inline
+    quota of `val`, optionally seeded with a `used` amount and inverted.
+    `quota.ref name` references a named quota object. Each returns a quota
+    statement.
+  */
   quota = variant quotaBase {
     ref = name: { quota = name; };
   };

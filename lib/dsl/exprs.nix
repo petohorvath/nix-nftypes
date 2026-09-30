@@ -1,23 +1,31 @@
+/*
+  Expression helpers not covered by the pre-built field tree in ./fields/:
+  structural and generator expressions (concat, set, map, prefix, range,
+  numgen, …), header-option expressions (tcpOption, ipOption, …), and escape
+  hatches for key-string expressions (meta, ct, rt, …) when the caller needs
+  refinements that the bare field-tree leaves do not support.
+*/
 { lib }:
-
-# Expression helpers not covered by the pre-built field tree in ./fields/.
-# Structural/generator expressions (concat, set, map, prefix, range, numgen,
-# …), header-option expressions (tcpOption, ipOption, …), and escape hatches
-# for the key-string expressions (meta, ct, rt, …) when the user needs
-# optional refinements not supported by the bare field-tree leaves.
 
 let
   compact = import ./internal/compact.nix { inherit lib; };
 in
-rec {
+{
   # -- Structural -----------------------------------------------------------
 
+  /*
+    Concatenate expressions into one compound key, such as an
+    address-and-port set lookup. `xs` is the list of expressions. Returns a
+    concat expression.
+  */
   concat = xs: { concat = xs; };
 
-  # Anonymous set literal. Body must be a list of expressions; a bare string
-  # would render as `{"set":"<x>"}`, which `nft` interprets as a 1-element
-  # anonymous set whose sole element is the literal string `<x>` — never the
-  # caller's intent. For a named-set reference use `expr.setRef`.
+  /*
+    Build an anonymous set literal. `xs` is the list of elements. A bare
+    string would render as a one-element set containing that literal, never
+    the caller's intent, so it throws and points to `setRef`. Returns a set
+    expression.
+  */
   set =
     xs:
     if builtins.isString xs then
@@ -29,10 +37,11 @@ rec {
     else
       { set = xs; };
 
-  # Named set reference: `{ set = "@<name>"; }`. The leading `@` is the
-  # libnftables-JSON convention for named refs (vs. anonymous-set bodies which
-  # are lists). Callers pass the bare name; we prepend the `@`. An already
-  # `@`-prefixed name is tolerated to keep migration painless.
+  /*
+    Reference a named set. `name` is the set name, with or without the
+    leading `@` that libnftables JSON uses for named references. Returns
+    `{ set = "@<name>"; }` and throws when `name` is not a string.
+  */
   setRef =
     name:
     if !(builtins.isString name) then
@@ -42,14 +51,21 @@ rec {
     else
       { set = "@${name}"; };
 
+  /*
+    Build a map lookup. `key` is the lookup expression and `data` the
+    anonymous map body or named map reference. Returns a map expression.
+  */
   map =
     { key, data }:
     {
       map = { inherit key data; };
     };
 
-  # Named map reference, mirroring `setRef`. Pass the bare name; the helper
-  # prepends the `@`. Tolerates an already-prefixed name.
+  /*
+    Reference a named map, mirroring `setRef`. `name` is the map name, with
+    or without a leading `@`. Returns `{ map = "@<name>"; }` and throws when
+    `name` is not a string.
+  */
   mapRef =
     name:
     if !(builtins.isString name) then
@@ -59,7 +75,16 @@ rec {
     else
       { map = "@${name}"; };
 
+  /*
+    Build an address prefix. `addr` is the network address and `len` the
+    prefix length. Returns a prefix expression.
+  */
   prefix = addr: len: { prefix = { inherit addr len; }; };
+
+  /*
+    Build an inclusive range. `lo` and `hi` are the lower and upper bounds.
+    Returns a range expression.
+  */
   range = lo: hi: {
     range = [
       lo
@@ -67,6 +92,11 @@ rec {
     ];
   };
 
+  /*
+    Build a set element with per-element options. `val` is the element
+    value; `timeout`, `expires`, `comment`, and `stmt` are optional and
+    omitted when null. Returns an elem expression.
+  */
   elem =
     {
       val,
@@ -89,6 +119,11 @@ rec {
 
   # -- Generators -----------------------------------------------------------
 
+  /*
+    Generate a number per packet. `mode` is `"inc"` or `"random"`, `mod`
+    the modulus, and `offset` an optional start value. Returns a numgen
+    expression.
+  */
   numgen =
     {
       mode,
@@ -99,6 +134,11 @@ rec {
       numgen = compact { inherit mode mod offset; };
     };
 
+  /*
+    Hash an expression with jhash. `mod` is the modulus, `expr` the hashed
+    expression, and `offset` and `seed` are optional. Returns a jhash
+    expression.
+  */
   jhash =
     {
       mod,
@@ -117,6 +157,10 @@ rec {
       };
     };
 
+  /*
+    Hash the packet's symmetric flow tuple. `mod` is the modulus and
+    `offset` an optional start value. Returns a symhash expression.
+  */
   symhash =
     {
       mod,
@@ -128,6 +172,11 @@ rec {
 
   # -- Header option / extension escape hatches -----------------------------
 
+  /*
+    Reference a TCP option by name. `name` is the option (for example
+    `"maxseg"`) and `field` an optional option field. Returns a
+    `tcp option` expression.
+  */
   tcpOption =
     {
       name,
@@ -137,6 +186,10 @@ rec {
       "tcp option" = compact { inherit name field; };
     };
 
+  /*
+    Reference raw TCP option bits. `base` is the option kind, and `offset`
+    and `len` locate the bits. Returns a `tcp option` expression.
+  */
   tcpOptionRaw =
     {
       base,
@@ -147,6 +200,10 @@ rec {
       "tcp option" = { inherit base offset len; };
     };
 
+  /*
+    Reference an IPv4 option by name. `name` is the option and `field` an
+    optional option field. Returns an `ip option` expression.
+  */
   ipOption =
     {
       name,
@@ -156,6 +213,10 @@ rec {
       "ip option" = compact { inherit name field; };
     };
 
+  /*
+    Reference an SCTP chunk by name. `name` is the chunk type and `field`
+    an optional chunk field. Returns an `sctp chunk` expression.
+  */
   sctpChunk =
     {
       name,
@@ -165,12 +226,20 @@ rec {
       "sctp chunk" = compact { inherit name field; };
     };
 
-  dccpOption = t: {
+  /*
+    Test for a DCCP option. `type` is the option type number. Returns a
+    `dccp option` expression.
+  */
+  dccpOption = type: {
     "dccp option" = {
-      type = t;
+      inherit type;
     };
   };
 
+  /*
+    Reference an IPv6 extension header. `name` is the header, and `field`
+    and `offset` are optional refinements. Returns an exthdr expression.
+  */
   exthdr =
     {
       name,
@@ -185,8 +254,17 @@ rec {
   # The pre-built field tree covers known keys with bare access; these accept
   # any key string and optional refinements (`family`, `dir`, …).
 
+  /*
+    Reference any meta key. `key` is the meta key string. Returns a meta
+    expression.
+  */
   meta = key: { meta = { inherit key; }; };
 
+  /*
+    Reference a conntrack key with optional refinements. `key` is the
+    conntrack key, `family` the optional address family, and `dir` the
+    optional direction. Returns a ct expression.
+  */
   ct =
     {
       key,
@@ -197,6 +275,10 @@ rec {
       ct = compact { inherit key family dir; };
     };
 
+  /*
+    Reference routing data. `key` is the routing key and `family` the
+    optional address family. Returns an rt expression.
+  */
   rt =
     {
       key,
@@ -206,8 +288,17 @@ rec {
       rt = compact { inherit key family; };
     };
 
+  /*
+    Reference any socket key. `key` is the socket key string. Returns a
+    socket expression.
+  */
   socket = key: { socket = { inherit key; }; };
 
+  /*
+    Look up the forwarding information base. `result` is the requested
+    result (`"oif"`, `"type"`, …) and `flags` the optional lookup flags.
+    Returns a fib expression.
+  */
   fib =
     {
       result,
@@ -217,6 +308,10 @@ rec {
       fib = compact { inherit result flags; };
     };
 
+  /*
+    Reference passive OS fingerprinting data. `key` is `"name"` or
+    `"version"` and `ttl` the optional TTL mode. Returns an osf expression.
+  */
   osf =
     {
       key,
@@ -226,6 +321,10 @@ rec {
       osf = compact { inherit key ttl; };
     };
 
+  /*
+    Reference IPsec (xfrm) state. `key` is the ipsec key; `family`, `dir`,
+    and `spnum` are optional refinements. Returns an ipsec expression.
+  */
   ipsec =
     {
       key,
@@ -246,30 +345,54 @@ rec {
 
   # -- Binary operators -----------------------------------------------------
 
+  /*
+    Combine two expressions with bitwise OR. `a` and `b` are the operands.
+    Returns a `|` expression.
+  */
   bitor = a: b: {
     "|" = [
       a
       b
     ];
   };
+
+  /*
+    Combine two expressions with bitwise XOR. `a` and `b` are the operands.
+    Returns a `^` expression.
+  */
   bitxor = a: b: {
     "^" = [
       a
       b
     ];
   };
+
+  /*
+    Combine two expressions with bitwise AND, typically to mask a value.
+    `a` and `b` are the operands. Returns a `&` expression.
+  */
   bitand = a: b: {
     "&" = [
       a
       b
     ];
   };
+
+  /*
+    Shift an expression left. `a` is the value and `b` the shift count.
+    Returns a `<<` expression.
+  */
   lshift = a: b: {
     "<<" = [
       a
       b
     ];
   };
+
+  /*
+    Shift an expression right. `a` is the value and `b` the shift count.
+    Returns a `>>` expression.
+  */
   rshift = a: b: {
     ">>" = [
       a

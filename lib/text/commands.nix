@@ -1,3 +1,19 @@
+/*
+  Renderer for the top-level command attrTag (lib/schema/commands.nix).
+
+  Each command is `{ <verb>: { <kind>: <body> } }`. The verbs:
+    add / create / delete / destroy — body is an addObject (any kind)
+    list / reset / flush             — body is the relevant restricted union
+    replace / insert                 — body is a single-tag {rule: ...}
+    rename                           — body is a single-tag {chain: ...}
+
+  Most verbs are just `<verb> <object-rendering>`. Two exceptions:
+    - `rename chain` uses a one-line form with both old and new names
+      (no braces), handled by renderRename.
+    - `create` on quota/limit/synproxy uses *positional* values after
+      the name (the text grammar rejects the brace form there), handled
+      by renderCreate + positionalCreate.
+*/
 {
   lib,
   primitives,
@@ -5,31 +21,16 @@
   limit,
 }:
 
-# Renderer for the top-level command attrTag (lib/schema/commands.nix).
-#
-# Each command is `{ <verb>: { <kind>: <body> } }`. The verbs:
-#   add / create / delete / destroy — body is an addObject (any kind)
-#   list / reset / flush             — body is the relevant restricted union
-#   replace / insert                 — body is a single-tag {rule: ...}
-#   rename                           — body is a single-tag {chain: ...}
-#
-# Most verbs are just `<verb> <object-rendering>`. Two exceptions:
-#   - `rename chain` uses a one-line form with both old and new names
-#     (no braces), handled by renderRename.
-#   - `create` on quota/limit/synproxy uses *positional* values after
-#     the name (the text grammar rejects the brace form there), handled
-#     by renderCreate + positionalCreate.
-
 let
   inherit (objects) renderObject renderObjectHeader;
 
   # Unwrap `{ <kind>: <body> }` into a (kind, body) pair, then prefix
-  # with the verb. `renderFn` is either `renderObject` (emits header +
-  # body block) or `renderObjectHeader` (header only — for by-name verbs
-  # like delete/destroy/flush/reset/list, whose text grammar forbids
-  # brace bodies).
-  prefixed =
-    renderFn: verb: ctx: wrapped:
+  # with the verb. `objectRenderer` is either `renderObject` (emits
+  # header + body block) or `renderObjectHeader` (header only — for
+  # by-name verbs like delete/destroy/flush/reset/list, whose text grammar
+  # forbids brace bodies).
+  renderVerbCommand =
+    objectRenderer: verb: ctx: wrapped:
     let
       names = builtins.attrNames wrapped;
     in
@@ -40,7 +41,7 @@ let
         kind = builtins.head names;
         body = wrapped.${kind};
       in
-      "${verb} ${renderFn ctx kind body}";
+      "${verb} ${objectRenderer ctx kind body}";
 
   # rename chain: the text grammar requires both old and new chain names
   # on the same line, no braces. The schema reuses the chain body and
@@ -49,14 +50,14 @@ let
     _ctx:
     { chain }:
     let
-      pre = "rename chain ${chain.family} ${primitives.identQuote chain.table} ${primitives.identQuote chain.name}";
+      prefix = "rename chain ${chain.family} ${primitives.identQuote chain.table} ${primitives.identQuote chain.name}";
       newname =
         if chain.newname == null then
           throw "text.commands: rename.chain requires `newname`"
         else
           chain.newname;
     in
-    "${pre} ${primitives.identQuote newname}";
+    "${prefix} ${primitives.identQuote newname}";
 
   # `create` for quota/limit/synproxy: positional body, no braces.
   # `<verb> <kind> <fam> <table> <name> <positional-args>`.
@@ -107,15 +108,15 @@ let
         "create ${renderObject ctx kind body}";
 
   verbRenderers = {
-    add = prefixed renderObject "add";
-    replace = prefixed renderObject "replace";
-    insert = prefixed renderObject "insert";
+    add = renderVerbCommand renderObject "add";
+    replace = renderVerbCommand renderObject "replace";
+    insert = renderVerbCommand renderObject "insert";
     create = renderCreate;
-    delete = prefixed renderObjectHeader "delete";
-    destroy = prefixed renderObjectHeader "destroy";
-    list = prefixed renderObjectHeader "list";
-    reset = prefixed renderObjectHeader "reset";
-    flush = prefixed renderObjectHeader "flush";
+    delete = renderVerbCommand renderObjectHeader "delete";
+    destroy = renderVerbCommand renderObjectHeader "destroy";
+    list = renderVerbCommand renderObjectHeader "list";
+    reset = renderVerbCommand renderObjectHeader "reset";
+    flush = renderVerbCommand renderObjectHeader "flush";
     rename = renderRename;
   };
 

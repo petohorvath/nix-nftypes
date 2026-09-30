@@ -1,10 +1,11 @@
+/*
+  Aggregator of pre-built expression field trees. Imports each protocol/group
+  file and merges them under one namespace. Users write e.g.:
+    inherit (nftlib.dsl.fields) ct fib ip meta tcp;
+    eq tcp.dport 22
+    eq ip.saddr "10.0.0.1"
+*/
 { lib }:
-
-# Aggregator of pre-built expression field trees. Imports each protocol/group
-# file and merges them under one namespace. Users write e.g.:
-#   inherit (nftlib.dsl.fields) tcp ip ct meta fib;
-#   eq tcp.dport 22
-#   eq ip.saddr "10.0.0.1"
 
 let
   payloadFields = import ./payload.nix { inherit lib; };
@@ -20,13 +21,13 @@ in
 payloadFields
 // {
   inherit
-    meta
     ct
+    fib
+    ipsec
+    meta
+    osf
     rt
     socket
-    fib
-    osf
-    ipsec
     tunnelMeta
     ;
 }

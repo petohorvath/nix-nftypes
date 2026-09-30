@@ -1,29 +1,30 @@
-{ lib }:
+/*
+  Pre-built payload fields. Each leaf is a plain expression attrset:
+    fields.tcp.dport == { payload = { protocol = "tcp"; field = "dport"; }; }
 
-# Pre-built payload fields. Each leaf is a plain expression attrset:
-#   fields.tcp.dport == { payload = { protocol = "tcp"; field = "dport"; }; }
-#
-# Attribute names use camelCase; the emitted JSON `field` string uses the
-# hyphenated form that libnftables expects (e.g. `fragOff` → `"frag-off"`).
-# For protocols or fields not covered here, fall back to
-# `dsl.payload { protocol; field; }` in lib/dsl/payload.nix.
+  Attribute names use camelCase; the emitted JSON `field` string uses the
+  hyphenated form that libnftables expects (e.g. `fragOff` → `"frag-off"`).
+  For protocols or fields not covered here, fall back to
+  `dsl.payload { protocol; field; }` in lib/dsl/payload.nix.
+*/
+{ lib }:
 
 let
   mkLeaf = protocol: field: { payload = { inherit protocol field; }; };
 
-  # Build `name → mkLeaf proto name` for fields whose attribute and JSON
-  # names coincide.
-  proto = name: fields: lib.genAttrs fields (mkLeaf name);
+  # Build `field → mkLeaf protocol field` for fields whose attribute and
+  # JSON names coincide.
+  mkProtocol = protocol: fields: lib.genAttrs fields (mkLeaf protocol);
 
-  # As above but with explicit camelCase → JSON mappings for fields whose
-  # JSON name contains hyphens.
-  protoMapped =
-    name: direct: mapped:
-    (proto name direct) // lib.mapAttrs (_: json: mkLeaf name json) mapped;
+  # As above, plus explicit camelCase → JSON renames for fields whose JSON
+  # name contains hyphens.
+  mkProtocolWithRenames =
+    protocol: fields: renames:
+    (mkProtocol protocol fields) // lib.mapAttrs (_: mkLeaf protocol) renames;
 in
 {
   # -- Layer 4 ---------------------------------------------------------------
-  tcp = proto "tcp" [
+  tcp = mkProtocol "tcp" [
     "sport"
     "dport"
     "sequence"
@@ -36,34 +37,34 @@ in
     "urgptr"
   ];
 
-  udp = proto "udp" [
+  udp = mkProtocol "udp" [
     "sport"
     "dport"
     "length"
     "checksum"
   ];
 
-  udplite = proto "udplite" [
+  udplite = mkProtocol "udplite" [
     "sport"
     "dport"
     "cksumcov"
     "checksum"
   ];
 
-  sctp = proto "sctp" [
+  sctp = mkProtocol "sctp" [
     "sport"
     "dport"
     "vtag"
     "checksum"
   ];
 
-  dccp = proto "dccp" [
+  dccp = mkProtocol "dccp" [
     "sport"
     "dport"
     "type"
   ];
 
-  ah = proto "ah" [
+  ah = mkProtocol "ah" [
     "nexthdr"
     "hdrlength"
     "reserved"
@@ -71,18 +72,18 @@ in
     "sequence"
   ];
 
-  esp = proto "esp" [
+  esp = mkProtocol "esp" [
     "spi"
     "sequence"
   ];
 
-  comp = proto "comp" [
+  comp = mkProtocol "comp" [
     "nexthdr"
     "flags"
     "cpi"
   ];
 
-  gre = proto "gre" [
+  gre = mkProtocol "gre" [
     "flags"
     "version"
     "protocol"
@@ -90,7 +91,7 @@ in
 
   # -- Layer 3 ---------------------------------------------------------------
   ip =
-    protoMapped "ip"
+    mkProtocolWithRenames "ip"
       [
         "version"
         "hdrlength"
@@ -108,7 +109,7 @@ in
         fragOff = "frag-off";
       };
 
-  ip6 = proto "ip6" [
+  ip6 = mkProtocol "ip6" [
     "version"
     "dscp"
     "ecn"
@@ -120,7 +121,7 @@ in
     "daddr"
   ];
 
-  icmp = proto "icmp" [
+  icmp = mkProtocol "icmp" [
     "type"
     "code"
     "checksum"
@@ -131,7 +132,7 @@ in
   ];
 
   icmpv6 =
-    protoMapped "icmpv6"
+    mkProtocolWithRenames "icmpv6"
       [
         "type"
         "code"
@@ -147,20 +148,20 @@ in
       };
 
   # -- Layer 2 ---------------------------------------------------------------
-  ether = proto "ether" [
+  ether = mkProtocol "ether" [
     "saddr"
     "daddr"
     "type"
   ];
 
-  vlan = proto "vlan" [
+  vlan = mkProtocol "vlan" [
     "id"
     "pcp"
     "dei"
     "type"
   ];
 
-  arp = proto "arp" [
+  arp = mkProtocol "arp" [
     "htype"
     "ptype"
     "hlen"

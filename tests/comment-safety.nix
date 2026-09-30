@@ -28,6 +28,7 @@ let
   textPrimitives = import ../lib/text/primitives.nix {
     inherit lib;
     nftSafeString = import ../lib/nft-safe-string.nix { };
+    nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
   };
 
   # The audit's malicious comment payload — verified end-to-end to inject

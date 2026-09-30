@@ -1,17 +1,18 @@
-_:
+/*
+  Shared predicate for nft `ifname`-typed set/map elements. The set body
+  declares `type ifname;` and elements render bare into the
+  `elements = { … }` clause — so an element string containing `,` lexes
+  as TWO elements, silently widening the set to interfaces the user
+  never declared. The kernel's `dev_valid_name` already rejects `/` `:`
+  whitespace and `.` / `..` and >15-byte names; this predicate is the
+  strict-superset that the renderer also requires (no `,` `;` `{` `}`
+  `"` `\` `#` or control characters).
 
-# Shared predicate for nft `ifname`-typed set/map elements. The set body
-# declares `type ifname;` and elements render bare into the
-# `elements = { … }` clause — so an element string containing `,` lexes
-# as TWO elements, silently widening the set to interfaces the user
-# never declared. The kernel's `dev_valid_name` already rejects `/` `:`
-# whitespace and `.` / `..` and >15-byte names; this predicate is the
-# strict-superset that the renderer also requires (no `,` `;` `{` `}`
-# `"` `\` `#` or control characters).
-#
-# Both the schema type (`primitives.types.ifname`) and the renderer's
-# defence-in-depth assert (lib/text/objects.nix) consult this predicate,
-# so the two layers cannot drift.
+  Both the schema type (`primitives.types.ifname`) and the renderer's
+  defence-in-depth assert (lib/text/objects.nix) consult this predicate,
+  so the two layers cannot drift.
+*/
+_:
 
 let
   # Bytes excluded from an unquoted ifname element. `[:space:]` covers
@@ -32,18 +33,18 @@ let
     && s != ".."
     && builtins.match regex s != null;
 
-  # Return the first value in `vs` that is a plain string failing
+  # Return the first value in `values` that is a plain string failing
   # `isSafe`, or `null` if every plain string is safe (non-string values
   # pass through). Shared scanner for the ifname-list surfaces — set/map
   # element walker, `chain.dev`, `flowtable.dev` — so callers can embed
   # the bad bytes in their error message verbatim.
   firstUnsafe =
-    vs:
+    values:
     let
-      vList = if builtins.isList vs then vs else [ vs ];
-      bads = builtins.filter (v: builtins.isString v && !(isSafe v)) vList;
+      valueList = if builtins.isList values then values else [ values ];
+      unsafeValues = builtins.filter (v: builtins.isString v && !(isSafe v)) valueList;
     in
-    if bads == [ ] then null else builtins.head bads;
+    if unsafeValues == [ ] then null else builtins.head unsafeValues;
 
   # Walk a set/map body and return the first plain-string element that
   # fails `isSafe`, or `null` if every plain-string element is safe (or
@@ -82,9 +83,9 @@ let
 in
 {
   inherit
-    regex
-    isSafe
-    firstUnsafe
     badIfnameElement
+    firstUnsafe
+    isSafe
+    regex
     ;
 }

@@ -260,7 +260,7 @@
           # bodies expose `types.str` fields (protocol, field, name,
           # key) that the renderer used to interpolate bare into the
           # surrounding clause. A new `safeToken` helper in
-          # lib/text/expressions.nix routes each through the shared
+          # lib/text/primitives.nix routes each through the shared
           # `nft-safe-scalar` predicate so an unsafe byte truncating
           # the clause no longer reaches `nft -f`.
           expr-token-safety-tests = exprTokenSafety.runTests pkgs;

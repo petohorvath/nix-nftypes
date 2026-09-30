@@ -1,14 +1,13 @@
-{
-  lib,
-  primitives,
-  safeToken,
-}:
-
-# Limit text grammar for inline statements, named-object body lines, and
-# positional `create limit` commands. Callers own scope and brace layout;
-# this module owns the rate clause and its spelling in each form.
+/*
+  Limit text grammar for inline statements, named-object body lines, and
+  positional `create limit` commands. Callers own scope and brace layout;
+  this module owns the rate clause and its spelling in each form.
+*/
+{ lib, primitives }:
 
 let
+  inherit (primitives) safeToken;
+
   renderRate =
     body:
     let
@@ -34,14 +33,14 @@ in
   renderStatement =
     body:
     if builtins.isString body then
-      "limit name ${primitives.string body}"
+      "limit name ${primitives.quoteString body}"
     else
       "limit ${renderRate body}";
 
   renderObjectBody =
     body:
     [ (renderRate body) ]
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.string body.comment}";
+    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
 
   renderCreate = renderRate;
 }

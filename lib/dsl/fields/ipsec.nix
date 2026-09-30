@@ -1,9 +1,10 @@
-{ lib }:
+/*
+  IPsec (xfrm) leaves. For `family` / `dir` / `spnum`, use the escape hatch
+  `dsl.expr.ipsec { key = …; family = "ip"; dir = "in"; }`.
 
-# IPsec (xfrm) leaves. For `family` / `dir` / `spnum`, use the escape hatch
-# `dsl.expr.ipsec { key = …; family = "ip"; dir = "in"; }`.
-#
-#   fields.ipsec.reqid == { ipsec = { key = "reqid"; }; }
+    fields.ipsec.reqid == { ipsec = { key = "reqid"; }; }
+*/
+{ lib }:
 
 let
   keys = [

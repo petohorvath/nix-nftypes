@@ -51,7 +51,7 @@ let
   nftSafeString = import ./nft-safe-string.nix { };
   nftSafeIfname = import ./nft-safe-ifname.nix { };
   nftSafeScalar = import ./nft-safe-scalar.nix { };
-  primitives = import ./schema/primitives.nix { inherit lib nftSafeString nftSafeIfname; };
+  primitives = import ./schema/primitives.nix { inherit lib nftSafeIfname nftSafeString; };
   # Mutual reference between `expressions` and `statements`: statements
   # consume `expr`, and elements (defined in expressions) accept a `stmt`
   # list. Nix's recursive `let` resolves this lazily — both modules are
@@ -59,43 +59,43 @@ let
   # during value validation (by which point both attrsets exist).
   expressions = import ./schema/expressions.nix {
     inherit
-      lib
       internal
+      lib
       primitives
       statements
       ;
   };
   statements = import ./schema/statements.nix {
     inherit
-      lib
-      internal
-      primitives
       expressions
+      internal
+      lib
+      primitives
       ;
   };
   objects = import ./schema/objects.nix {
     inherit
-      lib
-      internal
-      primitives
       expressions
+      internal
+      lib
+      primitives
       statements
       ;
   };
-  commands = import ./schema/commands.nix { inherit lib internal objects; };
+  commands = import ./schema/commands.nix { inherit internal lib objects; };
   clean = import ./clean.nix { inherit lib; };
-  json = import ./json { inherit lib clean; };
+  json = import ./json { inherit clean lib; };
   text = import ./text {
     inherit
-      lib
       clean
-      nftSafeString
+      lib
       nftSafeIfname
       nftSafeScalar
+      nftSafeString
       ;
   };
   tables = import ./table.nix {
-    inherit lib clean text;
+    inherit clean lib text;
     objects = objects.all;
   };
   dsl = import ./dsl {
@@ -136,7 +136,7 @@ in
       hand-rolled walker checks downstream. `matchStatement` is the
       pre-applied common case (`statementOf [ "match" ]`).
     */
-    inherit (statements) statement statementOf matchStatement;
+    inherit (statements) matchStatement statement statementOf;
     statements = statements.all;
 
     # Object bodies, single-tag wrappers, combined unions.
@@ -144,8 +144,8 @@ in
     inherit (objects)
       addObject
       createObject
-      listObject
       flushObject
+      listObject
       resetObject
       ;
 
@@ -169,21 +169,21 @@ in
   */
   compatibility = {
     inherit (compatibility)
-      hooksByFamily
       familiesByChainType
       hooksByChainType
-      priorityIntsDefault
+      hooksByFamily
+      hooksWithOifname
       priorityIntsBridge
       priorityIntsByFamily
-      hooksWithOifname
+      priorityIntsDefault
       ;
   };
 
   inherit (compatibility)
+    chainTypeFor
+    priorityNameOf
     resolvePriority
     validChainPlacement
-    priorityNameOf
-    chainTypeFor
     ;
 
   # Serialize after cleaning. These functions do not run arbitrary raw input

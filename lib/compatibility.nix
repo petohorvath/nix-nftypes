@@ -229,12 +229,12 @@ let
     else
       let
         table = priorityIntsByFamily family;
-        symNames = builtins.attrNames table;
+        symbols = builtins.attrNames table;
       in
       table.${prio} or (throw (
         "resolvePriority: unknown priority symbol '${toString prio}' "
         + "for family '${family}'. Valid symbols: "
-        + builtins.concatStringsSep ", " symNames
+        + builtins.concatStringsSep ", " symbols
         + "."
       ));
 
@@ -327,29 +327,31 @@ let
     family: hook: prio:
     let
       table = priorityIntsByFamily family;
-      p = if builtins.isInt prio then prio else table.${prio} or null;
+      priorityInt = if builtins.isInt prio then prio else table.${prio} or null;
     in
-    if p == null then
+    if priorityInt == null then
       null
-    else if p == (table.srcnat or null) || p == (table.dstnat or null) then
+    else if priorityInt == (table.srcnat or null) || priorityInt == (table.dstnat or null) then
       "nat"
-    else if (table ? mangle) && p == table.mangle && builtins.elem hook hooksByChainType.route then
+    else if
+      (table ? mangle) && priorityInt == table.mangle && builtins.elem hook hooksByChainType.route
+    then
       "route"
     else
       "filter";
 in
 {
   inherit
-    hooksByFamily
+    chainTypeFor
     familiesByChainType
     hooksByChainType
-    priorityIntsDefault
+    hooksByFamily
+    hooksWithOifname
     priorityIntsBridge
     priorityIntsByFamily
-    hooksWithOifname
+    priorityIntsDefault
+    priorityNameOf
     resolvePriority
     validChainPlacement
-    priorityNameOf
-    chainTypeFor
     ;
 }

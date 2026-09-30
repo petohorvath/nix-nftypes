@@ -1,19 +1,20 @@
-_:
+/*
+  Shared predicate for the bare-string atoms that the text renderer
+  emits unquoted at expression scalar position — IP addresses
+  (`192.0.2.1`, `2001:db8::1`), set/map references (`@trusted`),
+  ICMP type names (`host-unreachable`), enum-like names (`established`).
+  `renderScalar` outputs the string byte-for-byte, so any whitespace
+  or nft-grammar metacharacter would either split the token or break
+  the parser context — at rule scope a newline + `add chain …` payload
+  silently appends an attacker-controlled chain.
 
-# Shared predicate for the bare-string atoms that the text renderer
-# emits unquoted at expression scalar position — IP addresses
-# (`192.0.2.1`, `2001:db8::1`), set/map references (`@trusted`),
-# ICMP type names (`host-unreachable`), enum-like names (`established`).
-# `renderScalar` outputs the string byte-for-byte, so any whitespace
-# or nft-grammar metacharacter would either split the token or break
-# the parser context — at rule scope a newline + `add chain …` payload
-# silently appends an attacker-controlled chain.
-#
-# The regex below covers the exact subset that's safe at this
-# position; both the schema's expression-string branch (via
-# `nftSafeScalar`) and the renderer's defence-in-depth assert in
-# `lib/text/expressions.nix renderScalar` use it so neither path can
-# drift from the other.
+  The regex below covers the exact subset that's safe at this
+  position; both the schema's expression-string branch (via
+  `nftSafeScalar`) and the renderer's defence-in-depth assert in
+  `lib/text/expressions.nix renderScalar` use it so neither path can
+  drift from the other.
+*/
+_:
 
 let
   # Forbidden byte set:
@@ -29,5 +30,5 @@ let
   isSafe = s: builtins.match regex s != null;
 in
 {
-  inherit regex isSafe;
+  inherit isSafe regex;
 }
