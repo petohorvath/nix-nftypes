@@ -3,7 +3,7 @@
 # Schema-level parity tests for the text renderer (lib/text/).
 #
 # Each case renders a hand-built attrset through `toText` (compact form)
-# and asserts the exact resulting string. Mirrors tests/default.nix's
+# and asserts the exact resulting string. Mirrors tests/schema.nix's
 # round-trip pattern for the JSON renderer: fast, deterministic, no
 # shell-out. The live-parser checks live in tests/text-integration.nix.
 

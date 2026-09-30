@@ -14,7 +14,7 @@
 #   runTests = mkRunTests { name = "comment-safety-tests"; tests = …; };
 #
 # The result takes `pkgs` and returns the derivation, matching the
-# historical `runTests = pkgs: …` shape consumed by `flake.nix`.
+# historical `runTests = pkgs: …` shape consumed by `tests/package-set.nix`.
 
 {
   mkRunTests =
