@@ -22,8 +22,8 @@ administrator-prepared directory owned by the current user. Existing Nix
 installations are reused. A daemonless root container uses process-local
 single-user build settings; no host security policy is changed.
 
-Once the probe succeeds, run the relevant checks from `flake.nix` through the
-same wrapper. For example, on x86_64 Linux:
+Once the probe succeeds, run the relevant flake checks through the same
+wrapper. For example, on x86_64 Linux:
 
 ```sh
 bash tooling/review-env.sh nix build --no-link -L \

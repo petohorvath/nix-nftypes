@@ -190,9 +190,9 @@ See:
 
 ## Verification
 
-Checks and source packages are exposed on `x86_64-linux` and `aarch64-linux`.
-The library is platform-independent, and the formatter is also exposed on both
-Darwin systems. GitHub CI builds every `x86_64-linux` check.
+Checks, source packages, development shells, and the formatter are exposed on
+`x86_64-linux` and `aarch64-linux`; the library is platform-independent. GitHub
+CI builds every `x86_64-linux` check.
 
 Run each check system on a matching native builder. Source-derived checks use
 import-from-derivation, so `nix flake check --all-systems` from one architecture
@@ -203,9 +203,11 @@ nix fmt -- --ci
 nix flake check
 ```
 
-For ad-hoc parser checks, `nix develop .#review` supplies `nft` and `unshare`
-from the locked stable input. To check that the host supports private
-user/network namespaces before running a command:
+The default development shell, loaded by `nix develop` or by direnv through
+`.envrc`, supplies the Nix, lint, workflow, and parser tools. For ad-hoc parser
+checks in a review sandbox, the smaller `nix develop .#review` supplies `nft`
+and `unshare` from the locked stable input. To check that the host supports
+private user/network namespaces before running a command:
 
 ```console
 bash tooling/review-env.sh nix flake check -L

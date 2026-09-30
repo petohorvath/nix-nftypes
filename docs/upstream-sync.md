@@ -19,7 +19,7 @@ separate nftables or libnftnl flake inputs.
 
 ## Locked-input matrix
 
-`flake.nix` creates every package-set-dependent check twice:
+`tests/default.nix` creates every package-set-dependent check twice:
 
 - plain name: stable package set;
 - `-unstable` suffix: unstable package set.
@@ -195,6 +195,9 @@ nix flake check -L
 nix flake update nixpkgs-unstable
 nix flake check -L
 ```
+
+The `flake-parts` input only assembles the flake outputs and follows `nixpkgs`
+for its library. Update it separately with `nix flake update flake-parts`.
 
 Before merging an input update:
 
