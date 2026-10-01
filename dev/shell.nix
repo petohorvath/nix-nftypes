@@ -1,0 +1,31 @@
+{
+  actionlint,
+  deadnix,
+  formatter,
+  git,
+  jq,
+  mkShellNoCC,
+  nftables,
+  nil,
+  nix,
+  nixfmt,
+  python3,
+  statix,
+  util-linux,
+}:
+mkShellNoCC {
+  packages = [
+    nix
+    git
+    nil
+    nixfmt
+    statix
+    deadnix
+    jq
+    actionlint
+    python3
+    nftables
+    util-linux
+    formatter
+  ];
+}

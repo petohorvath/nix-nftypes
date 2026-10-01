@@ -516,7 +516,7 @@ rec {
   # instance and can exercise its real parser without root.
   #
   # Parameterized over the `nft` package so the same case set is instantiated
-  # against the stable and unstable nixpkgs package sets by flake.nix.
+  # against the stable and unstable nixpkgs package sets by tests/default.nix.
   mkIntegrationTests =
     { name, nft }:
     pkgs: cases:

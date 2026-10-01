@@ -1,6 +1,7 @@
 {
   pkgs,
   flakeFile ? ../flake.nix,
+  sourcePackageFile ? ../packages/nftables-source/package.nix,
   workflowFile ? ../.github/workflows/upstream-sync.yml,
   ciWorkflowFile ? ../.github/workflows/ci.yml,
   docsFile ? ../docs/upstream-sync.md,
@@ -12,6 +13,7 @@
 let
   inherit (pkgs) lib;
   flakeText = builtins.readFile flakeFile;
+  sourcePackageText = builtins.readFile sourcePackageFile;
   workflowText = builtins.readFile workflowFile;
   ciWorkflowText = builtins.readFile ciWorkflowFile;
   docsText = builtins.readFile docsFile;
@@ -83,7 +85,7 @@ let
   required = [
     {
       name = "nixpkgs applyPatches source derivation";
-      present = lib.hasInfix "pkgs.applyPatches" flakeText;
+      present = lib.hasInfix "applyPatches" sourcePackageText;
     }
     {
       name = "floating branch-tip override";
