@@ -124,7 +124,7 @@ in
     # Tagged-only subset of `expression` (no scalar / bare-list branches).
     # Exposed primarily so callers and tests can introspect the full set
     # of tagged expression kinds via `.functor.payload.tags` — used by
-    # the schema↔text drift check in tests/schema.nix.
+    # the schema↔text drift check in tests/suites/schema.nix.
     inherit (expressions) taggedExpression;
     expressions = expressions.all;
 

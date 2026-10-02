@@ -49,7 +49,7 @@ in
         nativeBuildInputs = [ pkgs.python3 ];
       }
       ''
-        python3 ${../tooling/check-upstream-enums.py} \
+        python3 ${../../tooling/check-upstream-enums.py} \
           ${nftablesSource} ${schemaJson}
         touch $out
       '';

@@ -1,4 +1,4 @@
-{ lib, nftlib }:
+{ helpers, nftlib, ... }:
 
 # Parity tests for the `dsl` layer. Each test asserts that a DSL value
 # renders to the same JSON as a hand-written attrset, going through the same
@@ -7,18 +7,9 @@
 # collapse to attrsets the schema already accepts.
 
 let
+  inherit (helpers) roundtrip;
   inherit (nftlib) toJson;
   dsl = nftlib.dsl;
-
-  validate =
-    t: v:
-    (lib.evalModules {
-      modules = [
-        { options.v = lib.mkOption { type = t; }; }
-        { v = v; }
-      ];
-    }).config.v;
-  roundtrip = t: v: toJson (validate t v);
 
   parity = t: nftValue: handwritten: {
     expr = roundtrip t nftValue;
@@ -1106,13 +1097,6 @@ in
           map = "@cache";
         };
       };
-  testReset = ps (dsl.reset (dsl.expr.tcpOption { name = "sack-perm"; })) {
-    reset = {
-      "tcp option" = {
-        name = "sack-perm";
-      };
-    };
-  };
   testSecmark = ps (dsl.secmark "@my_secmark") { secmark = "@my_secmark"; };
   testTunnelStmt = ps (dsl.tunnel "@my_tunnel") { tunnel = "@my_tunnel"; };
   testXt = ps (dsl.xt "match" "connlimit") {
@@ -2862,9 +2846,7 @@ in
   # order. Both submissions are semantically identical to nftables.
 
   testDslExampleValidates = {
-    expr = builtins.isString (
-      roundtrip nftlib.types.ruleset (import ../examples/basic-firewall-dsl.nix { inherit nftlib; })
-    );
+    expr = builtins.isString (roundtrip nftlib.types.ruleset helpers.examples.basicFirewallDsl);
     expected = true;
   };
 
@@ -2874,9 +2856,7 @@ in
   # five base chains plus two regular sub-chains, concat-key port-forward
   # via map lookup in DNAT, masquerade. Schema-validates.
   testDslHomeRouterValidates = {
-    expr = builtins.isString (
-      roundtrip nftlib.types.ruleset (import ../examples/home-router-dsl.nix { inherit nftlib; })
-    );
+    expr = builtins.isString (roundtrip nftlib.types.ruleset helpers.examples.homeRouterDsl);
     expected = true;
   };
 

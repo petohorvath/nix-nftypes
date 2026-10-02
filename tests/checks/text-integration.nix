@@ -2,7 +2,7 @@
 
 # Live-parser integration test for the text renderer.
 #
-# Reuses the cases from tests/dsl-integration.nix; for each one renders
+# Reuses the cases from dsl-integration.nix; for each one renders
 # via toTextPretty (the multi-line form) and pipes to
 # `unshare -rn nft -c -f -` (no `-j` — exercises the text grammar).
 #

@@ -1,7 +1,7 @@
 {
-  pkgs,
-  nftlib,
+  helpers,
   nftablesSource,
+  pkgs,
 }:
 
 # Red-path self-tests for the nixpkgs-source tooling (docs/upstream-sync.md).
@@ -18,31 +18,14 @@
 #     vacuous "no drift";
 #   - a table the regex can no longer read → plausibility-floor failure;
 #   - an unbaselined corpus statement      → upstream-corpus's `newDrift`
-#     is non-empty;
-#   - junk in read-back position           → the `ruleset` validator
-#     rejects unknown top tags, unknown fields, and unknown statements
-#     while still accepting bare listed objects with handles.
+#     is non-empty.
+#
+# The read-back validator's red paths (unknown top tags, fields, and
+# statements) are unit tests in tests/suites/schema.nix.
 
 let
   inherit (pkgs) lib;
-
-  # Same singleton-wrap validator the corpus and round-trip checks use.
-  validates =
-    cmd:
-    (builtins.tryEval (
-      builtins.deepSeq
-        (lib.evalModules {
-          modules = [
-            { options.v = lib.mkOption { type = nftlib.types.ruleset; }; }
-            {
-              v = {
-                nftables = [ cmd ];
-              };
-            }
-          ];
-        }).config.v
-        true
-    )).success;
+  inherit (helpers) nftlib;
 
   # A fake nftables tree whose corpus contains one statement shape that is
   # deliberately not in the schema and matches no baselined pattern —
@@ -59,42 +42,11 @@ let
     EOF
   '';
   fakeCorpus = import ./upstream-corpus.nix {
-    inherit nftlib pkgs;
+    inherit helpers pkgs;
     nftablesSource = fakeCorpusSource;
   };
 
-  evalAssertions = {
-    corpusFlagsInjectedDrift = fakeCorpus.newDrift != [ ];
-    rulesetAcceptsBareListing = validates {
-      table = {
-        family = "inet";
-        name = "t";
-        handle = 1;
-      };
-    };
-    rulesetRejectsUnknownTopTag = !(validates { gizmo = { }; });
-    rulesetRejectsUnknownField =
-      !(validates {
-        table = {
-          family = "inet";
-          name = "t";
-          frobnicate = 1;
-        };
-      });
-    rulesetRejectsUnknownStatement =
-      !(validates {
-        rule = {
-          family = "inet";
-          table = "t";
-          chain = "c";
-          handle = 2;
-          expr = [ { not_a_stmt = { }; } ];
-        };
-      });
-  };
-  failedEvalAssertions = builtins.attrNames (lib.filterAttrs (_: ok: !ok) evalAssertions);
-
-  # Same combined document tests/upstream-enums.nix feeds the checker.
+  # Same combined document upstream-enums.nix feeds the checker.
   schemaDocument = {
     enums = nftlib.enums;
     statementTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
@@ -128,15 +80,12 @@ let
         nativeBuildInputs = [ pkgs.python3 ];
       }
       ''
-        ${lib.optionalString (failedEvalAssertions != [ ]) ''
-          echo "eval-side self-assertions failed:" \
-            "${toString failedEvalAssertions}"
-          exit 1
-        ''}
-        echo "eval-side self-assertions passed" \
-          "(${toString (builtins.length (builtins.attrNames evalAssertions))})"
         fail() { echo "SELFTEST FAIL: $*"; exit 1; }
-        check=${../tooling/check-upstream-enums.py}
+        echo "=== unbaselined corpus statement must be flagged as new drift ==="
+        ${lib.optionalString (fakeCorpus.newDrift == [ ]) ''
+          fail "corpus check did not flag an unbaselined statement"
+        ''}
+        check=${../../tooling/check-upstream-enums.py}
 
         echo "=== injected enum drift (schema without rtKey 'ipsec')" \
           "must go red ==="
@@ -213,5 +162,5 @@ let
       '';
 in
 {
-  inherit evalAssertions runTests;
+  inherit runTests;
 }

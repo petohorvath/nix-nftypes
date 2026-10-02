@@ -1,4 +1,9 @@
-{ lib, nftlib }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the set/map datatype injection class.
 # Sets and maps carry a `type` field naming the element datatype
@@ -18,10 +23,12 @@
 # literal bytes and rejects unknown datatypes at the syscall layer.
 
 let
+  inherit (helpers)
+    evalSucceeds
+    rejectsText
+    ;
   dsl = nftlib.dsl;
-  inherit (nftlib) toText toTextPretty;
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
+  inherit (nftlib) toTextPretty;
 
   rulesetWithSetType =
     type:
@@ -96,15 +103,13 @@ let
     proto = "inet_proto";
   };
 
-  rendererRejects = body: !(evalSucceeds (toText body));
-
   rejectionTests = lib.listToAttrs (
     lib.concatMap (
       surface:
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} badValue);
+          expr = rejectsText (surfaces.${surface} badValue);
           expected = true;
         };
       }) badInputs
@@ -117,7 +122,7 @@ let
       value = {
         # Inject the unsafe byte through the SECOND element to prove
         # the per-element walk is wired up (not just the head).
-        expr = rendererRejects (rulesetWithConcatKey [
+        expr = rejectsText (rulesetWithConcatKey [
           "ipv4_addr"
           badValue
         ]);
@@ -132,7 +137,7 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testRendererAccepts_${surface}_${goodName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} goodValue);
+          expr = rejectsText (surfaces.${surface} goodValue);
           expected = false;
         };
       }) goodInputs
@@ -141,7 +146,7 @@ let
 
   concatAcceptanceTests = {
     testRendererAccepts_concatKey_pair = {
-      expr = rendererRejects (rulesetWithConcatKey [
+      expr = rejectsText (rulesetWithConcatKey [
         "ipv4_addr"
         "inet_service"
       ]);
@@ -159,15 +164,5 @@ let
       expected = true;
     };
   };
-
-  tests =
-    rejectionTests // concatRejectionTests // acceptanceTests // concatAcceptanceTests // prettyTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "set-datatype-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+rejectionTests // concatRejectionTests // acceptanceTests // concatAcceptanceTests // prettyTests

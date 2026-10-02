@@ -1,4 +1,9 @@
-{ lib, nftlib }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the verdict-target injection class.
 # `jump`/`goto` carry a chain name; the text renderer used to emit it
@@ -21,6 +26,10 @@
 # though the cases below only exercise the statement form.
 
 let
+  inherit (helpers)
+    evalSucceeds
+    rejectsText
+    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toText toTextPretty;
 
@@ -28,8 +37,6 @@ let
   # pre-fix as a real `add chain` at priority -200 with `policy accept`,
   # ahead of every user rule.
   injectionPayload = "evil\nadd chain inet filter pwned { type filter hook input priority -200; policy accept; }";
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
 
   # Build a minimal ruleset whose only interesting field is the verdict
   # target. The `evil` chain exists so a clean target ("evil") would
@@ -90,15 +97,13 @@ let
     space = "x y";
   };
 
-  rendererRejects = body: !(evalSucceeds (toText body));
-
   rejectionTests = lib.listToAttrs (
     lib.concatMap (
       surface:
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} badValue);
+          expr = rejectsText (surfaces.${surface} badValue);
           expected = true;
         };
       }) throwingInputs
@@ -122,7 +127,7 @@ let
     map (surface: {
       name = "testRendererAccepts_${surface}_bareName";
       value = {
-        expr = rendererRejects (surfaces.${surface} "evil");
+        expr = rejectsText (surfaces.${surface} "evil");
         expected = false;
       };
     }) (builtins.attrNames surfaces)
@@ -140,14 +145,5 @@ let
       expected = true;
     };
   };
-
-  tests = rejectionTests // quotingTests // acceptanceTests // prettyTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "verdict-target-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+rejectionTests // quotingTests // acceptanceTests // prettyTests

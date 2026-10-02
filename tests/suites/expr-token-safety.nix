@@ -1,4 +1,9 @@
-{ lib, nftlib }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the bare-token injection class inside
 # tagged expression bodies. Several expression kinds — payload,
@@ -22,10 +27,11 @@
 # unknown protocol / field / key names at the syscall layer).
 
 let
+  inherit (helpers)
+    rejectsText
+    rejectsTextPretty
+    ;
   dsl = nftlib.dsl;
-  inherit (nftlib) toText toTextPretty;
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
 
   mkMatchRuleset =
     lhs:
@@ -156,16 +162,13 @@ let
     empty = "";
   };
 
-  rendererRejects = body: !(evalSucceeds (toText body));
-  prettyRejects = body: !(evalSucceeds (toTextPretty body));
-
   rejectionTests = lib.listToAttrs (
     lib.concatMap (
       surface:
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} badValue);
+          expr = rejectsText (surfaces.${surface} badValue);
           expected = true;
         };
       }) badInputs
@@ -176,11 +179,11 @@ let
   # multi-line entry, covering both compact and pretty.
   prettyTests = {
     testPrettyRejects_payloadField_newline = {
-      expr = prettyRejects (surfaces.payloadField badInputs.newline);
+      expr = rejectsTextPretty (surfaces.payloadField badInputs.newline);
       expected = true;
     };
     testPrettyRejects_ctKey_newline = {
-      expr = prettyRejects (surfaces.ctKey badInputs.newline);
+      expr = rejectsTextPretty (surfaces.ctKey badInputs.newline);
       expected = true;
     };
   };
@@ -189,38 +192,29 @@ let
   # false-positive on legitimate identifier-shaped tokens.
   acceptanceTests = {
     testAccepts_payload = {
-      expr = rendererRejects (surfaces.payloadProtocol "tcp");
+      expr = rejectsText (surfaces.payloadProtocol "tcp");
       expected = false;
     };
     testAccepts_exthdr = {
-      expr = rendererRejects (surfaces.exthdrName "frag");
+      expr = rejectsText (surfaces.exthdrName "frag");
       expected = false;
     };
     testAccepts_tcpOption = {
-      expr = rendererRejects (surfaces.tcpOptionName "maxseg");
+      expr = rejectsText (surfaces.tcpOptionName "maxseg");
       expected = false;
     };
     testAccepts_ipOption = {
-      expr = rendererRejects (surfaces.ipOptionName "lsrr");
+      expr = rejectsText (surfaces.ipOptionName "lsrr");
       expected = false;
     };
     testAccepts_sctpChunk = {
-      expr = rendererRejects (surfaces.sctpChunkName "data");
+      expr = rejectsText (surfaces.sctpChunkName "data");
       expected = false;
     };
     testAccepts_ctKey = {
-      expr = rendererRejects (surfaces.ctKey "state");
+      expr = rejectsText (surfaces.ctKey "state");
       expected = false;
     };
   };
-
-  tests = rejectionTests // prettyTests // acceptanceTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "expr-token-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+rejectionTests // prettyTests // acceptanceTests

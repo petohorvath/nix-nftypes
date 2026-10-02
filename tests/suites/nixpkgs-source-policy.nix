@@ -1,22 +1,14 @@
-{
-  pkgs,
-  flakeFile ? ../flake.nix,
-  sourcePackageFile ? ../packages/nftables-source/package.nix,
-  workflowFile ? ../.github/workflows/upstream-sync.yml,
-  ciWorkflowFile ? ../.github/workflows/ci.yml,
-  docsFile ? ../docs/upstream-sync.md,
-}:
+{ helpers, lib, ... }:
 
 # Static regression guard for the nixpkgs-authority design. The project must
 # not grow a second, independently pinned Netfilter source or reintroduce a
 # direct upstream Git dependency in the scheduled workflow.
 let
-  inherit (pkgs) lib;
-  flakeText = builtins.readFile flakeFile;
-  sourcePackageText = builtins.readFile sourcePackageFile;
-  workflowText = builtins.readFile workflowFile;
-  ciWorkflowText = builtins.readFile ciWorkflowFile;
-  docsText = builtins.readFile docsFile;
+  flakeText = helpers.readProjectFile "flake.nix";
+  sourcePackageText = helpers.readProjectFile "packages/nftables-source/package.nix";
+  workflowText = helpers.readProjectFile ".github/workflows/upstream-sync.yml";
+  ciWorkflowText = helpers.readProjectFile ".github/workflows/ci.yml";
+  docsText = helpers.readProjectFile "docs/upstream-sync.md";
   actionUseLines =
     lib.concatMap (text: builtins.filter (line: lib.hasInfix "uses:" line) (lib.splitString "\n" text))
       [
@@ -144,27 +136,15 @@ let
       && lib.hasInfix "\".#checks.x86_64-linux.${name}\${suffix}\"" docsText;
   }) canaryCheckNames;
 
-  failures =
-    map (entry: "forbidden: ${entry.name}") (builtins.filter (entry: entry.present) forbidden)
-    ++ map (entry: "missing: ${entry.name}") (builtins.filter (entry: !entry.present) required);
-  failureMessage = lib.concatStringsSep "\n" failures;
+  namesWhere = predicate: entries: map (entry: entry.name) (builtins.filter predicate entries);
 in
 {
-  inherit failures;
-
-  runTests =
-    _pkgs:
-    if failures == [ ] then
-      pkgs.runCommandLocal "nixpkgs-source-policy-tests" { } ''
-        echo "nixpkgs source policy assertions passed"
-        touch $out
-      ''
-    else
-      pkgs.runCommandLocal "nixpkgs-source-policy-tests-fail" { } ''
-        cat >&2 <<'EOF'
-        nixpkgs source policy assertions failed:
-        ${failureMessage}
-        EOF
-        exit 1
-      '';
+  testForbiddenSourcesAbsent = {
+    expr = namesWhere (entry: entry.present) forbidden;
+    expected = [ ];
+  };
+  testRequiredSourcesPresent = {
+    expr = namesWhere (entry: !entry.present) required;
+    expected = [ ];
+  };
 }

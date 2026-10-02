@@ -21,7 +21,7 @@ use it.
 Usage:
     check-upstream-enums.py <nftables-source-root> <schema-tokens.json>
 
-`schema-tokens.json` is produced by tests/upstream-enums.nix:
+`schema-tokens.json` is produced by tests/checks/upstream-enums.nix:
 
     {
       "enums":          { "<enum>": ["tok", ...], ... },   # nftlib.enums

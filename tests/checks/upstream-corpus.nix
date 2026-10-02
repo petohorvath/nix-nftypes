@@ -1,7 +1,7 @@
 {
-  pkgs,
-  nftlib,
+  helpers,
   nftablesSource,
+  pkgs,
 }:
 
 # Corpus check in the nixpkgs-source pipeline (docs/upstream-sync.md):
@@ -43,25 +43,12 @@ let
         nativeBuildInputs = [ pkgs.python3 ];
       }
       ''
-        python3 ${../tooling/normalize-corpus.py} ${nftablesSource}/tests/py \
-          > $out
+        python3 ${../../tooling/normalize-corpus.py} \
+          ${nftablesSource}/tests/py > $out
       '';
   corpus = builtins.fromJSON (builtins.readFile corpusJson);
 
-  # True iff `s` type-checks as a `statement`. deepSeq forces the lazy
-  # submodule validation; tryEval converts a type error into `false`.
-  validates =
-    s:
-    (builtins.tryEval (
-      builtins.deepSeq
-        (lib.evalModules {
-          modules = [
-            { options.v = lib.mkOption { type = nftlib.types.statement; }; }
-            { v = s; }
-          ];
-        }).config.v
-        true
-    )).success;
+  validates = helpers.validates helpers.nftlib.types.statement;
 
   # Every corpus statement the schema rejects, deduped by JSON form.
   offending = lib.pipe corpus [

@@ -1,4 +1,9 @@
-{ lib, nftlib }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the expression-scalar injection class.
 # `expression` accepts plain strings as atoms — IP addresses, set
@@ -21,14 +26,15 @@
 # syscall boundary).
 
 let
+  inherit (helpers)
+    evalSucceeds
+    rejectsText
+    rejectsTextPretty
+    ;
   dsl = nftlib.dsl;
-  inherit (nftlib) toJson toText toTextPretty;
+  inherit (nftlib) toJson;
 
-  nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
-
-  injectionPayload = "established\nadd chain inet fw pwned { type filter hook input priority -200; policy accept; }";
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
+  inherit (helpers.internals) nftSafeScalar;
 
   # Surface 1: match RHS as a bare scalar string against a non-ifname
   # LHS. ifname LHSs route through `isIfnameLhs` and quote the value;
@@ -115,17 +121,13 @@ let
     enumName = "established";
   };
 
-  rendererRejects = body: !(evalSucceeds (toText body));
-  prettyRejects = body: !(evalSucceeds (toTextPretty body));
-  jsonAccepts = body: evalSucceeds (toJson body);
-
   rejectionTests = lib.listToAttrs (
     lib.concatMap (
       surface:
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} badValue);
+          expr = rejectsText (surfaces.${surface} badValue);
           expected = true;
         };
       }) badInputs
@@ -136,7 +138,7 @@ let
     lib.mapAttrsToList (badName: badValue: {
       name = "testPrettyRendererRejects_matchRhs_${badName}";
       value = {
-        expr = prettyRejects (rulesetWithMatchRhs badValue);
+        expr = rejectsTextPretty (rulesetWithMatchRhs badValue);
         expected = true;
       };
     }) badInputs
@@ -148,7 +150,7 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testRendererAccepts_${surface}_${goodName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} goodValue);
+          expr = rejectsText (surfaces.${surface} goodValue);
           expected = false;
         };
       }) goodInputs
@@ -161,11 +163,11 @@ let
   # text-path tightening didn't accidentally couple to the JSON path.
   jsonPassthroughTests = {
     testJsonAcceptsCommaScalar = {
-      expr = jsonAccepts (rulesetWithMatchRhs "x,y");
+      expr = evalSucceeds (toJson (rulesetWithMatchRhs "x,y"));
       expected = true;
     };
     testJsonAcceptsNewlineScalar = {
-      expr = jsonAccepts (rulesetWithMatchRhs "x\ny");
+      expr = evalSucceeds (toJson (rulesetWithMatchRhs "x\ny"));
       expected = true;
     };
   };
@@ -188,15 +190,5 @@ let
       };
     }) goodInputs)
   );
-
-  tests =
-    rejectionTests // prettyRejectionTests // acceptanceTests // jsonPassthroughTests // predicateTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "expr-scalar-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+rejectionTests // prettyRejectionTests // acceptanceTests // jsonPassthroughTests // predicateTests

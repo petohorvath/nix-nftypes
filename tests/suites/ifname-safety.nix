@@ -1,4 +1,10 @@
-{ lib, nftlib }:
+{
+  fixtures,
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the ifname widening / unsafe-byte class
 # across every surface where an interface name reaches the text
@@ -43,143 +49,28 @@
 # same rule.
 
 let
+  inherit (helpers)
+    evalSucceeds
+    rejectsJson
+    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toJson toText toTextPretty;
 
-  # Internal handle to the renderer/predicate — exercised directly so
-  # the defence-in-depth assert is pinned independently of the DSL emit
-  # check. Production callers should not import these paths.
-  nftSafeIfname = import ../lib/nft-safe-ifname.nix { };
+  inherit (helpers.internals) nftSafeIfname;
 
   # The audit's PoC payload — silently widens to two interfaces pre-fix.
   wideningPayload = "eth0,eth1";
 
-  evalSucceeds = expr: (builtins.tryEval expr).success;
-
-  # ----- Ruleset builders per surface -------------------------------------
-  #
-  # Each surface produces a ruleset whose only interesting field is the
-  # ifname element bytes. The set/map name and chain plumbing are
-  # constant; only the element changes.
-
-  rulesetSetElem =
-    elem:
-    dsl.ruleset [
-      (dsl.table "inet" "fw" {
-        sets.iifs = {
-          type = "ifname";
-          elements = [ elem ];
-        };
-      })
-    ];
-
-  # Same set but the element carries options (`{ elem = { val; … }; }`):
-  # the cross-field walker has to dig through the wrapper.
-  rulesetSetElemWithOptions =
-    elem:
-    dsl.ruleset [
-      (dsl.table "inet" "fw" {
-        sets.iifs = {
-          type = "ifname";
-          elements = [
-            {
-              elem = {
-                val = elem;
-                comment = "ok";
-              };
-            }
-          ];
-        };
-      })
-    ];
-
-  # Map keyed on ifname. The key is the typed slot (the map's `type`
-  # describes its key datatype), so `[k, v]` element pairs need their
-  # KEY validated.
-  rulesetMapKey =
-    key:
-    dsl.ruleset [
-      (dsl.table "inet" "fw" {
-        maps.iif_marks = {
-          type = "ifname";
-          map = "mark";
-          elements = [
-            [
-              key
-              1
-            ]
-          ];
-        };
-      })
-    ];
-
-  # netdev-family base chain bound to an ifname. Single-dev string
-  # form — the schema types `chain.dev` as `listOrSingleton ifname`.
-  rulesetChainDevString =
-    dev:
-    dsl.ruleset [
-      (dsl.table "netdev" "t" {
-        chains.ingress = {
-          type = "filter";
-          hook = "ingress";
-          prio = 0;
-          inherit dev;
-          rules = [ [ dsl.accept ] ];
-        };
-      })
-    ];
-
-  # netdev-family base chain bound to a list of ifnames — the path
-  # the audit's widening PoC exercises.
-  rulesetChainDevList =
-    devs:
-    dsl.ruleset [
-      (dsl.table "netdev" "t" {
-        chains.ingress = {
-          type = "filter";
-          hook = "ingress";
-          prio = 0;
-          dev = devs;
-          rules = [ [ dsl.accept ] ];
-        };
-      })
-    ];
-
-  # Flowtable dev field — same `listOrSingleton ifname` shape as
-  # chain.dev; rendered as `devices = { … }` inside the flowtable
-  # body.
-  rulesetFlowtableDevString =
-    dev:
-    dsl.ruleset [
-      (dsl.table "inet" "t" {
-        flowtables.ft = {
-          hook = "ingress";
-          prio = 0;
-          inherit dev;
-        };
-      })
-    ];
-
-  rulesetFlowtableDevList =
-    devs:
-    dsl.ruleset [
-      (dsl.table "inet" "t" {
-        flowtables.ft = {
-          hook = "ingress";
-          prio = 0;
-          dev = devs;
-        };
-      })
-    ];
-
   surfaces = {
-    setElem = rulesetSetElem;
-    setElemWithOptions = rulesetSetElemWithOptions;
-    mapKey = rulesetMapKey;
-    chainDevString = rulesetChainDevString;
-    chainDevList = v: rulesetChainDevList [ v ];
-    flowtableDevString = rulesetFlowtableDevString;
-    flowtableDevList = v: rulesetFlowtableDevList [ v ];
+    inherit (fixtures.ifnameRulesets)
+      chainDevString
+      flowtableDevString
+      mapKey
+      setElem
+      setElemWithOptions
+      ;
+    chainDevList = v: fixtures.ifnameRulesets.chainDevList [ v ];
+    flowtableDevList = v: fixtures.ifnameRulesets.flowtableDevList [ v ];
   };
 
   # ----- Bad / good ifname samples ----------------------------------------
@@ -219,8 +110,6 @@ let
     maxLen = "abcdefghijklmno"; # 15 bytes, IFNAMSIZ-1
   };
 
-  schemaRejects = body: !(evalSucceeds (toJson body));
-
   # ----- Per-surface × bad-input rejection tests --------------------------
 
   schemaRejectionTests = lib.listToAttrs (
@@ -229,7 +118,7 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testDslRejects_${surface}_${badName}";
         value = {
-          expr = schemaRejects (surfaces.${surface} badValue);
+          expr = rejectsJson (surfaces.${surface} badValue);
           expected = true;
         };
       }) badIfnames
@@ -243,7 +132,7 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testDslAccepts_${surface}_${goodName}";
         value = {
-          expr = schemaRejects (surfaces.${surface} goodValue);
+          expr = rejectsJson (surfaces.${surface} goodValue);
           expected = false;
         };
       }) goodIfnames
@@ -258,7 +147,7 @@ let
 
   nonIfnameTolerates = {
     testDslAcceptsCommaInStringSet = {
-      expr = schemaRejects (
+      expr = rejectsJson (
         dsl.ruleset [
           (dsl.table "inet" "fw" {
             sets.tags = {
@@ -484,100 +373,10 @@ let
       expected = "{\"nftables\":[{\"add\":{\"set\":{\"elem\":[\"eth0,eth1\"],\"family\":\"inet\",\"name\":\"iifs\",\"table\":\"fw\",\"type\":\"ifname\"}}}]}";
     };
   };
-
-  tests =
-    schemaRejectionTests
-    // schemaAcceptanceTests
-    // nonIfnameTolerates
-    // predicateTests
-    // matchRhsTests
-    // rendererTests;
-
-  # ----- Integration ------------------------------------------------------
-  #
-  # Render a SAFE ifname set through both renderers, load each via the
-  # real `nft` parser inside a private netns, dump the resulting set,
-  # and assert the element count matches what we declared. The element-
-  # count check is the regression-specific assertion: pre-fix, a
-  # `[ "eth0,eth1" ]` element widened to two; this integration test
-  # confirms the count is exactly preserved on the safe path so we
-  # would notice if a future refactor reintroduced bare-comma rendering.
-
-  runIntegrationTests =
-    pkgs:
-    let
-      safeRuleset = rulesetSetElem "eth0";
-      twoElemRuleset = dsl.ruleset [
-        (dsl.table "inet" "fw" {
-          sets.iifs = {
-            type = "ifname";
-            elements = [
-              "eth0"
-              "wlp3s0"
-            ];
-          };
-        })
-      ];
-      textOut1 = toTextPretty safeRuleset;
-      jsonOut1 = toJson safeRuleset;
-      textOut2 = toTextPretty twoElemRuleset;
-      jsonOut2 = toJson twoElemRuleset;
-    in
-    pkgs.runCommandLocal "ifname-safety-integration"
-      {
-        nativeBuildInputs = [
-          pkgs.nftables
-          pkgs.util-linux
-          pkgs.jq
-        ];
-      }
-      ''
-        set -e
-
-        run_case() {
-          local label="$1" expected_count="$2" loader_flag="$3" file="$4"
-          unshare -rn -- sh -c "
-            set -e
-            nft $loader_flag -f $file
-            got=\$(nft -j list set inet fw iifs |
-              jq '[.nftables[] | select(.set) | .set.elem[]] | length')
-            want=$expected_count
-            if [ \"\$got\" != \"\$want\" ]; then
-              printf '%s: element-count mismatch\n  want: %s\n  got:  %s\n' \
-                \"$label\" \"\$want\" \"\$got\" >&2
-              nft list set inet fw iifs >&2
-              exit 1
-            fi
-          "
-        }
-
-        cat <<'TEXT1' > one_text.nft
-        ${textOut1}
-        TEXT1
-        cat <<'JSON1' > one_json.json
-        ${jsonOut1}
-        JSON1
-        cat <<'TEXT2' > two_text.nft
-        ${textOut2}
-        TEXT2
-        cat <<'JSON2' > two_json.json
-        ${jsonOut2}
-        JSON2
-
-        run_case "text single-elem" 1 "" one_text.nft
-        run_case "json single-elem" 1 "-j" one_json.json
-        run_case "text two-elem"    2 "" two_text.nft
-        run_case "json two-elem"    2 "-j" two_json.json
-
-        echo "All ifname-safety integration tests passed"
-        touch $out
-      '';
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "ifname-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runIntegrationTests runTests tests;
-}
+schemaRejectionTests
+// schemaAcceptanceTests
+// nonIfnameTolerates
+// predicateTests
+// matchRhsTests
+// rendererTests

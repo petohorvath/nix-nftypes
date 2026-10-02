@@ -1,4 +1,9 @@
-{ lib, nftlib }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the ct-timeout policy-key injection class.
 # `ctTimeout` named objects carry `policy` typed `attrsOf
@@ -14,10 +19,12 @@
 # identifier-shaped and pass cleanly.
 
 let
+  inherit (helpers)
+    evalSucceeds
+    rejectsText
+    ;
   dsl = nftlib.dsl;
-  inherit (nftlib) toText toTextPretty;
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
+  inherit (nftlib) toTextPretty;
 
   rulesetWithPolicyKey =
     key:
@@ -53,13 +60,11 @@ let
     finWait = "fin_wait";
   };
 
-  rendererRejects = body: !(evalSucceeds (toText body));
-
   rejectionTests = lib.listToAttrs (
     lib.mapAttrsToList (badName: badValue: {
       name = "testRendererRejects_${badName}";
       value = {
-        expr = rendererRejects (rulesetWithPolicyKey badValue);
+        expr = rejectsText (rulesetWithPolicyKey badValue);
         expected = true;
       };
     }) badInputs
@@ -69,7 +74,7 @@ let
     lib.mapAttrsToList (goodName: goodValue: {
       name = "testRendererAccepts_${goodName}";
       value = {
-        expr = rendererRejects (rulesetWithPolicyKey goodValue);
+        expr = rejectsText (rulesetWithPolicyKey goodValue);
         expected = false;
       };
     }) goodInputs
@@ -85,14 +90,5 @@ let
       expected = true;
     };
   };
-
-  tests = rejectionTests // acceptanceTests // prettyTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "ct-timeout-policy-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+rejectionTests // acceptanceTests // prettyTests

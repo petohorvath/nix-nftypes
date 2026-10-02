@@ -1,4 +1,9 @@
-{ lib, nftlib }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the chain/flowtable priority injection
 # class. The schema types `prio` as `nullOr int`, but the text
@@ -14,9 +19,11 @@
 # an int before reaching the renderer; the int path stays unchanged.
 
 let
+  inherit (helpers)
+    evalSucceeds
+    rejectsText
+    ;
   inherit (nftlib) toText toTextPretty;
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
 
   rulesetWithChainPrio =
     prio:
@@ -81,13 +88,11 @@ let
     list = [ 0 ];
   };
 
-  rendererRejects = body: !(evalSucceeds (toText body));
-
   chainRejectionTests = lib.listToAttrs (
     lib.mapAttrsToList (badName: badValue: {
       name = "testRendererRejects_chain_${badName}";
       value = {
-        expr = rendererRejects (rulesetWithChainPrio badValue);
+        expr = rejectsText (rulesetWithChainPrio badValue);
         expected = true;
       };
     }) badInputs
@@ -97,7 +102,7 @@ let
     lib.mapAttrsToList (badName: badValue: {
       name = "testRendererRejects_flowtable_${badName}";
       value = {
-        expr = rendererRejects (rulesetWithFlowtablePrio badValue);
+        expr = rejectsText (rulesetWithFlowtablePrio badValue);
         expected = true;
       };
     }) badInputs
@@ -105,19 +110,19 @@ let
 
   acceptanceTests = {
     testRendererAccepts_chain_zero = {
-      expr = rendererRejects (rulesetWithChainPrio 0);
+      expr = rejectsText (rulesetWithChainPrio 0);
       expected = false;
     };
     testRendererAccepts_chain_negative = {
-      expr = rendererRejects (rulesetWithChainPrio (-200));
+      expr = rejectsText (rulesetWithChainPrio (-200));
       expected = false;
     };
     testRendererAccepts_chain_positive = {
-      expr = rendererRejects (rulesetWithChainPrio 300);
+      expr = rejectsText (rulesetWithChainPrio 300);
       expected = false;
     };
     testRendererAccepts_flowtable_negative = {
-      expr = rendererRejects (rulesetWithFlowtablePrio (-100));
+      expr = rejectsText (rulesetWithFlowtablePrio (-100));
       expected = false;
     };
   };
@@ -134,31 +139,13 @@ let
   };
 
   # `resolvePriority` is the documented path for users who want named
-  # priorities. Pin that it still works and yields an int the renderer
-  # accepts, so the API hasn't regressed.
+  # priorities. Pin that its int result reaches the renderer; the schema
+  # suite covers the resolved values.
   resolverTests = {
-    testResolvePriorityFilter = {
-      expr = nftlib.resolvePriority "ip" "filter";
-      expected = 0;
-    };
-    testResolvePriorityBridgeFilter = {
-      expr = nftlib.resolvePriority "bridge" "filter";
-      expected = -200;
-    };
     testResolvedPriorityRenders = {
       expr = evalSucceeds (toText (rulesetWithChainPrio (nftlib.resolvePriority "ip" "mangle")));
       expected = true;
     };
   };
-
-  tests =
-    chainRejectionTests // flowtableRejectionTests // acceptanceTests // prettyTests // resolverTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "priority-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+chainRejectionTests // flowtableRejectionTests // acceptanceTests // prettyTests // resolverTests

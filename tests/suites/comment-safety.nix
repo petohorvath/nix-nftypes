@@ -1,4 +1,10 @@
-{ lib, nftlib }:
+{
+  fixtures,
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the nft quoted-string injection class (table-
 # comment / log-prefix). Pre-fix: any '"' or control character in user
@@ -19,113 +25,17 @@
 # pre-fix, fed through `toTextPretty` post-fix → throws).
 
 let
-  dsl = nftlib.dsl;
+  inherit (helpers)
+    evalSucceeds
+    rejectsJson
+    ;
   inherit (nftlib) toJson toText toTextPretty;
 
-  # Internal handle to the renderer primitives — exercised directly so the
-  # renderer-level defence-in-depth assert is pinned independently of the
-  # schema. Production callers should not import this path.
-  textPrimitives = import ../lib/text/primitives.nix {
-    inherit lib;
-    nftSafeString = import ../lib/nft-safe-string.nix { };
-    nftSafeScalar = import ../lib/nft-safe-scalar.nix { };
-  };
+  inherit (helpers.internals) textPrimitives;
 
   # The audit's malicious comment payload — verified end-to-end to inject
   # a chain at priority -10 with `policy accept` pre-fix.
   injectionPayload = "X\"; chain bypass { type filter hook input priority -10; policy accept; }; #";
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
-
-  # Build a minimal ruleset whose only interesting field is `comment` on a
-  # table — the directly-exploitable surface.
-  rulesetWithTableComment =
-    comment:
-    dsl.ruleset [
-      (dsl.table "inet" "t" {
-        inherit comment;
-        chains.c = {
-          type = "filter";
-          hook = "input";
-          prio = 0;
-          policy = "accept";
-          rules = [ [ dsl.accept ] ];
-        };
-      })
-    ];
-
-  rulesetWithChainComment =
-    comment:
-    dsl.ruleset [
-      (dsl.table "inet" "t" {
-        chains.c = {
-          inherit comment;
-          type = "filter";
-          hook = "input";
-          prio = 0;
-          policy = "accept";
-          rules = [ [ dsl.accept ] ];
-        };
-      })
-    ];
-
-  rulesetWithRuleComment =
-    comment:
-    dsl.ruleset [
-      (dsl.table "inet" "t" {
-        chains.c = {
-          type = "filter";
-          hook = "input";
-          prio = 0;
-          policy = "accept";
-          rules = [
-            {
-              expr = [ dsl.accept ];
-              inherit comment;
-            }
-          ];
-        };
-      })
-    ];
-
-  rulesetWithElementComment =
-    comment:
-    dsl.ruleset [
-      (dsl.table "inet" "t" {
-        sets.s = {
-          type = "ipv4_addr";
-          elem = [
-            {
-              elem = {
-                val = "1.2.3.4";
-                inherit comment;
-              };
-            }
-          ];
-        };
-        chains.c = {
-          type = "filter";
-          hook = "input";
-          prio = 0;
-          policy = "accept";
-          rules = [ [ dsl.accept ] ];
-        };
-      })
-    ];
-
-  rulesetWithLogPrefix =
-    prefix:
-    dsl.ruleset [
-      (dsl.table "inet" "t" {
-        chains.c = {
-          type = "filter";
-          hook = "input";
-          prio = 0;
-          policy = "accept";
-          rules = [ [ (dsl.log { inherit prefix; }) ] ];
-        };
-      })
-    ];
 
   # Sample bad inputs — each individually unsafe for nft text rendering.
   # NUL bytes are absent because Nix string literals cannot represent
@@ -144,8 +54,6 @@ let
   # be accepted; oversize (129) above must be rejected.
   maxLength = lib.concatStrings (lib.replicate 128 "a");
 
-  schemaRejects = body: !(evalSucceeds (toJson body));
-
   # Per-surface × per-bad-input rejection tests. Each emits one test of
   # the form testSchemaRejects_<surface>_<input>.
   # Note: setObjectBody / mapObjectBody intentionally do not declare a
@@ -154,13 +62,7 @@ let
   # commentOption is on tableBody / chainBody / ruleBody and every
   # `commonObjectOptions` named object (counter, quota, limit, ct helper,
   # ct timeout, ct expectation, secmark, synproxy, tunnel).
-  surfaces = {
-    tableComment = rulesetWithTableComment;
-    chainComment = rulesetWithChainComment;
-    ruleComment = rulesetWithRuleComment;
-    elementComment = rulesetWithElementComment;
-    logPrefix = rulesetWithLogPrefix;
-  };
+  surfaces = fixtures.commentRulesets;
 
   schemaRejectionTests = lib.listToAttrs (
     lib.concatMap (
@@ -168,7 +70,7 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testSchemaRejects_${surface}_${badName}";
         value = {
-          expr = schemaRejects (surfaces.${surface} badValue);
+          expr = rejectsJson (surfaces.${surface} badValue);
           expected = true;
         };
       }) badInputs
@@ -182,14 +84,14 @@ let
       {
         name = "testSchemaAccepts_${surface}_simple";
         value = {
-          expr = schemaRejects (surfaces.${surface} "ok comment 123");
+          expr = rejectsJson (surfaces.${surface} "ok comment 123");
           expected = false;
         };
       }
       {
         name = "testSchemaAccepts_${surface}_maxLength";
         value = {
-          expr = schemaRejects (surfaces.${surface} maxLength);
+          expr = rejectsJson (surfaces.${surface} maxLength);
           expected = false;
         };
       }
@@ -263,76 +165,5 @@ let
       expected = "{\"nftables\":[{\"add\":{\"table\":{\"comment\":\"X\\\"; chain bypass { type filter hook input priority -10; policy accept; }; #\",\"family\":\"inet\",\"name\":\"t\"}}}]}";
     };
   };
-
-  tests = schemaRejectionTests // schemaAcceptanceTests // rendererTests // regressionTests;
-
-  # Integration: render a *safe* comment through text and JSON paths,
-  # round-trip through `nft -c -f` inside a private netns, dump the
-  # ruleset, assert the comment value survives unchanged.
-  runIntegrationTests =
-    pkgs:
-    let
-      safeComment = "round-trip me (with spaces & punct!)";
-      safeRuleset = rulesetWithTableComment safeComment;
-      textOut = toTextPretty safeRuleset;
-      jsonOut = toJson safeRuleset;
-    in
-    pkgs.runCommandLocal "comment-safety-integration"
-      {
-        nativeBuildInputs = [
-          pkgs.nftables
-          pkgs.util-linux
-          pkgs.jq
-        ];
-      }
-      ''
-        set -e
-        cat <<'TEXT_EOF' > rules.nft
-        ${textOut}
-        TEXT_EOF
-        cat <<'JSON_EOF' > rules.json
-        ${jsonOut}
-        JSON_EOF
-
-        # Text path: load via nft -f, dump via nft list ruleset -j, extract
-        # the comment with jq (avoids text-renderer quirks in the dump
-        # format).
-        unshare -rn -- sh -c '
-          set -e
-          nft -f rules.nft
-          got=$(nft -j list ruleset |
-            jq -r ".nftables[] | select(.table) | .table.comment")
-          want="${safeComment}"
-          if [ "$got" != "$want" ]; then
-            printf "text round-trip mismatch\n  want: %s\n  got:  %s\n" \
-              "$want" "$got" >&2
-            exit 1
-          fi
-        '
-
-        # JSON path: same comparison via the -j ingestion path.
-        unshare -rn -- sh -c '
-          set -e
-          nft -j -f rules.json
-          got=$(nft -j list ruleset |
-            jq -r ".nftables[] | select(.table) | .table.comment")
-          want="${safeComment}"
-          if [ "$got" != "$want" ]; then
-            printf "json round-trip mismatch\n  want: %s\n  got:  %s\n" \
-              "$want" "$got" >&2
-            exit 1
-          fi
-        '
-
-        echo "All comment-safety integration tests passed"
-        touch $out
-      '';
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "comment-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runIntegrationTests runTests tests;
-}
+schemaRejectionTests // schemaAcceptanceTests // rendererTests // regressionTests

@@ -1,4 +1,9 @@
-{ lib, nftlib }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the named-reference injection class.
 # Three statement kinds carry a `types.str` field that names a
@@ -19,10 +24,12 @@
 # nft-grammar metacharacters, and control characters.
 
 let
+  inherit (helpers)
+    evalSucceeds
+    rejectsText
+    ;
   dsl = nftlib.dsl;
-  inherit (nftlib) toText toTextPretty;
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
+  inherit (nftlib) toTextPretty;
 
   rulesetSetStmt =
     name:
@@ -124,15 +131,13 @@ let
     withDot = "v4.list";
   };
 
-  rendererRejects = body: !(evalSucceeds (toText body));
-
   rejectionTests = lib.listToAttrs (
     lib.concatMap (
       surface:
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} badValue);
+          expr = rejectsText (surfaces.${surface} badValue);
           expected = true;
         };
       }) (badInputsForSurface surface)
@@ -148,7 +153,7 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testRendererAccepts_${surface}_${goodName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} goodValue);
+          expr = rejectsText (surfaces.${surface} goodValue);
           expected = false;
         };
       }) goodInputs
@@ -169,14 +174,5 @@ let
       expected = false;
     };
   };
-
-  tests = rejectionTests // acceptanceTests // prettyTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "named-ref-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+rejectionTests // acceptanceTests // prettyTests

@@ -1,4 +1,9 @@
-{ lib, nftlib }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Regression coverage for the limit/quota unit-name injection class.
 # `limit` and `quota` carry `rate_unit`, `burst_unit`, `val_unit`,
@@ -17,10 +22,12 @@
 # the shared `nft-safe-scalar` predicate.
 
 let
+  inherit (helpers)
+    evalSucceeds
+    rejectsText
+    ;
   dsl = nftlib.dsl;
-  inherit (nftlib) toText toTextPretty;
-
-  evalSucceeds = expr: (builtins.tryEval expr).success;
+  inherit (nftlib) toTextPretty;
 
   rulesetLimitStmt =
     field: value:
@@ -133,15 +140,13 @@ let
     gbytes = "gbytes";
   };
 
-  rendererRejects = body: !(evalSucceeds (toText body));
-
   rejectionTests = lib.listToAttrs (
     lib.concatMap (
       surface:
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} badValue);
+          expr = rejectsText (surfaces.${surface} badValue);
           expected = true;
         };
       }) badInputs
@@ -154,7 +159,7 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testRendererAccepts_${surface}_${goodName}";
         value = {
-          expr = rendererRejects (surfaces.${surface} goodValue);
+          expr = rejectsText (surfaces.${surface} goodValue);
           expected = false;
         };
       }) goodInputs
@@ -175,14 +180,5 @@ let
       expected = false;
     };
   };
-
-  tests = rejectionTests // acceptanceTests // prettyTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "unit-name-safety-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+rejectionTests // acceptanceTests // prettyTests

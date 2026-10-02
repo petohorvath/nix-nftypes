@@ -1,4 +1,8 @@
-{ lib, nftlib }:
+{
+  lib,
+  nftlib,
+  ...
+}:
 
 /*
   Tests for `statementOf` / `matchStatement` / `expressionOf` — the
@@ -16,10 +20,6 @@
     3. Surface drift — `statementOf [ k ]` must work for every `k` in
        the `statement` union, so adding a new kind upstream cannot
        silently miss the per-subset helper.
-
-  Companion: tests/dsl-validation-messages.nix carries the case that
-  asserts the thrown error names the subset (description override
-  bubbles up through evalModules).
 */
 
 let
@@ -374,14 +374,5 @@ let
       expected = true;
     };
   };
-
-  tests = semanticsTests // constructionTests // driftTests // roundTripTests;
-
-  runTests = (import ./lib.nix { inherit lib; }).mkRunTests {
-    name = "restricted-types-tests";
-    inherit tests;
-  };
 in
-{
-  inherit runTests tests;
-}
+semanticsTests // constructionTests // driftTests // roundTripTests

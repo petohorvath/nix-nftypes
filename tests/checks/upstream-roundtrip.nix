@@ -1,7 +1,7 @@
 {
-  pkgs,
-  nftlib,
+  helpers,
   nftables,
+  pkgs,
 }:
 
 # Read-back round-trip check (docs/upstream-sync.md): every command emitted for
@@ -44,6 +44,7 @@
 
 let
   inherit (pkgs) lib;
+  inherit (helpers) nftlib;
 
   integration = import ./dsl-integration.nix {
     inherit (pkgs) lib;
@@ -140,22 +141,7 @@ let
   # True iff a single read-back command validates as a `topLevel` entry —
   # wrapped as a singleton ruleset so the same oneOf the public type uses
   # (command wrapper | bare listed object) is exercised.
-  validates =
-    cmd:
-    (builtins.tryEval (
-      builtins.deepSeq
-        (lib.evalModules {
-          modules = [
-            { options.v = lib.mkOption { type = nftlib.types.ruleset; }; }
-            {
-              v = {
-                nftables = [ cmd ];
-              };
-            }
-          ];
-        }).config.v
-        true
-    )).success;
+  validates = cmd: helpers.validates nftlib.types.ruleset { nftables = [ cmd ]; };
 
   # Read-back commands the schema rejects, deduped by JSON form.
   offending = lib.pipe loadedListings [

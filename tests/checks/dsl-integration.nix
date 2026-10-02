@@ -18,11 +18,12 @@
 # `list.<kind>` for anything other than table, `delete` for ct-timeout /
 # ct-expectation / secmark / tunnel in a sandbox without the relevant
 # kernel features) are not covered here. Their JSON shapes are verified
-# by the schema-tests suite; real-kernel validation is left for manual
+# by the schema unit suite; real-kernel validation is left for manual
 # `nft -f` runs in a live environment.
 #
-# The schema-validating test suite (tests/dsl-parity.nix) exercises every
-# command × object-kind combo the DSL exposes at the JSON-shape level.
+# The schema-validating parity suite (tests/suites/dsl-parity.nix)
+# exercises every command × object-kind combo the DSL exposes at the
+# JSON-shape level.
 # This suite exists to catch the categories of bug the schema can't:
 # forward-reference resolution, argument formats libnftables actually
 # accepts, subtle divergences from the adoc.
@@ -60,7 +61,7 @@ rec {
     # -- create: supported object kinds ------------------------------------
     # `create.rule` is excluded from the DSL (nftables rejects it).
     # `tunnel` and `secmark` kinds need kernel features the sandbox may
-    # lack, so they're exercised only via the schema-tests.
+    # lack, so they're exercised only via the schema unit suite.
     {
       name = "create-supported-kinds";
       ruleset = ruleset [
@@ -457,11 +458,11 @@ rec {
     # -- both example firewalls -----------------------------------------
     {
       name = "example-basic-firewall-dsl";
-      ruleset = import ../examples/basic-firewall-dsl.nix { inherit nftlib; };
+      ruleset = import ../../examples/basic-firewall-dsl.nix { inherit nftlib; };
     }
     {
       name = "example-home-router-dsl";
-      ruleset = import ../examples/home-router-dsl.nix { inherit nftlib; };
+      ruleset = import ../../examples/home-router-dsl.nix { inherit nftlib; };
       # The home-router flowtable binds to eth0/eth1; nft -c validates
       # those device references against the netns's link table, so the
       # runner pre-creates dummy interfaces of those names.
