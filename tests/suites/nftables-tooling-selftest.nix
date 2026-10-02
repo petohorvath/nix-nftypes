@@ -17,28 +17,28 @@ let
 in
 {
   # Schema without rtKey "ipsec": the checker must name the token.
-  testEnumDriftDetected = helpers.probeFailsWith [
+  testEnumDriftDetected = helpers.runFailsWith [
     "DRIFT DETECTED"
     "ipsec"
   ] runs.enumDrift;
 
   # Schema without the `tproxy` statement tag.
-  testTagDriftDetected = helpers.probeFailsWith [
+  testTagDriftDetected = helpers.runFailsWith [
     "DRIFT DETECTED"
     "tproxy"
   ] runs.tagDrift;
 
   # A renamed C table must fail loudly, not pass vacuously.
-  testRenamedTableFailsExtraction = helpers.probeFailsWith [
+  testRenamedTableFailsExtraction = helpers.runFailsWith [
     "EXTRACTION FAILURE"
   ] runs.renamedTable;
 
   # A table body the regex can no longer read trips the floor.
-  testUnreadableTableTripsFloor = helpers.probeFailsWith [
+  testUnreadableTableTripsFloor = helpers.runFailsWith [
     "plausibility floor"
   ] runs.unreadableTable;
 
-  testUndoctoredInputsPass = helpers.probeSucceeds runs.control;
+  testUndoctoredInputsPass = helpers.runSucceeds runs.control;
 
   # An unbaselined corpus statement must be classified as new drift.
   testCorpusFlagsUnbaselinedStatement = {

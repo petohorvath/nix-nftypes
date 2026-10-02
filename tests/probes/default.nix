@@ -1,4 +1,5 @@
-# Every probe for one package set, keyed by the live suite that reads it.
+# Every probe for one package set, keyed by the observation name the live
+# suites read it under.
 {
   fixtures,
   nftablesSource,

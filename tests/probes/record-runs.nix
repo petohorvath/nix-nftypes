@@ -1,7 +1,8 @@
 /*
-  Builds a probe: runs each named shell script and records its exit status
-  and combined stdout/stderr as JSON, `{ <run> = { status; output; }; }`.
-  A probe never judges its runs; the nix-unit suites assert on the record.
+  Builds a probe: runs each named shell script (under `set -euo pipefail`)
+  and records its exit status and combined stdout/stderr as JSON,
+  `{ <run> = { status; output; }; }`. A probe never judges its runs; the
+  live nix-unit suites assert on this record (their `observations`).
 */
 {
   jq,
@@ -19,9 +20,8 @@ runCommandLocal name { nativeBuildInputs = [ jq ] ++ nativeBuildInputs; } ''
     lib.mapAttrsToList (runName: script: ''
       echo ${lib.escapeShellArg "=== ${runName}"}
       status=0
-      (
-        ${script}
-      ) > output.txt 2>&1 || status=$?
+      bash -euo pipefail -c ${lib.escapeShellArg script} > output.txt 2>&1 \
+        || status=$?
       sed 's/^/    /' output.txt
       jq --arg name ${lib.escapeShellArg runName} --argjson status "$status" \
         --rawfile output output.txt \

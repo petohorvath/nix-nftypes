@@ -6,8 +6,9 @@
   - `entryPoint`: ./unit.nix (evaluation-only suites) or ./live.nix
     (suites that assert on probe records).
   - `suites`: names of the entry point's suites to run; `null` runs all.
-  - `observationPaths`: probe outputs the live suites read, keyed by probe
-    name. They become build inputs, so the probes run before nix-unit.
+  - `observationPaths`: probe outputs the live suites read, keyed by
+    observation name. They become build inputs, so the probes run before
+    nix-unit.
 
   Returns the check derivation.
 */
@@ -38,7 +39,11 @@ let
   # Store paths are written as Nix path literals so the sandboxed
   # evaluator can read them.
   observationPathsExpr = "{ ${
-    lib.concatStrings (lib.mapAttrsToList (probe: path: "${probe} = ${path}; ") observationPaths)
+    lib.concatStrings (
+      lib.mapAttrsToList (
+        probe: path: "${lib.strings.escapeNixIdentifier probe} = ${path}; "
+      ) observationPaths
+    )
   }}";
   entryArgs =
     "{ inherit lib; "

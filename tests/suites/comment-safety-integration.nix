@@ -5,21 +5,15 @@
 */
 {
   fixtures,
+  helpers,
   observations,
   ...
 }:
 let
-  readBack = run: {
-    expr = {
-      inherit (run) output status;
-    };
-    expected = {
-      output = fixtures.roundTripComment;
-      status = 0;
-    };
-  };
+  runs = observations.commentSafetyIntegration;
+  readsBackComment = helpers.runOutputIs fixtures.roundTripComment;
 in
 {
-  testJsonRoundTripsComment = readBack observations.commentSafetyIntegration.json;
-  testTextRoundTripsComment = readBack observations.commentSafetyIntegration.text;
+  testJsonRoundTripsComment = readsBackComment runs.comment-json;
+  testTextRoundTripsComment = readsBackComment runs.comment-text;
 }

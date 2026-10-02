@@ -42,8 +42,8 @@ let
     statementTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
     expressionTags = builtins.attrNames nftlib.types.taggedExpression.functor.payload.tags;
   };
-  schemaJson = name: document: pkgs.writeText "${name}.json" (builtins.toJSON document);
-  schemaTokens = schemaJson "schema-tokens" schemaDocument;
+  writeSchemaTokens = name: document: pkgs.writeText "${name}.json" (builtins.toJSON document);
+  schemaTokens = writeSchemaTokens "schema-tokens" schemaDocument;
 
   renameTable = "s/rt_key_tbl/rt_key_renamed/g";
   breakTemplates = "s/META_TEMPLATE(/META_TEMPLAT_(/g";
@@ -77,7 +77,7 @@ in
       # The real schema minus rtKey "ipsec", reintroducing the historical
       # gap G1 so the checker must rediscover it.
       enumDrift = "python3 ${checkEnums} ${nftablesSource} ${
-        schemaJson "schema-tokens-doctored" (
+        writeSchemaTokens "schema-tokens-doctored" (
           schemaDocument
           // {
             enums = nftlib.enums // {
@@ -88,7 +88,7 @@ in
       }";
       # The real schema minus the `tproxy` statement tag.
       tagDrift = "python3 ${checkEnums} ${nftablesSource} ${
-        schemaJson "schema-tokens-doctored-tags" (
+        writeSchemaTokens "schema-tokens-doctored-tags" (
           schemaDocument // { statementTags = lib.remove "tproxy" schemaDocument.statementTags; }
         )
       }";

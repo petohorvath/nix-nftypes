@@ -10,28 +10,52 @@
 { pkgs, nftablesSource }:
 let
   inherit (pkgs) lib;
-  helpers = import ./helpers { inherit lib; };
+  testContext = import ./context.nix { inherit lib; };
   probes = import ./probes {
     inherit nftablesSource pkgs;
-    inherit (helpers) nftlib;
-    fixtures = import ./fixtures {
-      inherit (helpers) examples;
-      inherit (helpers.nftlib) dsl;
-    };
+    inherit (testContext) fixtures nftlib;
   };
   nixUnitCheck = import ./nix-unit-check.nix { inherit pkgs; };
 
-  # A check running one live suite against the named probes' records.
-  liveCheck =
-    name: suite: probeNames:
-    nixUnitCheck {
-      inherit name;
-      entryPoint = "live.nix";
-      suites = [ suite ];
-      observationPaths = lib.getAttrs probeNames probes;
+  /*
+    Live checks by name: each runs one suite from ./live.nix against the
+    named probes' records. Most suites read the probe of the same name.
+
+    Live parsers run inside a private network namespace: JSON through
+    `nft -c -j -f` (plus parser-negative cases), pretty text and both
+    block forms through `nft -c -f`, JSON vs text real loads whose
+    `nft list ruleset` must agree, and real-load read-backs of safe
+    comments and ifname sets.
+
+    Source-side checks use the exact release archive and downstream
+    patches carried by this package set's nftables derivation. They cover
+    valid shapes the hand-written integration cases cannot anticipate.
+  */
+  liveChecks = {
+    integration-tests.suite = "dslIntegration";
+    text-integration-tests.suite = "textIntegration";
+    text-block-integration-tests.suite = "textBlockIntegration";
+    render-equivalence-tests.suite = "renderEquivalence";
+    comment-safety-integration-tests.suite = "commentSafetyIntegration";
+    ifname-safety-integration-tests.suite = "ifnameSafetyIntegration";
+    nftables-source-provenance-tests = {
+      suite = "nftablesSourceProvenance";
+      probes = [
+        "nftablesSourceProvenance"
+        "nftablesSourceTree"
+      ];
     };
-  # Most live suites read the probe of the same name.
-  liveCheckOf = name: suite: liveCheck name suite [ suite ];
+    nftables-corpus-tests.suite = "nftablesCorpus";
+    nftables-enum-extraction-tests.suite = "nftablesEnumExtraction";
+    nftables-roundtrip-tests.suite = "nftablesRoundtrip";
+    nftables-tooling-selftests = {
+      suite = "nftablesToolingSelftest";
+      probes = [
+        "nftablesToolingSelftest"
+        "nftablesToolingSelftestCorpus"
+      ];
+    };
+  };
 in
 {
   # Every evaluation-only suite: schema and DSL behaviour, text parity,
@@ -41,35 +65,13 @@ in
     name = "unit-tests";
     entryPoint = "unit.nix";
   };
-
-  # Live parsers, each inside a private network namespace: JSON through
-  # `nft -c -j -f` (plus parser-negative cases), pretty text and both
-  # block forms through `nft -c -f`, and JSON vs text real loads whose
-  # `nft list ruleset` must agree.
-  integration-tests = liveCheckOf "integration-tests" "dslIntegration";
-  text-integration-tests = liveCheckOf "text-integration-tests" "textIntegration";
-  text-block-integration-tests = liveCheckOf "text-block-integration-tests" "textBlockIntegration";
-  render-equivalence-tests = liveCheckOf "render-equivalence-tests" "renderEquivalence";
-  # Safe comments and ifname sets survive a real load and read-back.
-  comment-safety-integration-tests = liveCheckOf "comment-safety-integration-tests" "commentSafetyIntegration";
-  ifname-safety-integration-tests = liveCheckOf "ifname-safety-integration-tests" "ifnameSafetyIntegration";
-
-  # Source-side compatibility checks use the exact release archive and
-  # downstream patches carried by this package set's nftables
-  # derivation. They complement the live binary checks above by
-  # covering valid shapes the hand-written integration cases cannot
-  # anticipate.
-  nftables-source-provenance-tests =
-    liveCheck "nftables-source-provenance-tests" "nftablesSourceProvenance"
-      [
-        "nftablesSourceProvenance"
-        "nftablesSourceTree"
-      ];
-  nftables-corpus-tests = liveCheckOf "nftables-corpus-tests" "nftablesCorpus";
-  nftables-enum-extraction-tests = liveCheckOf "nftables-enum-extraction-tests" "nftablesEnumExtraction";
-  nftables-roundtrip-tests = liveCheckOf "nftables-roundtrip-tests" "nftablesRoundtrip";
-  nftables-tooling-selftests = liveCheck "nftables-tooling-selftests" "nftablesToolingSelftest" [
-    "nftablesToolingSelftest"
-    "nftablesToolingSelftestCorpus"
-  ];
 }
+// lib.mapAttrs (
+  name: check:
+  nixUnitCheck {
+    inherit name;
+    entryPoint = "live.nix";
+    suites = [ check.suite ];
+    observationPaths = lib.getAttrs (check.probes or [ check.suite ]) probes;
+  }
+) liveChecks

@@ -5,22 +5,18 @@
   safe path preserves the count, so a return to bare-comma rendering would
   be noticed.
 */
-{ observations, ... }:
+{
+  helpers,
+  observations,
+  ...
+}:
 let
   runs = observations.ifnameSafetyIntegration;
-  elementCount = count: run: {
-    expr = {
-      inherit (run) output status;
-    };
-    expected = {
-      output = toString count;
-      status = 0;
-    };
-  };
+  hasElements = count: helpers.runOutputIs (toString count);
 in
 {
-  testJsonKeepsSingleElement = elementCount 1 runs.one-json;
-  testTextKeepsSingleElement = elementCount 1 runs.one-text;
-  testJsonKeepsTwoElements = elementCount 2 runs.two-json;
-  testTextKeepsTwoElements = elementCount 2 runs.two-text;
+  testJsonKeepsSingleElement = hasElements 1 runs.one-json;
+  testTextKeepsSingleElement = hasElements 1 runs.one-text;
+  testJsonKeepsTwoElements = hasElements 2 runs.two-json;
+  testTextKeepsTwoElements = hasElements 2 runs.two-text;
 }

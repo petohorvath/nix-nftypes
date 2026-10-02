@@ -1,7 +1,7 @@
 /*
   Shared test helpers. Loads the library under test (and the internal
-  modules the suites pin directly) and provides the evaluation probes the
-  unit suites and source-side checks share.
+  modules the suites pin directly) and provides the evaluation and
+  assertion helpers the suites share.
 */
 { lib }:
 let
@@ -64,13 +64,18 @@ let
       ];
     }).config.v;
 
+  # Deep-forces the validated value so lazy submodule checks run; false
+  # on any type error.
+  validates = valueType: value: evalSucceeds (builtins.deepSeq (validate valueType value) true);
+
   rejects = render: value: !(evalSucceeds (render value));
 in
-rec {
+{
   inherit
     evalSucceeds
     nftlib
     validate
+    validates
     ;
 
   examples = {
@@ -89,10 +94,6 @@ rec {
 
   roundtrip = valueType: value: nftlib.toJson (validate valueType value);
 
-  # Deep-forces the validated value so lazy submodule checks run; false
-  # on any type error.
-  validates = valueType: value: evalSucceeds (builtins.deepSeq (validate valueType value) true);
-
   rejectsJson = rejects nftlib.toJson;
   rejectsText = rejects nftlib.toText;
   rejectsTextPretty = rejects nftlib.toTextPretty;
@@ -100,14 +101,15 @@ rec {
   # Classifies corpus statements the schema rejects; see corpus-drift.nix.
   corpusDrift = import ./corpus-drift.nix {
     inherit lib;
-    helpers = { inherit nftlib validates; };
+    validatesStatement = validates nftlib.types.statement;
   };
 
   /*
-    nix-unit test asserting that a probe run (`{ status, output }`)
-    exited zero. On failure the diff shows the run's output.
+    nix-unit test asserting that a recorded probe run
+    (`{ status, output }`) exited zero. On failure the diff shows the
+    run's output.
   */
-  probeSucceeds = run: {
+  runSucceeds = run: {
     expr = {
       inherit (run) status;
     }
@@ -116,11 +118,25 @@ rec {
   };
 
   /*
-    nix-unit test asserting that a probe run failed and that its output
-    contains every string in `messages`. On failure the diff shows the
-    run's output.
+    nix-unit test asserting that a recorded probe run exited zero with
+    exactly `output`.
   */
-  probeFailsWith =
+  runOutputIs = output: run: {
+    expr = {
+      inherit (run) output status;
+    };
+    expected = {
+      inherit output;
+      status = 0;
+    };
+  };
+
+  /*
+    nix-unit test asserting that a recorded probe run failed and that its
+    output contains every string in `messages`. On failure the diff shows
+    the run's output.
+  */
+  runFailsWith =
     messages: run:
     let
       failed = run.status != 0;

@@ -24,8 +24,8 @@ lib.listToAttrs (
       text = runs."${case.name}-text";
     in
     [
-      (lib.nameValuePair "testLoadsJson_${case.name}" (helpers.probeSucceeds json))
-      (lib.nameValuePair "testLoadsText_${case.name}" (helpers.probeSucceeds text))
+      (lib.nameValuePair "testLoadsJson_${case.name}" (helpers.runSucceeds json))
+      (lib.nameValuePair "testLoadsText_${case.name}" (helpers.runSucceeds text))
       (lib.nameValuePair "testListingsMatch_${case.name}" {
         expr = text.output;
         expected = json.output;

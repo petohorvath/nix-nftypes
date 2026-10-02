@@ -24,6 +24,9 @@ in
     expected = package.patches;
   };
 }
-// lib.mapAttrs' (
-  path: run: lib.nameValuePair "testSourceTreeHas_${path}" (helpers.probeSucceeds run)
-) observations.nftablesSourceTree
+// lib.genAttrs' [ "parser" "serializer" "corpus" ] (
+  path:
+  lib.nameValuePair "testSourceTreeHas_${path}" (
+    helpers.runSucceeds observations.nftablesSourceTree.${path}
+  )
+)

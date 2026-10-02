@@ -16,5 +16,5 @@
   ...
 }:
 {
-  testSchemaCoversParserTokens = helpers.probeSucceeds observations.nftablesEnumExtraction.check;
+  testSchemaCoversParserTokens = helpers.runSucceeds observations.nftablesEnumExtraction.check;
 }

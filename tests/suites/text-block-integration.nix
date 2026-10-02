@@ -15,7 +15,7 @@ lib.concatMapAttrs (
   lib.genAttrs' [ "compact" "pretty" ] (
     form:
     lib.nameValuePair "testAccepted_${name}_${form}" (
-      helpers.probeSucceeds observations.textBlockIntegration."${name}-${form}"
+      helpers.runSucceeds observations.textBlockIntegration."${name}-${form}"
     )
   )
 ) fixtures.blockTables.integrationTables

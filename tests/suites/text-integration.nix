@@ -14,7 +14,7 @@ lib.listToAttrs (
   map (
     case:
     lib.nameValuePair "testAccepted_${case.name}" (
-      helpers.probeSucceeds observations.textIntegration.${case.name}
+      helpers.runSucceeds observations.textIntegration.${case.name}
     )
   ) fixtures.integrationCases.textCases
 )

@@ -5,14 +5,13 @@
 
   Takes the normalized corpus, `[ { file, title, expr }, … ]`.
 */
-{ helpers, lib }:
+{ lib, validatesStatement }:
 corpus:
 let
-  validates = helpers.validates helpers.nftlib.types.statement;
 
   # Every corpus statement the schema rejects, deduped by JSON form.
   offending = lib.pipe corpus [
-    (map (entry: builtins.filter (s: !(validates s)) entry.expr))
+    (map (entry: builtins.filter (s: !(validatesStatement s)) entry.expr))
     lib.flatten
     lib.unique
   ];

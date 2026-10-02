@@ -18,7 +18,7 @@ let
 in
 lib.listToAttrs (
   map (
-    case: lib.nameValuePair "testAccepted_${case.name}" (helpers.probeSucceeds runs.${case.name})
+    case: lib.nameValuePair "testAccepted_${case.name}" (helpers.runSucceeds runs.${case.name})
   ) integrationCases.cases
   # The raw rejection cases bypass the schema so the live parser stays the
   # oracle; the diagnostic pins rejection to the unsupported command rather
@@ -26,7 +26,7 @@ lib.listToAttrs (
   ++ map (
     case:
     lib.nameValuePair "testRejected_${case.name}" (
-      helpers.probeFailsWith [ case.expectedError ] runs.${case.name}
+      helpers.runFailsWith [ case.expectedError ] runs.${case.name}
     )
   ) integrationCases.rejectionCases
 )
