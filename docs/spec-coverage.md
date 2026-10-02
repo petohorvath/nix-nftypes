@@ -64,9 +64,9 @@ categories:
 | partial synproxy | a flags-only synproxy statement is rejected because the schema requires `mss` and `wscale` together |
 
 The executable baseline is `knownDivergences` in
-[`tests/checks/upstream-corpus.nix`](../tests/checks/upstream-corpus.nix). A statement matching
-no known category fails the check. Categories that disappear are reported as
-stale so the baseline can shrink.
+[`tests/helpers/corpus-drift.nix`](../tests/helpers/corpus-drift.nix). A
+statement matching no known category fails the check. Prune a category from
+the baseline when its gap is fixed.
 
 Additional command and selector differences are not statement-corpus shapes:
 

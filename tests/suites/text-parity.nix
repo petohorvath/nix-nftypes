@@ -8,7 +8,7 @@
 # Each case renders a hand-built attrset through `toText` (compact form)
 # and asserts the exact resulting string. Mirrors tests/suites/schema.nix's
 # round-trip pattern for the JSON renderer: fast, deterministic, no
-# shell-out. The live-parser checks live in tests/checks/text-integration.nix.
+# shell-out. The live-parser checks live in tests/suites/text-integration.nix.
 
 let
   inherit (nftlib) toText;

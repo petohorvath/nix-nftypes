@@ -24,10 +24,13 @@ separate nftables or libnftnl flake inputs.
 - plain name: stable package set;
 - `-unstable` suffix: unstable package set.
 
-The `unit-tests` check runs the nix-unit suites registered in
-`tests/unit.nix` against the package set's `lib` and `nix-unit`. Its source-policy suite statically
-guards the single-authority design. Evaluate the exact current list rather
-than relying on a copied count:
+Every check runs nix-unit against the package set's `lib` and `nix-unit`.
+`unit-tests` runs the evaluation-only suites registered in `tests/unit.nix`;
+its source-policy suite statically guards the single-authority design. Each
+other check runs one suite from `tests/live.nix`, which asserts on the JSON
+record of a probe (`tests/probes/`): a derivation that runs the package set's
+`nft` or the source tooling and records each run's exit status and output.
+Evaluate the exact current list rather than relying on a copied count:
 
 ```console
 nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
@@ -35,8 +38,9 @@ nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
 
 Checks and source packages are exposed for `x86_64-linux` and
 `aarch64-linux`. GitHub CI runs the complete matrix on `x86_64-linux`.
-Source-derived checks use import-from-derivation, so evaluate each architecture
-on a matching native builder; `--all-systems` from one architecture is not a
+Checks evaluate without import-from-derivation, but building them runs the
+target architecture's `nft` and tooling, so build each architecture on a
+matching native builder; `--all-systems` from one architecture is not a
 cross-build path.
 
 ### Test groups
@@ -64,9 +68,9 @@ results are not trustworthy if this check fails.
 and validates each statement against `nftlib.types.statement`.
 
 The check fails on any rejection that does not match a named pattern in
-`tests/checks/upstream-corpus.nix`. The current 11 categories are documented in
-[`spec-coverage.md`](spec-coverage.md). A pattern that stops matching is
-reported as stale.
+`tests/helpers/corpus-drift.nix`. The current 11 categories are documented in
+[`spec-coverage.md`](spec-coverage.md). A pattern that stops matching is not
+reported; prune it when the gap is fixed.
 
 This detects schema-too-restrictive drift in upstream's exercised statements.
 It does not prove that every parser branch appears in the corpus.

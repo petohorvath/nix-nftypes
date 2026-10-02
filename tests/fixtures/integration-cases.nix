@@ -1,35 +1,24 @@
-{ lib, nftlib }:
+/*
+  Rulesets for the live-parser probes and their nix-unit suites. Each case
+  renders to JSON (and, unless excluded, to text) and is fed to the
+  package set's real `nft` inside a private network namespace.
 
-# End-to-end integration test cases. Each case renders to JSON and is fed
-# to `unshare -rn nft -c -j -f`, which invokes the real nftables parser
-# against a kernel netfilter instance in a fresh network namespace. This
-# is stricter than schema validation: the parser resolves cross-references
-# (chains referenced by verdict-map elements, rules referring to named
-# objects, handles), rejects the library's occasional divergences from the
-# parser's own expectations, and catches any shape mismatch evalModules
-# couldn't.
-#
-# # Scope of what we can test in check mode
-#
-# `nft -c` inside a private netns parses the batch and validates cross-
-# references WITHIN the batch, but it can't observe *prior* kernel state.
-# That means commands whose semantics require a pre-existing object
-# (e.g. `rename.chain`, `replace`, `insert` with handle references,
-# `list.<kind>` for anything other than table, `delete` for ct-timeout /
-# ct-expectation / secmark / tunnel in a sandbox without the relevant
-# kernel features) are not covered here. Their JSON shapes are verified
-# by the schema unit suite; real-kernel validation is left for manual
-# `nft -f` runs in a live environment.
-#
-# The schema-validating parity suite (tests/suites/dsl-parity.nix)
-# exercises every command × object-kind combo the DSL exposes at the
-# JSON-shape level.
-# This suite exists to catch the categories of bug the schema can't:
-# forward-reference resolution, argument formats libnftables actually
-# accepts, subtle divergences from the adoc.
+  `nft -c` inside a private netns parses the batch and validates
+  cross-references WITHIN the batch, but it can't observe *prior* kernel
+  state. Commands whose semantics require a pre-existing object (e.g.
+  `rename.chain`, `replace`, `insert` with handle references, `list.<kind>`
+  for anything other than table, `delete` for ct-timeout / ct-expectation /
+  secmark / tunnel in a sandbox without the relevant kernel features) are
+  not covered here. Their JSON shapes are verified by the schema and
+  DSL-parity suites; real-kernel validation is left for manual `nft -f`
+  runs in a live environment.
 
+  These cases exist to catch the categories of bug the schema can't:
+  forward-reference resolution, argument formats libnftables actually
+  accepts, subtle divergences from the adoc.
+*/
+{ dsl, examples }:
 let
-  dsl = nftlib.dsl;
   inherit (dsl)
     accept
     create
@@ -458,11 +447,11 @@ rec {
     # -- both example firewalls -----------------------------------------
     {
       name = "example-basic-firewall-dsl";
-      ruleset = import ../../examples/basic-firewall-dsl.nix { inherit nftlib; };
+      ruleset = examples.basicFirewallDsl;
     }
     {
       name = "example-home-router-dsl";
-      ruleset = import ../../examples/home-router-dsl.nix { inherit nftlib; };
+      ruleset = examples.homeRouterDsl;
       # The home-router flowtable binds to eth0/eth1; nft -c validates
       # those device references against the netns's link table, so the
       # runner pre-creates dummy interfaces of those names.
@@ -518,85 +507,56 @@ rec {
   #
   # Parameterized over the `nft` package so the same case set is instantiated
   # against the stable and unstable nixpkgs package sets by tests/default.nix.
-  mkIntegrationTests =
-    { name, nft }:
-    pkgs: cases:
-    pkgs.runCommandLocal name
-      {
-        nativeBuildInputs = [
-          nft
-          pkgs.util-linux
-          pkgs.iproute2
-        ];
-      }
-      ''
-        set +e
-        failed=0
-        ${lib.concatMapStringsSep "\n" (c: ''
-          printf '=== %s ===\n' ${lib.escapeShellArg c.name}
-          # Capture the rendered JSON once; reuse for nft input and (on
-          # failure) diagnostic output. No scratch files needed.
-          ruleset=$(cat <<'RULESET_EOF'
-          ${nftlib.toJson c.ruleset}
-          RULESET_EOF
-          )
-          # Per-case dummy interfaces. `nft -c` resolves device names in
-          # flowtable.dev / chain.dev against the netns's link table, so
-          # rules referencing real-NIC names need stand-ins. Cases without
-          # the field expand to an empty for-loop.
-          ifaces=${lib.escapeShellArg (toString (c.interfaces or [ ]))}
-          # `$out` is Nix's output path — use a different name for the
-          # captured stderr.
-          if nft_err=$(unshare -rn bash -c "
-            for dev in $ifaces; do
-              ip link add \"\$dev\" type dummy 2>/dev/null || true
-            done
-            exec nft -c -j -f -
-          " <<<"$ruleset" 2>&1); then
-            echo "PASS"
-          else
-            echo "FAIL:"
-            echo "$nft_err" | sed 's/^/    /'
-            echo "$ruleset" | sed 's/^/    | /'
-            failed=$((failed + 1))
-          fi
-        '') cases}
-        ${lib.concatMapStringsSep "\n" (c: ''
-          printf '=== reject %s ===\n' ${lib.escapeShellArg c.name}
-          ruleset=$(cat <<'RULESET_EOF'
-          ${nftlib.toJson c.ruleset}
-          RULESET_EOF
-          )
-          expected_error=${lib.escapeShellArg c.expectedError}
-          if nft_err=$(unshare -rn nft -c -j -f - <<<"$ruleset" 2>&1); then
-            echo "FAIL: parser accepted a case that must be rejected"
-            echo "$ruleset" | sed 's/^/    | /'
-            failed=$((failed + 1))
-          elif [[ "$nft_err" == *"$expected_error"* ]]; then
-            echo "PASS (rejected for expected reason)"
-          else
-            echo "FAIL: parser rejected the case for an unexpected reason"
-            echo "    expected diagnostic substring: $expected_error"
-            echo "$nft_err" | sed 's/^/    /'
-            echo "$ruleset" | sed 's/^/    | /'
-            failed=$((failed + 1))
-          fi
-        '') rejectionCases}
-        if [ "$failed" -gt 0 ]; then
-          echo "$failed integration test(s) failed"
-          exit 1
-        fi
-        echo "All ${toString (builtins.length cases)} acceptance and" \
-          "${toString (builtins.length rejectionCases)} rejection cases passed"
-        touch $out
-      '';
 
-  # Package-set oracle: the exact nftables package from the selected nixpkgs
-  # input.
-  runIntegrationTests =
-    pkgs: cases:
-    mkIntegrationTests {
-      name = "dsl-integration-tests";
-      nft = pkgs.nftables;
-    } pkgs cases;
+  # Cases the nft text grammar can't represent. The JSON renderer
+  # accepts them; this is a hard text-grammar limitation in nftables.
+  knownTextLimitations = [
+    # `offload` is a reserved keyword in flowtable name and `flow add`
+    # reference positions. The home-router example's flowtable is named
+    # "offload" and is referenced from `flow add @offload`; nft -c -f
+    # rejects both. Verified against the upstream parser_bison.y
+    # grammar.
+    "example-home-router-dsl"
+
+    # `add rule … handle 42 …` resolves the handle against existing
+    # kernel state. Inside the unprivileged sandbox there's no rule
+    # with handle 42, so nft fails with "Could not process rule: No
+    # such file or directory". The JSON path works because nft -c -j
+    # tolerates the dangling handle in check-only mode while nft -c
+    # (text) doesn't.
+    "add-rule-via-tree-and-standalone"
+  ];
+  textCases = builtins.filter (c: !(builtins.elem c.name knownTextLimitations)) cases;
+
+  # Cases where actual loading (`nft -f` instead of `nft -c -f`) needs
+  # kernel state the unprivileged netns lacks, or whose `nft list
+  # ruleset` produces non-deterministic output (rule order, counter
+  # ordering, etc.). These are above and beyond the text-only
+  # limitations.
+  knownLoadLimitations = [
+    # `list table` can't be loaded — it's a query, not a definition.
+    "list-table"
+    # ct timeout / ct expectation / synproxy in create require kernel
+    # features the sandbox often lacks; skip rather than chase
+    # environment-specific failures.
+    "create-supported-kinds"
+    "delete-supported-kinds"
+  ];
+  equivalenceCases = builtins.filter (
+    c: !(builtins.elem c.name (knownTextLimitations ++ knownLoadLimitations))
+  ) cases;
+
+  /*
+    Cases that cannot be really loaded (as opposed to `nft -c` checked)
+    in an unprivileged netns, with the observed reason. Everything not
+    listed here is expected to load; an unexpected load failure fails the
+    round trip instead of silently reducing its coverage.
+  */
+  knownNoLoad = {
+    "add-rule-via-tree-and-standalone" =
+      "uses `handle 42`, which real-load validates against live kernel state";
+    "example-home-router-dsl" =
+      "flowtable `flags offload` is rejected on dummy devices — real-load fails with 'Operation not supported'";
+  };
+  roundtripCases = builtins.filter (c: !(knownNoLoad ? ${c.name})) cases;
 }

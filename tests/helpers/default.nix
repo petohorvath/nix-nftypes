@@ -66,7 +66,7 @@ let
 
   rejects = render: value: !(evalSucceeds (render value));
 in
-{
+rec {
   inherit
     evalSucceeds
     nftlib
@@ -96,6 +96,46 @@ in
   rejectsJson = rejects nftlib.toJson;
   rejectsText = rejects nftlib.toText;
   rejectsTextPretty = rejects nftlib.toTextPretty;
+
+  # Classifies corpus statements the schema rejects; see corpus-drift.nix.
+  corpusDrift = import ./corpus-drift.nix {
+    inherit lib;
+    helpers = { inherit nftlib validates; };
+  };
+
+  /*
+    nix-unit test asserting that a probe run (`{ status, output }`)
+    exited zero. On failure the diff shows the run's output.
+  */
+  probeSucceeds = run: {
+    expr = {
+      inherit (run) status;
+    }
+    // lib.optionalAttrs (run.status != 0) { inherit (run) output; };
+    expected.status = 0;
+  };
+
+  /*
+    nix-unit test asserting that a probe run failed and that its output
+    contains every string in `messages`. On failure the diff shows the
+    run's output.
+  */
+  probeFailsWith =
+    messages: run:
+    let
+      failed = run.status != 0;
+      reported = builtins.all (message: lib.hasInfix message run.output) messages;
+    in
+    {
+      expr = {
+        inherit failed reported;
+      }
+      // lib.optionalAttrs (!(failed && reported)) { inherit (run) output; };
+      expected = {
+        failed = true;
+        reported = true;
+      };
+    };
 
   # Reads a project file relative to the repository root.
   readProjectFile = path: builtins.readFile (../.. + "/${path}");

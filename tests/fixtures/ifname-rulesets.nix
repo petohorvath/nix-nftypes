@@ -2,14 +2,16 @@
 # renderers. The `*List` builders take a list of names; the others take
 # one name.
 { dsl }:
-{
-  setElem =
-    elem:
+rec {
+  setElem = elem: setElemList [ elem ];
+
+  setElemList =
+    elems:
     dsl.ruleset [
       (dsl.table "inet" "fw" {
         sets.iifs = {
           type = "ifname";
-          elements = [ elem ];
+          elements = elems;
         };
       })
     ];

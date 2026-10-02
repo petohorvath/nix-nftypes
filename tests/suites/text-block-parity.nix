@@ -14,7 +14,7 @@
 # headers, rules folded as inline statements inside their parent
 # chain's brace block.
 #
-# The companion live-parser check (tests/checks/text-block-integration.nix)
+# The companion live-parser suite (tests/suites/text-block-integration.nix)
 # feeds block output for the shared fixture tables to the upstream
 # nftables parser.
 

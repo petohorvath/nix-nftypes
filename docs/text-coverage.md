@@ -46,7 +46,7 @@ a universal 1:1 guarantee for every schema value.
 
 ## Explicit integration exclusions
 
-`tests/checks/text-integration.nix` excludes:
+`tests/fixtures/integration-cases.nix` excludes from text integration:
 
 1. `example-home-router-dsl`: its flowtable is named `offload` and a rule uses
    `flow add @offload`. JSON accepts both, but the text grammar treats `offload`
@@ -55,7 +55,7 @@ a universal 1:1 guarantee for every schema value.
    against live kernel state and fails because that rule does not exist in the
    isolated namespace. JSON check mode tolerates the dangling handle.
 
-`tests/checks/render-equivalence.nix` additionally excludes:
+Render equivalence additionally excludes:
 
 - `list-table`, because a query cannot be loaded as persistent ruleset state;
 - `create-supported-kinds` and `delete-supported-kinds`, because selected

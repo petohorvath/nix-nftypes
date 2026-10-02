@@ -194,9 +194,10 @@ Checks, source packages, development shells, and the formatter are exposed on
 `x86_64-linux` and `aarch64-linux`; the library is platform-independent. GitHub
 CI builds every `x86_64-linux` check.
 
-Run each check system on a matching native builder. Source-derived checks use
-import-from-derivation, so `nix flake check --all-systems` from one architecture
-is not a cross-architecture verification command.
+Run each check system on a matching native builder. Checks evaluate without
+import-from-derivation, but building them runs that system's `nft`, so
+`nix flake check --all-systems` from one architecture is not a
+cross-architecture verification command.
 
 ```console
 nix fmt -- --ci
@@ -226,14 +227,18 @@ nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
 
 Each package-set-dependent check is instantiated against both locked inputs:
 plain names use stable `nixpkgs`, and `-unstable` names use
-`nixpkgs-unstable`. The matrix includes the `unit-tests` nix-unit suites
-(schema/DSL, text parity, safety regressions, source policy), JSON and text
-parser tests in private network namespaces, selected JSON/text semantic
-equivalence cases, source provenance, upstream corpus and enum extraction,
-read-back validation, and tooling self-tests.
+`nixpkgs-unstable`. Every check runs nix-unit suites. `unit-tests` holds the
+evaluation-only suites (schema/DSL, text parity, safety regressions, source
+policy). Each other check first builds a probe that runs the package set's
+`nft` in a private network namespace, or the source tooling, and records what
+happened; its suite asserts on that record. These cover JSON and text parser
+tests, selected JSON/text semantic equivalence cases, source provenance,
+upstream corpus and enum extraction, read-back validation, and tooling
+self-tests.
 
-Run the unit suites directly with `nix-unit --flake .#tests`; the development
-shell provides `nix-unit`.
+Run the evaluation-only suites directly with `nix-unit --flake .#tests`; the
+development shell provides `nix-unit`. Run a live suite by building its check,
+for example `nix build -L .#checks.x86_64-linux.integration-tests`.
 
 A scheduled Monday canary repeats the nine nftables-facing checks against an
 immutable snapshot of each branch's current tip. It is deliberately
@@ -248,7 +253,7 @@ lib/table.nix shared table preparation, command expansion, and block rendering
 lib/json/     JSON and diagnostic Nix rendering
 lib/text/     nftables text rendering
 examples/     raw and DSL examples
-tests/        nix-unit suites, live-parser checks, and upstream-drift checks
+tests/        nix-unit suites, probes, fixtures, and check wiring
 tooling/      corpus and source-analysis helpers
 docs/         API and coverage notes
 ```

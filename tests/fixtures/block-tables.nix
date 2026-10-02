@@ -8,7 +8,7 @@ let
     prio = 0;
   };
 in
-{
+rec {
   inherit baseChain;
 
   limitTable = dsl.table "inet" "fw" {
@@ -66,5 +66,37 @@ in
       ];
     };
     counters.hits = { };
+  };
+
+  # Tables the text-block-integration probe sends to the live parser.
+  integrationTables = {
+    inline-and-named-limits = limitTable;
+    chain-object-references = referencedTable;
+    minimal-base-chain = dsl.table "inet" "fw" { chains.input = baseChain; };
+    chain-with-rules = dsl.table "inet" "fw" {
+      chains.input = baseChain // {
+        policy = "drop";
+        rules = [
+          [ dsl.accept ]
+          [ dsl.drop ]
+        ];
+      };
+    };
+    mixed-chain-set-counter = dsl.table "inet" "fw" {
+      chains.input = baseChain // {
+        rules = [ [ dsl.accept ] ];
+      };
+      sets.lan_v4 = {
+        type = "ipv4_addr";
+        flags = [ "interval" ];
+      };
+      counters.hits = { };
+    };
+    set-with-inline-elements = dsl.table "inet" "fw" {
+      sets.blocked = {
+        type = "ipv4_addr";
+        elements = [ "192.0.2.1" ];
+      };
+    };
   };
 }

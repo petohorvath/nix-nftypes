@@ -1,17 +1,13 @@
 /*
-  nix-unit entry point. Builds the shared test context once and groups
-  each suite's tests under the suite's name.
+  nix-unit entry point for the suites that need only evaluation. Groups
+  each suite's tests under the suite's name. The suites that assert on
+  probe records are in ./live.nix.
 
   Run locally with `nix-unit --flake .#tests`.
 */
 { lib }:
 let
-  helpers = import ./helpers { inherit lib; };
-  testContext = {
-    inherit helpers lib;
-    inherit (helpers) nftlib;
-    fixtures = import ./fixtures { inherit (helpers.nftlib) dsl; };
-  };
+  testContext = import ./context.nix { inherit lib; };
 in
 {
   commentSafety = import ./suites/comment-safety.nix testContext;
