@@ -24,8 +24,8 @@ separate nftables or libnftnl flake inputs.
 - plain name: stable package set;
 - `-unstable` suffix: unstable package set.
 
-The `unit-tests` check runs every nix-unit suite in `tests/suites/` against
-the package set's `lib` and `nix-unit`. Its source-policy suite statically
+The `unit-tests` check runs the nix-unit suites registered in
+`tests/unit.nix` against the package set's `lib` and `nix-unit`. Its source-policy suite statically
 guards the single-authority design. Evaluate the exact current list rather
 than relying on a copied count:
 

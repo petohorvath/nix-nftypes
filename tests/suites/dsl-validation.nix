@@ -56,6 +56,18 @@ let
       output = { };
     };
   };
+  # Each conflict's error must name the conflicting field's tree path.
+  scopeConflictPaths = {
+    chainFamily = "chains.input.family";
+    chainTable = "chains.input.table";
+    chainName = "chains.input.name";
+    objectFamily = "counters.hits.family";
+    objectTable = "counters.hits.table";
+    objectName = "counters.hits.name";
+    ruleFamily = "chains.input.rules.0.family";
+    ruleTable = "chains.input.rules.0.table";
+    ruleChain = "chains.input.rules.0.chain";
+  };
   tableRenderers = {
     json = node: toJson (dsl.ruleset [ node ]);
     text = node: nftlib.toText (dsl.ruleset [ node ]);
@@ -69,7 +81,7 @@ let
       form: render:
       lib.nameValuePair "testTreeScope_${name}_${form}" {
         expr = render (dsl.table "inet" "fw" body);
-        expectedError.msg = "must match its table-tree scope";
+        expectedError.msg = "${lib.escapeRegex scopeConflictPaths.${name}} must match its table-tree scope";
       }
     ) tableRenderers
   ) scopeConflicts;
@@ -144,12 +156,14 @@ in
   # Reject misspelled collection names instead of silently dropping them
   # while expanding the tree.
   testTableUnknownCollectionRejected = {
-    expr = renders [
-      (dsl.table "inet" "t" {
-        chians.c = { };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "inet" "t" {
+          chians.c = { };
+        })
+      ]
+    );
+    expectedError.msg = "dsl\\.table inet\\.t has unsupported key.*chians";
   };
 
   testTableTypeMarkerAccepted = {
@@ -165,17 +179,19 @@ in
   # symbolic priority like "filter" used to render to `"prio":"filter"`
   # and the kernel silently dropped the base-chain attrs.
   testChainsCPrioStringRejected = {
-    expr = renders [
-      (dsl.table "inet" "t" {
-        chains.c = {
-          type = "filter";
-          hook = "input";
-          policy = "drop";
-          prio = "filter";
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "inet" "t" {
+          chains.c = {
+            type = "filter";
+            hook = "input";
+            policy = "drop";
+            prio = "filter";
+          };
+        })
+      ]
+    );
+    expectedError.msg = "chains\\.c\\.prio";
   };
 
   # ----- command-builder constructors (commands.nix) --------------------
@@ -472,30 +488,6 @@ in
       ]
     );
     expectedError.msg = "counters\\.c\\.packets";
-  };
-
-  testTreeUnknownKeyRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "ip" "t" {
-          chians.c = { };
-        })
-      ]
-    );
-    expectedError.msg = "dsl\\.table ip\\.t has unsupported key.*chians";
-  };
-
-  testTreeChainBadPrioRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "ip" "t" {
-          chains.c = {
-            prio = "filter";
-          };
-        })
-      ]
-    );
-    expectedError.msg = "chains\\.c\\.prio";
   };
 
   testTreeQuotaBadBytesRejected = {
