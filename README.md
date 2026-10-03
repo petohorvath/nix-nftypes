@@ -199,9 +199,12 @@ import-from-derivation, but building them runs that system's `nft`, so
 `nix flake check --all-systems` from one architecture is not a
 cross-architecture verification command.
 
+`nix flake check` runs every test: all checks against both locked package
+sets.
+
 ```console
 nix fmt -- --ci
-nix flake check
+nix flake check -L
 ```
 
 The default development shell, loaded by `nix develop` or by direnv through
@@ -236,9 +239,13 @@ tests, selected JSON/text semantic equivalence cases, source provenance,
 upstream corpus and enum extraction, read-back validation, and tooling
 self-tests.
 
-Run the evaluation-only suites directly with `nix-unit --flake .#tests`; the
-development shell provides `nix-unit`. Run a live suite by building its check,
-for example `nix build -L .#checks.x86_64-linux.integration-tests`.
+For a fast loop, run only the evaluation-only suites with
+`nix-unit --flake .#tests`; the development shell provides `nix-unit`. This
+covers `unit-tests` against the stable `lib`, not the live checks or the
+`-unstable` variants. A live suite asserts on a probe's build output, so
+nix-unit could only reach it through import-from-derivation; the checks build
+the probes instead. Run one live suite by building its check, for example
+`nix build -L .#checks.x86_64-linux.integration-tests`.
 
 A scheduled Monday canary repeats the nine nftables-facing checks against an
 immutable snapshot of each branch's current tip. It is deliberately
