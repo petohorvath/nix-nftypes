@@ -175,7 +175,7 @@ Known differences are explicit and tested:
 - plural `list`/`reset` command-selector forms and several slim selectors are
   not modelled;
 - the text grammar has values and environment-dependent cases that the JSON
-  path can handle but the text integration suite excludes.
+  path can handle but the live text checks exclude.
 
 See:
 

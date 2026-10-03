@@ -46,7 +46,7 @@ a universal 1:1 guarantee for every schema value.
 
 ## Explicit integration exclusions
 
-`tests/fixtures/integration-cases.nix` excludes from text integration:
+`tests/fixtures/integration-cases.nix` excludes from both live text checks:
 
 1. `example-home-router-dsl`: its flowtable is named `offload` and a rule uses
    `flow add @offload`. JSON accepts both, but the text grammar treats `offload`

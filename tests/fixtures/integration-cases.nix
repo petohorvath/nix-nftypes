@@ -542,14 +542,13 @@ rec {
     "create-supported-kinds"
     "delete-supported-kinds"
   ];
-  equivalenceCases = builtins.filter (
-    c: !(builtins.elem c.name (knownTextLimitations ++ knownLoadLimitations))
-  ) cases;
-
-  # Text cases that only `nft -c -f` can check. A real load (render
-  # equivalence) runs every check-mode validation before committing, so
-  # check mode adds nothing for the cases render equivalence loads.
-  textCheckOnlyCases = builtins.filter (c: builtins.elem c.name knownLoadLimitations) textCases;
+  # Splits the text cases between the two live text checks, so each case
+  # lands in exactly one. Render equivalence really loads its cases, which
+  # runs every check-mode validation before committing; the rest are
+  # checked with `nft -c -f` only.
+  loadableTextCases = builtins.partition (c: !(builtins.elem c.name knownLoadLimitations)) textCases;
+  equivalenceCases = loadableTextCases.right;
+  textCheckOnlyCases = loadableTextCases.wrong;
 
   /*
     Cases that cannot be really loaded (as opposed to `nft -c` checked)

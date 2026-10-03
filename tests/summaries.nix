@@ -11,7 +11,7 @@ let
 
   # jq program over the round-trip probe record: the listings of the
   # loaded cases and the read-back commands they hold.
-  roundtripCounts = "[.[] | select(.status == 0) | .output | fromjson | .nftables | length] | \"nftables-roundtrip: \\(length) case listings, \\(add // 0) read-back commands validated against `ruleset`\"";
+  roundtripSummaryFilter = "[.[] | select(.status == 0) | .output | fromjson | .nftables | length] | \"nftables-roundtrip: \\(length) case listings, \\(add // 0) read-back commands validated against `ruleset`\"";
 
   skippedNote = lib.concatStringsSep "\n" (
     [ "Skipped (cannot real-load in an unprivileged netns):" ]
@@ -27,7 +27,7 @@ in
   '';
 
   nftables-roundtrip-tests = observationPaths: ''
-    jq -r ${lib.escapeShellArg roundtripCounts} \
+    jq -r ${lib.escapeShellArg roundtripSummaryFilter} \
       ${observationPaths.nftablesRoundtrip}
     echo ${lib.escapeShellArg skippedNote}
   '';
