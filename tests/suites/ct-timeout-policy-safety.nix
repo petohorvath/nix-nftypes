@@ -1,5 +1,4 @@
 {
-  helpers,
   lib,
   nftlib,
   ...
@@ -19,10 +18,6 @@
 # identifier-shaped and pass cleanly.
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsText
-    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toTextPretty;
 
@@ -64,8 +59,8 @@ let
     lib.mapAttrsToList (badName: badValue: {
       name = "testRendererRejects_${badName}";
       value = {
-        expr = rejectsText (rulesetWithPolicyKey badValue);
-        expected = true;
+        expr = nftlib.toText (rulesetWithPolicyKey badValue);
+        expectedError.msg = "refusing to render a bare nft token";
       };
     }) badInputs
   );
@@ -74,19 +69,19 @@ let
     lib.mapAttrsToList (goodName: goodValue: {
       name = "testRendererAccepts_${goodName}";
       value = {
-        expr = rejectsText (rulesetWithPolicyKey goodValue);
-        expected = false;
+        expr = builtins.isString (nftlib.toText (rulesetWithPolicyKey goodValue));
+        expected = true;
       };
     }) goodInputs
   );
 
   prettyTests = {
     testPrettyRejectsInjection = {
-      expr = evalSucceeds (toTextPretty (rulesetWithPolicyKey badInputs.newline));
-      expected = false;
+      expr = (toTextPretty (rulesetWithPolicyKey badInputs.newline));
+      expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyAcceptsCleanKey = {
-      expr = evalSucceeds (toTextPretty (rulesetWithPolicyKey "established"));
+      expr = builtins.isString ((toTextPretty (rulesetWithPolicyKey "established")));
       expected = true;
     };
   };

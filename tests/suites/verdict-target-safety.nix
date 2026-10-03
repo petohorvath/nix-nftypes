@@ -1,5 +1,4 @@
 {
-  helpers,
   lib,
   nftlib,
   ...
@@ -26,10 +25,6 @@
 # though the cases below only exercise the statement form.
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsText
-    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toText toTextPretty;
 
@@ -103,8 +98,8 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rejectsText (surfaces.${surface} badValue);
-          expected = true;
+          expr = nftlib.toText (surfaces.${surface} badValue);
+          expectedError.msg = "refusing to render a string containing a character unsafe";
         };
       }) throwingInputs
     ) (builtins.attrNames surfaces)
@@ -127,8 +122,8 @@ let
     map (surface: {
       name = "testRendererAccepts_${surface}_bareName";
       value = {
-        expr = rejectsText (surfaces.${surface} "evil");
-        expected = false;
+        expr = builtins.isString (nftlib.toText (surfaces.${surface} "evil"));
+        expected = true;
       };
     }) (builtins.attrNames surfaces)
   );
@@ -137,11 +132,11 @@ let
   # pretty to catch any future divergence.
   prettyTests = {
     testPrettyRejectsInjection = {
-      expr = evalSucceeds (toTextPretty (rulesetWithJumpTarget injectionPayload));
-      expected = false;
+      expr = (toTextPretty (rulesetWithJumpTarget injectionPayload));
+      expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testPrettyAcceptsBareName = {
-      expr = evalSucceeds (toTextPretty (rulesetWithJumpTarget "evil"));
+      expr = builtins.isString ((toTextPretty (rulesetWithJumpTarget "evil")));
       expected = true;
     };
   };

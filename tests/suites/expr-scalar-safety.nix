@@ -26,11 +26,6 @@
 # syscall boundary).
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsText
-    rejectsTextPretty
-    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toJson;
 
@@ -127,8 +122,8 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rejectsText (surfaces.${surface} badValue);
-          expected = true;
+          expr = nftlib.toText (surfaces.${surface} badValue);
+          expectedError.msg = "refusing to render a scalar string";
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -138,8 +133,8 @@ let
     lib.mapAttrsToList (badName: badValue: {
       name = "testPrettyRendererRejects_matchRhs_${badName}";
       value = {
-        expr = rejectsTextPretty (rulesetWithMatchRhs badValue);
-        expected = true;
+        expr = nftlib.toTextPretty (rulesetWithMatchRhs badValue);
+        expectedError.msg = "refusing to render a scalar string";
       };
     }) badInputs
   );
@@ -150,8 +145,8 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testRendererAccepts_${surface}_${goodName}";
         value = {
-          expr = rejectsText (surfaces.${surface} goodValue);
-          expected = false;
+          expr = builtins.isString (nftlib.toText (surfaces.${surface} goodValue));
+          expected = true;
         };
       }) goodInputs
     ) (builtins.attrNames surfaces)
@@ -163,11 +158,11 @@ let
   # text-path tightening didn't accidentally couple to the JSON path.
   jsonPassthroughTests = {
     testJsonAcceptsCommaScalar = {
-      expr = evalSucceeds (toJson (rulesetWithMatchRhs "x,y"));
+      expr = builtins.isString ((toJson (rulesetWithMatchRhs "x,y")));
       expected = true;
     };
     testJsonAcceptsNewlineScalar = {
-      expr = evalSucceeds (toJson (rulesetWithMatchRhs "x\ny"));
+      expr = builtins.isString ((toJson (rulesetWithMatchRhs "x\ny")));
       expected = true;
     };
   };

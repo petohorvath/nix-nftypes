@@ -49,10 +49,6 @@
 # same rule.
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsJson
-    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toJson toText toTextPretty;
 
@@ -118,8 +114,8 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testDslRejects_${surface}_${badName}";
         value = {
-          expr = rejectsJson (surfaces.${surface} badValue);
-          expected = true;
+          expr = nftlib.toJson (surfaces.${surface} badValue);
+          expectedError.msg = "safe interface name";
         };
       }) badIfnames
     ) (builtins.attrNames surfaces)
@@ -132,8 +128,8 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testDslAccepts_${surface}_${goodName}";
         value = {
-          expr = rejectsJson (surfaces.${surface} goodValue);
-          expected = false;
+          expr = builtins.isString (nftlib.toJson (surfaces.${surface} goodValue));
+          expected = true;
         };
       }) goodIfnames
     ) (builtins.attrNames surfaces)
@@ -147,17 +143,19 @@ let
 
   nonIfnameTolerates = {
     testDslAcceptsCommaInStringSet = {
-      expr = rejectsJson (
-        dsl.ruleset [
-          (dsl.table "inet" "fw" {
-            sets.tags = {
-              type = "string";
-              elements = [ "a,b" ];
-            };
-          })
-        ]
+      expr = builtins.isString (
+        nftlib.toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "fw" {
+              sets.tags = {
+                type = "string";
+                elements = [ "a,b" ];
+              };
+            })
+          ]
+        )
       );
-      expected = false;
+      expected = true;
     };
   };
 
@@ -281,30 +279,30 @@ let
   matchRhsTests = {
     # Each ifname-typed meta key throws on the widening payload.
     testMatchThrowsOn_iifname = {
-      expr = evalSucceeds (toText (rawMatchRule "iifname" wideningPayload));
-      expected = false;
+      expr = (toText (rawMatchRule "iifname" wideningPayload));
+      expectedError.msg = "ifname-typed match RHS";
     };
     testMatchThrowsOn_oifname = {
-      expr = evalSucceeds (toText (rawMatchRule "oifname" wideningPayload));
-      expected = false;
+      expr = (toText (rawMatchRule "oifname" wideningPayload));
+      expectedError.msg = "ifname-typed match RHS";
     };
     testMatchThrowsOn_sdifname = {
-      expr = evalSucceeds (toText (rawMatchRule "sdifname" wideningPayload));
-      expected = false;
+      expr = (toText (rawMatchRule "sdifname" wideningPayload));
+      expectedError.msg = "ifname-typed match RHS";
     };
     testMatchThrowsOn_ibrname = {
-      expr = evalSucceeds (toText (rawMatchRule "ibrname" wideningPayload));
-      expected = false;
+      expr = (toText (rawMatchRule "ibrname" wideningPayload));
+      expectedError.msg = "ifname-typed match RHS";
     };
     testMatchThrowsOn_obrname = {
-      expr = evalSucceeds (toText (rawMatchRule "obrname" wideningPayload));
-      expected = false;
+      expr = (toText (rawMatchRule "obrname" wideningPayload));
+      expectedError.msg = "ifname-typed match RHS";
     };
 
     # Non-ifname meta keys are unaffected — `mark` accepts integer
     # comparison and shouldn't see a stricter ifname check applied.
     testMatchAcceptsNonIfnameKey = {
-      expr = evalSucceeds (toText (rawMatchRule "mark" 100));
+      expr = builtins.isString ((toText (rawMatchRule "mark" 100)));
       expected = true;
     };
 
@@ -343,24 +341,24 @@ let
 
   rendererTests = {
     testTextThrowsOnMaliciousRaw = {
-      expr = evalSucceeds (toText maliciousRawRuleset);
-      expected = false;
+      expr = (toText maliciousRawRuleset);
+      expectedError.msg = "ifname-typed set/map element";
     };
     testTextPrettyThrowsOnMaliciousRaw = {
-      expr = evalSucceeds (toTextPretty maliciousRawRuleset);
-      expected = false;
+      expr = (toTextPretty maliciousRawRuleset);
+      expectedError.msg = "ifname-typed set/map element";
     };
     testTextAcceptsSafeRaw = {
-      expr = evalSucceeds (toText safeRawRuleset);
+      expr = builtins.isString ((toText safeRawRuleset));
       expected = true;
     };
     testTextThrowsOnMaliciousChainDev = {
-      expr = evalSucceeds (toTextPretty rawChainDevRuleset);
-      expected = false;
+      expr = (toTextPretty rawChainDevRuleset);
+      expectedError.msg = "chain/flowtable device";
     };
     testTextThrowsOnMaliciousFlowtableDev = {
-      expr = evalSucceeds (toTextPretty rawFlowtableDevRuleset);
-      expected = false;
+      expr = (toTextPretty rawFlowtableDevRuleset);
+      expectedError.msg = "chain/flowtable device";
     };
     # JSON path is intrinsically safe — `builtins.toJSON` quotes the
     # element bytes so the comma stays inside one JSON string. The

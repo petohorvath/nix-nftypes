@@ -1,5 +1,4 @@
 {
-  helpers,
   lib,
   nftlib,
   ...
@@ -19,10 +18,6 @@
 # an int before reaching the renderer; the int path stays unchanged.
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsText
-    ;
   inherit (nftlib) toText toTextPretty;
 
   rulesetWithChainPrio =
@@ -92,8 +87,8 @@ let
     lib.mapAttrsToList (badName: badValue: {
       name = "testRendererRejects_chain_${badName}";
       value = {
-        expr = rejectsText (rulesetWithChainPrio badValue);
-        expected = true;
+        expr = nftlib.toText (rulesetWithChainPrio badValue);
+        expectedError.msg = "refusing to render a non-integer chain/flowtable priority";
       };
     }) badInputs
   );
@@ -102,38 +97,38 @@ let
     lib.mapAttrsToList (badName: badValue: {
       name = "testRendererRejects_flowtable_${badName}";
       value = {
-        expr = rejectsText (rulesetWithFlowtablePrio badValue);
-        expected = true;
+        expr = nftlib.toText (rulesetWithFlowtablePrio badValue);
+        expectedError.msg = "refusing to render a non-integer chain/flowtable priority";
       };
     }) badInputs
   );
 
   acceptanceTests = {
     testRendererAccepts_chain_zero = {
-      expr = rejectsText (rulesetWithChainPrio 0);
-      expected = false;
+      expr = builtins.isString (nftlib.toText (rulesetWithChainPrio 0));
+      expected = true;
     };
     testRendererAccepts_chain_negative = {
-      expr = rejectsText (rulesetWithChainPrio (-200));
-      expected = false;
+      expr = builtins.isString (nftlib.toText (rulesetWithChainPrio (-200)));
+      expected = true;
     };
     testRendererAccepts_chain_positive = {
-      expr = rejectsText (rulesetWithChainPrio 300);
-      expected = false;
+      expr = builtins.isString (nftlib.toText (rulesetWithChainPrio 300));
+      expected = true;
     };
     testRendererAccepts_flowtable_negative = {
-      expr = rejectsText (rulesetWithFlowtablePrio (-100));
-      expected = false;
+      expr = builtins.isString (nftlib.toText (rulesetWithFlowtablePrio (-100)));
+      expected = true;
     };
   };
 
   prettyTests = {
     testPrettyRejects_chain_newline = {
-      expr = evalSucceeds (toTextPretty (rulesetWithChainPrio badInputs.newline));
-      expected = false;
+      expr = (toTextPretty (rulesetWithChainPrio badInputs.newline));
+      expectedError.msg = "refusing to render a non-integer chain/flowtable priority";
     };
     testPrettyAccepts_chain_int = {
-      expr = evalSucceeds (toTextPretty (rulesetWithChainPrio 0));
+      expr = builtins.isString ((toTextPretty (rulesetWithChainPrio 0)));
       expected = true;
     };
   };
@@ -143,7 +138,7 @@ let
   # suite covers the resolved values.
   resolverTests = {
     testResolvedPriorityRenders = {
-      expr = evalSucceeds (toText (rulesetWithChainPrio (nftlib.resolvePriority "ip" "mangle")));
+      expr = builtins.isString ((toText (rulesetWithChainPrio (nftlib.resolvePriority "ip" "mangle"))));
       expected = true;
     };
   };

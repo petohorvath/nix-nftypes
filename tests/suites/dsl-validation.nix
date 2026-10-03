@@ -18,11 +18,6 @@ let
   dsl = nftlib.dsl;
   inherit (nftlib) toJson;
 
-  # Force evaluation of the rendered JSON so the schema actually runs.
-  # Without `toJson` the table tree is just a marked attrset and no
-  # evalModules call is triggered.
-  renders = rulesetValue: (builtins.tryEval (toJson (dsl.ruleset rulesetValue))).success;
-
   # Ownership is a property of table trees, shared by command and block
   # output. Use valid but conflicting values so schema type errors cannot
   # mask a missing scope check. The sibling exists in the rule-chain case:
@@ -87,21 +82,23 @@ let
   ) scopeConflicts;
 in
 {
-  testTableAndRulesetConstructionStayLazy = {
-    expr =
-      let
-        node = dsl.table "inet" "fw" { chains.input.prio = "invalid"; };
-      in
-      {
-        table = (builtins.tryEval node).success;
-        ruleset = (builtins.tryEval (dsl.ruleset [ node ])).success;
-        rendered = (builtins.tryEval (toJson (dsl.ruleset [ node ]))).success;
-      };
-    expected = {
-      table = true;
-      ruleset = true;
-      rendered = false;
-    };
+  # Building a table or ruleset stays lazy; only rendering validates.
+  # `isAttrs` forces each value to weak head normal form only.
+  testTableConstructionStaysLazy = {
+    expr = builtins.isAttrs (dsl.table "inet" "fw" { chains.input.prio = "invalid"; });
+    expected = true;
+  };
+
+  testRulesetConstructionStaysLazy = {
+    expr = builtins.isAttrs (
+      dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = "invalid"; }) ]
+    );
+    expected = true;
+  };
+
+  testRenderingValidatesLazyTable = {
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = "invalid"; }) ]);
+    expectedError.msg = "chains\\.input\\.prio.*is not of type";
   };
 
   testChainDeclarationDoesNotForceRuleBodies = {
@@ -124,7 +121,7 @@ in
   testTreeMatchingExplicitScopeAccepted = {
     expr = lib.mapAttrs (
       _: render:
-      (builtins.tryEval (
+      builtins.isString (
         render (
           dsl.table "inet" "fw" {
             chains.input = {
@@ -147,7 +144,7 @@ in
             };
           }
         )
-      )).success
+      )
     ) tableRenderers;
     expected = lib.mapAttrs (_: _: true) tableRenderers;
   };
@@ -167,11 +164,15 @@ in
   };
 
   testTableTypeMarkerAccepted = {
-    expr = renders [
-      (dsl.table "inet" "t" {
-        _type = "example.table";
-      })
-    ];
+    expr = builtins.isString (
+      toJson (
+        dsl.ruleset [
+          (dsl.table "inet" "t" {
+            _type = "example.table";
+          })
+        ]
+      )
+    );
     expected = true;
   };
 
@@ -209,95 +210,78 @@ in
   };
 
   testDeleteCounterBadFamilyRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.delete.counter {
-            family = "wireguard";
-            table = "t";
-            name = "ctr";
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.delete.counter {
+        family = "wireguard";
+        table = "t";
+        name = "ctr";
+      }
+    );
+    expectedError.msg = "delete\\.counter\\.family.*is not of type";
   };
 
   testListMapBadTypeRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.list.map {
-            family = "ip";
-            table = "t";
-            name = "m";
-            type = 123;
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.list.map {
+        family = "ip";
+        table = "t";
+        name = "m";
+        type = 123;
+        map = "mark";
+      }
+    );
+    expectedError.msg = "list\\.map\\.type.*is not of type";
   };
 
   testResetRuleBadHandleRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.reset.rule {
-            family = "ip";
-            table = "t";
-            chain = "c";
-            expr = [ ];
-            handle = "not-a-number";
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.reset.rule {
+        family = "ip";
+        table = "t";
+        chain = "c";
+        expr = [ ];
+        handle = "not-a-number";
+      }
+    );
+    expectedError.msg = "reset\\.rule\\.handle.*is not of type";
   };
 
   testRenameChainBadNewnameRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.rename.chain {
-            family = "ip";
-            table = "t";
-            name = "c";
-            newname = 42;
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.rename.chain {
+        family = "ip";
+        table = "t";
+        name = "c";
+        newname = 42;
+      }
+    );
+    expectedError.msg = "rename\\.chain\\.newname.*is not of type";
   };
 
   testReplaceRuleBadHandleRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.replace {
-            family = "ip";
-            table = "t";
-            chain = "c";
-            expr = [ ];
-            handle = "abc";
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.replace {
+        family = "ip";
+        table = "t";
+        chain = "c";
+        expr = [ ];
+        handle = "abc";
+      }
+    );
+    expectedError.msg = "replace\\.rule\\.handle.*is not of type";
   };
 
   testInsertRuleBadIndexRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.insert {
-            family = "ip";
-            table = "t";
-            chain = "c";
-            expr = [ ];
-            index = -1;
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.insert {
+        family = "ip";
+        table = "t";
+        chain = "c";
+        expr = [ ];
+        index = -1;
+      }
+    );
+    expectedError.msg = "insert\\.rule\\.index.*is not of type";
   };
 
   # ----- flush helpers and standalone rule (ruleset.nix) ----------------
@@ -313,73 +297,58 @@ in
   };
 
   testFlushChainBadHandleRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.flushChain {
-            family = "ip";
-            table = "t";
-            name = "c";
-            handle = "not-a-number";
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.flushChain {
+        family = "ip";
+        table = "t";
+        name = "c";
+        handle = "not-a-number";
+      }
+    );
+    expectedError.msg = "flushChain\\.handle.*is not of type";
   };
 
   testFlushSetMissingTypeRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.flushSet {
-            family = "ip";
-            table = "t";
-            name = "s";
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.flushSet {
+        family = "ip";
+        table = "t";
+        name = "s";
+      }
+    );
+    expectedError.msg = "flushSet\\.type.*was accessed but has no value defined";
   };
 
   testFlushMapMissingMapRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.flushMap {
-            family = "ip";
-            table = "t";
-            name = "m";
-            type = "ipv4_addr";
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.flushMap {
+        family = "ip";
+        table = "t";
+        name = "m";
+        type = "ipv4_addr";
+      }
+    );
+    expectedError.msg = "flushMap\\.map.*was accessed but has no value defined";
   };
 
   testFlushMeterBadTableRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.flushMeter {
-            family = "ip";
-            table = 42;
-            name = "m";
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.flushMeter {
+        family = "ip";
+        table = 42;
+        name = "m";
+      }
+    );
+    expectedError.msg = "flushMeter\\.table.*is not of type";
   };
 
   testFlushRulesetBadFamilyRejected = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.flushRuleset {
-            family = "wireguard";
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toJson (
+      dsl.flushRuleset {
+        family = "wireguard";
+      }
+    );
+    expectedError.msg = "flushRuleset\\.value\\.family.*is not of type";
   };
 
   testStandaloneRuleBadHandleRejected = {
@@ -401,80 +370,92 @@ in
   # in lib/table.nix routes every kind through the right body type.
 
   testTreeTableBadFlagsRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        flags = [ "no-such-flag" ];
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          flags = [ "no-such-flag" ];
+        })
+      ]
+    );
+    expectedError.msg = "flags\\..*.*is not of type";
   };
 
   testTreeRuleBadHandleRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        chains.c = {
-          rules = [
-            {
-              expr = [ ];
-              handle = "abc";
-            }
-          ];
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          chains.c = {
+            rules = [
+              {
+                expr = [ ];
+                handle = "abc";
+              }
+            ];
+          };
+        })
+      ]
+    );
+    expectedError.msg = "chains\\.c\\.rules\\..*\\.handle.*is not of type";
   };
 
   testTreeSetBadTypeRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        sets.s = {
-          type = 42;
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          sets.s = {
+            type = 42;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "sets\\.s\\.type.*is not of type";
   };
 
   testTreeMapMissingMapRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        maps.m = {
-          type = "ipv4_addr";
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          maps.m = {
+            type = "ipv4_addr";
+          };
+        })
+      ]
+    );
+    expectedError.msg = "maps\\.m\\.map.*was accessed but has no value defined";
   };
 
   # `setElem` (the type behind `elem`) accepts string/int/bool/list as
   # bare expressions, so we exercise the schema via a different field —
   # `family` is a strict enum, easy to violate cleanly.
   testTreeElementBadFamilyRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        elements.s = {
-          family = "wireguard";
-          elements = [ "1.2.3.4" ];
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          elements.s = {
+            family = "wireguard";
+            elements = [ "1.2.3.4" ];
+          };
+        })
+      ]
+    );
+    expectedError.msg = "elements\\.s\\.family.*is not of type";
   };
 
   # flowtableBody.hook accepts `nullOr hook`, and flowtable.dev is
   # required to be a string list — pass a number to force a clean failure.
   testTreeFlowtableBadDevRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        flowtables.ft = {
-          hook = "ingress";
-          prio = 0;
-          dev = 42;
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          flowtables.ft = {
+            hook = "ingress";
+            prio = 0;
+            dev = 42;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "flowtables\\.ft\\.dev.*is not of type";
   };
 
   testTreeCounterBadPacketsRejected = {
@@ -491,112 +472,127 @@ in
   };
 
   testTreeQuotaBadBytesRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        quotas.q = {
-          bytes = "infinity";
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          quotas.q = {
+            bytes = "infinity";
+          };
+        })
+      ]
+    );
+    expectedError.msg = "quotas\\.q\\.bytes.*is not of type";
   };
 
   testTreeLimitMissingPerRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        limits.l = {
-          rate = 100;
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          limits.l = {
+            rate = 100;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "limits\\.l\\.per.*was accessed but has no value defined";
   };
 
   testTreeCtHelperBadProtocolRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        ctHelpers.h = {
-          protocol = "icmp";
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          ctHelpers.h = {
+            protocol = "icmp";
+          };
+        })
+      ]
+    );
+    expectedError.msg = "ctHelpers\\.h\\.protocol.*is not of type";
   };
 
   testTreeCtTimeoutBadL3protoRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        ctTimeouts.t = {
-          l3proto = "ipx";
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          ctTimeouts.t = {
+            l3proto = "ipx";
+          };
+        })
+      ]
+    );
+    expectedError.msg = "ctTimeouts\\.t\\.l3proto.*is not of type";
   };
 
   testTreeCtExpectationBadDportRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        ctExpectations.e = {
-          dport = 99999;
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          ctExpectations.e = {
+            dport = 99999;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "ctExpectations\\.e\\.dport.*is not of type";
   };
 
   testTreeSecmarkBadContextRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        secmarks.s = {
-          context = 42;
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          secmarks.s = {
+            context = 42;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "secmarks\\.s\\.context.*is not of type";
   };
 
   testTreeSynproxyMissingMssRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        synproxies.sp = {
-          wscale = 7;
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          synproxies.sp = {
+            wscale = 7;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "synproxies\\.sp\\.mss.*was accessed but has no value defined";
   };
 
   testTreeTunnelBadTypeRejected = {
-    expr = renders [
-      (dsl.table "ip" "t" {
-        tunnels.tn = {
-          type = "wireguard";
-        };
-      })
-    ];
-    expected = false;
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "ip" "t" {
+          tunnels.tn = {
+            type = "wireguard";
+          };
+        })
+      ]
+    );
+    expectedError.msg = "tunnels\\.tn\\.type.*is not of type";
   };
 
   # ----- happy path: a complete, valid ruleset still renders -----------
 
   testTreeAcceptedRulesetSucceeds = {
-    expr =
-      (builtins.tryEval (
-        toJson (
-          dsl.ruleset [
-            (dsl.table "ip" "t" {
-              chains.c = {
-                type = "filter";
-                hook = "input";
-                prio = 0;
-                policy = "accept";
-                rules = [ [ dsl.accept ] ];
-              };
-            })
-          ]
-        )
-      )).success;
+    expr = builtins.isString (
+      toJson (
+        dsl.ruleset [
+          (dsl.table "ip" "t" {
+            chains.c = {
+              type = "filter";
+              hook = "input";
+              prio = 0;
+              policy = "accept";
+              rules = [ [ dsl.accept ] ];
+            };
+          })
+        ]
+      )
+    );
     expected = true;
   };
 }

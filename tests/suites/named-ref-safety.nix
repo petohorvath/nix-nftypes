@@ -1,5 +1,4 @@
 {
-  helpers,
   lib,
   nftlib,
   ...
@@ -24,10 +23,6 @@
 # nft-grammar metacharacters, and control characters.
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsText
-    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toTextPretty;
 
@@ -137,8 +132,8 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rejectsText (surfaces.${surface} badValue);
-          expected = true;
+          expr = nftlib.toText (surfaces.${surface} badValue);
+          expectedError.msg = "refusing to render a bare nft token";
         };
       }) (badInputsForSurface surface)
     ) (builtins.attrNames surfaces)
@@ -153,8 +148,8 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testRendererAccepts_${surface}_${goodName}";
         value = {
-          expr = rejectsText (surfaces.${surface} goodValue);
-          expected = false;
+          expr = builtins.isString (nftlib.toText (surfaces.${surface} goodValue));
+          expected = true;
         };
       }) goodInputs
     ) (builtins.attrNames surfaces)
@@ -162,16 +157,16 @@ let
 
   prettyTests = {
     testPrettyRejects_setStmt_newline = {
-      expr = evalSucceeds (toTextPretty (rulesetSetStmt badInputsCommon.newline));
-      expected = false;
+      expr = (toTextPretty (rulesetSetStmt badInputsCommon.newline));
+      expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_mapStmt_newline = {
-      expr = evalSucceeds (toTextPretty (rulesetMapStmt badInputsCommon.newline));
-      expected = false;
+      expr = (toTextPretty (rulesetMapStmt badInputsCommon.newline));
+      expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_flow_newline = {
-      expr = evalSucceeds (toTextPretty (rulesetFlow "@${badInputsCommon.newline}"));
-      expected = false;
+      expr = (toTextPretty (rulesetFlow "@${badInputsCommon.newline}"));
+      expectedError.msg = "refusing to render a bare nft token";
     };
   };
 in

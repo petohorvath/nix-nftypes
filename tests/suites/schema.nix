@@ -9,7 +9,14 @@ let
   inherit (helpers) roundtrip;
   inherit (nftlib) toJson;
 
-  validatesListing = cmd: helpers.validates nftlib.types.ruleset { nftables = [ cmd ]; };
+  # A listed command validated as a singleton ruleset, deep-forced so
+  # lazy submodule checks run.
+  readBack =
+    command:
+    let
+      ruleset = helpers.validate nftlib.types.ruleset { nftables = [ command ]; };
+    in
+    builtins.deepSeq ruleset ruleset;
 
   # One drift assertion per primitive enum: the list under
   # `nftlib.enums.<x>` must match the value list `types.enum` was
@@ -517,39 +524,33 @@ enumDriftTests
   # accepted it; this asserts that's no longer the case.
   # ------------------------------------------------------------------
   testFlushFlowtableRejected = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.command {
-          flush = {
-            flowtable = {
-              family = "inet";
-              table = "filter";
-              name = "ft";
-            };
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.command {
+      flush = {
+        flowtable = {
+          family = "inet";
+          table = "filter";
+          name = "ft";
+        };
+      };
+    };
+    expectedError.msg = "v\\.flush.*is not of type";
   };
 
   # nftables rejects `create rule` explicitly. `create` must not reuse the
   # broader add-object union or raw typed input would accept an impossible
   # command even though the DSL omits its constructor.
   testCreateRuleRejected = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.command {
-          create = {
-            rule = {
-              family = "inet";
-              table = "filter";
-              chain = "input";
-              expr = [ ];
-            };
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.command {
+      create = {
+        rule = {
+          family = "inet";
+          table = "filter";
+          chain = "input";
+          expr = [ ];
+        };
+      };
+    };
+    expectedError.msg = "v\\.create.*is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -573,20 +574,17 @@ enumDriftTests
   };
 
   testLimitObjectUnitRejected = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.objects.limit {
-          limit = {
-            family = "inet";
-            table = "filter";
-            name = "slow";
-            rate = 5;
-            per = "second";
-            unit = "packets";
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.objects.limit {
+      limit = {
+        family = "inet";
+        table = "filter";
+        name = "slow";
+        rate = 5;
+        per = "second";
+        unit = "packets";
+      };
+    };
+    expectedError.msg = "v\\.limit\\.unit.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -829,16 +827,13 @@ enumDriftTests
   # confirms the back-reference resolves to the real statement type and
   # isn't accepting arbitrary attrsets.
   testElementStmtRejectsInvalid = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.expression {
-          elem = {
-            val = "1.2.3.4";
-            stmt = [ { not_a_real_statement = { }; } ];
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.expression {
+      elem = {
+        val = "1.2.3.4";
+        stmt = [ { not_a_real_statement = { }; } ];
+      };
+    };
+    expectedError.msg = "v\\.elem\\.stmt\\..*.*is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -908,50 +903,41 @@ enumDriftTests
   # Mixed raw+named payload keys must be rejected (spec: mutually exclusive)
   # ------------------------------------------------------------------
   testPayloadMixingRejected = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.expression {
-          payload = {
-            base = "nh";
-            offset = 0;
-            len = 16;
-            protocol = "tcp";
-            field = "dport";
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.expression {
+      payload = {
+        base = "nh";
+        offset = 0;
+        len = 16;
+        protocol = "tcp";
+        field = "dport";
+      };
+    };
+    expectedError.msg = "v\\.payload\\.field.*does not exist";
   };
 
   # ------------------------------------------------------------------
   # Incomplete raw payload (missing len) must be rejected
   # ------------------------------------------------------------------
   testRawPayloadIncompleteRejected = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.expression {
-          payload = {
-            base = "nh";
-            offset = 0;
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.expression {
+      payload = {
+        base = "nh";
+        offset = 0;
+      };
+    };
+    expectedError.msg = "v\\.payload.*is not of type";
   };
 
   # ------------------------------------------------------------------
   # Incomplete named payload (missing field) must be rejected
   # ------------------------------------------------------------------
   testNamedPayloadIncompleteRejected = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.expression {
-          payload = {
-            protocol = "tcp";
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.expression {
+      payload = {
+        protocol = "tcp";
+      };
+    };
+    expectedError.msg = "v\\.payload.*is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -1235,15 +1221,12 @@ enumDriftTests
 
   # limit.per is required in inline form (parser_json.c:2084)
   testLimitPerRejectedWithoutPer = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.statement {
-          limit = {
-            rate = 100;
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.statement {
+      limit = {
+        rate = 100;
+      };
+    };
+    expectedError.msg = "v\\.limit\\.per.*was accessed but has no value defined";
   };
 
   # queue without num is valid
@@ -1386,22 +1369,19 @@ enumDriftTests
   # Mixing VXLAN keys into an ERSPAN tunnel nested object must be rejected
   # ------------------------------------------------------------------
   testTunnelNestedDisjoint = {
-    expr =
-      (builtins.tryEval (
-        roundtrip nftlib.types.objects.tunnel {
-          tunnel = {
-            family = "inet";
-            table = "t";
-            name = "bad";
-            type = "vxlan";
-            tunnel = {
-              version = 1;
-              gbp = 10;
-            };
-          };
-        }
-      )).success;
-    expected = false;
+    expr = roundtrip nftlib.types.objects.tunnel {
+      tunnel = {
+        family = "inet";
+        table = "t";
+        name = "bad";
+        type = "vxlan";
+        tunnel = {
+          version = 1;
+          gbp = 10;
+        };
+      };
+    };
+    expectedError.msg = "v\\.tunnel\\.tunnel\\.gbp.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -1638,16 +1618,16 @@ enumDriftTests
   # resolvePriority — unknown family throws
   # ------------------------------------------------------------------
   testResolvePriorityUnknownFamilyThrows = {
-    expr = (builtins.tryEval (nftlib.resolvePriority "wat" "filter")).success;
-    expected = false;
+    expr = nftlib.resolvePriority "wat" "filter";
+    expectedError.msg = "unknown family 'wat'";
   };
 
   # ------------------------------------------------------------------
   # resolvePriority — unknown symbol throws (default table)
   # ------------------------------------------------------------------
   testResolvePriorityUnknownSymbolThrowsDefault = {
-    expr = (builtins.tryEval (nftlib.resolvePriority "ip" "out")).success;
-    expected = false;
+    expr = nftlib.resolvePriority "ip" "out";
+    expectedError.msg = "unknown priority symbol 'out' for family 'ip'";
   };
 
   # ------------------------------------------------------------------
@@ -1656,8 +1636,8 @@ enumDriftTests
   # are default-only).
   # ------------------------------------------------------------------
   testResolvePriorityUnknownSymbolThrowsBridge = {
-    expr = (builtins.tryEval (nftlib.resolvePriority "bridge" "raw")).success;
-    expected = false;
+    expr = nftlib.resolvePriority "bridge" "raw";
+    expectedError.msg = "unknown priority symbol 'raw' for family 'bridge'";
   };
 
   # ------------------------------------------------------------------
@@ -1852,8 +1832,8 @@ enumDriftTests
   };
 
   testPriorityIntsByFamilyUnknownThrows = {
-    expr = (builtins.tryEval (nftlib.compatibility.priorityIntsByFamily "nope")).success;
-    expected = false;
+    expr = nftlib.compatibility.priorityIntsByFamily "nope";
+    expectedError.msg = "unknown family 'nope'";
   };
 
   # ------------------------------------------------------------------
@@ -1897,8 +1877,8 @@ enumDriftTests
   };
 
   testPriorityNameOfUnknownFamilyThrows = {
-    expr = (builtins.tryEval (nftlib.priorityNameOf "nope" 0)).success;
-    expected = false;
+    expr = nftlib.priorityNameOf "nope" 0;
+    expectedError.msg = "unknown family 'nope'";
   };
 
   # ------------------------------------------------------------------
@@ -1969,42 +1949,42 @@ enumDriftTests
   };
 
   testChainTypeForUnknownFamilyThrows = {
-    expr = (builtins.tryEval (nftlib.chainTypeFor "nope" "input" "filter")).success;
-    expected = false;
+    expr = nftlib.chainTypeFor "nope" "input" "filter";
+    expectedError.msg = "unknown family 'nope'";
   };
 
   # Read-back validation: the source-side checks validate each listed
   # command as a singleton ruleset. Bare listed objects with handles are
   # accepted; junk in read-back position is not.
   testRulesetAcceptsBareListing = {
-    expr = validatesListing {
+    expr = builtins.isAttrs (readBack {
       table = {
         family = "inet";
         name = "t";
         handle = 1;
       };
-    };
+    });
     expected = true;
   };
 
   testRulesetRejectsUnknownTopTag = {
-    expr = validatesListing { gizmo = { }; };
-    expected = false;
+    expr = readBack { gizmo = { }; };
+    expectedError.msg = "v\\.nftables\\..*is not of type";
   };
 
   testRulesetRejectsUnknownField = {
-    expr = validatesListing {
+    expr = readBack {
       table = {
         family = "inet";
         name = "t";
         frobnicate = 1;
       };
     };
-    expected = false;
+    expectedError.msg = "table\\.frobnicate.*does not exist";
   };
 
   testRulesetRejectsUnknownStatement = {
-    expr = validatesListing {
+    expr = readBack {
       rule = {
         family = "inet";
         table = "t";
@@ -2013,6 +1993,6 @@ enumDriftTests
         expr = [ { not_a_stmt = { }; } ];
       };
     };
-    expected = false;
+    expectedError.msg = "rule\\.expr\\..*is not of type";
   };
 }

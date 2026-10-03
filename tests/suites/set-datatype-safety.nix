@@ -1,5 +1,4 @@
 {
-  helpers,
   lib,
   nftlib,
   ...
@@ -23,10 +22,6 @@
 # literal bytes and rejects unknown datatypes at the syscall layer.
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsText
-    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toTextPretty;
 
@@ -109,8 +104,8 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rejectsText (surfaces.${surface} badValue);
-          expected = true;
+          expr = nftlib.toText (surfaces.${surface} badValue);
+          expectedError.msg = "refusing to render a set/map datatype";
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -122,11 +117,11 @@ let
       value = {
         # Inject the unsafe byte through the SECOND element to prove
         # the per-element walk is wired up (not just the head).
-        expr = rejectsText (rulesetWithConcatKey [
+        expr = nftlib.toText (rulesetWithConcatKey [
           "ipv4_addr"
           badValue
         ]);
-        expected = true;
+        expectedError.msg = "refusing to render a set/map datatype";
       };
     }) badInputs
   );
@@ -137,8 +132,8 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testRendererAccepts_${surface}_${goodName}";
         value = {
-          expr = rejectsText (surfaces.${surface} goodValue);
-          expected = false;
+          expr = builtins.isString (nftlib.toText (surfaces.${surface} goodValue));
+          expected = true;
         };
       }) goodInputs
     ) (builtins.attrNames surfaces)
@@ -146,21 +141,23 @@ let
 
   concatAcceptanceTests = {
     testRendererAccepts_concatKey_pair = {
-      expr = rejectsText (rulesetWithConcatKey [
-        "ipv4_addr"
-        "inet_service"
-      ]);
-      expected = false;
+      expr = builtins.isString (
+        nftlib.toText (rulesetWithConcatKey [
+          "ipv4_addr"
+          "inet_service"
+        ])
+      );
+      expected = true;
     };
   };
 
   prettyTests = {
     testPrettyRejectsInjection = {
-      expr = evalSucceeds (toTextPretty (rulesetWithSetType badInputs.newline));
-      expected = false;
+      expr = (toTextPretty (rulesetWithSetType badInputs.newline));
+      expectedError.msg = "refusing to render a set/map datatype";
     };
     testPrettyAcceptsCleanDatatype = {
-      expr = evalSucceeds (toTextPretty (rulesetWithSetType "ipv4_addr"));
+      expr = builtins.isString ((toTextPretty (rulesetWithSetType "ipv4_addr")));
       expected = true;
     };
   };

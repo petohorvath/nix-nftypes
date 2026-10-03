@@ -68,7 +68,6 @@ let
   # on any type error.
   validates = valueType: value: evalSucceeds (builtins.deepSeq (validate valueType value) true);
 
-  rejects = render: value: !(evalSucceeds (render value));
 in
 {
   inherit
@@ -93,10 +92,6 @@ in
   };
 
   roundtrip = valueType: value: nftlib.toJson (validate valueType value);
-
-  rejectsJson = rejects nftlib.toJson;
-  rejectsText = rejects nftlib.toText;
-  rejectsTextPretty = rejects nftlib.toTextPretty;
 
   # Classifies corpus statements the schema rejects; see corpus-drift.nix.
   corpusDrift = import ./corpus-drift.nix {

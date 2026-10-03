@@ -311,8 +311,8 @@ in
   # `expr.set <bare-string>` is a footgun (silently rendered to invalid
   # nftables); the constructor throws and points at `setRef`.
   testExprSetStringRejected = {
-    expr = (builtins.tryEval (dsl.expr.set "trusted_v4")).success;
-    expected = false;
+    expr = dsl.expr.set "trusted_v4";
+    expectedError.msg = "expr\\.set: a bare string";
   };
 
   # `expr.set` on an actual list still works — anonymous-set path unchanged.
@@ -355,8 +355,8 @@ in
     };
   };
   testExprMapRefRejectsNonString = {
-    expr = (builtins.tryEval (dsl.expr.mapRef 42)).success;
-    expected = false;
+    expr = dsl.expr.mapRef 42;
+    expectedError.msg = "expr\\.mapRef: expected a name string";
   };
 
   testExprPrefix = pe (dsl.expr.prefix "10.0.0.0" 8) {
@@ -1818,33 +1818,33 @@ in
         ];
       };
 
-  # Invalid children (wrong type) must throw. `toJson` forces evaluation so
-  # the thrown exception is caught by tryEval — the renderer builds a lazy
-  # list and the throw wouldn't fire until a consumer walks it.
+  # Invalid children (wrong type) must throw. `toJson` forces evaluation:
+  # the renderer builds a lazy list and the throw wouldn't fire until a
+  # consumer walks it.
   testRenderRejectString = {
-    expr = (builtins.tryEval (toJson (dsl.ruleset [ "not-a-command" ]))).success;
-    expected = false;
+    expr = toJson (dsl.ruleset [ "not-a-command" ]);
+    expectedError.msg = "dsl\\.ruleset: invalid child";
   };
 
   testRenderRejectInt = {
-    expr = (builtins.tryEval (toJson (dsl.ruleset [ 42 ]))).success;
-    expected = false;
+    expr = toJson (dsl.ruleset [ 42 ]);
+    expectedError.msg = "dsl\\.ruleset: invalid child";
   };
 
   testRenderRejectBool = {
-    expr = (builtins.tryEval (toJson (dsl.ruleset [ true ]))).success;
-    expected = false;
+    expr = toJson (dsl.ruleset [ true ]);
+    expectedError.msg = "dsl\\.ruleset: invalid child";
   };
 
   testRenderRejectNull = {
-    expr = (builtins.tryEval (toJson (dsl.ruleset [ null ]))).success;
-    expected = false;
+    expr = toJson (dsl.ruleset [ null ]);
+    expectedError.msg = "dsl\\.ruleset: invalid child";
   };
 
   # Invalid child nested inside a list is detected too (recursion reaches it).
   testRenderRejectNestedInvalid = {
-    expr = (builtins.tryEval (toJson (dsl.ruleset [ [ "bad" ] ]))).success;
-    expected = false;
+    expr = toJson (dsl.ruleset [ [ "bad" ] ]);
+    expectedError.msg = "dsl\\.ruleset: invalid child";
   };
 
   # Table with an empty `chains` attrset emits only the table-add command.

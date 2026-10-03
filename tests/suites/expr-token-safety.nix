@@ -1,5 +1,4 @@
 {
-  helpers,
   lib,
   nftlib,
   ...
@@ -27,10 +26,6 @@
 # unknown protocol / field / key names at the syscall layer).
 
 let
-  inherit (helpers)
-    rejectsText
-    rejectsTextPretty
-    ;
   dsl = nftlib.dsl;
 
   mkMatchRuleset =
@@ -168,8 +163,8 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rejectsText (surfaces.${surface} badValue);
-          expected = true;
+          expr = nftlib.toText (surfaces.${surface} badValue);
+          expectedError.msg = "refusing to render a bare nft token";
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -179,12 +174,12 @@ let
   # multi-line entry, covering both compact and pretty.
   prettyTests = {
     testPrettyRejects_payloadField_newline = {
-      expr = rejectsTextPretty (surfaces.payloadField badInputs.newline);
-      expected = true;
+      expr = nftlib.toTextPretty (surfaces.payloadField badInputs.newline);
+      expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_ctKey_newline = {
-      expr = rejectsTextPretty (surfaces.ctKey badInputs.newline);
-      expected = true;
+      expr = nftlib.toTextPretty (surfaces.ctKey badInputs.newline);
+      expectedError.msg = "refusing to render a bare nft token";
     };
   };
 
@@ -192,28 +187,28 @@ let
   # false-positive on legitimate identifier-shaped tokens.
   acceptanceTests = {
     testAccepts_payload = {
-      expr = rejectsText (surfaces.payloadProtocol "tcp");
-      expected = false;
+      expr = builtins.isString (nftlib.toText (surfaces.payloadProtocol "tcp"));
+      expected = true;
     };
     testAccepts_exthdr = {
-      expr = rejectsText (surfaces.exthdrName "frag");
-      expected = false;
+      expr = builtins.isString (nftlib.toText (surfaces.exthdrName "frag"));
+      expected = true;
     };
     testAccepts_tcpOption = {
-      expr = rejectsText (surfaces.tcpOptionName "maxseg");
-      expected = false;
+      expr = builtins.isString (nftlib.toText (surfaces.tcpOptionName "maxseg"));
+      expected = true;
     };
     testAccepts_ipOption = {
-      expr = rejectsText (surfaces.ipOptionName "lsrr");
-      expected = false;
+      expr = builtins.isString (nftlib.toText (surfaces.ipOptionName "lsrr"));
+      expected = true;
     };
     testAccepts_sctpChunk = {
-      expr = rejectsText (surfaces.sctpChunkName "data");
-      expected = false;
+      expr = builtins.isString (nftlib.toText (surfaces.sctpChunkName "data"));
+      expected = true;
     };
     testAccepts_ctKey = {
-      expr = rejectsText (surfaces.ctKey "state");
-      expected = false;
+      expr = builtins.isString (nftlib.toText (surfaces.ctKey "state"));
+      expected = true;
     };
   };
 in

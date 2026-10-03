@@ -54,42 +54,39 @@ in
   # Block renderers accept only declarative table nodes. Raw commands must
   # not be silently discarded or rendered without their table context.
   testRawTableCommandRejected = {
-    expr =
-      (builtins.tryEval (toTextBlock {
-        add.table = {
-          family = "inet";
-          name = "fw";
-        };
-      })).success;
-    expected = false;
+    expr = toTextBlock {
+      add.table = {
+        family = "inet";
+        name = "fw";
+      };
+    };
+    expectedError.msg = "block-form text rendering expects one dsl\\.table node";
   };
 
   testRawChainCommandRejectedPretty = {
-    expr =
-      (builtins.tryEval (toTextBlockPretty {
-        add.chain = {
-          family = "inet";
-          table = "fw";
-          name = "input";
-        };
-      })).success;
-    expected = false;
+    expr = toTextBlockPretty {
+      add.chain = {
+        family = "inet";
+        table = "fw";
+        name = "input";
+      };
+    };
+    expectedError.msg = "block-form text rendering expects one dsl\\.table node";
   };
 
   # Assertions cross the public table interface. The old internal command
   # envelope and its partition/regroup protocol no longer exist.
   testRulesetEnvelopeRejected = {
-    expr = (builtins.tryEval (toTextBlock (dsl.ruleset [ (dsl.table "inet" "fw" { }) ]))).success;
-    expected = false;
+    expr = toTextBlock (dsl.ruleset [ (dsl.table "inet" "fw" { }) ]);
+    expectedError.msg = "block-form text rendering expects one dsl\\.table node";
   };
 
   testTableListRejectedPretty = {
-    expr =
-      (builtins.tryEval (toTextBlockPretty [
-        (dsl.table "inet" "fw" { })
-        (dsl.table "inet" "other" { })
-      ])).success;
-    expected = false;
+    expr = toTextBlockPretty [
+      (dsl.table "inet" "fw" { })
+      (dsl.table "inet" "other" { })
+    ];
+    expectedError.msg = "block-form text rendering expects one dsl\\.table node";
   };
 
   testUnknownTableKeyRejected = {
@@ -100,14 +97,13 @@ in
   # Omitting wrapper fields from output must not skip their validation,
   # including when there are no declarations to render.
   testInvalidEmptyTableFamilyRejected = {
-    expr = (builtins.tryEval (toTextBlock (dsl.table "invalid" "fw" { }))).success;
-    expected = false;
+    expr = toTextBlock (dsl.table "invalid" "fw" { });
+    expectedError.msg = "family.*is not of type";
   };
 
   testInvalidEmptyTableFlagsRejectedPretty = {
-    expr =
-      (builtins.tryEval (toTextBlockPretty (dsl.table "inet" "fw" { flags = [ "invalid" ]; }))).success;
-    expected = false;
+    expr = toTextBlockPretty (dsl.table "inet" "fw" { flags = [ "invalid" ]; });
+    expectedError.msg = "flags\\..*.*is not of type";
   };
 
   testInvalidEmptyTableCommentRejected = {
@@ -152,68 +148,57 @@ in
   };
 
   testInvalidNamedObjectRejected = {
-    expr =
-      (builtins.tryEval (toTextBlock (dsl.table "inet" "fw" { counters.hits.packets = "lots"; })))
-      .success;
-    expected = false;
+    expr = toTextBlock (dsl.table "inet" "fw" { counters.hits.packets = "lots"; });
+    expectedError.msg = "counters\\.hits\\.packets.*is not of type";
   };
 
   testUnsafeIfnameElementRejectedPretty = {
-    expr =
-      (builtins.tryEval (
-        toTextBlockPretty (
-          dsl.table "inet" "fw" {
-            sets.interfaces = {
-              type = "ifname";
-              elements = [ "eth0,eth1" ];
-            };
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toTextBlockPretty (
+      dsl.table "inet" "fw" {
+        sets.interfaces = {
+          type = "ifname";
+          elements = [ "eth0,eth1" ];
+        };
+      }
+    );
+    expectedError.msg = "sets\\.interfaces: .*is not a safe interface name";
   };
 
   # Standalone `element` is an imperative command and has no legal form
   # inside a `table ... {}` block. Block renderers must reject this DSL tree
   # instead of emitting parser-invalid `element name { ... }` text.
   testStandaloneElementsRejectedCompact = {
-    expr =
-      (builtins.tryEval (
-        toTextBlock (
-          dsl.table "inet" "fw" {
-            sets.blocked = {
-              type = "ipv4_addr";
-            };
-            elements.blocked = {
-              elements = [ "192.0.2.1" ];
-            };
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toTextBlock (
+      dsl.table "inet" "fw" {
+        sets.blocked = {
+          type = "ipv4_addr";
+        };
+        elements.blocked = {
+          elements = [ "192.0.2.1" ];
+        };
+      }
+    );
+    expectedError.msg = "block-form text rendering cannot embed standalone table elements";
   };
 
   testStandaloneElementsRejectedPretty = {
-    expr =
-      (builtins.tryEval (
-        toTextBlockPretty (
-          dsl.table "inet" "fw" {
-            maps.services = {
-              type = "inet_service";
-              map = "inet_service";
-            };
-            elements.services = {
-              elements = [
-                [
-                  80
-                  8080
-                ]
-              ];
-            };
-          }
-        )
-      )).success;
-    expected = false;
+    expr = toTextBlockPretty (
+      dsl.table "inet" "fw" {
+        maps.services = {
+          type = "inet_service";
+          map = "inet_service";
+        };
+        elements.services = {
+          elements = [
+            [
+              80
+              8080
+            ]
+          ];
+        };
+      }
+    );
+    expectedError.msg = "block-form text rendering cannot embed standalone table elements";
   };
 
   # ---- chain only (base chain, no rules) -----------------------------

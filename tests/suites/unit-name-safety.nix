@@ -1,5 +1,4 @@
 {
-  helpers,
   lib,
   nftlib,
   ...
@@ -22,10 +21,6 @@
 # the shared `nft-safe-scalar` predicate.
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsText
-    ;
   dsl = nftlib.dsl;
   inherit (nftlib) toTextPretty;
 
@@ -146,8 +141,8 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testRendererRejects_${surface}_${badName}";
         value = {
-          expr = rejectsText (surfaces.${surface} badValue);
-          expected = true;
+          expr = nftlib.toText (surfaces.${surface} badValue);
+          expectedError.msg = "refusing to render a bare nft token";
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -159,8 +154,8 @@ let
       lib.mapAttrsToList (goodName: goodValue: {
         name = "testRendererAccepts_${surface}_${goodName}";
         value = {
-          expr = rejectsText (surfaces.${surface} goodValue);
-          expected = false;
+          expr = builtins.isString (nftlib.toText (surfaces.${surface} goodValue));
+          expected = true;
         };
       }) goodInputs
     ) (builtins.attrNames surfaces)
@@ -168,16 +163,16 @@ let
 
   prettyTests = {
     testPrettyRejects_limitStmt_rate_unit_newline = {
-      expr = evalSucceeds (toTextPretty (rulesetLimitStmt "rate_unit" badInputs.newline));
-      expected = false;
+      expr = (toTextPretty (rulesetLimitStmt "rate_unit" badInputs.newline));
+      expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_limitObject_burst_unit_newline = {
-      expr = evalSucceeds (toTextPretty (rulesetLimitObject "burst_unit" badInputs.newline));
-      expected = false;
+      expr = (toTextPretty (rulesetLimitObject "burst_unit" badInputs.newline));
+      expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_createLimit_burst_unit_newline = {
-      expr = evalSucceeds (toTextPretty (rulesetCreateLimit "burst_unit" badInputs.newline));
-      expected = false;
+      expr = (toTextPretty (rulesetCreateLimit "burst_unit" badInputs.newline));
+      expectedError.msg = "refusing to render a bare nft token";
     };
   };
 in

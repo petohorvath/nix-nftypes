@@ -25,10 +25,6 @@
 # pre-fix, fed through `toTextPretty` post-fix → throws).
 
 let
-  inherit (helpers)
-    evalSucceeds
-    rejectsJson
-    ;
   inherit (nftlib) toJson toText toTextPretty;
 
   inherit (helpers.internals) textPrimitives;
@@ -70,8 +66,8 @@ let
       lib.mapAttrsToList (badName: badValue: {
         name = "testSchemaRejects_${surface}_${badName}";
         value = {
-          expr = rejectsJson (surfaces.${surface} badValue);
-          expected = true;
+          expr = nftlib.toJson (surfaces.${surface} badValue);
+          expectedError.msg = "nft-safe quoted string";
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -84,15 +80,15 @@ let
       {
         name = "testSchemaAccepts_${surface}_simple";
         value = {
-          expr = rejectsJson (surfaces.${surface} "ok comment 123");
-          expected = false;
+          expr = builtins.isString (nftlib.toJson (surfaces.${surface} "ok comment 123"));
+          expected = true;
         };
       }
       {
         name = "testSchemaAccepts_${surface}_maxLength";
         value = {
-          expr = rejectsJson (surfaces.${surface} maxLength);
-          expected = false;
+          expr = builtins.isString (nftlib.toJson (surfaces.${surface} maxLength));
+          expected = true;
         };
       }
     ]) (builtins.attrNames surfaces)
@@ -102,23 +98,23 @@ let
   # bypassing every schema check. The function must throw.
   rendererTests = {
     testRendererThrowsOnQuote = {
-      expr = evalSucceeds (textPrimitives.quoteString badInputs.quote);
-      expected = false;
+      expr = (textPrimitives.quoteString badInputs.quote);
+      expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererThrowsOnBackslash = {
-      expr = evalSucceeds (textPrimitives.quoteString badInputs.backslash);
-      expected = false;
+      expr = (textPrimitives.quoteString badInputs.backslash);
+      expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererThrowsOnNewline = {
-      expr = evalSucceeds (textPrimitives.quoteString badInputs.newline);
-      expected = false;
+      expr = (textPrimitives.quoteString badInputs.newline);
+      expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererThrowsOnTab = {
-      expr = evalSucceeds (textPrimitives.quoteString badInputs.tab);
-      expected = false;
+      expr = (textPrimitives.quoteString badInputs.tab);
+      expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererAcceptsClean = {
-      expr = evalSucceeds (textPrimitives.quoteString "clean text 123");
+      expr = builtins.isString ((textPrimitives.quoteString "clean text 123"));
       expected = true;
     };
     testEscapeIsIdentityForSafe = {
@@ -150,12 +146,12 @@ let
 
   regressionTests = {
     testRendererBlocksInjectionInToText = {
-      expr = evalSucceeds (toText rawInjectionRuleset);
-      expected = false;
+      expr = (toText rawInjectionRuleset);
+      expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererBlocksInjectionInToTextPretty = {
-      expr = evalSucceeds (toTextPretty rawInjectionRuleset);
-      expected = false;
+      expr = (toTextPretty rawInjectionRuleset);
+      expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     # JSON path is structurally safe (builtins.toJSON encodes correctly,
     # libnftables stores the literal bytes as UDATA). Pin the encoding so

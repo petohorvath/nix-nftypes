@@ -28,12 +28,12 @@ let
   /*
     Strict type-check: build a one-option module whose value is a
     `listOf t`, plug `v` in, and deep-force the resulting list so the
-    submodule's lazy type machinery actually runs. Returns true on
-    success, false on any throw — `tryEval` catches `evalModules`'
-    `assertion failed: …`. Wrapping in `listOf` matches the call-site
-    shape consumers will use (`type = listOf nftypes.types.matchStatement;`).
+    submodule's lazy type machinery actually runs. Returns the list, or
+    throws `evalModules`' type error. Wrapping in `listOf` matches the
+    call-site shape consumers will use
+    (`type = listOf nftypes.types.matchStatement;`).
   */
-  accepts =
+  checked =
     t: v:
     let
       cfg =
@@ -43,9 +43,20 @@ let
             { x = v; }
           ];
         }).config.x;
-      result = builtins.tryEval (builtins.deepSeq cfg cfg);
     in
-    result.success;
+    builtins.deepSeq cfg cfg;
+
+  # The type accepts every value in `v`.
+  accepts = t: v: {
+    expr = builtins.isList (checked t v);
+    expected = true;
+  };
+
+  # The type rejects `v`.
+  rejects = t: v: {
+    expr = checked t v;
+    expectedError.msg = "x\\..*is not of type";
+  };
 
   # Representative values for each tested kind. Built once at the top
   # so individual tests stay focused on the assertion, not the data.
@@ -100,104 +111,62 @@ let
     # (`statementOf [ "match" ]`). Accepts a match; rejects every other
     # kind. Pinned with three negatives so a regression in the body
     # type wouldn't be masked by a stale "accepts" pass.
-    testMatchStatementAcceptsMatch = {
-      expr = accepts types.matchStatement [ matchValue ];
-      expected = true;
-    };
-    testMatchStatementRejectsAccept = {
-      expr = accepts types.matchStatement [ acceptValue ];
-      expected = false;
-    };
-    testMatchStatementRejectsJump = {
-      expr = accepts types.matchStatement [ jumpValue ];
-      expected = false;
-    };
-    testMatchStatementRejectsCounter = {
-      expr = accepts types.matchStatement [ counterValue ];
-      expected = false;
-    };
+    testMatchStatementAcceptsMatch = accepts types.matchStatement [ matchValue ];
+    testMatchStatementRejectsAccept = rejects types.matchStatement [ acceptValue ];
+    testMatchStatementRejectsJump = rejects types.matchStatement [ jumpValue ];
+    testMatchStatementRejectsCounter = rejects types.matchStatement [ counterValue ];
 
     # `statementOf [ "match" ]` must behave identically to the
     # `matchStatement` alias — same value sets pass and fail.
-    testStatementOfMatchMatchesAlias = {
-      expr = accepts (types.statementOf [ "match" ]) [ matchValue ];
-      expected = true;
-    };
-    testStatementOfMatchRejectsAccept = {
-      expr = accepts (types.statementOf [ "match" ]) [ acceptValue ];
-      expected = false;
-    };
+    testStatementOfMatchMatchesAlias = accepts (types.statementOf [ "match" ]) [ matchValue ];
+    testStatementOfMatchRejectsAccept = rejects (types.statementOf [ "match" ]) [ acceptValue ];
 
     # Verdict-only subset — the other common downstream restriction.
     # Accepts every verdict, rejects match and counter.
-    testStatementOfVerdictAcceptsAccept = {
-      expr = accepts (types.statementOf verdictKinds) [ acceptValue ];
-      expected = true;
-    };
-    testStatementOfVerdictAcceptsJump = {
-      expr = accepts (types.statementOf verdictKinds) [ jumpValue ];
-      expected = true;
-    };
-    testStatementOfVerdictRejectsMatch = {
-      expr = accepts (types.statementOf verdictKinds) [ matchValue ];
-      expected = false;
-    };
-    testStatementOfVerdictRejectsCounter = {
-      expr = accepts (types.statementOf verdictKinds) [ counterValue ];
-      expected = false;
-    };
+    testStatementOfVerdictAcceptsAccept = accepts (types.statementOf verdictKinds) [ acceptValue ];
+    testStatementOfVerdictAcceptsJump = accepts (types.statementOf verdictKinds) [ jumpValue ];
+    testStatementOfVerdictRejectsMatch = rejects (types.statementOf verdictKinds) [ matchValue ];
+    testStatementOfVerdictRejectsCounter = rejects (types.statementOf verdictKinds) [ counterValue ];
 
     # Mixed two-kind subset — match and counter both pass; accept
     # (outside the subset) fails.
-    testStatementOfMixedAcceptsBoth = {
-      expr =
-        accepts
-          (types.statementOf [
-            "match"
-            "counter"
-          ])
-          [
-            matchValue
-            counterValue
-          ];
-      expected = true;
-    };
-    testStatementOfMixedRejectsOutsider = {
-      expr =
-        accepts
-          (types.statementOf [
-            "match"
-            "counter"
-          ])
-          [
-            matchValue
-            acceptValue
-          ];
-      expected = false;
-    };
+    testStatementOfMixedAcceptsBoth =
+      accepts
+        (types.statementOf [
+          "match"
+          "counter"
+        ])
+        [
+          matchValue
+          counterValue
+        ];
+    testStatementOfMixedRejectsOutsider =
+      rejects
+        (types.statementOf [
+          "match"
+          "counter"
+        ])
+        [
+          matchValue
+          acceptValue
+        ];
 
     # `expressionOf` — tagged-only, scalars/lists are intentionally
     # outside the subset and not tested here (see helper docstring).
-    testExpressionOfPayloadAcceptsBoth = {
-      expr =
-        accepts
-          (types.expressionOf [
-            "payload"
-            "meta"
-          ])
-          [
-            payloadValue
-            metaValue
-          ];
-      expected = true;
-    };
-    testExpressionOfPayloadRejectsCt = {
-      expr = accepts (types.expressionOf [
-        "payload"
-        "meta"
-      ]) [ ctValue ];
-      expected = false;
-    };
+    testExpressionOfPayloadAcceptsBoth =
+      accepts
+        (types.expressionOf [
+          "payload"
+          "meta"
+        ])
+        [
+          payloadValue
+          metaValue
+        ];
+    testExpressionOfPayloadRejectsCt = rejects (types.expressionOf [
+      "payload"
+      "meta"
+    ]) [ ctValue ];
   };
 
   # ---------------------------------------------------------------------
@@ -206,24 +175,24 @@ let
 
   constructionTests = {
     testStatementOfUnknownKindThrows = {
-      expr = (builtins.tryEval (types.statementOf [ "no-such-kind" ])).success;
-      expected = false;
+      expr = types.statementOf [ "no-such-kind" ];
+      expectedError.msg = "statementOf: unknown statement kind.*no-such-kind";
     };
     testStatementOfEmptyListThrows = {
-      expr = (builtins.tryEval (types.statementOf [ ])).success;
-      expected = false;
+      expr = types.statementOf [ ];
+      expectedError.msg = "statementOf: kinds list must be non-empty";
     };
     testStatementOfNonListThrows = {
-      expr = (builtins.tryEval (types.statementOf "match")).success;
-      expected = false;
+      expr = types.statementOf "match";
+      expectedError.msg = "statementOf: argument must be a list of strings";
     };
     testExpressionOfUnknownKindThrows = {
-      expr = (builtins.tryEval (types.expressionOf [ "no-such-kind" ])).success;
-      expected = false;
+      expr = types.expressionOf [ "no-such-kind" ];
+      expectedError.msg = "expressionOf: unknown expression kind.*no-such-kind";
     };
     testExpressionOfEmptyListThrows = {
-      expr = (builtins.tryEval (types.expressionOf [ ])).success;
-      expected = false;
+      expr = types.expressionOf [ ];
+      expectedError.msg = "expressionOf: kinds list must be non-empty";
     };
   };
 
@@ -320,12 +289,12 @@ let
   # corresponding line and the test fails — surfacing the drift.
   driftTests = {
     testStatementOfEveryKindConstructible = {
-      expr = builtins.all (k: (builtins.tryEval (types.statementOf [ k ])).success) statementKinds;
-      expected = true;
+      expr = map (kind: builtins.seq (types.statementOf [ kind ]) kind) statementKinds;
+      expected = statementKinds;
     };
     testExpressionOfEveryKindConstructible = {
-      expr = builtins.all (k: (builtins.tryEval (types.expressionOf [ k ])).success) expressionKinds;
-      expected = true;
+      expr = map (kind: builtins.seq (types.expressionOf [ kind ]) kind) expressionKinds;
+      expected = expressionKinds;
     };
   };
 
@@ -366,11 +335,11 @@ let
     # regression here flags the round-trip baseline before the parity
     # assertion would surface a less actionable diff.
     testRoundTripJsonRenders = {
-      expr = (builtins.tryEval (nftlib.toJson roundTripRuleset)).success;
+      expr = builtins.isString (nftlib.toJson roundTripRuleset);
       expected = true;
     };
     testRoundTripTextRenders = {
-      expr = (builtins.tryEval (nftlib.toText roundTripRuleset)).success;
+      expr = builtins.isString (nftlib.toText roundTripRuleset);
       expected = true;
     };
   };

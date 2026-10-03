@@ -829,30 +829,29 @@ in
   # set whose sole element is a literal hostname string. The guardrail
   # converts that silent miss into a loud throw.
   testRenderSetStringBodyThrows = {
-    expr =
-      (builtins.tryEval (one {
-        add.rule = {
-          family = "inet";
-          table = "t";
-          chain = "c";
-          expr = [
-            {
-              match = {
-                left = {
-                  meta = {
-                    key = "iifname";
-                  };
-                };
-                op = "==";
-                right = {
-                  set = "trusted";
+    expr = one {
+      add.rule = {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        expr = [
+          {
+            match = {
+              left = {
+                meta = {
+                  key = "iifname";
                 };
               };
-            }
-          ];
-        };
-      })).success;
-    expected = false;
+              op = "==";
+              right = {
+                set = "trusted";
+              };
+            };
+          }
+        ];
+      };
+    };
+    expectedError.msg = "body must be a list";
   };
 
   # ---- ruleset envelope (multi-command) -------------------------------
