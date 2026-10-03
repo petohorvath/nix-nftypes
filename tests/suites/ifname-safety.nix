@@ -279,30 +279,30 @@ let
   matchRhsTests = {
     # Each ifname-typed meta key throws on the widening payload.
     testMatchThrowsOn_iifname = {
-      expr = (toText (rawMatchRule "iifname" wideningPayload));
+      expr = toText (rawMatchRule "iifname" wideningPayload);
       expectedError.msg = "ifname-typed match RHS";
     };
     testMatchThrowsOn_oifname = {
-      expr = (toText (rawMatchRule "oifname" wideningPayload));
+      expr = toText (rawMatchRule "oifname" wideningPayload);
       expectedError.msg = "ifname-typed match RHS";
     };
     testMatchThrowsOn_sdifname = {
-      expr = (toText (rawMatchRule "sdifname" wideningPayload));
+      expr = toText (rawMatchRule "sdifname" wideningPayload);
       expectedError.msg = "ifname-typed match RHS";
     };
     testMatchThrowsOn_ibrname = {
-      expr = (toText (rawMatchRule "ibrname" wideningPayload));
+      expr = toText (rawMatchRule "ibrname" wideningPayload);
       expectedError.msg = "ifname-typed match RHS";
     };
     testMatchThrowsOn_obrname = {
-      expr = (toText (rawMatchRule "obrname" wideningPayload));
+      expr = toText (rawMatchRule "obrname" wideningPayload);
       expectedError.msg = "ifname-typed match RHS";
     };
 
     # Non-ifname meta keys are unaffected — `mark` accepts integer
     # comparison and shouldn't see a stricter ifname check applied.
     testMatchAcceptsNonIfnameKey = {
-      expr = builtins.isString ((toText (rawMatchRule "mark" 100)));
+      expr = builtins.isString (toText (rawMatchRule "mark" 100));
       expected = true;
     };
 
@@ -341,23 +341,23 @@ let
 
   rendererTests = {
     testTextThrowsOnMaliciousRaw = {
-      expr = (toText maliciousRawRuleset);
+      expr = toText maliciousRawRuleset;
       expectedError.msg = "ifname-typed set/map element";
     };
     testTextPrettyThrowsOnMaliciousRaw = {
-      expr = (toTextPretty maliciousRawRuleset);
+      expr = toTextPretty maliciousRawRuleset;
       expectedError.msg = "ifname-typed set/map element";
     };
     testTextAcceptsSafeRaw = {
-      expr = builtins.isString ((toText safeRawRuleset));
+      expr = builtins.isString (toText safeRawRuleset);
       expected = true;
     };
     testTextThrowsOnMaliciousChainDev = {
-      expr = (toTextPretty rawChainDevRuleset);
+      expr = toTextPretty rawChainDevRuleset;
       expectedError.msg = "chain/flowtable device";
     };
     testTextThrowsOnMaliciousFlowtableDev = {
-      expr = (toTextPretty rawFlowtableDevRuleset);
+      expr = toTextPretty rawFlowtableDevRuleset;
       expectedError.msg = "chain/flowtable device";
     };
     # JSON path is intrinsically safe — `builtins.toJSON` quotes the

@@ -71,7 +71,6 @@ let
 in
 {
   inherit
-    evalSucceeds
     nftlib
     validate
     validates

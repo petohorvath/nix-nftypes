@@ -158,11 +158,11 @@ let
   # text-path tightening didn't accidentally couple to the JSON path.
   jsonPassthroughTests = {
     testJsonAcceptsCommaScalar = {
-      expr = builtins.isString ((toJson (rulesetWithMatchRhs "x,y")));
+      expr = builtins.isString (toJson (rulesetWithMatchRhs "x,y"));
       expected = true;
     };
     testJsonAcceptsNewlineScalar = {
-      expr = builtins.isString ((toJson (rulesetWithMatchRhs "x\ny")));
+      expr = builtins.isString (toJson (rulesetWithMatchRhs "x\ny"));
       expected = true;
     };
   };

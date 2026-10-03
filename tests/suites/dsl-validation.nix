@@ -377,7 +377,7 @@ in
         })
       ]
     );
-    expectedError.msg = "flags\\..*.*is not of type";
+    expectedError.msg = "flags\\..*is not of type";
   };
 
   testTreeRuleBadHandleRejected = {

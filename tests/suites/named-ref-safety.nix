@@ -157,15 +157,15 @@ let
 
   prettyTests = {
     testPrettyRejects_setStmt_newline = {
-      expr = (toTextPretty (rulesetSetStmt badInputsCommon.newline));
+      expr = toTextPretty (rulesetSetStmt badInputsCommon.newline);
       expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_mapStmt_newline = {
-      expr = (toTextPretty (rulesetMapStmt badInputsCommon.newline));
+      expr = toTextPretty (rulesetMapStmt badInputsCommon.newline);
       expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_flow_newline = {
-      expr = (toTextPretty (rulesetFlow "@${badInputsCommon.newline}"));
+      expr = toTextPretty (rulesetFlow "@${badInputsCommon.newline}");
       expectedError.msg = "refusing to render a bare nft token";
     };
   };

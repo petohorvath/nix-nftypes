@@ -77,11 +77,11 @@ let
 
   prettyTests = {
     testPrettyRejectsInjection = {
-      expr = (toTextPretty (rulesetWithPolicyKey badInputs.newline));
+      expr = toTextPretty (rulesetWithPolicyKey badInputs.newline);
       expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyAcceptsCleanKey = {
-      expr = builtins.isString ((toTextPretty (rulesetWithPolicyKey "established")));
+      expr = builtins.isString (toTextPretty (rulesetWithPolicyKey "established"));
       expected = true;
     };
   };

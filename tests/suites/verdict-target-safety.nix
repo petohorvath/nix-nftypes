@@ -132,11 +132,11 @@ let
   # pretty to catch any future divergence.
   prettyTests = {
     testPrettyRejectsInjection = {
-      expr = (toTextPretty (rulesetWithJumpTarget injectionPayload));
+      expr = toTextPretty (rulesetWithJumpTarget injectionPayload);
       expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testPrettyAcceptsBareName = {
-      expr = builtins.isString ((toTextPretty (rulesetWithJumpTarget "evil")));
+      expr = builtins.isString (toTextPretty (rulesetWithJumpTarget "evil"));
       expected = true;
     };
   };

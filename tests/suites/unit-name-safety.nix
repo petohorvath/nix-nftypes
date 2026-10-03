@@ -163,15 +163,15 @@ let
 
   prettyTests = {
     testPrettyRejects_limitStmt_rate_unit_newline = {
-      expr = (toTextPretty (rulesetLimitStmt "rate_unit" badInputs.newline));
+      expr = toTextPretty (rulesetLimitStmt "rate_unit" badInputs.newline);
       expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_limitObject_burst_unit_newline = {
-      expr = (toTextPretty (rulesetLimitObject "burst_unit" badInputs.newline));
+      expr = toTextPretty (rulesetLimitObject "burst_unit" badInputs.newline);
       expectedError.msg = "refusing to render a bare nft token";
     };
     testPrettyRejects_createLimit_burst_unit_newline = {
-      expr = (toTextPretty (rulesetCreateLimit "burst_unit" badInputs.newline));
+      expr = toTextPretty (rulesetCreateLimit "burst_unit" badInputs.newline);
       expectedError.msg = "refusing to render a bare nft token";
     };
   };

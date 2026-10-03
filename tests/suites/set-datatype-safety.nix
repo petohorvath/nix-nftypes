@@ -153,11 +153,11 @@ let
 
   prettyTests = {
     testPrettyRejectsInjection = {
-      expr = (toTextPretty (rulesetWithSetType badInputs.newline));
+      expr = toTextPretty (rulesetWithSetType badInputs.newline);
       expectedError.msg = "refusing to render a set/map datatype";
     };
     testPrettyAcceptsCleanDatatype = {
-      expr = builtins.isString ((toTextPretty (rulesetWithSetType "ipv4_addr")));
+      expr = builtins.isString (toTextPretty (rulesetWithSetType "ipv4_addr"));
       expected = true;
     };
   };

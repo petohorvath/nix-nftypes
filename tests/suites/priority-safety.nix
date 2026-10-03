@@ -124,11 +124,11 @@ let
 
   prettyTests = {
     testPrettyRejects_chain_newline = {
-      expr = (toTextPretty (rulesetWithChainPrio badInputs.newline));
+      expr = toTextPretty (rulesetWithChainPrio badInputs.newline);
       expectedError.msg = "refusing to render a non-integer chain/flowtable priority";
     };
     testPrettyAccepts_chain_int = {
-      expr = builtins.isString ((toTextPretty (rulesetWithChainPrio 0)));
+      expr = builtins.isString (toTextPretty (rulesetWithChainPrio 0));
       expected = true;
     };
   };
@@ -138,7 +138,7 @@ let
   # suite covers the resolved values.
   resolverTests = {
     testResolvedPriorityRenders = {
-      expr = builtins.isString ((toText (rulesetWithChainPrio (nftlib.resolvePriority "ip" "mangle"))));
+      expr = builtins.isString (toText (rulesetWithChainPrio (nftlib.resolvePriority "ip" "mangle")));
       expected = true;
     };
   };

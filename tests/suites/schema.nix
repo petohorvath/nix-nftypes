@@ -833,7 +833,7 @@ enumDriftTests
         stmt = [ { not_a_real_statement = { }; } ];
       };
     };
-    expectedError.msg = "v\\.elem\\.stmt\\..*.*is not of type";
+    expectedError.msg = "v\\.elem\\.stmt\\..*is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -925,7 +925,7 @@ enumDriftTests
         offset = 0;
       };
     };
-    expectedError.msg = "v\\.payload.*is not of type";
+    expectedError.msg = "v\\.payload. is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -937,7 +937,7 @@ enumDriftTests
         protocol = "tcp";
       };
     };
-    expectedError.msg = "v\\.payload.*is not of type";
+    expectedError.msg = "v\\.payload. is not of type";
   };
 
   # ------------------------------------------------------------------

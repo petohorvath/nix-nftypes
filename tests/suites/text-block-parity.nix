@@ -98,12 +98,12 @@ in
   # including when there are no declarations to render.
   testInvalidEmptyTableFamilyRejected = {
     expr = toTextBlock (dsl.table "invalid" "fw" { });
-    expectedError.msg = "family.*is not of type";
+    expectedError.msg = "option .family. is not of type";
   };
 
   testInvalidEmptyTableFlagsRejectedPretty = {
     expr = toTextBlockPretty (dsl.table "inet" "fw" { flags = [ "invalid" ]; });
-    expectedError.msg = "flags\\..*.*is not of type";
+    expectedError.msg = "flags\\..*is not of type";
   };
 
   testInvalidEmptyTableCommentRejected = {

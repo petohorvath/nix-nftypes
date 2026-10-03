@@ -98,23 +98,23 @@ let
   # bypassing every schema check. The function must throw.
   rendererTests = {
     testRendererThrowsOnQuote = {
-      expr = (textPrimitives.quoteString badInputs.quote);
+      expr = textPrimitives.quoteString badInputs.quote;
       expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererThrowsOnBackslash = {
-      expr = (textPrimitives.quoteString badInputs.backslash);
+      expr = textPrimitives.quoteString badInputs.backslash;
       expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererThrowsOnNewline = {
-      expr = (textPrimitives.quoteString badInputs.newline);
+      expr = textPrimitives.quoteString badInputs.newline;
       expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererThrowsOnTab = {
-      expr = (textPrimitives.quoteString badInputs.tab);
+      expr = textPrimitives.quoteString badInputs.tab;
       expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererAcceptsClean = {
-      expr = builtins.isString ((textPrimitives.quoteString "clean text 123"));
+      expr = builtins.isString (textPrimitives.quoteString "clean text 123");
       expected = true;
     };
     testEscapeIsIdentityForSafe = {
@@ -146,11 +146,11 @@ let
 
   regressionTests = {
     testRendererBlocksInjectionInToText = {
-      expr = (toText rawInjectionRuleset);
+      expr = toText rawInjectionRuleset;
       expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     testRendererBlocksInjectionInToTextPretty = {
-      expr = (toTextPretty rawInjectionRuleset);
+      expr = toTextPretty rawInjectionRuleset;
       expectedError.msg = "refusing to render a string containing a character unsafe";
     };
     # JSON path is structurally safe (builtins.toJSON encodes correctly,
