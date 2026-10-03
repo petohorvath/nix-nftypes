@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -108,7 +109,7 @@ let
     flowBare = "flowtable reference";
   };
 
-  refusal = field: "refusing to render a bare nft token as the ${field}:";
+  refusal = helpers.refusals.bareToken;
 
   # `empty` is in the `flowBare`-only set: for `flowAt` it pairs with
   # the `@` prefix and produces a non-empty (but malformed) value, so

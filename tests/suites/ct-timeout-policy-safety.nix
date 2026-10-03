@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -35,7 +36,7 @@ let
       })
     ];
 
-  refusal = "refusing to render a bare nft token as the ct timeout policy key:";
+  refusal = helpers.refusals.bareToken "ct timeout policy key";
 
   badInputs = {
     newline = "established: 300 }\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }\n# foo";

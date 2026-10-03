@@ -64,15 +64,15 @@ let
       # renderable (otherwise renderStatement/Expression/Object throws
       # at render time).
       testTextDrift_statementTagsCovered = {
-        expr = missing statementTags textDispatch.statements;
+        expr = missing statementTags textDispatch.statementTags;
         expected = [ ];
       };
       testTextDrift_expressionTagsCovered = {
-        expr = missing expressionTags textDispatch.expressions;
+        expr = missing expressionTags textDispatch.expressionTags;
         expected = [ ];
       };
       testTextDrift_objectKindsCovered = {
-        expr = missing objectKinds textDispatch.objects;
+        expr = missing objectKinds textDispatch.objectKinds;
         expected = [ ];
       };
 
@@ -80,15 +80,15 @@ let
       # must correspond to a real schema tag (otherwise it's dead code
       # — unreachable because no schema route emits that tag).
       testTextDrift_statementRendererHasNoOrphans = {
-        expr = missing textDispatch.statements statementTags;
+        expr = missing textDispatch.statementTags statementTags;
         expected = [ ];
       };
       testTextDrift_expressionRendererHasNoOrphans = {
-        expr = missing textDispatch.expressions expressionTags;
+        expr = missing textDispatch.expressionTags expressionTags;
         expected = [ ];
       };
       testTextDrift_objectRendererHasNoOrphans = {
-        expr = missing textDispatch.objects objectKinds;
+        expr = missing textDispatch.objectKinds objectKinds;
         expected = [ ];
       };
     };

@@ -33,10 +33,7 @@ let
   # a chain at priority -10 with `policy accept` pre-fix.
   injectionPayload = "X\"; chain bypass { type filter hook input priority -10; policy accept; }; #";
 
-  # `.` stands for the apostrophe in `nft's`.
-  refusal =
-    field:
-    "refusing to render a string containing a character unsafe for nft.s quoted-string syntax as the ${field}";
+  refusal = helpers.refusals.quotedString;
 
   # Sample bad inputs — each individually unsafe for nft text rendering.
   # NUL bytes are absent because Nix string literals cannot represent

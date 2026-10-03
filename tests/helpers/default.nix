@@ -58,9 +58,19 @@ in
   internals = {
     inherit nftSafeIfname nftSafeScalar;
     textDispatch = text.dispatch;
-    textPrimitives = import ../../lib/text/primitives.nix {
-      inherit lib nftSafeScalar nftSafeString;
-    };
+    textPrimitives = text.primitives;
+  };
+
+  /*
+    `expectedError.msg` patterns for the text renderer's safety refusals.
+    Each takes the field label the refusing call site passes and matches
+    the generic refusal up to its closing `Field: <label>.` line, so a
+    refusal of a different field fails the test.
+  */
+  refusals = {
+    bareToken = field: "refusing to render a bare nft token [\\s\\S]*Field: ${field}\\.";
+    quotedString =
+      field: "refusing to render a string containing a character unsafe [\\s\\S]*Field: ${field}\\.";
   };
 
   roundtrip = valueType: value: nftlib.toJson (validate valueType value);

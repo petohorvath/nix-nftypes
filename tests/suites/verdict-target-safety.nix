@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -75,10 +76,7 @@ let
     gotoStmt = "goto target";
   };
 
-  # `.` stands for the apostrophe in `nft's`.
-  refusal =
-    field:
-    "refusing to render a string containing a character unsafe for nft.s quoted-string syntax as the ${field}";
+  refusal = helpers.refusals.quotedString;
 
   # The renderer's first-line defence: identQuote routes any input
   # that isn't a bare identifier through `assertSafeString`, which rejects '"',

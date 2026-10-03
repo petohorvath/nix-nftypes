@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -127,7 +128,7 @@ let
     createLimit_burst_unit = "limit burst_unit";
   };
 
-  refusal = field: "refusing to render a bare nft token as the ${field}:";
+  refusal = helpers.refusals.bareToken;
 
   badInputs = {
     newline = "packets\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }";

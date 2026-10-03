@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -69,6 +70,15 @@ let
         payload = {
           tunnel = "vxlan";
           protocol = bad;
+          field = "dport";
+        };
+      };
+    payloadTunnel =
+      bad:
+      mkMatchRuleset {
+        payload = {
+          tunnel = bad;
+          protocol = "udp";
           field = "dport";
         };
       };
@@ -150,6 +160,7 @@ let
     payloadProtocol = "payload protocol";
     payloadField = "payload field";
     payloadTunnelInner = "payload protocol";
+    payloadTunnel = "payload tunnel";
     exthdrName = "exthdr name";
     exthdrField = "exthdr field";
     tcpOptionName = "tcp option name";
@@ -161,7 +172,7 @@ let
     ctKey = "ct key";
   };
 
-  refusal = field: "refusing to render a bare nft token as the ${field}:";
+  refusal = helpers.refusals.bareToken;
 
   badInputs = {
     newline = "dport\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }";
