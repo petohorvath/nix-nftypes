@@ -16,6 +16,10 @@ let
     inherit (testContext) fixtures nftlib;
   };
   nixUnitCheck = import ./nix-unit-check.nix { inherit pkgs; };
+  summaries = import ./summaries.nix {
+    inherit pkgs;
+    inherit (testContext) fixtures;
+  };
 
   /*
     Live checks by name: each runs one suite from ./live.nix against the
@@ -68,10 +72,13 @@ in
 }
 // lib.mapAttrs (
   name: check:
+  let
+    observationPaths = lib.getAttrs (check.probes or [ check.suite ]) probes;
+  in
   nixUnitCheck {
-    inherit name;
+    inherit name observationPaths;
     entryPoint = "live.nix";
     suites = [ check.suite ];
-    observationPaths = lib.getAttrs (check.probes or [ check.suite ]) probes;
+    summary = lib.optionalString (summaries ? ${name}) (summaries.${name} observationPaths);
   }
 ) liveChecks
