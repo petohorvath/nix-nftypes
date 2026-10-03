@@ -546,6 +546,11 @@ rec {
     c: !(builtins.elem c.name (knownTextLimitations ++ knownLoadLimitations))
   ) cases;
 
+  # Text cases that only `nft -c -f` can check. A real load (render
+  # equivalence) runs every check-mode validation before committing, so
+  # check mode adds nothing for the cases render equivalence loads.
+  textCheckOnlyCases = builtins.filter (c: builtins.elem c.name knownLoadLimitations) textCases;
+
   /*
     Cases that cannot be really loaded (as opposed to `nft -c` checked)
     in an unprivileged netns, with the observed reason. Everything not

@@ -22,10 +22,10 @@ let
     named probes' records. Most suites read the probe of the same name.
 
     Live parsers run inside a private network namespace: JSON through
-    `nft -c -j -f` (plus parser-negative cases), pretty text and both
-    block forms through `nft -c -f`, JSON vs text real loads whose
-    `nft list ruleset` must agree, and real-load read-backs of safe
-    comments and ifname sets.
+    `nft -c -j -f` (plus parser-negative cases), both block forms and the
+    pretty text that cannot be real-loaded through `nft -c -f`, JSON vs
+    text real loads whose `nft list ruleset` must agree, and real-load
+    read-backs of safe comments and ifname sets.
 
     Source-side checks use the exact release archive and downstream
     patches carried by this package set's nftables derivation. They cover
