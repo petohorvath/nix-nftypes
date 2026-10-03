@@ -145,6 +145,24 @@ let
       };
   };
 
+  # Field label each surface's renderer names in its refusal.
+  fieldOf = {
+    payloadProtocol = "payload protocol";
+    payloadField = "payload field";
+    payloadTunnelInner = "payload protocol";
+    exthdrName = "exthdr name";
+    exthdrField = "exthdr field";
+    tcpOptionName = "tcp option name";
+    tcpOptionField = "tcp option field";
+    ipOptionName = "ip option name";
+    ipOptionField = "ip option field";
+    sctpChunkName = "sctp chunk name";
+    sctpChunkField = "sctp chunk field";
+    ctKey = "ct key";
+  };
+
+  refusal = field: "refusing to render a bare nft token as the ${field}:";
+
   badInputs = {
     newline = "dport\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }";
     semicolon = "dport; add chain inet fw pwned;";
@@ -164,7 +182,7 @@ let
         name = "testRendererRejects_${surface}_${badName}";
         value = {
           expr = nftlib.toText (surfaces.${surface} badValue);
-          expectedError.msg = "refusing to render a bare nft token";
+          expectedError.msg = refusal fieldOf.${surface};
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -175,11 +193,11 @@ let
   prettyTests = {
     testPrettyRejects_payloadField_newline = {
       expr = nftlib.toTextPretty (surfaces.payloadField badInputs.newline);
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal "payload field";
     };
     testPrettyRejects_ctKey_newline = {
       expr = nftlib.toTextPretty (surfaces.ctKey badInputs.newline);
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal "ct key";
     };
   };
 

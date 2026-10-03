@@ -50,14 +50,14 @@ let
     _ctx:
     { chain }:
     let
-      prefix = "rename chain ${chain.family} ${primitives.identQuote chain.table} ${primitives.identQuote chain.name}";
+      prefix = "rename chain ${chain.family} ${primitives.identQuote "table name" chain.table} ${primitives.identQuote "chain name" chain.name}";
       newname =
         if chain.newname == null then
           throw "text.commands: rename.chain requires `newname`"
         else
           chain.newname;
     in
-    "${prefix} ${primitives.identQuote newname}";
+    "${prefix} ${primitives.identQuote "chain newname" newname}";
 
   # `create` for quota/limit/synproxy: positional body, no braces.
   # `<verb> <kind> <fam> <table> <name> <positional-args>`.

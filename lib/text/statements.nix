@@ -125,7 +125,7 @@ let
       rhs =
         if ifnameRhs then
           if nftSafeIfname.isSafe right then
-            primitives.quoteString right
+            primitives.quoteString "interface name" right
           else
             throw "nftypes: refusing to render an ifname-typed match RHS ${builtins.toJSON right} that is not a safe interface name (see lib/nft-safe-ifname.nix). The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '\"' '\\' '#' and control characters, because such a value can never resolve to a real interface and nft's text parser may also misread unquoted special characters as operators. Offending value: ${builtins.toJSON right}.\n"
         else
@@ -140,7 +140,7 @@ let
     if body == null then
       "counter"
     else if builtins.isString body then
-      "counter name ${primitives.quoteString body}"
+      "counter name ${primitives.quoteString "counter reference" body}"
     else
       let
         parts = [
@@ -165,19 +165,21 @@ let
   renderQuota =
     _ctx: body:
     if builtins.isString body then
-      "quota name ${primitives.quoteString body}"
+      "quota name ${primitives.quoteString "quota reference" body}"
     else
       let
         head = "quota" + optionalString ((body.inv or null) == true) " over";
         valPart =
           " ${toString body.val}"
-          + optionalString ((body.val_unit or null) != null) " ${safeToken body.val_unit}";
+          + optionalString ((body.val_unit or null) != null) " ${safeToken "quota val_unit" body.val_unit}";
         usedPart =
           if (body.used or null) == null then
             ""
           else
             " used ${toString body.used}"
-            + optionalString ((body.used_unit or null) != null) " ${safeToken body.used_unit}";
+            + optionalString (
+              (body.used_unit or null) != null
+            ) " ${safeToken "quota used_unit" body.used_unit}";
       in
       head + valPart + usedPart;
 
@@ -270,7 +272,7 @@ let
         else
           " " + lib.concatMapStringsSep " " (renderStatement (resetPrec ctx)) stmt;
     in
-    "${op} @${safeToken set} { ${renderInnerExpression ctx elem}${stmts} }";
+    "${op} @${safeToken "set reference" set} { ${renderInnerExpression ctx elem}${stmts} }";
 
   renderMapStatement =
     ctx:
@@ -288,7 +290,7 @@ let
         else
           " " + lib.concatMapStringsSep " " (renderStatement (resetPrec ctx)) stmt;
     in
-    "${op} @${safeToken map} { ${renderInnerExpression ctx elem} : ${renderInnerExpression ctx data}${stmts} }";
+    "${op} @${safeToken "map reference" map} { ${renderInnerExpression ctx elem} : ${renderInnerExpression ctx data}${stmts} }";
 
   # log: `log [prefix "..."] [group N] [snaplen N] [queue-threshold N]
   # [level L] [flags ...]`.
@@ -298,7 +300,9 @@ let
       parts = [
         "log"
       ]
-      ++ lib.optional ((body.prefix or null) != null) "prefix ${primitives.quoteString body.prefix}"
+      ++ lib.optional (
+        (body.prefix or null) != null
+      ) "prefix ${primitives.quoteString "log prefix" body.prefix}"
       ++ lib.optional ((body.group or null) != null) "group ${toString body.group}"
       ++ lib.optional ((body.snaplen or null) != null) "snaplen ${toString body.snaplen}"
       ++
@@ -321,7 +325,7 @@ let
       stmt,
       size ? null,
     }:
-    "meter ${primitives.identQuote name}"
+    "meter ${primitives.identQuote "meter name" name}"
     + optionalString (size != null) " size ${toString size}"
     + " { ${renderInnerExpression ctx key} ${renderStatement (resetPrec ctx) stmt} }";
 
@@ -352,7 +356,7 @@ let
     "ct count" + optionalString (inv == true) " over" + " ${toString val}";
 
   # xt: deprecated escape hatch. Render as `xt <type> "<name>"`.
-  renderXt = _ctx: { type, name }: "xt ${type} ${primitives.quoteString name}";
+  renderXt = _ctx: { type, name }: "xt ${type} ${primitives.quoteString "xt name" name}";
 
   # last: `last [used <ms>]`. Body can be null or { used }.
   renderLast = _ctx: body: if body == null then "last" else "last used ${toString body.used}";
@@ -362,7 +366,7 @@ let
   # value as-is. `safeToken` covers both `@name` and bare `name`
   # (the predicate's safe-byte set includes `@`), so an unsafe byte
   # in either form throws before reaching the output stream.
-  renderFlow = _ctx: { op, flowtable }: "flow ${op} ${safeToken flowtable}";
+  renderFlow = _ctx: { op, flowtable }: "flow ${op} ${safeToken "flowtable reference" flowtable}";
 
   # tproxy: like dnat, but `to` syntax.
   renderTproxy =
@@ -402,7 +406,10 @@ let
     name: ctx: body:
     let
       rendered =
-        if builtins.isString body then primitives.quoteString body else renderInnerExpression ctx body;
+        if builtins.isString body then
+          primitives.quoteString "${name} reference" body
+        else
+          renderInnerExpression ctx body;
     in
     "${name} set ${rendered}";
 

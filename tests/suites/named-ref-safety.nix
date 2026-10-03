@@ -100,6 +100,16 @@ let
     flowBare = rulesetFlow;
   };
 
+  # Field label each surface's renderer names in its refusal.
+  fieldOf = {
+    setStmt = "set reference";
+    mapStmt = "map reference";
+    flowAt = "flowtable reference";
+    flowBare = "flowtable reference";
+  };
+
+  refusal = field: "refusing to render a bare nft token as the ${field}:";
+
   # `empty` is in the `flowBare`-only set: for `flowAt` it pairs with
   # the `@` prefix and produces a non-empty (but malformed) value, so
   # the predicate accepts it and nft itself rejects at parse time.
@@ -133,7 +143,7 @@ let
         name = "testRendererRejects_${surface}_${badName}";
         value = {
           expr = nftlib.toText (surfaces.${surface} badValue);
-          expectedError.msg = "refusing to render a bare nft token";
+          expectedError.msg = refusal fieldOf.${surface};
         };
       }) (badInputsForSurface surface)
     ) (builtins.attrNames surfaces)
@@ -158,15 +168,15 @@ let
   prettyTests = {
     testPrettyRejects_setStmt_newline = {
       expr = toTextPretty (rulesetSetStmt badInputsCommon.newline);
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal "set reference";
     };
     testPrettyRejects_mapStmt_newline = {
       expr = toTextPretty (rulesetMapStmt badInputsCommon.newline);
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal "map reference";
     };
     testPrettyRejects_flow_newline = {
       expr = toTextPretty (rulesetFlow "@${badInputsCommon.newline}");
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal "flowtable reference";
     };
   };
 in
