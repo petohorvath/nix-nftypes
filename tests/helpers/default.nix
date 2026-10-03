@@ -11,45 +11,16 @@ let
   nftSafeScalar = import ../../lib/nft-safe-scalar.nix { };
   nftSafeString = import ../../lib/nft-safe-string.nix { };
 
-  # Same wiring as lib/text/default.nix, so drift checks read the exact
-  # dispatch tables the production renderers use.
-  context = import ../../lib/text/context.nix { inherit lib; };
-  primitives = import ../../lib/text/primitives.nix {
-    inherit lib nftSafeScalar nftSafeString;
-  };
-  limit = import ../../lib/text/limit.nix { inherit lib primitives; };
-  # Mutual reference between statements and expressions, resolved lazily
-  # by the recursive `let`.
-  expressions = import ../../lib/text/expressions.nix {
+  # The text module itself, so drift checks read the exact dispatch tables
+  # the production renderers use.
+  text = import ../../lib/text {
     inherit
-      context
       lib
-      nftSafeScalar
-      primitives
-      statements
-      ;
-  };
-  statements = import ../../lib/text/statements.nix {
-    inherit
-      context
-      expressions
-      lib
-      limit
-      nftSafeIfname
-      primitives
-      ;
-  };
-  objects = import ../../lib/text/objects.nix {
-    inherit
-      context
-      expressions
-      lib
-      limit
       nftSafeIfname
       nftSafeScalar
-      primitives
-      statements
+      nftSafeString
       ;
+    clean = import ../../lib/clean.nix { inherit lib; };
   };
 
   evalSucceeds = expr: (builtins.tryEval expr).success;
@@ -86,8 +57,10 @@ in
   # not import these paths.
   internals = {
     inherit nftSafeIfname nftSafeScalar;
-    textPrimitives = primitives;
-    textRenderers = { inherit expressions objects statements; };
+    textDispatch = text.dispatch;
+    textPrimitives = import ../../lib/text/primitives.nix {
+      inherit lib nftSafeScalar nftSafeString;
+    };
   };
 
   roundtrip = valueType: value: nftlib.toJson (validate valueType value);
