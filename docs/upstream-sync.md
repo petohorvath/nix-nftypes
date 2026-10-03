@@ -69,8 +69,9 @@ and validates each statement against `nftlib.types.statement`.
 
 The check fails on any rejection that does not match a named pattern in
 `tests/helpers/corpus-drift.nix`. The current 11 categories are documented in
-[`spec-coverage.md`](spec-coverage.md). A pattern that stops matching is not
-reported; prune it when the gap is fixed.
+[`spec-coverage.md`](spec-coverage.md). A pattern that stops matching also
+fails the check, which names it so it can be pruned. Because the corpus only
+changes with `flake.lock`, both failures appear in the lock-update change.
 
 This detects schema-too-restrictive drift in upstream's exercised statements.
 It does not prove that every parser branch appears in the corpus.

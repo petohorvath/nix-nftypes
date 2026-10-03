@@ -61,11 +61,14 @@ let
   knownCategories = builtins.attrNames knownDivergences;
 
   newDrift = builtins.filter (s: !(builtins.elem (classify s) knownCategories)) offending;
+  # Baselined patterns no offending statement matches any more.
+  staleCategories = lib.subtractLists (lib.unique (map classify offending)) knownCategories;
 in
 {
   inherit
     knownDivergences
     newDrift
     offending
+    staleCategories
     ;
 }

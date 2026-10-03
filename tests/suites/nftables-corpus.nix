@@ -17,16 +17,27 @@
   (tests/helpers/corpus-drift.nix) with the reason and the parser
   evidence. The suite fails only on an offending statement that matches
   NO known pattern, i.e. *new* drift introduced by a nixpkgs package
-  update. Fixing a baselined gap is tracked in docs/upstream-sync.md.
+  update. A baselined pattern that no statement matches any more also
+  fails, so the baseline is pruned when a gap is fixed. Both can only
+  change when `flake.lock` moves, so they fail in the lock-update change.
 */
 {
   helpers,
   observations,
   ...
 }:
+let
+  drift = helpers.corpusDrift observations.nftablesCorpus;
+in
 {
   testCorpusHasNoNewDrift = {
-    expr = map builtins.toJSON (helpers.corpusDrift observations.nftablesCorpus).newDrift;
+    expr = map builtins.toJSON drift.newDrift;
+    expected = [ ];
+  };
+
+  # Lists the `knownDivergences` entries to delete.
+  testBaselineHasNoStalePatterns = {
+    expr = drift.staleCategories;
     expected = [ ];
   };
 }

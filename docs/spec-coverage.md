@@ -65,8 +65,9 @@ categories:
 
 The executable baseline is `knownDivergences` in
 [`tests/helpers/corpus-drift.nix`](../tests/helpers/corpus-drift.nix). A
-statement matching no known category fails the check. Prune a category from
-the baseline when its gap is fixed.
+statement matching no known category fails the check, and so does a category
+no statement matches any more; prune it from the baseline when its gap is
+fixed.
 
 Additional command and selector differences are not statement-corpus shapes:
 
