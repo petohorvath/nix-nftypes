@@ -1,233 +1,77 @@
 /*
   Package-set-dependent check set, instantiated once per nixpkgs flake
-  input. Everything here depends on the package set through one of two
-  surfaces: the eval-time suites exercise the package set's `lib`
-  (module system, error-message shapes — dsl-validation-message-tests
-  asserts message format, which can shift between nixpkgs releases),
-  and the live-parser suites exercise the package set's `nft` binary.
-  Running the set against both package sets is the "compatible with
-  stable AND unstable" contract, enforced on every `nix flake check`.
+  input. Every check runs nix-unit with the package set's `lib` and
+  `nix-unit`. The live checks first build probes that run the package
+  set's `nft` binary or the source tooling and record what happened; their
+  suites assert on those records. Running the set against both package
+  sets is the "compatible with stable AND unstable" contract, enforced on
+  every `nix flake check`.
 */
 { pkgs, nftablesSource }:
 let
-  nftlib = import ../lib { inherit (pkgs) lib; };
-  schema = import ./schema.nix { inherit nftlib pkgs; };
-  integration = import ./dsl-integration.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  textParity = import ./text-parity.nix { inherit nftlib pkgs; };
-  textBlockParity = import ./text-block-parity.nix { inherit nftlib pkgs; };
-  textIntegration = import ./text-integration.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  renderEquivalence = import ./render-equivalence.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  validation = import ./dsl-validation.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  validationMessages = import ./dsl-validation-messages.nix {
-    inherit pkgs;
-    inherit (pkgs) lib;
-  };
-  commentSafety = import ./comment-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  ifnameSafety = import ./ifname-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  verdictTargetSafety = import ./verdict-target-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  exprScalarSafety = import ./expr-scalar-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  setDatatypeSafety = import ./set-datatype-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  exprTokenSafety = import ./expr-token-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  namedRefSafety = import ./named-ref-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  unitNameSafety = import ./unit-name-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  ctTimeoutPolicySafety = import ./ct-timeout-policy-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  prioritySafety = import ./priority-safety.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  restrictedTypes = import ./restricted-types.nix {
-    inherit (pkgs) lib;
-    inherit nftlib;
-  };
-  sourceProvenance = import ./nftables-source-provenance.nix {
+  inherit (pkgs) lib;
+  testContext = import ./context.nix { inherit lib; };
+  probes = import ./probes {
     inherit nftablesSource pkgs;
+    inherit (testContext) fixtures nftlib;
   };
-  nftablesCorpus = import ./upstream-corpus.nix {
-    inherit nftablesSource nftlib pkgs;
-  };
-  nftablesEnums = import ./upstream-enums.nix {
-    inherit nftablesSource nftlib pkgs;
-  };
-  nftablesRoundtrip = import ./upstream-roundtrip.nix {
-    inherit nftlib pkgs;
-    nftables = pkgs.nftables;
-  };
-  nftablesSelftest = import ./upstream-selftest.nix {
-    inherit nftablesSource nftlib pkgs;
+  nixUnitCheck = import ./nix-unit-check.nix { inherit pkgs; };
+
+  /*
+    Live checks by name: each runs one suite from ./live.nix against the
+    named probes' records. Most suites read the probe of the same name.
+
+    Live parsers run inside a private network namespace: JSON through
+    `nft -c -j -f` (plus parser-negative cases), pretty text and both
+    block forms through `nft -c -f`, JSON vs text real loads whose
+    `nft list ruleset` must agree, and real-load read-backs of safe
+    comments and ifname sets.
+
+    Source-side checks use the exact release archive and downstream
+    patches carried by this package set's nftables derivation. They cover
+    valid shapes the hand-written integration cases cannot anticipate.
+  */
+  liveChecks = {
+    integration-tests.suite = "dslIntegration";
+    text-integration-tests.suite = "textIntegration";
+    text-block-integration-tests.suite = "textBlockIntegration";
+    render-equivalence-tests.suite = "renderEquivalence";
+    comment-safety-integration-tests.suite = "commentSafetyIntegration";
+    ifname-safety-integration-tests.suite = "ifnameSafetyIntegration";
+    nftables-source-provenance-tests = {
+      suite = "nftablesSourceProvenance";
+      probes = [
+        "nftablesSourceProvenance"
+        "nftablesSourceTree"
+      ];
+    };
+    nftables-corpus-tests.suite = "nftablesCorpus";
+    nftables-enum-extraction-tests.suite = "nftablesEnumExtraction";
+    nftables-roundtrip-tests.suite = "nftablesRoundtrip";
+    nftables-tooling-selftests = {
+      suite = "nftablesToolingSelftest";
+      probes = [
+        "nftablesToolingSelftest"
+        "nftablesToolingSelftestCorpus"
+      ];
+    };
   };
 in
 {
-  schema-tests = schema.runTests pkgs;
-  # End-to-end: each case is rendered and piped through
-  # `unshare -rn nft -c -j -f` (the real libnftables parser inside a
-  # private network namespace). Catches any divergence between the
-  # DSL's JSON output and what nftables actually accepts.
-  integration-tests = integration.runIntegrationTests pkgs integration.cases;
-  # Text-renderer parity tests: compact-form expected-string
-  # assertions per construct.
-  text-parity-tests = textParity.runTests pkgs;
-  # Block-form text-renderer parity tests: assertions for
-  # toTextBlock / toTextBlockPretty (the contents of a single
-  # `table { ... }` block, no `add` keyword, no family/table
-  # prefix on object headers).
-  text-block-parity-tests = textBlockParity.runTests pkgs;
-  # Block-form text-renderer live-parser check: each case is
-  # rendered via toTextBlockPretty, wrapped in
-  # `table <fam> <name> { ... }`, and piped through
-  # `unshare -rn nft -c -f -` to verify the round-trip is
-  # accepted by the upstream parser.
-  text-block-integration-tests = textBlockParity.runIntegrationTests pkgs textBlockParity.integrationCases;
-  # Text-renderer live-parser tests: same case set as
-  # integration-tests, but rendered to text and piped through
-  # `unshare -rn nft -c -f -` (no `-j`).
-  text-integration-tests = textIntegration.runIntegrationTests pkgs textIntegration.textCases;
-  # Render-equivalence: render each case via JSON and via text,
-  # load both into separate netns, diff `nft list ruleset`. The
-  # binding 1:1 contract — both renderers agree on what they
-  # build inside the kernel.
-  render-equivalence-tests = renderEquivalence.runEquivalenceTests pkgs renderEquivalence.equivalenceCases;
-  # DSL-level validation: each constructor that takes a user body
-  # must route it through the matching schema submodule before
-  # emitting JSON. Catches the silent-data-loss bug (where a bad
-  # field rendered to JSON and `nft -j -f` dropped the section).
-  dsl-validation-tests = validation.runTests pkgs;
-  # End-to-end check on validation error-message format: each case
-  # runs `nix eval --file` against a bad expression and
-  # asserts the stderr names the offending option path. Companion
-  # to dsl-validation-tests, which checks the failure but not the
-  # message shape.
-  dsl-validation-message-tests = validationMessages.runMessageTests;
-  # Regression pin for the nft quoted-string injection class:
-  # schema rejects '"', '\', control chars, and >128 bytes on
-  # commentOption / elemBody.comment / log prefix; renderer
-  # asserts the same set as defence-in-depth; safe comments
-  # round-trip through both text and JSON paths byte-for-byte.
-  comment-safety-tests = commentSafety.runTests pkgs;
-  comment-safety-integration-tests = commentSafety.runIntegrationTests pkgs;
-  # Regression pin for the ifname-typed set/map element widening
-  # class: a `,` in a `type = "ifname"` element rendered bare
-  # split into two elements at parse time, silently broadening
-  # the set. DSL emit rejects at evalModules; renderer asserts
-  # the same predicate as defence-in-depth; safe ifname sets
-  # round-trip through both text and JSON paths with the
-  # element count preserved.
-  ifname-safety-tests = ifnameSafety.runTests pkgs;
-  ifname-safety-integration-tests = ifnameSafety.runIntegrationTests pkgs;
-  # Regression pin for the verdict-target injection class: a
-  # `jump`/`goto` target with a newline used to render bare and
-  # let `nft -f` parse the trailing bytes as a fresh top-level
-  # command. Renderer now routes the target through
-  # `primitives.identQuote`, which either emits the bare ident
-  # or asserts via `assertSafeString` (rejecting '"', '\', control
-  # chars) and quotes the rest — where nft rejects the quoted form
-  # in identifier position.
-  verdict-target-safety-tests = verdictTargetSafety.runTests pkgs;
-  # Regression pin for the expression-scalar injection class: a
-  # bare string in expression position (match RHS, NAT addr,
-  # set element, …) used to render verbatim through
-  # `renderScalar`, so a newline + statement payload landed in
-  # the text stream as a fresh top-level command. The renderer
-  # now asserts the value against `nft-safe-scalar.nix`'s
-  # predicate — non-empty, no whitespace, no nft-grammar
-  # metacharacters, no control chars.
-  expr-scalar-safety-tests = exprScalarSafety.runTests pkgs;
-  # Regression pin for the set/map datatype injection class:
-  # the `type <X>` clause (and `type K . V` for concatenated
-  # keys) rendered each name string bare. The renderer now
-  # walks every name through `nft-safe-scalar.nix`'s predicate,
-  # so an unsafe byte truncating the clause and dropping a
-  # fresh `add chain …` payload into the rendered file no
-  # longer reaches `nft -f`.
-  set-datatype-safety-tests = setDatatypeSafety.runTests pkgs;
-  # Regression pin for the tagged-body token injection class:
-  # payload/exthdr/ip-option/tcp-option/sctp-chunk/ct schema
-  # bodies expose `types.str` fields (protocol, field, name,
-  # key) that the renderer used to interpolate bare into the
-  # surrounding clause. A new `safeToken` helper in
-  # lib/text/primitives.nix routes each through the shared
-  # `nft-safe-scalar` predicate so an unsafe byte truncating
-  # the clause no longer reaches `nft -f`.
-  expr-token-safety-tests = exprTokenSafety.runTests pkgs;
-  # Regression pin for the named-reference injection class:
-  # `set`/`map`/`flow` statements named the referenced object
-  # via a `types.str` field rendered bare into the surrounding
-  # statement. The renderer now routes each name through
-  # `safeToken` so an unsafe byte truncating the statement and
-  # dropping an attacker payload no longer reaches `nft -f`.
-  named-ref-safety-tests = namedRefSafety.runTests pkgs;
-  # Regression pin for the limit/quota unit-name injection
-  # class: `rate_unit` / `burst_unit` / `val_unit` /
-  # `used_unit` are `types.str` in the schema and used to
-  # render bare into the surrounding clause. All three render
-  # surfaces (statement, named-object body, positional
-  # `create` form) now route the unit name through `safeToken`.
-  unit-name-safety-tests = unitNameSafety.runTests pkgs;
-  # Regression pin for the ct-timeout policy-key injection
-  # class: `policy` is `attrsOf ints.unsigned`, so keys are
-  # arbitrary strings. The renderer emitted each key bare into
-  # `policy = { <k>: <v>, … }`. Each key now flows through
-  # `safeToken`.
-  ct-timeout-policy-safety-tests = ctTimeoutPolicySafety.runTests pkgs;
-  # Regression pin for the chain/flowtable priority injection
-  # class: the renderer used to accept string priorities even
-  # though the schema typed `prio` as `nullOr int`. A raw
-  # attrset could slip an unsafe string into the `priority <X>`
-  # clause; the renderer now mirrors the schema and refuses
-  # anything but an int.
-  priority-safety-tests = prioritySafety.runTests pkgs;
-  # Subset-helper coverage: `statementOf` / `matchStatement` /
-  # `expressionOf` accept the in-subset tags and reject the
-  # rest, throw on construction-time misuse, and stay in sync
-  # with the schema unions (per-kind smoke loop).
-  restricted-types-tests = restrictedTypes.runTests pkgs;
-
-  # Source-side compatibility checks use the exact release archive and
-  # downstream patches carried by this package set's nftables
-  # derivation. They complement the live binary checks above by
-  # covering valid shapes the hand-written integration corpus cannot
-  # anticipate.
-  nftables-source-provenance-tests = sourceProvenance.runTests pkgs;
-  nftables-corpus-tests = nftablesCorpus.runTests pkgs;
-  nftables-enum-extraction-tests = nftablesEnums.runTests pkgs;
-  nftables-roundtrip-tests = nftablesRoundtrip.runTests pkgs;
-  nftables-tooling-selftests = nftablesSelftest.runTests pkgs;
+  # Every evaluation-only suite: schema and DSL behaviour, text parity,
+  # safety regressions, validation messages, and the nixpkgs-source
+  # policy.
+  unit-tests = nixUnitCheck {
+    name = "unit-tests";
+    entryPoint = "unit.nix";
+  };
 }
+// lib.mapAttrs (
+  name: check:
+  nixUnitCheck {
+    inherit name;
+    entryPoint = "live.nix";
+    suites = [ check.suite ];
+    observationPaths = lib.getAttrs (check.probes or [ check.suite ]) probes;
+  }
+) liveChecks

@@ -64,9 +64,10 @@ categories:
 | partial synproxy | a flags-only synproxy statement is rejected because the schema requires `mss` and `wscale` together |
 
 The executable baseline is `knownDivergences` in
-[`tests/upstream-corpus.nix`](../tests/upstream-corpus.nix). A statement matching
-no known category fails the check. Categories that disappear are reported as
-stale so the baseline can shrink.
+[`tests/helpers/corpus-drift.nix`](../tests/helpers/corpus-drift.nix). A
+statement matching no known category fails the check, and so does a category
+no statement matches any more; prune it from the baseline when its gap is
+fixed.
 
 Additional command and selector differences are not statement-corpus shapes:
 
@@ -134,7 +135,7 @@ passed through. See [`api.md`](api.md) for an explicit `evalModules` example.
 
 | Check | What it proves | Important limit |
 | --- | --- | --- |
-| `schema-tests` and focused safety suites | Nix-level accepted/rejected values and renderer regressions | hand-written cases cannot discover unknown upstream syntax |
+| `unit-tests`: schema and focused safety suites | Nix-level accepted/rejected values and renderer regressions | hand-written cases cannot discover unknown upstream syntax |
 | `integration-tests` | selected JSON renderings pass the package set's `nft -c -j -f`, and a raw `create rule` parser-negative case is rejected | selected cases only; check mode is not a real load |
 | `nftables-source-provenance-tests` | source analysis uses the selected package source and patches | provenance, not semantic coverage |
 | `nftables-enum-extraction-tests` | extracted parser tokens/tags match schema lists and plausibility floors | extractor covers enumerated patterns, not every conditional branch |

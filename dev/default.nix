@@ -1,5 +1,8 @@
 { inputs, self, ... }:
 {
+  # nix-unit's flake entry point: `nix-unit --flake .#tests`.
+  flake.tests = import ../tests/unit.nix { inherit (inputs.nixpkgs) lib; };
+
   perSystem =
     {
       config,

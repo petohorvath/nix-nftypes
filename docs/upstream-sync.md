@@ -24,9 +24,13 @@ separate nftables or libnftnl flake inputs.
 - plain name: stable package set;
 - `-unstable` suffix: unstable package set.
 
-One additional `nixpkgs-source-policy-tests` check statically guards the
-single-authority design. Evaluate the exact current list rather than relying on
-a copied count:
+Every check runs nix-unit against the package set's `lib` and `nix-unit`.
+`unit-tests` runs the evaluation-only suites registered in `tests/unit.nix`;
+its source-policy suite statically guards the single-authority design. Each
+other check runs one suite from `tests/live.nix`, which asserts on the JSON
+record of a probe (`tests/probes/`): a derivation that runs the package set's
+`nft` or the source tooling and records each run's exit status and output.
+Evaluate the exact current list rather than relying on a copied count:
 
 ```console
 nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
@@ -34,18 +38,19 @@ nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
 
 Checks and source packages are exposed for `x86_64-linux` and
 `aarch64-linux`. GitHub CI runs the complete matrix on `x86_64-linux`.
-Source-derived checks use import-from-derivation, so evaluate each architecture
-on a matching native builder; `--all-systems` from one architecture is not a
+Checks evaluate without import-from-derivation, but building them runs the
+target architecture's `nft` and tooling, so build each architecture on a
+matching native builder; `--all-systems` from one architecture is not a
 cross-build path.
 
 ### Test groups
 
 | Group | Checks |
 | --- | --- |
-| Nix/schema/DSL | schema, restricted types, DSL validation, validation messages |
-| Renderer behavior | JSON integration, text parity/integration, table-block parity/integration, selected JSON/text equivalence |
-| Safety regressions | comments, interface names, verdict targets, scalar/token/reference names, datatypes, units, CT timeout keys, priorities |
-| Source drift | provenance, upstream corpus, enum/tag extraction, read-back round trip, tooling self-tests |
+| Nix/schema/DSL | `unit-tests`: schema, DSL parity, restricted types, DSL validation and its error messages |
+| Renderer behavior | `unit-tests`: text and table-block parity; live: JSON integration, text integration, table-block integration, selected JSON/text equivalence |
+| Safety regressions | `unit-tests`: comments, interface names, verdict targets, scalar/token/reference names, datatypes, units, CT timeout keys, priorities; live: comment and interface-name round trips |
+| Source policy and drift | `unit-tests`: nixpkgs source policy; source checks: provenance, upstream corpus, enum/tag extraction, read-back round trip, tooling self-tests |
 
 The exact attribute names remain the machine-readable source of truth.
 
@@ -63,9 +68,10 @@ results are not trustworthy if this check fails.
 and validates each statement against `nftlib.types.statement`.
 
 The check fails on any rejection that does not match a named pattern in
-`tests/upstream-corpus.nix`. The current 11 categories are documented in
-[`spec-coverage.md`](spec-coverage.md). A pattern that stops matching is
-reported as stale.
+`tests/helpers/corpus-drift.nix`. The current 11 categories are documented in
+[`spec-coverage.md`](spec-coverage.md). A pattern that stops matching also
+fails the check, which names it so it can be pruned. Because the corpus only
+changes with `flake.lock`, both failures appear in the lock-update change.
 
 This detects schema-too-restrictive drift in upstream's exercised statements.
 It does not prove that every parser branch appears in the corpus.
@@ -102,9 +108,9 @@ or listed object shape has been observed.
 ### Tooling self-tests
 
 `nftables-tooling-selftests` supplies synthetic source/corpus defects and checks
-that enum extraction, corpus classification, and ruleset validation turn red.
-It validates the drift net's chosen fault classes, not nftables semantics
-themselves.
+that enum extraction and corpus classification turn red. The schema suite in
+`unit-tests` checks that read-back validation rejects junk. Both validate the
+drift net's chosen fault classes, not nftables semantics themselves.
 
 ## Live parser and renderer checks
 

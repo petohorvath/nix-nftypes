@@ -25,8 +25,8 @@ JSON array, and emits a single JSON document to stdout:
 
     [ { "file": "...", "title": "...", "expr": [ … ] }, … ]
 
-The Nix check (tests/upstream-corpus.nix) reads this and validates each
-`expr` against `nftlib.types.statement`. Keeping the fragile text-splitting
+The corpus suite (tests/suites/nftables-corpus.nix) reads this and validates
+each `expr` against `nftlib.types.statement`. Keeping the fragile text-splitting
 in Python (one place, easy to unit-test) keeps the Nix side a clean
 fromJSON + evalModules loop.
 

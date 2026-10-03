@@ -8,6 +8,7 @@
   nftables,
   nil,
   nix,
+  nix-unit,
   nixfmt,
   python3,
   statix,
@@ -16,6 +17,7 @@
 mkShellNoCC {
   packages = [
     nix
+    nix-unit
     git
     nil
     nixfmt

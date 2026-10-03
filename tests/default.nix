@@ -21,7 +21,6 @@
 let
   inherit (pkgs) lib;
   addNameSuffix = suffix: lib.mapAttrs' (name: lib.nameValuePair "${name}${suffix}");
-  sourcePolicy = import ./nixpkgs-source-policy.nix { inherit pkgs; };
 in
 import ./package-set.nix {
   inherit pkgs;
@@ -33,6 +32,3 @@ import ./package-set.nix {
     nftablesSource = packages.nftables-source-unstable;
   }
 )
-// {
-  nixpkgs-source-policy-tests = sourcePolicy.runTests pkgs;
-}

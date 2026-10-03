@@ -156,9 +156,10 @@ These are model limits, not hidden DSL parity claims.
 
 The relevant checks are:
 
-- `schema-tests` and DSL parity cases for byte-identical raw/DSL JSON;
-- `dsl-validation-tests` for rejected fields and unknown table keys;
-- `dsl-validation-message-tests` for useful error paths;
+- the `unit-tests` schema and DSL parity suites for byte-identical raw/DSL
+  JSON;
+- the `unit-tests` DSL validation suite for rejected fields, unknown table
+  keys, and error messages that name the offending path;
 - `integration-tests` for selected DSL output through `nft -c -j -f` and a
   raw `create rule` parser-rejection case;
 - focused safety suites for comments, interface names, references, tokens,

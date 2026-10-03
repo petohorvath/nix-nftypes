@@ -392,7 +392,7 @@ in
     renderVerdict
     ;
   # The tag set this renderer's dispatch table accepts. Read by the
-  # schema↔text drift test (tests/schema.nix) to assert every tagged
+  # schema↔text drift test (tests/suites/schema.nix) to assert every tagged
   # expression kind has a renderer entry.
   tags = builtins.attrNames taggedRenderers;
 }

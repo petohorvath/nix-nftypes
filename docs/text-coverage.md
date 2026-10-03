@@ -32,10 +32,10 @@ initial elements remain supported inside their set/map definitions.
 
 | Check | Current scope | Failure policy |
 | --- | --- | --- |
-| `text-parity-tests` | expected strings for statements, expressions, objects, and commands | any mismatch fails |
-| schema/text drift assertions in `schema-tests` | every schema statement/expression/object tag has a renderer registration | missing registration fails |
+| `unit-tests`: text parity suite | expected strings for statements, expressions, objects, and commands | any mismatch fails |
+| `unit-tests`: schema/text drift assertions | every schema statement/expression/object tag has a renderer registration | missing registration fails |
 | `text-integration-tests` | 9 of the 11 JSON integration cases through `nft -c -f` | any selected-case parse failure fails; 2 named exclusions |
-| `text-block-parity-tests` | 36 exact-output, structure, validation, ordering, and rejection assertions through the public table interface | any mismatch fails |
+| `unit-tests`: block parity suite | 36 exact-output, structure, validation, ordering, and rejection assertions through the public table interface | any mismatch fails |
 | `text-block-integration-tests` | 6 table cases in compact and pretty form through `nft -c -f`, including chain/object references and inline/named limits | any parse failure fails |
 | `render-equivalence-tests` | 6 selected cases loaded through JSON and text in separate network namespaces, then compared using `nft list ruleset` | a load failure or output difference fails; 5 cases are excluded before execution |
 
@@ -46,7 +46,7 @@ a universal 1:1 guarantee for every schema value.
 
 ## Explicit integration exclusions
 
-`tests/text-integration.nix` excludes:
+`tests/fixtures/integration-cases.nix` excludes from text integration:
 
 1. `example-home-router-dsl`: its flowtable is named `offload` and a rule uses
    `flow add @offload`. JSON accepts both, but the text grammar treats `offload`
@@ -55,7 +55,7 @@ a universal 1:1 guarantee for every schema value.
    against live kernel state and fails because that rule does not exist in the
    isolated namespace. JSON check mode tolerates the dangling handle.
 
-`tests/render-equivalence.nix` additionally excludes:
+Render equivalence additionally excludes:
 
 - `list-table`, because a query cannot be loaded as persistent ruleset state;
 - `create-supported-kinds` and `delete-supported-kinds`, because selected
