@@ -17,6 +17,7 @@
       };
       devShells.review = pkgs.callPackage ./review-shell.nix { };
       checks = import ./checks.nix {
+        inherit (config) formatter;
         inherit pkgs;
         packages = self.packages.${system};
         pkgsUnstable = inputs.nixpkgs-unstable.legacyPackages.${system};
