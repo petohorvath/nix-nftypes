@@ -30,6 +30,6 @@ pkgs.testers.runNixOSTest {
         machine.succeed("${runner} /tmp/probes/${name}.json")
       '') runners
     )}
-    machine.copy_from_vm("/tmp/probes", "")
+    machine.copy_from_machine("/tmp/probes", "")
   '';
 }
