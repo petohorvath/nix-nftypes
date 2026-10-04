@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -115,6 +116,20 @@ let
     createLimit_burst_unit = rulesetCreateLimit "burst_unit";
   };
 
+  # Field label each surface's renderer names in its refusal.
+  fieldOf = {
+    limitStmt_rate_unit = "limit rate_unit";
+    limitStmt_burst_unit = "limit burst_unit";
+    quotaStmt_val_unit = "quota val_unit";
+    quotaStmt_used_unit = "quota used_unit";
+    limitObject_rate_unit = "limit rate_unit";
+    limitObject_burst_unit = "limit burst_unit";
+    createLimit_rate_unit = "limit rate_unit";
+    createLimit_burst_unit = "limit burst_unit";
+  };
+
+  refusal = helpers.refusals.bareToken;
+
   badInputs = {
     newline = "packets\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }";
     semicolon = "packets; add chain inet fw pwned;";
@@ -142,7 +157,7 @@ let
         name = "testRendererRejects_${surface}_${badName}";
         value = {
           expr = nftlib.toText (surfaces.${surface} badValue);
-          expectedError.msg = "refusing to render a bare nft token";
+          expectedError.msg = refusal fieldOf.${surface};
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -164,15 +179,15 @@ let
   prettyTests = {
     testPrettyRejects_limitStmt_rate_unit_newline = {
       expr = toTextPretty (rulesetLimitStmt "rate_unit" badInputs.newline);
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal "limit rate_unit";
     };
     testPrettyRejects_limitObject_burst_unit_newline = {
       expr = toTextPretty (rulesetLimitObject "burst_unit" badInputs.newline);
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal "limit burst_unit";
     };
     testPrettyRejects_createLimit_burst_unit_newline = {
       expr = toTextPretty (rulesetCreateLimit "burst_unit" badInputs.newline);
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal "limit burst_unit";
     };
   };
 in

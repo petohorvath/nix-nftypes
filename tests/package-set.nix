@@ -19,6 +19,10 @@ let
     inherit (testContext) fixtures nftlib;
   };
   nixUnitCheck = import ./nix-unit-check.nix { inherit pkgs; };
+  summaries = import ./summaries.nix {
+    inherit pkgs;
+    inherit (testContext) fixtures;
+  };
 
   vmRun = import ./vm.nix {
     inherit pkgs;
@@ -32,10 +36,11 @@ let
     named probes' records. Most suites read the probe of the same name.
 
     Live parsers run inside a private network namespace: JSON through
-    `nft -c -j -f` (plus parser-negative cases), pretty text and both
-    block forms through `nft -c -f`, JSON vs text real loads whose
-    `nft list ruleset` must agree, real-load read-backs of safe comments
-    and ifname sets, and real-load round trips.
+    `nft -c -j -f` (plus parser-negative cases), both block forms through
+    `nft -c -f`, JSON vs text real loads whose `nft list ruleset` must
+    agree, `nft -c -f` for the pretty text those real loads cannot cover,
+    real-load read-backs of safe comments and ifname sets, and real-load
+    round trips.
   */
   liveParserTests = {
     integration-tests.suite = "dslIntegration";
@@ -73,11 +78,15 @@ let
 
   liveTest =
     name: test:
+    let
+      testObservationPaths = lib.getAttrs (test.probes or [ test.suite ]) observationPaths;
+    in
     nixUnitCheck {
       inherit name;
       entryPoint = "live.nix";
       suites = [ test.suite ];
-      observationPaths = lib.getAttrs (test.probes or [ test.suite ]) observationPaths;
+      observationPaths = testObservationPaths;
+      summary = (summaries.${name} or (_: "")) testObservationPaths;
     };
 in
 {

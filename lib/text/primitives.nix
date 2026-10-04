@@ -16,6 +16,10 @@
                      `nullOr int`; this helper enforces the same on the
                      render side. Symbolic priorities go through
                      `nftlib.resolvePriority` upstream.
+
+  The asserting helpers take a `field` label first (e.g. "table comment",
+  "payload protocol"). Each refusal keeps its generic wording and ends
+  with `Field: <label>.`, so a failure names the offending field.
 */
 {
   lib,
@@ -51,7 +55,7 @@ let
   # caller that bypasses the schema (tests, third-party DSLs, hand-built
   # attrsets).
   assertSafeString =
-    s:
+    field: s:
     if !nftSafeString.isSafe s then
       throw ''
         nftypes: refusing to render a string containing a character unsafe for
@@ -59,13 +63,14 @@ let
         has no string-escape grammar — these characters either terminate the
         token early (allowing statement injection) or corrupt the parser.
         Offending value: ${builtins.toJSON s}
+        Field: ${field}.
       ''
     else
       s;
 
-  quoteString = s: ''"${assertSafeString s}"'';
+  quoteString = field: s: ''"${assertSafeString field s}"'';
 
-  identQuote = s: if isBareIdent s then s else quoteString s;
+  identQuote = field: s: if isBareIdent s then s else quoteString field s;
 
   # SECURITY-CRITICAL: tagged-body field strings (payload protocol /
   # field, exthdr name, ip/tcp/sctp option name / field, ct key, …)
@@ -74,14 +79,14 @@ let
   # unsafe byte either truncates the clause or splits the token,
   # letting trailing input parse as fresh nft commands. Wraps the
   # shared `nft-safe-scalar` predicate so call sites read as
-  # `${safeToken body.protocol}` and a refactor that drops the wrap
-  # surfaces immediately.
+  # `${safeToken "payload protocol" body.protocol}` and a refactor that
+  # drops the wrap surfaces immediately.
   safeToken =
-    s:
+    field: s:
     if nftSafeScalar.isSafe s then
       s
     else
-      throw "nftypes: refusing to render a bare nft token ${builtins.toJSON s} that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate field/key names are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON s}.\n";
+      throw "nftypes: refusing to render a bare nft token ${builtins.toJSON s} that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate field/key names are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON s}. Field: ${field}.\n";
 
   # Render a listOrSingleton flag value. Default separator matches
   # `nft list ruleset` output (`, `). Some flag positions use space

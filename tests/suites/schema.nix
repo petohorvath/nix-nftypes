@@ -40,7 +40,7 @@ let
   # where a new schema tag is added without a renderer.
   textDriftTests =
     let
-      inherit (helpers.internals.textRenderers) expressions objects statements;
+      inherit (helpers.internals) textDispatch;
 
       # Tags in `xs` that don't appear in `ys`. A non-empty result lists
       # the offenders verbatim, which makes the failure output
@@ -64,15 +64,15 @@ let
       # renderable (otherwise renderStatement/Expression/Object throws
       # at render time).
       testTextDrift_statementTagsCovered = {
-        expr = missing statementTags statements.tags;
+        expr = missing statementTags textDispatch.statementTags;
         expected = [ ];
       };
       testTextDrift_expressionTagsCovered = {
-        expr = missing expressionTags expressions.tags;
+        expr = missing expressionTags textDispatch.expressionTags;
         expected = [ ];
       };
       testTextDrift_objectKindsCovered = {
-        expr = missing objectKinds objects.renderableKinds;
+        expr = missing objectKinds textDispatch.objectKinds;
         expected = [ ];
       };
 
@@ -80,15 +80,15 @@ let
       # must correspond to a real schema tag (otherwise it's dead code
       # — unreachable because no schema route emits that tag).
       testTextDrift_statementRendererHasNoOrphans = {
-        expr = missing statements.tags statementTags;
+        expr = missing textDispatch.statementTags statementTags;
         expected = [ ];
       };
       testTextDrift_expressionRendererHasNoOrphans = {
-        expr = missing expressions.tags expressionTags;
+        expr = missing textDispatch.expressionTags expressionTags;
         expected = [ ];
       };
       testTextDrift_objectRendererHasNoOrphans = {
-        expr = missing objects.renderableKinds objectKinds;
+        expr = missing textDispatch.objectKinds objectKinds;
         expected = [ ];
       };
     };

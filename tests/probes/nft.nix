@@ -82,7 +82,8 @@ in
     )
   );
 
-  # Pretty text output through `nft -c -f` (no `-j`).
+  # Pretty text output through `nft -c -f` (no `-j`), for the text cases
+  # render equivalence cannot load.
   textIntegration = recordNftRuns "text-integration-probe" (
     lib.listToAttrs (
       map (
@@ -90,7 +91,7 @@ in
         lib.nameValuePair case.name (inNamespace {
           command = "nft -c -f ${writeRulesetText case.name case.ruleset}";
         })
-      ) integrationCases.textCases
+      ) integrationCases.textCheckOnlyCases
     )
   );
 

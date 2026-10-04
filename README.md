@@ -175,7 +175,7 @@ Known differences are explicit and tested:
 - plural `list`/`reset` command-selector forms and several slim selectors are
   not modelled;
 - the text grammar has values and environment-dependent cases that the JSON
-  path can handle but the text integration suite excludes.
+  path can handle but the live text checks exclude.
 
 See:
 
@@ -251,10 +251,14 @@ extraction, tooling self-tests) are checks. The live parser and renderer tests
 read-back validation) need private network namespaces, so they are VM tests
 whose probes run in a NixOS VM.
 
-Run the evaluation-only suites directly with `nix-unit --flake .#tests`; the
-development shell provides `nix-unit`. Run another suite by building its test,
-for example `nix build -L .#checks.x86_64-linux.nftables-corpus-tests` or, with
-KVM, `nix build -L .#legacyPackages.x86_64-linux.vmTests.integration-tests`.
+For a fast loop, run only the evaluation-only suites with
+`nix-unit --flake .#tests`; the development shell provides `nix-unit`. This
+covers `unit-tests` against the stable `lib`, not the live tests or the
+`-unstable` variants. A live suite asserts on a probe's build output, so
+nix-unit could only reach it through import-from-derivation; the tests build
+the probes instead. Run one live suite by building its test, for example
+`nix build -L .#checks.x86_64-linux.nftables-corpus-tests` or, with KVM,
+`nix build -L .#legacyPackages.x86_64-linux.vmTests.integration-tests`.
 
 A scheduled Monday canary repeats the nine nftables-facing tests against an
 immutable snapshot of each branch's current tip. It is deliberately

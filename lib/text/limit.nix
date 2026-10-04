@@ -13,7 +13,9 @@ let
     let
       # The schema accepts arbitrary strings for these bare units. Validate
       # each emitted unit so parser metacharacters cannot split the clause.
-      rateUnit = lib.optionalString ((body.rate_unit or null) != null) " ${safeToken body.rate_unit}";
+      rateUnit = lib.optionalString (
+        (body.rate_unit or null) != null
+      ) " ${safeToken "limit rate_unit" body.rate_unit}";
       burst =
         if (body.burst or null) == null then
           ""
@@ -21,7 +23,11 @@ let
           let
             # Text requires an explicit burst unit. Preserve the renderer's
             # packet default when the JSON-shaped input omits it.
-            unit = if (body.burst_unit or null) != null then safeToken body.burst_unit else "packets";
+            unit =
+              if (body.burst_unit or null) != null then
+                safeToken "limit burst_unit" body.burst_unit
+              else
+                "packets";
           in
           " burst ${toString body.burst} ${unit}";
     in
@@ -33,14 +39,16 @@ in
   renderStatement =
     body:
     if builtins.isString body then
-      "limit name ${primitives.quoteString body}"
+      "limit name ${primitives.quoteString "limit reference" body}"
     else
       "limit ${renderRate body}";
 
   renderObjectBody =
     body:
     [ (renderRate body) ]
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "limit comment" body.comment}";
 
   renderCreate = renderRate;
 }
