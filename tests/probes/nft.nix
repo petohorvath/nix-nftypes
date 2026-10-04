@@ -1,13 +1,16 @@
 /*
-  Live-parser probes. Each run feeds rendered output to the package set's
-  `nft` inside a private network namespace (`unshare -rn`), so the real
-  parser and kernel netfilter instance are exercised without root.
+  Live-parser probe runners. Each run feeds rendered output to the package
+  set's `nft` inside a private network namespace (`unshare -rn`), so every
+  run gets its own netfilter instance. Creating the namespaces needs
+  unprivileged user namespaces, which hosted CI runners deny inside the
+  build sandbox, so these return runners (./record-runs.nix) that the VM
+  tests (../vm.nix) run inside a NixOS VM.
 */
 {
   fixtures,
+  mkRunner,
   nftlib,
   pkgs,
-  recordRuns,
 }:
 let
   inherit (pkgs) lib;
@@ -59,7 +62,7 @@ let
 
   recordNftRuns =
     name: runs:
-    recordRuns {
+    mkRunner {
       inherit name runs;
       nativeBuildInputs = nftInputs;
     };

@@ -10,6 +10,13 @@
       system,
       ...
     }:
+    let
+      tests = import ../tests {
+        inherit pkgs;
+        packages = self.packages.${system};
+        pkgsUnstable = inputs.nixpkgs-unstable.legacyPackages.${system};
+      };
+    in
     {
       formatter = pkgs.callPackage ./formatter.nix { };
       devShells.default = pkgs.callPackage ./shell.nix {
@@ -18,9 +25,10 @@
       devShells.review = pkgs.callPackage ./review-shell.nix { };
       checks = import ./checks.nix {
         inherit (config) formatter;
+        inherit (tests) checks;
         inherit pkgs;
-        packages = self.packages.${system};
-        pkgsUnstable = inputs.nixpkgs-unstable.legacyPackages.${system};
       };
+      # The policy builds these on x86_64-linux with KVM.
+      legacyPackages.vmTests = tests.vmTests;
     };
 }

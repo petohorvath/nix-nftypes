@@ -1,10 +1,9 @@
 {
+  checks,
   formatter,
-  packages,
   pkgs,
-  pkgsUnstable,
 }:
-import ../tests { inherit packages pkgs pkgsUnstable; }
+checks
 // {
   # The policy only evaluates the formatter, so check the tree here.
   formatting =

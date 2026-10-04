@@ -19,38 +19,51 @@ separate nftables or libnftnl flake inputs.
 
 ## Locked-input matrix
 
-`tests/default.nix` creates every package-set-dependent check twice:
+`tests/default.nix` creates every package-set-dependent test twice:
 
 - plain name: stable package set;
 - `-unstable` suffix: unstable package set.
 
-Every check runs nix-unit against the package set's `lib` and `nix-unit`.
+Every test runs nix-unit against the package set's `lib` and `nix-unit`.
 `unit-tests` runs the evaluation-only suites registered in `tests/unit.nix`;
 its source-policy suite statically guards the single-authority design. Each
-other check runs one suite from `tests/live.nix`, which asserts on the JSON
-record of a probe (`tests/probes/`): a derivation that runs the package set's
+other test runs one suite from `tests/live.nix`, which asserts on the JSON
+record of a probe (`tests/probes/`): a script that runs the package set's
 `nft` or the source tooling and records each run's exit status and output.
-Evaluate the exact current list rather than relying on a copied count:
+
+The tests live in two places:
+
+- `checks.<system>`: `unit-tests`, the source-side tests, and `formatting`.
+  Their probes run in the build sandbox.
+- `legacyPackages.<system>.vmTests`: the live parser and renderer tests.
+  Their probes create private user and network namespaces, which hosted CI
+  runners deny inside the build sandbox, so `tests/vm.nix` runs them in one
+  NixOS VM per package set. Building them requires KVM.
+
+Evaluate the exact current lists rather than relying on a copied count:
 
 ```console
 nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
+nix eval --json '.#legacyPackages.x86_64-linux.vmTests' --apply builtins.attrNames | jq .
 ```
 
-Checks and source packages are exposed for `x86_64-linux` and
-`aarch64-linux`. GitHub CI runs the complete matrix on `x86_64-linux`.
-Checks evaluate without import-from-derivation, but building them runs the
-target architecture's `nft` and tooling, so build each architecture on a
-matching native builder; `--all-systems` from one architecture is not a
-cross-build path.
+Checks, VM tests, and source packages are exposed for `x86_64-linux` and
+`aarch64-linux`. CI runs the shared project policy: `nix flake check` on both
+systems with the locked `nixpkgs` and with the policy's stable and unstable
+pins, and the VM tests on `x86_64-linux` with the locked inputs. The tests
+evaluate without import-from-derivation, but building them runs the target
+architecture's `nft` and tooling, so build each architecture on a matching
+native builder; `--all-systems` from one architecture is not a cross-build
+path.
 
 ### Test groups
 
-| Group | Checks |
+| Group | Tests |
 | --- | --- |
 | Nix/schema/DSL | `unit-tests`: schema, DSL parity, restricted types, DSL validation and its error messages |
-| Renderer behavior | `unit-tests`: text and table-block parity; live: JSON integration, text integration, table-block integration, selected JSON/text equivalence |
-| Safety regressions | `unit-tests`: comments, interface names, verdict targets, scalar/token/reference names, datatypes, units, CT timeout keys, priorities; live: comment and interface-name round trips |
-| Source policy and drift | `unit-tests`: nixpkgs source policy; source checks: provenance, upstream corpus, enum/tag extraction, read-back round trip, tooling self-tests |
+| Renderer behavior | `unit-tests`: text and table-block parity; VM: JSON integration, text integration, table-block integration, selected JSON/text equivalence |
+| Safety regressions | `unit-tests`: comments, interface names, verdict targets, scalar/token/reference names, datatypes, units, CT timeout keys, priorities; VM: comment and interface-name round trips |
+| Source policy and drift | `unit-tests`: nixpkgs source policy; source checks: provenance, upstream corpus, enum/tag extraction, tooling self-tests; VM: read-back round trip |
 
 The exact attribute names remain the machine-readable source of truth.
 
@@ -88,7 +101,7 @@ manual review or corpus/live coverage.
 
 ### Read-back round trip
 
-`nftables-roundtrip-tests` real-loads nine selected integration cases in
+`nftables-roundtrip-tests`, a VM test, real-loads nine selected integration cases in
 private network namespaces, captures `nft -j list ruleset`, and validates every
 emitted command with `nftlib.types.ruleset`.
 
@@ -112,7 +125,10 @@ that enum extraction and corpus classification turn red. The schema suite in
 `unit-tests` checks that read-back validation rejects junk. Both validate the
 drift net's chosen fault classes, not nftables semantics themselves.
 
-## Live parser and renderer checks
+## Live parser and renderer tests
+
+These are VM tests. Each runs its probe in a private network namespace inside
+the package set's NixOS VM.
 
 - `integration-tests` sends selected JSON to `nft -c -j -f` and confirms
   that a raw `create rule` case is rejected by the live parser.
@@ -157,7 +173,7 @@ changes the deterministic result.
 ### Canary checks
 
 A separate job overrides one input with the immutable tip revision and runs
-nine nftables-facing checks:
+nine nftables-facing tests, five of them VM tests on a KVM-enabled runner:
 
 1. JSON integration;
 2. text integration;
@@ -187,7 +203,7 @@ summaries when correlating results.
 | JSON integration red | selected rendered JSON is rejected by the packaged parser | fix schema/DSL/renderer or narrow the claim with evidence |
 | text/equivalence red | selected native syntax is rejected or differs semantically | fix text rendering or add a narrowly justified named exclusion |
 | unstable-only red | likely future stable incompatibility | fix before updating the stable floor |
-| canary-only red | one of the nine selected tip-revision checks failed, or its job environment/tooling failed, while the locked checks remained green | reproduce at the reported immutable revision and inspect the failing check |
+| canary-only red | one of the nine selected tip-revision tests failed, or its job environment/tooling failed, while the locked checks remained green | reproduce at the reported immutable revision and inspect the failing check |
 | drift issue | patched source at the branch tip differs from the lock | review the artifact and canary before updating |
 
 ## Updating inputs
@@ -197,10 +213,15 @@ Update one input at a time so failures retain a clear authority:
 ```console
 nix flake update nixpkgs
 nix flake check -L
+nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
 
 nix flake update nixpkgs-unstable
 nix flake check -L
+nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
 ```
+
+The policy's `vm` command builds every VM test on the host system and needs
+KVM.
 
 When a new NixOS release becomes stable, point `inputs.nixpkgs.url` in
 `flake.nix` at its branch before updating.
@@ -217,7 +238,7 @@ Before merging an input update:
    from one architecture as cross-architecture verification;
 3. review any corpus baseline or read-back change against the patched source;
 4. keep known differences in code and coverage docs synchronized;
-5. confirm GitHub CI on `x86_64-linux`.
+5. confirm that the policy's required statuses pass on the PR.
 
 To reproduce the complete canary at the exact revision from its summary, choose
 the matching input and suffix:
@@ -235,13 +256,13 @@ revision=FULL_REVISION_FROM_SUMMARY
 
 nix build -L \
     --override-input "$input" "github:NixOS/nixpkgs/$revision" \
-    ".#checks.x86_64-linux.integration-tests${suffix}" \
-    ".#checks.x86_64-linux.text-integration-tests${suffix}" \
-    ".#checks.x86_64-linux.text-block-integration-tests${suffix}" \
-    ".#checks.x86_64-linux.render-equivalence-tests${suffix}" \
+    ".#legacyPackages.x86_64-linux.vmTests.integration-tests${suffix}" \
+    ".#legacyPackages.x86_64-linux.vmTests.text-integration-tests${suffix}" \
+    ".#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests${suffix}" \
+    ".#legacyPackages.x86_64-linux.vmTests.render-equivalence-tests${suffix}" \
+    ".#legacyPackages.x86_64-linux.vmTests.nftables-roundtrip-tests${suffix}" \
     ".#checks.x86_64-linux.nftables-source-provenance-tests${suffix}" \
     ".#checks.x86_64-linux.nftables-corpus-tests${suffix}" \
     ".#checks.x86_64-linux.nftables-enum-extraction-tests${suffix}" \
-    ".#checks.x86_64-linux.nftables-roundtrip-tests${suffix}" \
     ".#checks.x86_64-linux.nftables-tooling-selftests${suffix}"
 ```
