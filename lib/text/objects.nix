@@ -78,10 +78,13 @@ let
   # implies family/table, so `renderObjectScope` collapses to just the
   # object's name. `renderTableScope` is unaffected — the only caller (the
   # table header itself) is never rendered in block form.
-  renderTableScope = body: "${body.family} ${identQuote body.table}";
+  renderTableScope = body: "${body.family} ${identQuote "table name" body.table}";
   renderObjectScope =
     ctx: body:
-    if ctx.block then identQuote body.name else "${renderTableScope body} ${identQuote body.name}";
+    if ctx.block then
+      identQuote "object name" body.name
+    else
+      "${renderTableScope body} ${identQuote "object name" body.name}";
 
   # SECURITY-CRITICAL: a string datatype renders bare into the set/map
   # `type <X>` clause; a list renders bare joined with ` . `. An unsafe
@@ -144,7 +147,7 @@ let
     dev:
     lib.seq (assertSafeDev dev) (
       if builtins.isString dev then
-        "device ${primitives.quoteString dev}"
+        "device ${primitives.quoteString "device" dev}"
       else
         "devices = { ${lib.concatStringsSep ", " dev} }"
     );
@@ -164,7 +167,7 @@ let
       "flags ${primitives.flags { sep = ", "; } body.flags}"
     ]
     ++ lib.optionals ((body.comment or null) != null) [
-      "comment ${primitives.quoteString body.comment}"
+      "comment ${primitives.quoteString "table comment" body.comment}"
     ];
 
   renderChainHeader = ctx: body: renderObjectScope ctx body;
@@ -178,7 +181,10 @@ let
     let
       stmts = renderRuleExpr ctx body.expr;
       commentClause =
-        if (body.comment or null) == null then "" else " comment ${primitives.quoteString body.comment}";
+        if (body.comment or null) == null then
+          ""
+        else
+          " comment ${primitives.quoteString "rule comment" body.comment}";
     in
     "${stmts}${commentClause}";
 
@@ -197,7 +203,7 @@ let
       policyLine = lib.optional ((body.policy or null) != null) "policy ${body.policy}";
       commentLine = lib.optional (
         (body.comment or null) != null
-      ) "comment ${primitives.quoteString body.comment}";
+      ) "comment ${primitives.quoteString "chain comment" body.comment}";
     in
     baseLine ++ policyLine ++ commentLine;
 
@@ -206,7 +212,7 @@ let
   # their usual body without inline rules.
   renderChainBlock =
     ctx: body: rules:
-    "chain ${identQuote body.name}${
+    "chain ${identQuote "chain name" body.name}${
       block ctx (renderChainBody ctx body ++ map (renderRuleStmtsAndComment ctx) rules)
     }";
 
@@ -223,7 +229,7 @@ let
         else
           "";
     in
-    "${body.family} ${identQuote body.table} ${identQuote body.chain}${pos} ${renderRuleStmtsAndComment ctx body}";
+    "${body.family} ${identQuote "table name" body.table} ${identQuote "chain name" body.chain}${pos} ${renderRuleStmtsAndComment ctx body}";
 
   # Shared body renderer for set and map objects. They differ only in the
   # type clause: sets emit `type <K>`; maps emit `type <K> : <V>`. Every
@@ -273,7 +279,9 @@ let
     ++ lib.optional ((body."auto-merge" or null) == true) "auto-merge"
     ++ stmtLines
     ++ lib.optional (elemList != [ ]) (renderElements ctx elemList)
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "set/map comment" body.comment}";
 
   # set: header `<family> <table> <name>`; body covers type/flags/policy/
   # size/timeout/gc-interval/auto-merge/elements/comment/stmt.
@@ -332,7 +340,9 @@ let
         + (lib.optionalString ((body.bytes or null) != null) "bytes ${toString body.bytes}")
       )
     ]
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "counter comment" body.comment}";
 
   # quota object: `[over] <bytes> bytes [used N bytes]`.
   renderQuotaHeader = ctx: body: renderObjectScope ctx body;
@@ -347,7 +357,9 @@ let
       head = if headParts == [ ] then [ ] else [ (lib.concatStringsSep " " headParts) ];
     in
     head
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "quota comment" body.comment}";
 
   # Limit clauses and comments are spelled by limit.nix.
   renderLimitHeader = ctx: body: renderObjectScope ctx body;
@@ -365,9 +377,9 @@ let
       hasProto = (body.protocol or null) != null;
       typeProtoLine =
         if hasType && hasProto then
-          [ "type ${primitives.quoteString body.type} protocol ${body.protocol}" ]
+          [ "type ${primitives.quoteString "ct helper type" body.type} protocol ${body.protocol}" ]
         else if hasType then
-          [ "type ${primitives.quoteString body.type}" ]
+          [ "type ${primitives.quoteString "ct helper type" body.type}" ]
         else if hasProto then
           [ "protocol ${body.protocol}" ]
         else
@@ -375,7 +387,9 @@ let
     in
     typeProtoLine
     ++ lib.optional ((body.l3proto or null) != null) "l3proto ${body.l3proto}"
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "ct helper comment" body.comment}";
 
   # ct timeout object:
   # `protocol tcp; l3proto ip; policy = { established: 300, ... };`.
@@ -395,14 +409,18 @@ let
           [ ]
         else
           let
-            entries = lib.mapAttrsToList (k: v: "${safeToken k}: ${toString v}") body.policy;
+            entries = lib.mapAttrsToList (
+              k: v: "${safeToken "ct timeout policy key" k}: ${toString v}"
+            ) body.policy;
           in
           [ "policy = { ${lib.concatStringsSep ", " entries} }" ];
     in
     lib.optional ((body.protocol or null) != null) "protocol ${body.protocol}"
     ++ lib.optional ((body.l3proto or null) != null) "l3proto ${body.l3proto}"
     ++ policyLine
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "ct timeout comment" body.comment}";
 
   renderCtExpectationHeader = ctx: body: renderObjectScope ctx body;
 
@@ -413,14 +431,20 @@ let
     ++ lib.optional ((body.timeout or null) != null) "timeout ${toString body.timeout}s"
     ++ lib.optional ((body.size or null) != null) "size ${toString body.size}"
     ++ lib.optional ((body.l3proto or null) != null) "l3proto ${body.l3proto}"
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "ct expectation comment" body.comment}";
 
   renderSecmarkHeader = ctx: body: renderObjectScope ctx body;
 
   renderSecmarkBody =
     _ctx: body:
-    lib.optional ((body.context or null) != null) (primitives.quoteString body.context)
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    lib.optional ((body.context or null) != null) (
+      primitives.quoteString "secmark context" body.context
+    )
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "secmark comment" body.comment}";
 
   renderSynproxyHeader = ctx: body: renderObjectScope ctx body;
 
@@ -434,7 +458,9 @@ let
     in
     [ head ]
     ++ flagsLine
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "synproxy comment" body.comment}";
 
   # tunnel object: id/src-ipv4/dst-ipv4/sport/dport/ttl/tos/type and the
   # nested encapsulation-specific block.
@@ -456,7 +482,7 @@ let
           let
             entries = lib.concatMapStringsSep ", " (
               opt:
-              "{ class ${toString opt.class}, opt-type ${toString opt."opt-type"}, data ${primitives.quoteString opt.data} }"
+              "{ class ${toString opt.class}, opt-type ${toString opt."opt-type"}, data ${primitives.quoteString "tunnel option data" opt.data} }"
             ) body.tunnel;
           in
           [ "geneve = { ${entries} }" ]
@@ -482,7 +508,9 @@ let
     ++ optionalIntegerLine "tos"
     ++ typeLine
     ++ nestedLine
-    ++ lib.optional ((body.comment or null) != null) "comment ${primitives.quoteString body.comment}";
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "tunnel comment" body.comment}";
 
   # metainfo (for list output): version/release_name/json_schema_version.
   # Only meaningful in `nft -j list` output; the `list metainfo` verb

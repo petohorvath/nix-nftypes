@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -69,6 +70,14 @@ let
     gotoStmt = rulesetWithGotoTarget;
   };
 
+  # Field label each surface's renderer names in its refusal.
+  fieldOf = {
+    jumpStmt = "jump target";
+    gotoStmt = "goto target";
+  };
+
+  refusal = helpers.refusals.quotedString;
+
   # The renderer's first-line defence: identQuote routes any input
   # that isn't a bare identifier through `assertSafeString`, which rejects '"',
   # '\', and control characters. The audit's newline-based injection
@@ -99,7 +108,7 @@ let
         name = "testRendererRejects_${surface}_${badName}";
         value = {
           expr = nftlib.toText (surfaces.${surface} badValue);
-          expectedError.msg = "refusing to render a string containing a character unsafe";
+          expectedError.msg = refusal fieldOf.${surface};
         };
       }) throwingInputs
     ) (builtins.attrNames surfaces)
@@ -133,7 +142,7 @@ let
   prettyTests = {
     testPrettyRejectsInjection = {
       expr = toTextPretty (rulesetWithJumpTarget injectionPayload);
-      expectedError.msg = "refusing to render a string containing a character unsafe";
+      expectedError.msg = refusal "jump target";
     };
     testPrettyAcceptsBareName = {
       expr = builtins.isString (toTextPretty (rulesetWithJumpTarget "evil"));

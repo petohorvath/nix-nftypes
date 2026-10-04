@@ -116,7 +116,9 @@ drift net's chosen fault classes, not nftables semantics themselves.
 
 - `integration-tests` sends selected JSON to `nft -c -j -f` and confirms
   that a raw `create rule` case is rejected by the live parser.
-- `text-integration-tests` sends selected native text to `nft -c -f`.
+- `text-integration-tests` sends native text to `nft -c -f` for the cases
+  that render equivalence cannot load. A real load runs every check-mode
+  validation, so render equivalence covers the rest.
 - `text-block-integration-tests` wraps selected block output in a table and
   sends it to the text parser.
 - `render-equivalence-tests` real-loads six selected cases through JSON and

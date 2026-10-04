@@ -16,16 +16,20 @@ let
     inherit (testContext) fixtures nftlib;
   };
   nixUnitCheck = import ./nix-unit-check.nix { inherit pkgs; };
+  summaries = import ./summaries.nix {
+    inherit pkgs;
+    inherit (testContext) fixtures;
+  };
 
   /*
     Live checks by name: each runs one suite from ./live.nix against the
     named probes' records. Most suites read the probe of the same name.
 
     Live parsers run inside a private network namespace: JSON through
-    `nft -c -j -f` (plus parser-negative cases), pretty text and both
-    block forms through `nft -c -f`, JSON vs text real loads whose
-    `nft list ruleset` must agree, and real-load read-backs of safe
-    comments and ifname sets.
+    `nft -c -j -f` (plus parser-negative cases), both block forms through
+    `nft -c -f`, JSON vs text real loads whose `nft list ruleset` must
+    agree, `nft -c -f` for the pretty text those real loads cannot cover,
+    and real-load read-backs of safe comments and ifname sets.
 
     Source-side checks use the exact release archive and downstream
     patches carried by this package set's nftables derivation. They cover
@@ -68,10 +72,13 @@ in
 }
 // lib.mapAttrs (
   name: check:
+  let
+    observationPaths = lib.getAttrs (check.probes or [ check.suite ]) probes;
+  in
   nixUnitCheck {
-    inherit name;
+    inherit name observationPaths;
     entryPoint = "live.nix";
     suites = [ check.suite ];
-    observationPaths = lib.getAttrs (check.probes or [ check.suite ]) probes;
+    summary = (summaries.${name} or (_: "")) observationPaths;
   }
 ) liveChecks

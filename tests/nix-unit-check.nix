@@ -9,6 +9,8 @@
   - `observationPaths`: probe outputs the live suites read, keyed by
     observation name. They become build inputs, so the probes run before
     nix-unit.
+  - `summary`: a shell snippet that prints informational counts to the
+    build log after the suites pass; `jq` is available.
 
   Returns the check derivation.
 */
@@ -18,6 +20,7 @@
   entryPoint,
   suites ? null,
   observationPaths ? { },
+  summary ? "",
 }:
 let
   inherit (pkgs) lib;
@@ -59,11 +62,19 @@ let
     ${selectSuites} (import ${src}/tests/${entryPoint} ${entryArgs})
   '';
 in
-pkgs.runCommandLocal name { nativeBuildInputs = [ pkgs.nix-unit ]; } ''
-  export HOME="$(realpath .)"
-  nix-unit --quiet \
-    --eval-store "$HOME" \
-    --gc-roots-dir "$HOME/gc-roots" \
-    --expr ${lib.escapeShellArg testsExpr}
-  touch $out
-''
+pkgs.runCommandLocal name
+  {
+    nativeBuildInputs = [
+      pkgs.jq
+      pkgs.nix-unit
+    ];
+  }
+  ''
+    export HOME="$(realpath .)"
+    nix-unit --quiet \
+      --eval-store "$HOME" \
+      --gc-roots-dir "$HOME/gc-roots" \
+      --expr ${lib.escapeShellArg testsExpr}
+    ${summary}
+    touch $out
+  ''

@@ -33,6 +33,8 @@ let
   # a chain at priority -10 with `policy accept` pre-fix.
   injectionPayload = "X\"; chain bypass { type filter hook input priority -10; policy accept; }; #";
 
+  refusal = helpers.refusals.quotedString;
+
   # Sample bad inputs — each individually unsafe for nft text rendering.
   # NUL bytes are absent because Nix string literals cannot represent
   # them (the parser rejects them). The renderer would still throw on a
@@ -98,27 +100,27 @@ let
   # bypassing every schema check. The function must throw.
   rendererTests = {
     testRendererThrowsOnQuote = {
-      expr = textPrimitives.quoteString badInputs.quote;
-      expectedError.msg = "refusing to render a string containing a character unsafe";
+      expr = textPrimitives.quoteString "comment" badInputs.quote;
+      expectedError.msg = refusal "comment";
     };
     testRendererThrowsOnBackslash = {
-      expr = textPrimitives.quoteString badInputs.backslash;
-      expectedError.msg = "refusing to render a string containing a character unsafe";
+      expr = textPrimitives.quoteString "comment" badInputs.backslash;
+      expectedError.msg = refusal "comment";
     };
     testRendererThrowsOnNewline = {
-      expr = textPrimitives.quoteString badInputs.newline;
-      expectedError.msg = "refusing to render a string containing a character unsafe";
+      expr = textPrimitives.quoteString "comment" badInputs.newline;
+      expectedError.msg = refusal "comment";
     };
     testRendererThrowsOnTab = {
-      expr = textPrimitives.quoteString badInputs.tab;
-      expectedError.msg = "refusing to render a string containing a character unsafe";
+      expr = textPrimitives.quoteString "comment" badInputs.tab;
+      expectedError.msg = refusal "comment";
     };
     testRendererAcceptsClean = {
-      expr = builtins.isString (textPrimitives.quoteString "clean text 123");
+      expr = builtins.isString (textPrimitives.quoteString "comment" "clean text 123");
       expected = true;
     };
     testEscapeIsIdentityForSafe = {
-      expr = textPrimitives.assertSafeString "abc";
+      expr = textPrimitives.assertSafeString "comment" "abc";
       expected = "abc";
     };
   };
@@ -147,11 +149,11 @@ let
   regressionTests = {
     testRendererBlocksInjectionInToText = {
       expr = toText rawInjectionRuleset;
-      expectedError.msg = "refusing to render a string containing a character unsafe";
+      expectedError.msg = refusal "table comment";
     };
     testRendererBlocksInjectionInToTextPretty = {
       expr = toTextPretty rawInjectionRuleset;
-      expectedError.msg = "refusing to render a string containing a character unsafe";
+      expectedError.msg = refusal "table comment";
     };
     # JSON path is structurally safe (builtins.toJSON encodes correctly,
     # libnftables stores the literal bytes as UDATA). Pin the encoding so

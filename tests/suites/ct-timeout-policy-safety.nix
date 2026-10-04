@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -35,6 +36,8 @@ let
       })
     ];
 
+  refusal = helpers.refusals.bareToken "ct timeout policy key";
+
   badInputs = {
     newline = "established: 300 }\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }\n# foo";
     semicolon = "established;";
@@ -60,7 +63,7 @@ let
       name = "testRendererRejects_${badName}";
       value = {
         expr = nftlib.toText (rulesetWithPolicyKey badValue);
-        expectedError.msg = "refusing to render a bare nft token";
+        expectedError.msg = refusal;
       };
     }) badInputs
   );
@@ -78,7 +81,7 @@ let
   prettyTests = {
     testPrettyRejectsInjection = {
       expr = toTextPretty (rulesetWithPolicyKey badInputs.newline);
-      expectedError.msg = "refusing to render a bare nft token";
+      expectedError.msg = refusal;
     };
     testPrettyAcceptsCleanKey = {
       expr = builtins.isString (toTextPretty (rulesetWithPolicyKey "established"));

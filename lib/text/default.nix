@@ -101,4 +101,14 @@ in
 
   # Internal spelling helpers for lib/table.nix; not exposed by nftlib.
   inherit (objects) renderChainBlock renderObject;
+
+  # Internals for the test suites, not exposed by nftlib: the dispatch
+  # tables read by the schema↔text drift tests, and the primitives the
+  # renderer-level safety tests call directly.
+  dispatch = {
+    expressionTags = expressions.tags;
+    objectKinds = objects.renderableKinds;
+    statementTags = statements.tags;
+  };
+  inherit primitives;
 }

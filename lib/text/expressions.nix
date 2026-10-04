@@ -137,41 +137,41 @@ let
     if body ? base && body ? offset && body ? len then
       "@${body.base},${toString body.offset},${toString body.len}"
     else if body ? tunnel then
-      "${safeToken body.tunnel} ${safeToken body.protocol} ${safeToken body.field}"
+      "${safeToken "payload tunnel" body.tunnel} ${safeToken "payload protocol" body.protocol} ${safeToken "payload field" body.field}"
     else
-      "${safeToken body.protocol} ${safeToken body.field}";
+      "${safeToken "payload protocol" body.protocol} ${safeToken "payload field" body.field}";
 
   # Extension header (IPv6): <name> <field> for field access; bare <name>
   # for existence checks. The text grammar accepts both.
   renderExthdr =
     _ctx: body:
     if (body.field or null) == null then
-      safeToken body.name
+      safeToken "exthdr name" body.name
     else
-      "${safeToken body.name} ${safeToken body.field}";
+      "${safeToken "exthdr name" body.name} ${safeToken "exthdr field" body.field}";
 
   renderTcpOption =
     _ctx: body:
     if body ? base then
       "tcp option @${toString body.base},${toString body.offset},${toString body.len}"
     else if (body.field or null) == null then
-      "tcp option ${safeToken body.name}"
+      "tcp option ${safeToken "tcp option name" body.name}"
     else
-      "tcp option ${safeToken body.name} ${safeToken body.field}";
+      "tcp option ${safeToken "tcp option name" body.name} ${safeToken "tcp option field" body.field}";
 
   renderIpOption =
     _ctx: body:
     if (body.field or null) == null then
-      "ip option ${safeToken body.name}"
+      "ip option ${safeToken "ip option name" body.name}"
     else
-      "ip option ${safeToken body.name} ${safeToken body.field}";
+      "ip option ${safeToken "ip option name" body.name} ${safeToken "ip option field" body.field}";
 
   renderSctpChunk =
     _ctx: body:
     if (body.field or null) == null then
-      "sctp chunk ${safeToken body.name}"
+      "sctp chunk ${safeToken "sctp chunk name" body.name}"
     else
-      "sctp chunk ${safeToken body.name} ${safeToken body.field}";
+      "sctp chunk ${safeToken "sctp chunk name" body.name} ${safeToken "sctp chunk field" body.field}";
 
   renderDccpOption = _ctx: body: "dccp option ${toString body.type}";
 
@@ -193,7 +193,7 @@ let
       ]
       ++ lib.optional ((body.dir or null) != null) body.dir
       ++ lib.optional ((body.family or null) != null) body.family
-      ++ [ (safeToken body.key) ];
+      ++ [ (safeToken "ct key" body.key) ];
     in
     lib.concatStringsSep " " parts;
 
@@ -271,7 +271,9 @@ let
     renderExpression (resetPrec ctx) val
     + lib.optionalString (timeout != null) " timeout ${toString timeout}s"
     + lib.optionalString (expires != null) " expires ${toString expires}s"
-    + lib.optionalString (comment != null) " comment ${primitives.quoteString comment}"
+    + lib.optionalString (
+      comment != null
+    ) " comment ${primitives.quoteString "element comment" comment}"
     + lib.optionalString (stmt != null) (
       " " + lib.concatMapStringsSep " " (statements.renderStatement (resetPrec ctx)) stmt
     );
@@ -280,8 +282,8 @@ let
   # renderer's `assertSafeString` assert catches the parser-meta injection set
   # ('"', '\', control chars) and other invalid bytes land in the
   # quoted-form fallback that nft rejects in identifier position.
-  renderJump = _ctx: { target }: "jump ${primitives.identQuote target}";
-  renderGoto = _ctx: { target }: "goto ${primitives.identQuote target}";
+  renderJump = _ctx: { target }: "jump ${primitives.identQuote "jump target" target}";
+  renderGoto = _ctx: { target }: "goto ${primitives.identQuote "goto target" target}";
 
   # Bare verdicts as expressions (vmap data position).
   renderVerdict =
