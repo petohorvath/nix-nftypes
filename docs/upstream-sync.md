@@ -101,9 +101,9 @@ manual review or corpus/live coverage.
 
 ### Read-back round trip
 
-`nftables-roundtrip-tests`, a VM test, real-loads nine selected integration cases in
-private network namespaces, captures `nft -j list ruleset`, and validates every
-emitted command with `nftlib.types.ruleset`.
+`nftables-roundtrip-tests`, a VM test, real-loads ten selected integration
+cases in private network namespaces, captures `nft -j list ruleset`, and
+validates every emitted command with `nftlib.types.ruleset`.
 
 Two cases are excluded before execution with exact reasons:
 
@@ -137,7 +137,7 @@ the package set's NixOS VM.
   validation, so render equivalence covers the rest.
 - `text-block-integration-tests` wraps selected block output in a table and
   sends it to the text parser.
-- `render-equivalence-tests` real-loads six selected cases through JSON and
+- `render-equivalence-tests` real-loads seven selected cases through JSON and
   text in separate namespaces and compares `nft list ruleset` output. A load
   failure or difference fails.
 

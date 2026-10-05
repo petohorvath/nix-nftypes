@@ -36,12 +36,8 @@ let
     + " ${toString body.rate}${rateUnit}/${body.per}${burst}";
 in
 {
-  renderStatement =
-    body:
-    if builtins.isString body then
-      "limit name ${primitives.quoteString "limit reference" body}"
-    else
-      "limit ${renderRate body}";
+  # Inline form only; statements.nix renders named-object references.
+  renderStatement = body: "limit ${renderRate body}";
 
   renderObjectBody =
     body:

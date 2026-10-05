@@ -169,6 +169,7 @@ Most statement families are callable attrsets with named variants. Examples:
 counter.auto
 counter { packets = 0; bytes = 0; }
 counter.ref "named_counter"
+quota.ref (expr.map { key = fields.tcp.dport; data = "@quota_by_port"; })
 
 reject.icmpx "admin-prohibited"
 log { prefix = "DROP: "; level = "info"; }
@@ -214,8 +215,8 @@ Recognized table-body keys are:
 - table options: `handle`, `flags`, `comment`;
 - `chains`;
 - `sets`, `maps`, `elements`, `flowtables`, `counters`, `quotas`, `limits`,
-  `ctHelpers`, `ctTimeouts`, `ctExpectations`, `secmarks`, `synproxies`, and
-  `tunnels`.
+  `ctHelpers`, `ctTimeouts`, `ctExpectations`, `ctCounts`, `secmarks`,
+  `synproxies`, and `tunnels`.
 
 Unknown keys fail evaluation. The internal `_type` marker remains accepted for
 libraries that layer their own boundary tags on nftypes values; it is not

@@ -11,3 +11,8 @@ Move the live parser and renderer tests from `checks.<system>` to `legacyPackage
 The required statuses on `main` become `Policy / Check (<system>)`, `Policy / Tests (locked|stable|unstable, <system>)` for both Linux systems, and `Policy / VM tests`, replacing `tests` and `format`.
 
 Add the MIT license.
+
+### Added
+
+- Model the named `ct count` object from nftables 1.1.7: `add`, `create`, `delete`, `destroy`, and `list` commands, `dsl.table` `ctCounts`, `dsl.create.ctCount` and the other command builders, and text rendering as `ct count NAME { over|until N; }`. `ct count` statements also accept a reference to the object, through `dsl.ctCount.ref`. nftables 1.1.6 and earlier reject both.
+- Accept a map expression as the named-object reference of the `counter`, `quota`, `limit`, `synproxy`, and `ct count` statements (`quota name tcp dport map { … }`), and render it as text. The corpus baseline drops its four `stmt-map` categories.

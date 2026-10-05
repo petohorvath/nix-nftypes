@@ -115,7 +115,7 @@ let
   };
 
   # Used by every named object (counter/quota/limit/ct helper/ct timeout/ct
-  # expectation/secmark/synproxy/tunnel).
+  # expectation/ct count/secmark/synproxy/tunnel).
   commonObjectOptions = namedInTableOptions // commentOption;
 
   # Shared by sets and maps (parser_json.c:3307-3436 — both routed to
@@ -328,6 +328,23 @@ let
           type = types.nullOr types.bool;
           default = null;
           description = "invert match semantics";
+        };
+      };
+    };
+
+    # Named connection-count limit (nftables 1.1.7+, NFT_OBJECT_CONNLIMIT).
+    # parser_json.c json_parse_cmd_add_object: `val` is required, `inv`
+    # optional.
+    ctCountObjectBody = types.submodule {
+      options = commonObjectOptions // {
+        val = mkOption {
+          type = types.ints.unsigned;
+          description = "connection count threshold";
+        };
+        inv = mkOption {
+          type = types.nullOr types.bool;
+          default = null;
+          description = "match above the threshold instead of up to it";
         };
       };
     };
@@ -662,6 +679,7 @@ let
     limit = wrap "limit" bodies.limitObjectBody;
     ctTimeout = wrap "ct timeout" bodies.ctTimeoutObjectBody;
     ctExpectation = wrap "ct expectation" bodies.ctExpectationObjectBody;
+    ctCount = wrap "ct count" bodies.ctCountObjectBody;
     secmark = wrap "secmark" bodies.secmarkObjectBody;
     synproxy = wrap "synproxy" bodies.synproxyObjectBody;
     tunnel = wrap "tunnel" bodies.tunnelObjectBody;
@@ -683,6 +701,7 @@ let
     limit = bodies.limitObjectBody;
     "ct timeout" = bodies.ctTimeoutObjectBody;
     "ct expectation" = bodies.ctExpectationObjectBody;
+    "ct count" = bodies.ctCountObjectBody;
     secmark = bodies.secmarkObjectBody;
     synproxy = bodies.synproxyObjectBody;
     tunnel = bodies.tunnelObjectBody;

@@ -50,11 +50,6 @@ let
     "null-body:queue" = "bare `{queue:null}`; schema requires an object body";
     "op-negation" =
       "match `op:\"!\"` (unary negation); missing from the `operator` enum (strcmp-parsed, so the table extractor cannot see it)";
-    "stmt-map:counter" =
-      "`counter map { … }` (stateful object selected by map); counter body has no `map` key";
-    "stmt-map:quota" = "`quota map { … }`; quota body has no `map` key";
-    "stmt-map:limit" = "`limit map { … }`; limit body has no `map` key";
-    "stmt-map:synproxy" = "`synproxy map { … }`; synproxy body has no `map` key";
     "synproxy-flags-only" =
       "`synproxy` with only `flags` (no mss/wscale); schema over-requires mss/wscale";
   };

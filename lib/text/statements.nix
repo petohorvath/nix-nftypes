@@ -7,8 +7,8 @@
 
   Most statements are thin wrappers around expressions; the trickier ones
   are NAT (snat/dnat/redirect/masquerade) with their flag combinations,
-  and counter/quota/limit which accept either a named reference (string)
-  or an inline body.
+  and counter/quota/limit/ct count which accept either a named-object
+  reference (a name or a map selecting one) or an inline body.
 */
 {
   lib,
@@ -35,6 +35,21 @@ let
   # ---- helpers ---------------------------------------------------------
 
   renderInnerExpression = ctx: e: renderExpression (resetPrec ctx) e;
+
+  # A named-object reference: a name string, or a `{ map = …; }`
+  # expression selecting the name.
+  isObjectRef = body: builtins.isString body || (builtins.isAttrs body && body ? map);
+
+  # `<keyword> name "<name>"` or `<keyword> name <key> map { … }`.
+  renderObjectRef =
+    ctx: keyword: body:
+    "${keyword} name "
+    + (
+      if builtins.isString body then
+        primitives.quoteString "${keyword} reference" body
+      else
+        renderInnerExpression ctx body
+    );
 
   # Render a list of natFlags as a comma-separated suffix. NAT statements
   # accept a single flag string or a list (listOrSingleton).
@@ -136,11 +151,11 @@ let
   # counter: null → bare "counter"; str → named reference;
   # attrset → inline `counter packets P bytes B` (each optional).
   renderCounter =
-    _ctx: body:
+    ctx: body:
     if body == null then
       "counter"
-    else if builtins.isString body then
-      "counter name ${primitives.quoteString "counter reference" body}"
+    else if isObjectRef body then
+      renderObjectRef ctx "counter" body
     else
       let
         parts = [
@@ -163,9 +178,9 @@ let
   # output, so each flows through `safeToken` to reject parser-meta
   # bytes that would otherwise terminate the statement.
   renderQuota =
-    _ctx: body:
-    if builtins.isString body then
-      "quota name ${primitives.quoteString "quota reference" body}"
+    ctx: body:
+    if isObjectRef body then
+      renderObjectRef ctx "quota" body
     else
       let
         head = "quota" + optionalString ((body.inv or null) == true) " over";
@@ -346,14 +361,14 @@ let
   renderVmap =
     ctx: { key, data }: "${renderInnerExpression ctx key} vmap ${renderInnerExpression ctx data}";
 
-  # ct count: `ct count <val>` or `ct count over <val>`.
+  # ct count: a named-object reference, `ct count <val>`, or
+  # `ct count over <val>`.
   renderCtCount =
-    _ctx:
-    {
-      val,
-      inv ? null,
-    }:
-    "ct count" + optionalString (inv == true) " over" + " ${toString val}";
+    ctx: body:
+    if isObjectRef body then
+      renderObjectRef ctx "ct count" body
+    else
+      "ct count" + optionalString ((body.inv or null) == true) " over" + " ${toString body.val}";
 
   # xt: deprecated escape hatch. Render as `xt <type> "<name>"`.
   renderXt = _ctx: { type, name }: "xt ${type} ${primitives.quoteString "xt name" name}";
@@ -427,7 +442,9 @@ let
     counter = renderCounter;
     mangle = renderMangle;
     quota = renderQuota;
-    limit = _ctx: limit.renderStatement;
+    limit =
+      ctx: body:
+      if isObjectRef body then renderObjectRef ctx "limit" body else limit.renderStatement body;
     fwd = renderFwd;
     dup = renderDup;
     snat = renderNat "snat";

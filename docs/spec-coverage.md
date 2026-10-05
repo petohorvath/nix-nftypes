@@ -24,9 +24,9 @@ reference material but is not complete enough to be the sole authority.
 | Surface | Current schema |
 | --- | --- |
 | Commands | `add`, `replace`, `create`, `insert`, `delete`, `destroy`, `list`, `reset`, `flush`, `rename` |
-| Add objects | 16 singular object kinds |
-| Create objects | 15 kinds; `rule` is excluded because nftables rejects `create rule` |
-| List objects | 16 add objects plus `metainfo` and `meter` |
+| Add objects | 17 singular object kinds |
+| Create objects | 16 kinds; `rule` is excluded because nftables rejects `create rule` |
+| List objects | 17 add objects plus `metainfo` and `meter` |
 | Flush objects | table, chain, set, map, meter, ruleset |
 | Reset objects | counter, quota, rule, set, map, element |
 | Statements | 37 tagged forms |
@@ -36,7 +36,9 @@ The schema also includes parser behavior missing or incomplete in the manual,
 including:
 
 - `last`, `flow`, `tproxy`, `reset`, `secmark`, and `tunnel` statements;
-- `secmark`, `synproxy`, and tunnel objects;
+- `secmark`, `synproxy`, tunnel, and `ct count` objects;
+- stateful-object references selected by a map (`counter`, `quota`, `limit`,
+  `synproxy`, and `ct count` with `name <key> map { … }`);
 - inner-header payloads, raw TCP option forms, tunnel payloads, and XFRM/tunnel
   metadata expressions;
 - parser-only enum values such as `rt.ipsec`, `fib.check`, and OS fingerprint
@@ -46,6 +48,13 @@ including:
 - nullable handles and other serializer fields needed by selected read-back
   cases.
 
+`ct count` objects and `ct count` object references require nftables 1.1.7 or
+later; earlier versions reject them. Both locked inputs carry an earlier
+nftables, so no live check exercises them yet. The corpus check covers their
+statement shapes when it runs against a package set with 1.1.7, as the shared
+policy's unstable pin does. Add live integration cases once a locked input
+carries 1.1.7.
+
 ## Known differences
 
 “Schema coverage” does not mean byte-for-byte equivalence with every parser
@@ -53,14 +62,13 @@ branch. Differences fall into four groups.
 
 ### 1. Parser input accepted but schema rejected
 
-The packaged nftables statement corpus currently exercises 11 baselined
+The packaged nftables statement corpus currently exercises 7 baselined
 categories:
 
 | Category | Schema limitation |
 | --- | --- |
 | five null-body forms | bare `reject`, `redirect`, `masquerade`, `log`, and `queue` statements require object bodies in the schema |
 | unary negation | match operator `!` is not in the operator enum |
-| four mapped stateful objects | `counter map`, `quota map`, `limit map`, and `synproxy map` are not represented |
 | partial synproxy | a flags-only synproxy statement is rejected because the schema requires `mss` and `wscale` together |
 
 The executable baseline is `knownDivergences` in
@@ -139,8 +147,8 @@ passed through. See [`api.md`](api.md) for an explicit `evalModules` example.
 | `integration-tests` | selected JSON renderings pass the package set's `nft -c -j -f`, and a raw `create rule` parser-negative case is rejected | selected cases only; check mode is not a real load |
 | `nftables-source-provenance-tests` | source analysis uses the selected package source and patches | provenance, not semantic coverage |
 | `nftables-enum-extraction-tests` | extracted parser tokens/tags match schema lists and plausibility floors | extractor covers enumerated patterns, not every conditional branch |
-| `nftables-corpus-tests` | upstream statement corpus has no unclassified schema rejection | 11 categories are explicitly baselined |
-| `nftables-roundtrip-tests` | every command emitted by nine real-loaded selected cases validates as `types.ruleset` | two cases are explicitly excluded; it is sampled serializer coverage |
+| `nftables-corpus-tests` | upstream statement corpus has no unclassified schema rejection | 7 categories are explicitly baselined |
+| `nftables-roundtrip-tests` | every command emitted by ten real-loaded selected cases validates as `types.ruleset` | two cases are explicitly excluded; it is sampled serializer coverage |
 | `nftables-tooling-selftests` | injected source/corpus/token defects make the drift checks fail | tests the tooling's chosen fault classes |
 
 All package-set-dependent checks are instantiated separately for locked stable

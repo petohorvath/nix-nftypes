@@ -99,7 +99,7 @@ The DSL exposes all modelled command verbs:
 
 - `rule`, `replace`, and `insert` for rule commands;
 - `create.<kind>`, excluding `rule`;
-- `delete.<kind>` and `destroy.<kind>` for the 16 add-object kinds;
+- `delete.<kind>` and `destroy.<kind>` for the 17 add-object kinds;
 - `list.<kind>` plus `list.metainfo` and `list.meter`;
 - `reset.<kind>` for counter, quota, rule, set, map, and element;
 - `flush` plus explicit ruleset/table/chain/set/map/meter helpers;
@@ -144,8 +144,8 @@ Use `nftlib.types.ruleset` explicitly for raw user configuration. See
   or DSL.
 - Some command verbs accept slimmer parser selector bodies than the shared
   schema bodies expose.
-- Stateful-object map statements and several null-body statement spellings are
-  known schema gaps, so they have no typed DSL path.
+- Several null-body statement spellings are known schema gaps, so they have no
+  typed DSL path.
 - Text rendering may impose stricter token and quoting rules than JSON.
 - A raw attrset remains the escape hatch for parser-valid shapes outside the
   model.
