@@ -5,7 +5,7 @@
   judges its runs; the live nix-unit suites assert on this record (their
   `observations`).
 
-  - `mkRunner` returns an executable that runs the scripts in a fresh
+  - `writeRunner` returns an executable that runs the scripts in a fresh
     temporary directory and writes the record to the path in its first
     argument. The VM tests (../vm.nix) run these inside a NixOS VM.
   - `recordRuns` runs a runner in the build sandbox and returns the record.
@@ -20,7 +20,7 @@
   writeShellScript,
 }:
 let
-  mkRunner =
+  writeRunner =
     {
       name,
       runs,
@@ -49,7 +49,8 @@ let
           bash -euo pipefail -c ${lib.escapeShellArg script} > output.txt 2>&1 \
             || status=$?
           sed 's/^/    /' output.txt
-          jq --arg name ${lib.escapeShellArg runName} --argjson status "$status" \
+          jq --arg name ${lib.escapeShellArg runName} \
+            --argjson status "$status" \
             --rawfile output output.txt \
             '. + { ($name): { status: $status, output: $output } }' \
             results.json > results.next.json
@@ -60,11 +61,11 @@ let
     '';
 in
 {
-  inherit mkRunner;
+  inherit writeRunner;
 
   recordRuns =
     args:
     runCommandLocal args.name { } ''
-      ${mkRunner args} $out
+      ${writeRunner args} $out
     '';
 }

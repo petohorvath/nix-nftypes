@@ -52,11 +52,9 @@ let
     nftables-roundtrip-tests.suite = "nftablesRoundtrip";
   };
 
-  /*
-    Source-side tests use the exact release archive and downstream
-    patches carried by this package set's nftables derivation. They cover
-    valid shapes the hand-written integration cases cannot anticipate.
-  */
+  # Source-side tests use the exact release archive and downstream
+  # patches carried by this package set's nftables derivation. They cover
+  # valid shapes the hand-written integration cases cannot anticipate.
   sourceTests = {
     nftables-source-provenance-tests = {
       suite = "nftablesSourceProvenance";

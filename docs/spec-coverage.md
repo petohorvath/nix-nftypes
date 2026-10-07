@@ -108,7 +108,10 @@ fields. The schema checks useful local types but leaves the final condition to
 - tunnel `type` and its nested tunnel-parameter body are typed independently,
   so agreement between them remains a parser check;
 - some NAT, reject, and object-field combinations are meaningful only in
-  specific contexts.
+  specific contexts;
+- `listObject` accepts every add-object kind, but the JSON `list` command has
+  no singular `ct count`, `synproxy`, `flowtable`, `element`, or `rule`
+  selector, so nftables rejects those `list` commands.
 
 A schema-successful value is therefore not proof that a particular kernel will
 accept the resulting ruleset. Live-parser and real-load tests remain necessary.

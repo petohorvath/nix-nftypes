@@ -8,13 +8,13 @@
   pkgs,
 }:
 let
-  inherit (pkgs.callPackage ./record-runs.nix { }) mkRunner recordRuns;
+  inherit (pkgs.callPackage ./record-runs.nix { }) writeRunner recordRuns;
 in
 {
   nft = import ./nft.nix {
     inherit
       fixtures
-      mkRunner
+      writeRunner
       nftlib
       pkgs
       ;

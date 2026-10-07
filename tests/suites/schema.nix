@@ -26,7 +26,7 @@ let
       ]
     ];
   };
-  portMapReferenceJson = ''{"map":{"data":{"set":[[22,"a"],[80,"b"]]},"key":{"payload":{"field":"dport","protocol":"tcp"}}}}'';
+  portMapReferenceJson = "{\"map\":{\"data\":{\"set\":[[22,\"a\"],[80,\"b\"]]},\"key\":{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}}}}";
 
   # A listed command validated as a singleton ruleset, deep-forced so
   # lazy submodule checks run.
@@ -1138,7 +1138,7 @@ enumDriftTests
         comment = "over five";
       };
     };
-    expected = ''{"ct count":{"comment":"over five","family":"ip","inv":true,"name":"c1","table":"t","val":5}}'';
+    expected = "{\"ct count\":{\"comment\":\"over five\",\"family\":\"ip\",\"inv\":true,\"name\":\"c1\",\"table\":\"t\",\"val\":5}}";
   };
 
   testCtCountObjectRequiresVal = {

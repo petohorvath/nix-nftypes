@@ -168,7 +168,7 @@ spelling is modelled exactly.
 
 Known differences are explicit and tested:
 
-- the upstream statement corpus currently has 11 baselined divergence
+- the upstream statement corpus currently has 7 baselined divergence
   categories;
 - some parser-conditional constraints are represented more permissively in
   Nix;

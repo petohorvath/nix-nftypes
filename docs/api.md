@@ -67,7 +67,7 @@ chosen scope.
 | `expression` | scalar, list, or tagged expression |
 | `taggedExpression` | tagged-expression forms only |
 | `statement` | one tagged rule statement |
-| `addObject` | the 16 add-object tags |
+| `addObject` | the 17 add-object tags |
 | `createObject` | add-object tags except `rule` |
 | `listObject` | add-object tags plus `metainfo` and `meter` |
 | `flushObject` | table, chain, set, map, meter, or ruleset |
@@ -241,9 +241,9 @@ Camel-case DSL fields are renamed where JSON uses hyphens, for example
 | `flush` | bare `flush ruleset` value |
 | `flushRuleset`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter` | explicit flush builders; nftables has no `flush flowtable` command |
 | `rule body` | standalone `add rule` |
-| `create.<kind>` | 15 object kinds; `rule` is excluded |
-| `delete.<kind>`, `destroy.<kind>` | 16 add-object kinds |
-| `list.<kind>` | 16 add-object kinds plus `metainfo` and `meter` |
+| `create.<kind>` | 16 object kinds; `rule` is excluded |
+| `delete.<kind>`, `destroy.<kind>` | 17 add-object kinds |
+| `list.<kind>` | 17 add-object kinds plus `metainfo` and `meter` |
 | `reset.<kind>` | counter, quota, rule, set, map, or element |
 | `replace body`, `insert body` | rule-only commands |
 | `rename.chain body` | chain-only rename |

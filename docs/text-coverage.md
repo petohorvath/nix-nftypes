@@ -73,6 +73,12 @@ The JSON API can represent strings without relying on the text lexer's keyword
 and identifier rules. A JSON-valid object name may therefore lack a safe text
 spelling. The `offload` flowtable example is the current live-test case.
 
+The same applies to map datatypes. The text renderer accepts identifier-shaped
+datatypes only, so it rejects a map whose `map` value is an object type with a
+space, such as `"ct count"` or `"ct timeout"`. Define such a map with JSON. A
+statement that looks it up (`ct count name meta mark map @m`) and inline map
+references still render to text.
+
 ### Rare or kernel-dependent constructs
 
 Expected-string tests cover more syntax than the isolated live-parser suite can
