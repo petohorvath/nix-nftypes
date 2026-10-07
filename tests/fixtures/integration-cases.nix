@@ -444,6 +444,87 @@ rec {
       ];
     }
 
+    # -- stateful statements selecting a named object by map -------------
+    # `counter`/`quota`/`limit` reference their object through a map
+    # lookup (`counter name tcp dport map { … }`).
+    {
+      name = "stateful-map-references";
+      ruleset =
+        let
+          byPort = names: {
+            map = {
+              key.payload = {
+                protocol = "tcp";
+                field = "dport";
+              };
+              data.set = [
+                [
+                  22
+                  (builtins.elemAt names 0)
+                ]
+                [
+                  80
+                  (builtins.elemAt names 1)
+                ]
+              ];
+            };
+          };
+        in
+        ruleset [
+          (dsl.table "ip" "stateful_maps" {
+            counters = {
+              ssh = { };
+              http = { };
+            };
+            quotas = {
+              ssh.bytes = 1000;
+              http.bytes = 2000;
+            };
+            limits = {
+              ssh = {
+                rate = 5;
+                per = "second";
+              };
+              http = {
+                rate = 10;
+                per = "second";
+              };
+            };
+            chains.input = {
+              type = "filter";
+              hook = "input";
+              prio = 0;
+              rules = [
+                [
+                  {
+                    counter = byPort [
+                      "ssh"
+                      "http"
+                    ];
+                  }
+                ]
+                [
+                  {
+                    quota = byPort [
+                      "ssh"
+                      "http"
+                    ];
+                  }
+                ]
+                [
+                  {
+                    limit = byPort [
+                      "ssh"
+                      "http"
+                    ];
+                  }
+                ]
+              ];
+            };
+          })
+        ];
+    }
+
     # -- both example firewalls -----------------------------------------
     {
       name = "example-basic-firewall-dsl";

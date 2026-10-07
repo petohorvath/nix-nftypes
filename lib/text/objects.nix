@@ -361,6 +361,17 @@ let
       (body.comment or null) != null
     ) "comment ${primitives.quoteString "quota comment" body.comment}";
 
+  # ct count object: `over <val>` (inv) or `until <val>`; the grammar
+  # requires one of the two keywords.
+  renderCtCountHeader = ctx: body: renderObjectScope ctx body;
+
+  renderCtCountBody =
+    _ctx: body:
+    [ "${if (body.inv or null) == true then "over" else "until"} ${toString body.val}" ]
+    ++ lib.optional (
+      (body.comment or null) != null
+    ) "comment ${primitives.quoteString "ct count comment" body.comment}";
+
   # Limit clauses and comments are spelled by limit.nix.
   renderLimitHeader = ctx: body: renderObjectScope ctx body;
 
@@ -588,6 +599,10 @@ let
     "ct expectation" = {
       header = renderCtExpectationHeader;
       body = renderCtExpectationBody;
+    };
+    "ct count" = {
+      header = renderCtCountHeader;
+      body = renderCtCountBody;
     };
     secmark = {
       header = renderSecmarkHeader;

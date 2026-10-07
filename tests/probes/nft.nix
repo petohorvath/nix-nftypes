@@ -1,13 +1,16 @@
 /*
-  Live-parser probes. Each run feeds rendered output to the package set's
-  `nft` inside a private network namespace (`unshare -rn`), so the real
-  parser and kernel netfilter instance are exercised without root.
+  Live-parser probe runners. Each run feeds rendered output to the package
+  set's `nft` inside a private network namespace (`unshare -rn`), so every
+  run gets its own netfilter instance. Creating the namespaces needs
+  unprivileged user namespaces, which hosted CI runners deny inside the
+  build sandbox, so these return runners (./record-runs.nix) that the VM
+  tests (../vm.nix) run inside a NixOS VM.
 */
 {
   fixtures,
+  writeRunner,
   nftlib,
   pkgs,
-  recordRuns,
 }:
 let
   inherit (pkgs) lib;
@@ -57,9 +60,9 @@ let
     };
   };
 
-  recordNftRuns =
+  writeNftRunner =
     name: runs:
-    recordRuns {
+    writeRunner {
       inherit name runs;
       nativeBuildInputs = nftInputs;
     };
@@ -67,7 +70,7 @@ in
 {
   # JSON output through `nft -c -j -f`, including the parser-negative
   # cases.
-  dslIntegration = recordNftRuns "dsl-integration-probe" (
+  dslIntegration = writeNftRunner "dsl-integration-probe" (
     lib.listToAttrs (
       map (
         case:
@@ -81,7 +84,7 @@ in
 
   # Pretty text output through `nft -c -f` (no `-j`), for the text cases
   # render equivalence cannot load.
-  textIntegration = recordNftRuns "text-integration-probe" (
+  textIntegration = writeNftRunner "text-integration-probe" (
     lib.listToAttrs (
       map (
         case:
@@ -93,7 +96,7 @@ in
   );
 
   # Block output in both forms, wrapped in `table <family> <name> { … }`.
-  textBlockIntegration = recordNftRuns "text-block-integration-probe" (
+  textBlockIntegration = writeNftRunner "text-block-integration-probe" (
     lib.concatMapAttrs (
       name: table:
       lib.mapAttrs'
@@ -119,7 +122,7 @@ in
 
   # Each case loaded through JSON and through text; the output is the
   # resulting `nft list ruleset`.
-  renderEquivalence = recordNftRuns "render-equivalence-probe" (
+  renderEquivalence = writeNftRunner "render-equivalence-probe" (
     lib.concatMapAttrs (_: case: loadBothWays case.name case.ruleset "nft list ruleset") (
       lib.listToAttrs (map (case: lib.nameValuePair case.name case) integrationCases.equivalenceCases)
     )
@@ -127,7 +130,7 @@ in
 
   # The table comment read back after loading a safe comment through each
   # renderer.
-  commentSafetyIntegration = recordNftRuns "comment-safety-integration-probe" (
+  commentSafetyIntegration = writeNftRunner "comment-safety-integration-probe" (
     loadBothWays "comment" (fixtures.commentRulesets.tableComment fixtures.roundTripComment)
       "nft -j list ruleset | jq -j '.nftables[] | select(.table) | .table.comment'"
   );
@@ -138,7 +141,7 @@ in
     let
       countElements = "nft -j list set inet fw iifs | jq -j '[.nftables[] | select(.set) | .set.elem[]] | length'";
     in
-    recordNftRuns "ifname-safety-integration-probe" (
+    writeNftRunner "ifname-safety-integration-probe" (
       loadBothWays "one" (fixtures.ifnameRulesets.setElem "eth0") countElements
       // loadBothWays "two" (fixtures.ifnameRulesets.setElemList [
         "eth0"
@@ -172,7 +175,7 @@ in
           nft -j list ruleset 2>list.err || { cat list.err; exit 1; }
         '';
     in
-    recordNftRuns "nftables-roundtrip-probe" (
+    writeNftRunner "nftables-roundtrip-probe" (
       lib.listToAttrs (
         map (
           case: lib.nameValuePair case.name "unshare -rnm bash -c ${lib.escapeShellArg (loadAndList case)}"

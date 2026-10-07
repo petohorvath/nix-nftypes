@@ -67,7 +67,7 @@ chosen scope.
 | `expression` | scalar, list, or tagged expression |
 | `taggedExpression` | tagged-expression forms only |
 | `statement` | one tagged rule statement |
-| `addObject` | the 16 add-object tags |
+| `addObject` | the 17 add-object tags |
 | `createObject` | add-object tags except `rule` |
 | `listObject` | add-object tags plus `metainfo` and `meter` |
 | `flushObject` | table, chain, set, map, meter, or ruleset |
@@ -169,6 +169,7 @@ Most statement families are callable attrsets with named variants. Examples:
 counter.auto
 counter { packets = 0; bytes = 0; }
 counter.ref "named_counter"
+quota.ref (expr.map { key = fields.tcp.dport; data = "@quota_by_port"; })
 
 reject.icmpx "admin-prohibited"
 log { prefix = "DROP: "; level = "info"; }
@@ -214,8 +215,8 @@ Recognized table-body keys are:
 - table options: `handle`, `flags`, `comment`;
 - `chains`;
 - `sets`, `maps`, `elements`, `flowtables`, `counters`, `quotas`, `limits`,
-  `ctHelpers`, `ctTimeouts`, `ctExpectations`, `secmarks`, `synproxies`, and
-  `tunnels`.
+  `ctHelpers`, `ctTimeouts`, `ctExpectations`, `ctCounts`, `secmarks`,
+  `synproxies`, and `tunnels`.
 
 Unknown keys fail evaluation. The internal `_type` marker remains accepted for
 libraries that layer their own boundary tags on nftypes values; it is not
@@ -240,9 +241,9 @@ Camel-case DSL fields are renamed where JSON uses hyphens, for example
 | `flush` | bare `flush ruleset` value |
 | `flushRuleset`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter` | explicit flush builders; nftables has no `flush flowtable` command |
 | `rule body` | standalone `add rule` |
-| `create.<kind>` | 15 object kinds; `rule` is excluded |
-| `delete.<kind>`, `destroy.<kind>` | 16 add-object kinds |
-| `list.<kind>` | 16 add-object kinds plus `metainfo` and `meter` |
+| `create.<kind>` | 16 object kinds; `rule` is excluded |
+| `delete.<kind>`, `destroy.<kind>` | 17 add-object kinds |
+| `list.<kind>` | 17 add-object kinds plus `metainfo` and `meter` |
 | `reset.<kind>` | counter, quota, rule, set, map, or element |
 | `replace body`, `insert body` | rule-only commands |
 | `rename.chain body` | chain-only rename |

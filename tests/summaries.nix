@@ -1,7 +1,7 @@
 /*
-  Build-log summaries for live checks, keyed by check name. nix-unit
+  Build-log summaries for live tests, keyed by test name. nix-unit
   prints only test results, so these restore the informational counts a
-  passing check reports. Each takes the check's observation paths and
+  passing test reports. Each takes the test's observation paths and
   returns a shell snippet that runs after the suites pass.
 */
 { fixtures, pkgs }:

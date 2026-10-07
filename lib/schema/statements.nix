@@ -7,7 +7,7 @@
 
 let
   inherit (lib) mkOption types;
-  inherit (internal) refOrInline taggedUnion;
+  inherit (internal) taggedUnion;
   inherit (expressions) verdictTargetBody;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
@@ -28,6 +28,11 @@ let
     xtType
     ;
   expr = expressions.expression;
+
+  # A reference to a named stateful object: its name, or a map expression
+  # that selects the name (`quota name tcp dport map { … }`).
+  objectRef = types.either types.str (expressions.expressionOf [ "map" ]);
+  refOrInline = internal.refOrInline objectRef;
 
   bodies = rec {
     matchBody = types.submodule {
@@ -381,6 +386,10 @@ let
       };
     };
 
+    # Inline `{ val; inv? }`, or (nftables 1.1.7+) a reference to a named
+    # `ct count` object (parser_json.c json_parse_connlimit_stmt).
+    ctCountRefOrBody = refOrInline ctCountBody;
+
     ctCountBody = types.submodule {
       options = {
         val = mkOption {
@@ -468,9 +477,11 @@ let
       };
     };
     # synproxy statement: null (empty), anonymous config, or named reference
-    # string/expr.
+    # string/expr. The map reference comes before the permissive anonymous
+    # submodule, which would otherwise claim it.
     synproxyStatementBody = types.oneOf [
       nullLiteral
+      (expressions.expressionOf [ "map" ])
       synproxyAnonBody
       expr
     ];
@@ -516,7 +527,7 @@ let
       meter = meterBody;
       queue = queueBody;
       vmap = vmapBody;
-      "ct count" = ctCountBody;
+      "ct count" = ctCountRefOrBody;
       xt = xtBody;
       # Statements found in parser_json.c but absent from the in-repo adoc:
       last = lastBody;

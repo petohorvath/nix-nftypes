@@ -1010,6 +1010,23 @@ in
         };
       };
 
+  testCtCountRef = ps (dsl.ctCount.ref "c1") { "ct count" = "c1"; };
+  # `.ref` also takes a map expression that selects the object by key.
+  testCtCountRefMap =
+    ps
+      (dsl.ctCount.ref (
+        dsl.expr.map {
+          key.meta.key = "mark";
+          data = "@limits";
+        }
+      ))
+      {
+        "ct count".map = {
+          key.meta.key = "mark";
+          data = "@limits";
+        };
+      };
+
   # flow / meter / vmap
   testFlow = ps (dsl.flow { flowtable = "@ft"; }) {
     flow = {
@@ -1660,6 +1677,10 @@ in
           quotas.q = {
             bytes = 1000;
           };
+          ctCounts.cc = {
+            val = 5;
+            inv = true;
+          };
           limits.lim = {
             rate = 10;
             per = "second";
@@ -1692,6 +1713,17 @@ in
                 name = "hits";
                 packets = 0;
                 bytes = 0;
+              };
+            };
+          }
+          {
+            add = {
+              "ct count" = {
+                family = "inet";
+                table = "t";
+                name = "cc";
+                val = 5;
+                inv = true;
               };
             };
           }
@@ -2982,6 +3014,27 @@ in
             family = "ip";
             table = "t";
             name = "q";
+          };
+        };
+      };
+
+  testCmdCreateCtCount =
+    pc
+      (dsl.create.ctCount {
+        family = "ip";
+        table = "t";
+        name = "conns";
+        val = 10;
+        inv = true;
+      })
+      {
+        create = {
+          "ct count" = {
+            family = "ip";
+            table = "t";
+            name = "conns";
+            val = 10;
+            inv = true;
           };
         };
       };

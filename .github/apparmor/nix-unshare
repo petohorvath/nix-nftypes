@@ -3,7 +3,8 @@
 # `userns` rule, which gates unprivileged user-namespace creation when
 # kernel.apparmor_restrict_unprivileged_userns=1 (the default).
 #
-# CI installs this via .github/workflows/ci.yml. For local installation:
+# Ad-hoc parser checks need it on such hosts (tooling/review-env.sh); CI
+# runs the namespace tests in a NixOS VM instead. To install:
 #   sudo cp .github/apparmor/nix-unshare /etc/apparmor.d/nix-unshare
 #   sudo apparmor_parser -r /etc/apparmor.d/nix-unshare
 # Verify:

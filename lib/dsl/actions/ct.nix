@@ -7,6 +7,7 @@
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
+  variant = import ../internal/variant.nix { inherit lib; };
 in
 {
   /*
@@ -30,15 +31,25 @@ in
   ctExpectation = e: { "ct expectation" = e; };
 
   /*
-    Match on the number of tracked connections. `val` is the threshold and
-    `inv` optionally inverts the check. Returns a `ct count` statement.
+    Match on the number of tracked connections.
+
+    `ctCount { val; inv?; }` checks the count against the threshold `val`,
+    with `inv` optionally inverting the check. `ctCount.ref name`
+    references a named `ct count` object (nftables 1.1.7+). Each returns a
+    `ct count` statement.
   */
   ctCount =
-    {
-      val,
-      inv ? null,
-    }:
-    {
-      "ct count" = compact { inherit val inv; };
-    };
+    variant
+      (
+        {
+          val,
+          inv ? null,
+        }:
+        {
+          "ct count" = compact { inherit val inv; };
+        }
+      )
+      {
+        ref = name: { "ct count" = name; };
+      };
 }

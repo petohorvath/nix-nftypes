@@ -16,6 +16,15 @@ let
   # Wrap a single command in a ruleset so toText's entry contract is met.
   one = cmd: toText { nftables = [ cmd ]; };
 
+  # Statements that reference a named stateful object.
+  statefulTags = [
+    "counter"
+    "quota"
+    "limit"
+    "ct count"
+    "synproxy"
+  ];
+
   # Exercise the same limit body through all three public command forms.
   limitForms =
     body:
@@ -578,6 +587,81 @@ in
       };
     };
     expected = "add quota ip filter q { over 1000000 bytes; }";
+  };
+
+  testCtCountObjectOver = {
+    expr = one {
+      add."ct count" = {
+        family = "ip";
+        table = "t";
+        name = "c1";
+        val = 5;
+        inv = true;
+        comment = "over five";
+      };
+    };
+    expected = ''add ct count ip t c1 { over 5; comment "over five"; }'';
+  };
+
+  # Without `inv` the grammar still needs a keyword: `until`.
+  testCtCountObjectUntil = {
+    expr = one {
+      create."ct count" = {
+        family = "ip";
+        table = "t";
+        name = "c2";
+        val = 4;
+      };
+    };
+    expected = "create ct count ip t c2 { until 4; }";
+  };
+
+  testCtCountNamedReference = {
+    expr = one {
+      add.rule = {
+        family = "ip";
+        table = "t";
+        chain = "c";
+        expr = [ { "ct count" = "c1"; } ];
+      };
+    };
+    expected = ''add rule ip t c ct count name "c1"'';
+  };
+
+  # Every stateful statement renders a map reference as
+  # `<keyword> name <key> map { … }`.
+  testStatefulMapReferences = {
+    expr = map (
+      tag:
+      one {
+        add.rule = {
+          family = "ip";
+          table = "t";
+          chain = "c";
+          expr = [
+            {
+              ${tag}.map = {
+                key.payload = {
+                  protocol = "tcp";
+                  field = "dport";
+                };
+                data.set = [
+                  [
+                    22
+                    "a"
+                  ]
+                  [
+                    80
+                    "b"
+                  ]
+                ];
+              };
+            }
+          ];
+        };
+      }
+    ) statefulTags;
+    expected = map (tag: "add rule ip t c ${tag} name tcp dport map { 22 : a, 80 : b }") statefulTags;
   };
 
   testCtTimeoutPolicy = {

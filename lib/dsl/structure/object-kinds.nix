@@ -86,6 +86,12 @@ in
     renameBody = lib.id;
     body = objects.ctExpectationObjectBody;
   };
+  ctCount = {
+    tag = "ct count";
+    plural = "ctCounts";
+    renameBody = lib.id;
+    body = objects.ctCountObjectBody;
+  };
   secmark = {
     tag = "secmark";
     plural = "secmarks";

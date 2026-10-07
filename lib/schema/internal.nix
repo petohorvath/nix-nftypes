@@ -55,13 +55,16 @@ in
   # (e.g. binary-op expressions need ≥ 2 operands).
   listOfMinLen = n: t: types.addCheck (types.listOf t) (xs: builtins.length xs >= n);
 
-  # "Named reference (string) OR inline body" union — the shape used by
-  # quota and limit statements where the user either points at a
-  # pre-declared object by name (`{quota = "name"}`) or inlines the
-  # body (`{quota = {val;val_unit;…}}`). Counter (parser_json.c:1914-1915)
-  # also accepts `null` and is built as `oneOf [nullLiteral (refOrInline …)]`
-  # at the call site rather than parameterising this helper.
-  refOrInline = inlineBody: types.either types.str inlineBody;
+  # "Named-object reference OR inline body" union — the shape used by
+  # stateful statements (counter, quota, limit, ct count) where the user
+  # either references a pre-declared object or inlines the body. nftables
+  # parses a reference as an expression (objref_stmt_alloc): a name
+  # (`{quota = "name";}`) or a map selecting one
+  # (`{quota = {map = …;};}`). The reference type comes first so its
+  # single-key `map` tag routes before the permissive inline submodule.
+  # Counter (parser_json.c:1914-1915) also accepts `null` and is built as
+  # `oneOf [nullLiteral (refOrInline …)]` at the call site.
+  refOrInline = objectRef: inlineBody: types.either objectRef inlineBody;
 
   inherit taggedUnion;
 

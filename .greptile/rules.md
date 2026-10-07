@@ -22,26 +22,28 @@ administrator-prepared directory owned by the current user. Existing Nix
 installations are reused. A daemonless root container uses process-local
 single-user build settings; no host security policy is changed.
 
-Once the probe succeeds, run the relevant flake checks through the same
-wrapper. For example, on x86_64 Linux:
+Once the probe succeeds, run the relevant tests through the same wrapper. The
+live parser and renderer tests are VM tests and need KVM. For example, on
+x86_64 Linux:
 
 ```sh
 bash tooling/review-env.sh nix build --no-link -L \
-  .#checks.x86_64-linux.text-block-integration-tests \
-  .#checks.x86_64-linux.text-block-integration-tests-unstable
+  .#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests \
+  .#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests-unstable
 ```
 
 For a custom reproduction, pass its command and arguments to the wrapper.
 Run every `nft` invocation inside `unshare -rn`, including `nft -c`: the parser
 consults kernel state, and mutating commands must stay in a private namespace.
-The full CI command is `nix flake check -L`; it covers both locked flake inputs.
+`nix flake check -L` runs the checks for both locked flake inputs; CI also
+builds the VM tests (see the README's Verification section).
 
 Success means the namespace/parser probe and the requested test commands
 actually exited zero. Exit 125 from the wrapper means environment setup is
 blocked; preserve that distinction from a test failure and report the command
 and error. If `unshare` is denied, the sandbox provider must permit private
 user/network namespaces. On an administrator-controlled Ubuntu host,
-`.github/apparmor/nix-unshare` documents the narrow profile used in GitHub CI.
+`.github/apparmor/nix-unshare` documents a narrow profile that permits them.
 Keep host-wide security settings and the host firewall unchanged. Cached Nix
 checks are prior build evidence; use `--rebuild` when fresh execution matters
 and attach the new logs to the review.

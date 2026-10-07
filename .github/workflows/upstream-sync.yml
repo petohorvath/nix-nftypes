@@ -240,10 +240,8 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1; upstream Nix
-      - name: Allow unshare to create user namespaces
-        run: |
-          sudo cp .github/apparmor/nix-unshare /etc/apparmor.d/nix-unshare
-          sudo apparmor_parser -r /etc/apparmor.d/nix-unshare
+        with:
+          enable_kvm: true # the live-parser tests run in a NixOS VM
       # Resolve the branch once, then override with that immutable revision so
       # every evaluation in this job sees exactly the same package set.
       - name: Compatibility suite vs latest ${{ matrix.input }} nftables
@@ -271,18 +269,23 @@ jobs:
           echo "nftables package version: $locked_version -> $tip_version"
           echo "nftables version: \`$tip_version\`." >>"$GITHUB_STEP_SUMMARY"
 
-          checks=(
+          vm_tests=(
             integration-tests
             text-integration-tests
             text-block-integration-tests
             render-equivalence-tests
+            nftables-roundtrip-tests
+          )
+          checks=(
             nftables-source-provenance-tests
             nftables-corpus-tests
             nftables-enum-extraction-tests
-            nftables-roundtrip-tests
             nftables-tooling-selftests
           )
           targets=()
+          for test in "${vm_tests[@]}"; do
+            targets+=(".#legacyPackages.x86_64-linux.vmTests.${test}${{ matrix.suffix }}")
+          done
           for check in "${checks[@]}"; do
             targets+=(".#checks.x86_64-linux.${check}${{ matrix.suffix }}")
           done
@@ -291,4 +294,4 @@ jobs:
             --override-input "${{ matrix.input }}" "$tip_uri" \
             "${targets[@]}"
 
-          echo "Passed ${#checks[@]} nftables-facing checks." >>"$GITHUB_STEP_SUMMARY"
+          echo "Passed ${#targets[@]} nftables-facing tests." >>"$GITHUB_STEP_SUMMARY"

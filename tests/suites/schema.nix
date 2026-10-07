@@ -9,6 +9,25 @@ let
   inherit (helpers) roundtrip;
   inherit (nftlib) toJson;
 
+  # A stateful-object reference selected by destination port.
+  portMapReference.map = {
+    key.payload = {
+      protocol = "tcp";
+      field = "dport";
+    };
+    data.set = [
+      [
+        22
+        "a"
+      ]
+      [
+        80
+        "b"
+      ]
+    ];
+  };
+  portMapReferenceJson = "{\"map\":{\"data\":{\"set\":[[22,\"a\"],[80,\"b\"]]},\"key\":{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}}}}";
+
   # A listed command validated as a singleton ruleset, deep-forced so
   # lazy submodule checks run.
   readBack =
@@ -1103,6 +1122,72 @@ enumDriftTests
       };
     };
     expected = "{\"synproxy\":{\"family\":\"inet\",\"flags\":[\"timestamp\"],\"mss\":1460,\"name\":\"sp1\",\"table\":\"filter\",\"wscale\":7}}";
+  };
+
+  # ------------------------------------------------------------------
+  # `ct count` named object (nftables 1.1.7+)
+  # ------------------------------------------------------------------
+  testCtCountObject = {
+    expr = roundtrip nftlib.types.objects.ctCount {
+      "ct count" = {
+        family = "ip";
+        table = "t";
+        name = "c1";
+        val = 5;
+        inv = true;
+        comment = "over five";
+      };
+    };
+    expected = "{\"ct count\":{\"comment\":\"over five\",\"family\":\"ip\",\"inv\":true,\"name\":\"c1\",\"table\":\"t\",\"val\":5}}";
+  };
+
+  testCtCountObjectRequiresVal = {
+    expr = roundtrip nftlib.types.objects.ctCount {
+      "ct count" = {
+        family = "ip";
+        table = "t";
+        name = "c1";
+      };
+    };
+    expectedError.msg = "val.*was accessed but has no value defined";
+  };
+
+  # ------------------------------------------------------------------
+  # Stateful statements reference a named object by name or by a map
+  # expression that selects the name (objref).
+  # ------------------------------------------------------------------
+  testCtCountNamedReference = {
+    expr = roundtrip nftlib.types.statement { "ct count" = "c1"; };
+    expected = ''{"ct count":"c1"}'';
+  };
+
+  testStatefulMapReferences = {
+    expr = map (tag: roundtrip nftlib.types.statement { ${tag} = portMapReference; }) [
+      "counter"
+      "quota"
+      "limit"
+      "ct count"
+      "synproxy"
+    ];
+    expected = map (tag: ''{"${tag}":${portMapReferenceJson}}'') [
+      "counter"
+      "quota"
+      "limit"
+      "ct count"
+      "synproxy"
+    ];
+  };
+
+  # A reference is only a name or a map: other expressions stay rejected
+  # where the statement has no inline form that accepts them.
+  testCtCountRejectsNonMapExpression = {
+    expr = roundtrip nftlib.types.statement {
+      "ct count".payload = {
+        protocol = "tcp";
+        field = "dport";
+      };
+    };
+    expectedError.msg = "v\\.\"ct count\"\\.payload.*does not exist";
   };
 
   # ------------------------------------------------------------------

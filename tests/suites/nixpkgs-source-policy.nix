@@ -7,14 +7,12 @@ let
   flakeText = helpers.readProjectFile "flake.nix";
   sourcePackageText = helpers.readProjectFile "packages/nftables-source/package.nix";
   workflowText = helpers.readProjectFile ".github/workflows/upstream-sync.yml";
-  ciWorkflowText = helpers.readProjectFile ".github/workflows/ci.yml";
   docsText = helpers.readProjectFile "docs/upstream-sync.md";
-  actionUseLines =
-    lib.concatMap (text: builtins.filter (line: lib.hasInfix "uses:" line) (lib.splitString "\n" text))
-      [
-        workflowText
-        ciWorkflowText
-      ];
+  # check.yml calls the policy through its moving minor-series tag, as the
+  # policy requires, so only the scheduled workflow pins actions.
+  actionUseLines = builtins.filter (line: lib.hasInfix "uses:" line) (
+    lib.splitString "\n" workflowText
+  );
   actionUseIsPinned =
     line:
     let
@@ -23,17 +21,21 @@ let
     builtins.length parts == 2
     && builtins.match "[0-9a-f]{40}([[:space:]]+#.*)?[[:space:]]*" (lib.last parts) != null;
   unpinnedActionUseLines = builtins.filter (line: !actionUseIsPinned line) actionUseLines;
-  canaryCheckNames = [
-    "integration-tests"
-    "text-integration-tests"
-    "text-block-integration-tests"
-    "render-equivalence-tests"
-    "nftables-source-provenance-tests"
-    "nftables-corpus-tests"
-    "nftables-enum-extraction-tests"
-    "nftables-roundtrip-tests"
-    "nftables-tooling-selftests"
-  ];
+  # Canary targets by name, with the attribute path that holds them.
+  canaryTargets =
+    lib.genAttrs [
+      "integration-tests"
+      "text-integration-tests"
+      "text-block-integration-tests"
+      "render-equivalence-tests"
+      "nftables-roundtrip-tests"
+    ] (_: "legacyPackages.x86_64-linux.vmTests")
+    // lib.genAttrs [
+      "nftables-source-provenance-tests"
+      "nftables-corpus-tests"
+      "nftables-enum-extraction-tests"
+      "nftables-tooling-selftests"
+    ] (_: "checks.x86_64-linux");
   canaryScript = lib.last (lib.splitString "Compatibility suite vs latest" workflowText);
   canaryEvaluationMarker = "          locked_version=$(nix eval --raw";
   canaryPreEvaluation = builtins.head (lib.splitString canaryEvaluationMarker canaryScript);
@@ -129,12 +131,12 @@ let
         && lib.hasInfix "nix flake update nixpkgs-unstable\n" docsText;
     }
   ]
-  ++ map (name: {
+  ++ lib.mapAttrsToList (name: attrPath: {
     name = "documented canary target ${name}";
     present =
       lib.hasInfix ("            " + name) canaryScript
-      && lib.hasInfix "\".#checks.x86_64-linux.${name}\${suffix}\"" docsText;
-  }) canaryCheckNames;
+      && lib.hasInfix "\".#${attrPath}.${name}\${suffix}\"" docsText;
+  }) canaryTargets;
 
   namesWhere = predicate: entries: map (entry: entry.name) (builtins.filter predicate entries);
 in

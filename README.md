@@ -168,7 +168,7 @@ spelling is modelled exactly.
 
 Known differences are explicit and tested:
 
-- the upstream statement corpus currently has 11 baselined divergence
+- the upstream statement corpus currently has 7 baselined divergence
   categories;
 - some parser-conditional constraints are represented more permissively in
   Nix;
@@ -190,22 +190,32 @@ See:
 
 ## Verification
 
-Checks, source packages, development shells, and the formatter are exposed on
-`x86_64-linux` and `aarch64-linux`; the library is platform-independent. GitHub
-CI builds every `x86_64-linux` check.
+Checks, VM tests, source packages, development shells, and the formatter are
+exposed on `x86_64-linux` and `aarch64-linux`; the library is
+platform-independent.
 
-Run each check system on a matching native builder. Checks evaluate without
+CI calls the shared
+[project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md)
+from [`check.yml`](.github/workflows/check.yml). It checks the flake inputs
+and public outputs, runs `nix flake check` on both systems with the locked
+`nixpkgs` and with the policy's stable and unstable pins, and builds the VM
+tests on `x86_64-linux` with KVM. A PR merges only after its policy statuses
+pass. Run the same commands locally on the host system:
+
+```console
+nix run github:petohorvath/nixos-project-policy/v0.5 -- check .
+nix run github:petohorvath/nixos-project-policy/v0.5 -- test . --nixpkgs locked
+nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
+```
+
+`test` also accepts `--nixpkgs stable` and `--nixpkgs unstable`; `vm` needs
+KVM. Without the policy, `nix flake check` runs the checks, including
+`formatting`.
+
+Run each system on a matching native builder. The tests evaluate without
 import-from-derivation, but building them runs that system's `nft`, so
 `nix flake check --all-systems` from one architecture is not a
 cross-architecture verification command.
-
-`nix flake check` runs every test: all checks against both locked package
-sets.
-
-```console
-nix fmt -- --ci
-nix flake check -L
-```
 
 The default development shell, loaded by `nix develop` or by direnv through
 `.envrc`, supplies the Nix, lint, workflow, and parser tools. For ad-hoc parser
@@ -222,32 +232,35 @@ sandboxes without Nix can opt into the bootstrap described in
 [`.greptile/rules.md`](.greptile/rules.md); restricted sandbox kernels may
 still need provider-side namespace support.
 
-For the exact check list:
+For the exact test lists:
 
 ```console
 nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
+nix eval --json '.#legacyPackages.x86_64-linux.vmTests' --apply builtins.attrNames | jq .
 ```
 
-Each package-set-dependent check is instantiated against both locked inputs:
+Each package-set-dependent test is instantiated against both locked inputs:
 plain names use stable `nixpkgs`, and `-unstable` names use
-`nixpkgs-unstable`. Every check runs nix-unit suites. `unit-tests` holds the
+`nixpkgs-unstable`. Every test runs nix-unit suites. `unit-tests` holds the
 evaluation-only suites (schema/DSL, text parity, safety regressions, source
-policy). Each other check first builds a probe that runs the package set's
-`nft` in a private network namespace, or the source tooling, and records what
-happened; its suite asserts on that record. These cover JSON and text parser
-tests, selected JSON/text semantic equivalence cases, source provenance,
-upstream corpus and enum extraction, read-back validation, and tooling
-self-tests.
+policy). Each other test first runs a probe against the package set's `nft`
+or the source tooling and records what happened; its suite asserts on that
+record. The source-side tests (source provenance, upstream corpus, enum
+extraction, tooling self-tests) are checks. The live parser and renderer tests
+(JSON and text parser tests, selected JSON/text semantic equivalence cases,
+read-back validation) need private network namespaces, so they are VM tests
+whose probes run in a NixOS VM.
 
 For a fast loop, run only the evaluation-only suites with
 `nix-unit --flake .#tests`; the development shell provides `nix-unit`. This
-covers `unit-tests` against the stable `lib`, not the live checks or the
+covers `unit-tests` against the stable `lib`, not the live tests or the
 `-unstable` variants. A live suite asserts on a probe's build output, so
-nix-unit could only reach it through import-from-derivation; the checks build
-the probes instead. Run one live suite by building its check, for example
-`nix build -L .#checks.x86_64-linux.integration-tests`.
+nix-unit could only reach it through import-from-derivation; the tests build
+the probes instead. Run one live suite by building its test, for example
+`nix build -L .#checks.x86_64-linux.nftables-corpus-tests` or, with KVM,
+`nix build -L .#legacyPackages.x86_64-linux.vmTests.integration-tests`.
 
-A scheduled Monday canary repeats the nine nftables-facing checks against an
+A scheduled Monday canary repeats the nine nftables-facing tests against an
 immutable snapshot of each branch's current tip. It is deliberately
 non-gating and does not modify `flake.lock`.
 
