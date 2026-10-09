@@ -16,7 +16,7 @@ Add the MIT license.
 
 Drop the `nixpkgs-unstable` flake input. The checks and VM tests are built once from `nixpkgs`, and the policy's stable and unstable pin runs, which override `nixpkgs`, test the other nixpkgs versions. This removes the `packages.<system>.nftables-source-unstable` package, every `-unstable` check in `checks.<system>`, and every `-unstable` VM test in `legacyPackages.<system>.vmTests`. CI no longer builds VM tests against unstable; the weekly canary still does.
 
-The weekly upstream-sync workflow overrides `nixpkgs` with the tips of the `nixos-26.05` and `nixos-unstable` branches. The unstable source watch now compares the locked stable source with the unstable tip, so its drift issue stays open while unstable carries a newer nftables.
+The weekly upstream-sync workflow overrides `nixpkgs` with the tips of the `nixos-26.05` and `nixos-unstable` branches. The unstable source watch now compares the locked stable source with the unstable tip, so its drift issue stays open while unstable carries a newer nftables. A new drift issue closes the older open ones for the same branch.
 
 ### Added
 

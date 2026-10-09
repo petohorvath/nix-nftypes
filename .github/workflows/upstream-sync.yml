@@ -209,18 +209,31 @@ jobs:
           TIP_HASH: ${{ steps.source.outputs.tip_hash }}
         run: |
           set -euo pipefail
-          title="nixpkgs nftables drift (${{ matrix.label }}): ${TIP_HASH:0:12}"
+          title_prefix="nixpkgs nftables drift (${{ matrix.label }}): "
+          title="$title_prefix${TIP_HASH:0:12}"
           gh label create nixpkgs-nftables-drift --color FBCA04 \
             --description "A nixpkgs branch carries nftables source different from the lock" 2>/dev/null || true
-          existing=$(gh issue list --state open --label nixpkgs-nftables-drift \
-            --limit 100 --json number,title \
-            | jq -r --arg title "$title" '[.[] | select(.title == $title)][0].number // empty')
-          if [ -n "$existing" ]; then
-            echo "Issue #$existing already tracks $TIP_HASH; appending a fresh report."
-            gh issue comment "$existing" --body-file drift-report.md
+          open_issues=$(gh issue list --state open --label nixpkgs-nftables-drift \
+            --limit 100 --json number,title)
+          current=$(jq -r --arg title "$title" \
+            '[.[] | select(.title == $title)][0].number // empty' <<<"$open_issues")
+          if [ -n "$current" ]; then
+            echo "Issue #$current already tracks $TIP_HASH; appending a fresh report."
+            gh issue comment "$current" --body-file drift-report.md
           else
-            gh issue create --title "$title" --label nixpkgs-nftables-drift --body-file drift-report.md
+            url=$(gh issue create --title "$title" --label nixpkgs-nftables-drift --body-file drift-report.md)
+            current=${url##*/}
           fi
+
+          # The newest tip supersedes older drift issues for this branch.
+          superseded=$(jq -r --arg prefix "$title_prefix" --arg title "$title" \
+            '.[] | select((.title | startswith($prefix)) and .title != $title) | .number' \
+            <<<"$open_issues")
+          while IFS= read -r issue; do
+            [ -n "$issue" ] || continue
+            gh issue close "$issue" --reason "not planned" --comment \
+              "Superseded by #$current: the ${{ matrix.label }} branch tip now carries patched source ${TIP_HASH:0:12}."
+          done <<<"$superseded"
 
   canary:
     strategy:

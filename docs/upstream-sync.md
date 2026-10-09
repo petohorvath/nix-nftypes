@@ -159,12 +159,15 @@ For each branch, the job:
 4. compares their NAR content hashes;
 5. when different, diffs parser/serializer/grammar/reference files and uploads
    `parser.diff`;
-6. files or updates a labelled GitHub issue;
+6. files or updates a labelled GitHub issue, then
+   closes older open drift issues for the same branch, which the new tip
+   supersedes;
 7. closes matching open drift issues when locked and tip sources match again.
 
 Unstable usually carries a newer nftables than the stable lock, so its issue
 stays open until a lock update brings the same source. A new tip hash files a
-new issue.
+new issue and closes the older one, so each branch keeps at most one open drift
+issue.
 
 A hash difference is a review signal, not proof of incompatibility. The full
 patched-source NAR hashes are authoritative for whether drift exists.

@@ -5,6 +5,9 @@
 # source, or reintroduce a direct upstream Git dependency in the scheduled
 # workflow.
 let
+  # `hasInfix` matches `.*infix.*` against the whole text, which
+  # overflows nix-unit's stack on files this long; splitting does not.
+  hasInfix = infix: text: builtins.length (lib.splitString infix text) > 1;
   flakeText = helpers.readProjectFile "flake.nix";
   # The branch of the `nixpkgs` input, which the stable matrix entries track.
   stableBranch = lib.pipe flakeText [
@@ -18,9 +21,7 @@ let
   docsText = helpers.readProjectFile "docs/upstream-sync.md";
   # check.yml calls the policy through its moving minor-series tag, as the
   # policy requires, so only the scheduled workflow pins actions.
-  actionUseLines = builtins.filter (line: lib.hasInfix "uses:" line) (
-    lib.splitString "\n" workflowText
-  );
+  actionUseLines = builtins.filter (line: hasInfix "uses:" line) (lib.splitString "\n" workflowText);
   actionUseIsPinned =
     line:
     let
@@ -54,43 +55,43 @@ let
   forbidden = [
     {
       name = "nixpkgs-unstable flake input";
-      present = lib.hasInfix "nixpkgs-unstable" flakeText;
+      present = hasInfix "nixpkgs-unstable" flakeText;
     }
     {
       name = "nixpkgs-unstable in the scheduled workflow";
-      present = lib.hasInfix "nixpkgs-unstable" workflowText;
+      present = hasInfix "nixpkgs-unstable" workflowText;
     }
     {
       name = "nixpkgs-unstable in the upstream-sync docs";
-      present = lib.hasInfix "nixpkgs-unstable" docsText;
+      present = hasInfix "nixpkgs-unstable" docsText;
     }
     {
       name = "direct nftables-src flake input";
-      present = lib.hasInfix "inputs.nftables-src" flakeText;
+      present = hasInfix "inputs.nftables-src" flakeText;
     }
     {
       name = "direct libnftnl-src flake input";
-      present = lib.hasInfix "inputs.libnftnl-src" flakeText;
+      present = hasInfix "inputs.libnftnl-src" flakeText;
     }
     {
       name = "Netfilter Git flake input";
-      present = lib.hasInfix "git+https://git.netfilter.org" flakeText;
+      present = hasInfix "git+https://git.netfilter.org" flakeText;
     }
     {
       name = "git ls-remote in source watcher";
-      present = lib.hasInfix "git ls-remote" workflowText;
+      present = hasInfix "git ls-remote" workflowText;
     }
     {
       name = "git clone in source watcher";
-      present = lib.hasInfix "git clone" workflowText;
+      present = hasInfix "git clone" workflowText;
     }
     {
       name = "direct git.netfilter.org workflow dependency";
-      present = lib.hasInfix "git.netfilter.org/nftables" workflowText;
+      present = hasInfix "git.netfilter.org/nftables" workflowText;
     }
     {
       name = "deprecated flake lock update-input command";
-      present = lib.hasInfix "nix flake lock --update-input" docsText;
+      present = hasInfix "nix flake lock --update-input" docsText;
     }
     {
       name = "mutable GitHub Action references: ${lib.concatStringsSep " | " unpinnedActionUseLines}";
@@ -101,19 +102,19 @@ let
   required = [
     {
       name = "nixpkgs applyPatches source derivation";
-      present = lib.hasInfix "applyPatches" sourcePackageText;
+      present = hasInfix "applyPatches" sourcePackageText;
     }
     {
       name = "floating branch-tip override";
-      present = lib.hasInfix "--override-input" workflowText;
+      present = hasInfix "--override-input" workflowText;
     }
     {
       name = "content-based source comparison";
-      present = lib.hasInfix "nix hash path" workflowText;
+      present = hasInfix "nix hash path" workflowText;
     }
     {
       name = "single nixpkgs branch-tip override";
-      present = lib.hasInfix "--override-input nixpkgs \"$tip_uri\"" workflowText;
+      present = hasInfix "--override-input nixpkgs \"$tip_uri\"" workflowText;
     }
     {
       name = "stable branch matches the nixpkgs input";
@@ -125,40 +126,44 @@ let
     }
     {
       name = "resolved-drift close condition";
-      present = lib.hasInfix "if: steps.source.outputs.drift == 'false'" workflowText;
+      present = hasInfix "if: steps.source.outputs.drift == 'false'" workflowText;
     }
     {
       name = "resolved-drift issue closure";
-      present = lib.hasInfix "gh issue close" workflowText;
+      present = hasInfix "gh issue close" workflowText;
+    }
+    {
+      name = "superseded drift issue closure";
+      present =
+        hasInfix "Superseded by #" workflowText
+        && hasInfix "closes older open drift issues for the same branch" docsText;
     }
     {
       name = "full branch-tip revision recorded before canary evaluation";
       present =
-        lib.hasInfix canaryEvaluationMarker canaryScript
-        && lib.hasInfix canaryRevisionEcho canaryPreEvaluation;
+        hasInfix canaryEvaluationMarker canaryScript && hasInfix canaryRevisionEcho canaryPreEvaluation;
     }
     {
       name = "full-source hash distinguished from selected-file diagnostic";
       present =
-        lib.hasInfix "NAR hashes are authoritative for whether drift exists" docsText
-        && lib.hasInfix "`parser.diff` is a selected-file diagnostic" docsText;
+        hasInfix "NAR hashes are authoritative for whether drift exists" docsText
+        && hasInfix "`parser.diff` is a selected-file diagnostic" docsText;
     }
     {
       name = "canary reproduction overrides nixpkgs";
       present =
-        lib.hasInfix "revision=FULL_REVISION_FROM_SUMMARY\n" docsText
-        && lib.hasInfix "--override-input nixpkgs \"github:NixOS/nixpkgs/$revision\"" docsText;
+        hasInfix "revision=FULL_REVISION_FROM_SUMMARY\n" docsText
+        && hasInfix "--override-input nixpkgs \"github:NixOS/nixpkgs/$revision\"" docsText;
     }
     {
       name = "current single-input update command";
-      present = lib.hasInfix "nix flake update nixpkgs\n" docsText;
+      present = hasInfix "nix flake update nixpkgs\n" docsText;
     }
   ]
   ++ lib.mapAttrsToList (name: attrPath: {
     name = "documented canary target ${name}";
     present =
-      lib.hasInfix ("            " + name) canaryScript
-      && lib.hasInfix "\".#${attrPath}.${name}\"" docsText;
+      hasInfix ("            " + name) canaryScript && hasInfix "\".#${attrPath}.${name}\"" docsText;
   }) canaryTargets;
 
   namesWhere = predicate: entries: map (entry: entry.name) (builtins.filter predicate entries);
