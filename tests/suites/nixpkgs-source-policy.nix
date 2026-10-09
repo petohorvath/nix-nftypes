@@ -48,8 +48,22 @@ let
   canaryScript = lib.last (lib.splitString "Compatibility suite vs latest" workflowText);
   canaryEvaluationMarker = "          locked_version=$(nix eval --raw";
   canaryPreEvaluation = builtins.head (lib.splitString canaryEvaluationMarker canaryScript);
-  # Both the source-watch and canary matrices list each branch once.
-  matrixEntries = branch: builtins.length (lib.splitString "- branch: ${branch}\n" workflowText) - 1;
+  # The workflow's jobs, split at the canary job's key. Each job's matrix
+  # must list each branch exactly once.
+  workflowJobs =
+    let
+      parts = lib.splitString "\n  canary:\n" workflowText;
+    in
+    {
+      nixpkgs-source-watch = builtins.head parts;
+      canary = lib.last parts;
+    };
+  matrixEntries =
+    jobText: branch: builtins.length (lib.splitString "- branch: ${branch}\n" jobText) - 1;
+  everyMatrixListsOnce =
+    branch:
+    builtins.length (lib.splitString "\n  canary:\n" workflowText) == 2
+    && lib.all (jobText: matrixEntries jobText branch == 1) (builtins.attrValues workflowJobs);
   canaryRevisionEcho = ''echo "nixpkgs revision: \`$tip_rev\`."'';
 
   forbidden = [
@@ -118,11 +132,11 @@ let
     }
     {
       name = "stable branch matches the nixpkgs input";
-      present = stableBranch != null && matrixEntries stableBranch == 2;
+      present = stableBranch != null && everyMatrixListsOnce stableBranch;
     }
     {
       name = "unstable branch";
-      present = matrixEntries "nixos-unstable" == 2;
+      present = everyMatrixListsOnce "nixos-unstable";
     }
     {
       name = "resolved-drift close condition";
