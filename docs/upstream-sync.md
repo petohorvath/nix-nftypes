@@ -5,27 +5,24 @@ independent checkout of Netfilter `master`.
 
 ## Authorities
 
-Each flake input provides three related authorities:
+The `nixpkgs` flake input provides three related authorities:
 
 1. `pkgs.nftables`: the live parser and serializer binary;
 2. `pkgs.nftables.src` plus `pkgs.nftables.patches`: the exact patched source
    used to build that binary;
 3. `pkgs.lib`: the Nix module/type implementation used by schema validation.
 
-Stable uses the locked `nixpkgs` input. Unstable uses the locked
-`nixpkgs-unstable` input. The source trees exposed as `nftables-source` and
-`nftables-source-unstable` are produced with `pkgs.applyPatches`; there are no
-separate nftables or libnftnl flake inputs.
+`nixpkgs` locks the stable NixOS branch. The project policy reruns the checks
+with its stable and unstable pins overriding `nixpkgs`, so the same tests cover
+the newer nftables that lands on unstable first. The source tree exposed as
+`nftables-source` is produced with `pkgs.applyPatches`; there are no separate
+nftables or libnftnl flake inputs.
 
-## Locked-input matrix
+## Test matrix
 
-`tests/default.nix` creates every package-set-dependent test twice:
-
-- plain name: stable package set;
-- `-unstable` suffix: unstable package set.
-
-Every test runs nix-unit against the package set's `lib` and `nix-unit`.
-`unit-tests` runs the evaluation-only suites registered in `tests/unit.nix`;
+`tests/default.nix` creates every package-set-dependent test once, from
+`nixpkgs`. Every test runs nix-unit against the package set's `lib` and
+`nix-unit`. `unit-tests` runs the evaluation-only suites registered in `tests/unit.nix`;
 its source-policy suite statically guards the single-authority design. Each
 other test runs one suite from `tests/live.nix`, which asserts on the JSON
 record of a probe (`tests/probes/`): a script that runs the package set's
@@ -38,7 +35,7 @@ The tests live in two places:
 - `legacyPackages.<system>.vmTests`: the live parser and renderer tests.
   Their probes create private user and network namespaces, which hosted CI
   runners deny inside the build sandbox, so `tests/vm.nix` runs them in one
-  NixOS VM per package set. Building them requires KVM.
+  NixOS VM. Building them requires KVM.
 
 Evaluate the exact current lists rather than relying on a copied count:
 
@@ -50,7 +47,7 @@ nix eval --json '.#legacyPackages.x86_64-linux.vmTests' --apply builtins.attrNam
 Checks, VM tests, and source packages are exposed for `x86_64-linux` and
 `aarch64-linux`. CI runs the shared project policy: `nix flake check` on both
 systems with the locked `nixpkgs` and with the policy's stable and unstable
-pins, and the VM tests on `x86_64-linux` with the locked inputs. The tests
+pins, and the VM tests on `x86_64-linux` with the locked `nixpkgs`. The tests
 evaluate without import-from-derivation, but building them runs the target
 architecture's `nft` and tooling, so build each architecture on a matching
 native builder; `--all-systems` from one architecture is not a cross-build
@@ -147,21 +144,30 @@ Named exclusions and text-only limits are documented in
 ## Weekly branch-tip workflow
 
 [`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml)
-runs Mondays at 06:00 UTC and on manual dispatch. Stable and unstable run
-independently.
+runs Mondays at 06:00 UTC and on manual dispatch. Each job runs once for the
+stable branch that `nixpkgs` locks (`nixos-26.05`) and once for
+`nixos-unstable`, independently, overriding `nixpkgs` with that branch's tip.
 
 ### Patched-source watch
 
-For each flake input, the job:
+For each branch, the job:
 
-1. reads the input's branch and locked revision from `flake.lock`;
+1. reads the locked `nixpkgs` revision from `flake.lock`;
 2. resolves the branch tip once to an immutable nixpkgs revision;
-3. builds locked and tip patched-source outputs;
+3. builds the locked patched source and, with `nixpkgs` overridden by the tip,
+   the tip patched source;
 4. compares their NAR content hashes;
 5. when different, diffs parser/serializer/grammar/reference files and uploads
    `parser.diff`;
-6. files or updates a labelled GitHub issue;
+6. files or updates a labelled GitHub issue, then
+   closes older open drift issues for the same branch, which the new tip
+   supersedes;
 7. closes matching open drift issues when locked and tip sources match again.
+
+Unstable usually carries a newer nftables than the stable lock, so its issue
+stays open until a lock update brings the same source. A new tip hash files a
+new issue and closes the older one, so each branch keeps at most one open drift
+issue.
 
 A hash difference is a review signal, not proof of incompatibility. The full
 patched-source NAR hashes are authoritative for whether drift exists.
@@ -174,7 +180,7 @@ changes the deterministic result.
 
 ### Canary checks
 
-A separate job overrides one input with the immutable tip revision and runs
+A separate job overrides `nixpkgs` with the immutable tip revision and runs
 nine nftables-facing tests, five of them VM tests on a KVM-enabled runner:
 
 1. JSON integration;
@@ -204,21 +210,20 @@ summaries when correlating results.
 | round trip red | a selected case failed to load or emitted an unmodelled command | inspect load logs and serializer output; do not reduce coverage silently |
 | JSON integration red | selected rendered JSON is rejected by the packaged parser | fix schema/DSL/renderer or narrow the claim with evidence |
 | text/equivalence red | selected native syntax is rejected or differs semantically | fix text rendering or add a narrowly justified named exclusion |
-| unstable-only red | likely future stable incompatibility | fix before updating the stable floor |
+| unstable-only red | the policy's unstable pin or the unstable canary failed while stable passed: likely future stable incompatibility | fix before updating the stable floor |
 | canary-only red | one of the nine selected tip-revision tests failed, or its job environment/tooling failed, while the locked checks remained green | reproduce at the reported immutable revision and inspect the failing check |
-| drift issue | patched source at the branch tip differs from the lock | review the artifact and canary before updating |
+| drift issue | patched source at the branch tip differs from the lock | review the artifact and canary before updating; an unstable issue tracks the next nftables |
 
 ## Updating inputs
 
-Update one input at a time so failures retain a clear authority:
+Update `nixpkgs`, then rerun the checks with the locked input and the policy's
+pins:
 
 ```console
 nix flake update nixpkgs
 nix flake check -L
-nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
-
-nix flake update nixpkgs-unstable
-nix flake check -L
+nix run github:petohorvath/nixos-project-policy/v0.5 -- test . --nixpkgs stable
+nix run github:petohorvath/nixos-project-policy/v0.5 -- test . --nixpkgs unstable
 nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
 ```
 
@@ -226,7 +231,9 @@ The policy's `vm` command builds every VM test on the host system and needs
 KVM.
 
 When a new NixOS release becomes stable, point `inputs.nixpkgs.url` in
-`flake.nix` at its branch before updating.
+`flake.nix` at its branch before updating, and change the stable `branch` in
+both matrices of `upstream-sync.yml` to match; `unit-tests` fails until they
+agree.
 
 The `flake-parts` input only assembles the flake outputs; its `nixpkgs-lib`
 input follows `nixpkgs`. Update it separately with
@@ -242,29 +249,22 @@ Before merging an input update:
 4. keep known differences in code and coverage docs synchronized;
 5. confirm that the policy's required statuses pass on the PR.
 
-To reproduce the complete canary at the exact revision from its summary, choose
-the matching input and suffix:
-
-- stable: `input=nixpkgs`, `suffix=`;
-- unstable: `input=nixpkgs-unstable`, `suffix=-unstable`.
-
-Then run all nine canary targets, replacing `FULL_REVISION_FROM_SUMMARY` with
-the 40-character revision printed by the workflow:
+To reproduce the complete canary for either branch, run all nine canary
+targets, replacing `FULL_REVISION_FROM_SUMMARY` with the 40-character revision
+printed in the job summary:
 
 ```console
-input=nixpkgs
-suffix=
 revision=FULL_REVISION_FROM_SUMMARY
 
 nix build -L \
-    --override-input "$input" "github:NixOS/nixpkgs/$revision" \
-    ".#legacyPackages.x86_64-linux.vmTests.integration-tests${suffix}" \
-    ".#legacyPackages.x86_64-linux.vmTests.text-integration-tests${suffix}" \
-    ".#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests${suffix}" \
-    ".#legacyPackages.x86_64-linux.vmTests.render-equivalence-tests${suffix}" \
-    ".#legacyPackages.x86_64-linux.vmTests.nftables-roundtrip-tests${suffix}" \
-    ".#checks.x86_64-linux.nftables-source-provenance-tests${suffix}" \
-    ".#checks.x86_64-linux.nftables-corpus-tests${suffix}" \
-    ".#checks.x86_64-linux.nftables-enum-extraction-tests${suffix}" \
-    ".#checks.x86_64-linux.nftables-tooling-selftests${suffix}"
+    --override-input nixpkgs "github:NixOS/nixpkgs/$revision" \
+    ".#legacyPackages.x86_64-linux.vmTests.integration-tests" \
+    ".#legacyPackages.x86_64-linux.vmTests.text-integration-tests" \
+    ".#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests" \
+    ".#legacyPackages.x86_64-linux.vmTests.render-equivalence-tests" \
+    ".#legacyPackages.x86_64-linux.vmTests.nftables-roundtrip-tests" \
+    ".#checks.x86_64-linux.nftables-source-provenance-tests" \
+    ".#checks.x86_64-linux.nftables-corpus-tests" \
+    ".#checks.x86_64-linux.nftables-enum-extraction-tests" \
+    ".#checks.x86_64-linux.nftables-tooling-selftests"
 ```

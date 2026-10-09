@@ -1,10 +1,9 @@
 /*
-  Patched source trees are exposed for the scheduled branch-tip comparison
-  and for manual inspection. The matching binaries remain the ordinary
-  `pkgs.nftables` packages from each flake input.
+  The patched source tree is exposed for the scheduled branch-tip comparison
+  and for manual inspection. The matching binary remains the ordinary
+  `pkgs.nftables` package.
 */
-{ pkgs, pkgsUnstable }:
+{ pkgs }:
 {
   nftables-source = pkgs.callPackage ./nftables-source/package.nix { };
-  nftables-source-unstable = pkgsUnstable.callPackage ./nftables-source/package.nix { };
 }

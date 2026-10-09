@@ -16,7 +16,6 @@
       tests = import ../tests {
         inherit pkgs;
         packages = self.packages.${system};
-        pkgsUnstable = inputs.nixpkgs-unstable.legacyPackages.${system};
       };
     in
     {

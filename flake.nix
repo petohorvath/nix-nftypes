@@ -1,13 +1,12 @@
 {
   description = "Nix type definitions mirroring the libnftables-json schema";
 
-  # `nixpkgs` is the NixOS stable release consumers deploy on and
-  # `nixpkgs-unstable` is the branch where a newer nftables lands first; the
-  # checks cover both. nftables has no independent flake input (see
-  # tests/default.nix and docs/upstream-sync.md).
+  # `nixpkgs` is the NixOS stable release consumers deploy on. The project
+  # policy reruns the checks with its stable and unstable pins overriding it.
+  # nftables has no independent flake input (see tests/default.nix and
+  # docs/upstream-sync.md).
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
@@ -36,12 +35,9 @@
       };
 
       perSystem =
-        { pkgs, system, ... }:
+        { pkgs, ... }:
         {
-          packages = import ./packages {
-            inherit pkgs;
-            pkgsUnstable = inputs.nixpkgs-unstable.legacyPackages.${system};
-          };
+          packages = import ./packages { inherit pkgs; };
         };
 
       flake.lib = import ./lib { inherit (inputs.nixpkgs) lib; };

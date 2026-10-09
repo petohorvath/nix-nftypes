@@ -165,8 +165,8 @@ The relevant checks are:
 - focused safety suites for comments, interface names, references, tokens,
   units, priorities, and restricted types.
 
-Stable and unstable variants use their respective nixpkgs `lib` and `nft`
-packages.
+Each check uses the `lib` and `nft` packages of the nixpkgs it evaluates: the
+locked input or one of the project policy's stable and unstable pins.
 
 When adding a schema tag or object kind, add the constructor/registry entry,
 positive parity coverage, one invalid-body test, and the applicable live-parser

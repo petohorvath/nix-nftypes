@@ -1,10 +1,10 @@
 /*
-  Package-set-dependent tests, instantiated once per nixpkgs flake input.
+  Package-set-dependent tests, instantiated from `nixpkgs`.
   Every test runs nix-unit with the package set's `lib` and `nix-unit`.
   The live tests first run probes against the package set's `nft` binary
   or the source tooling and record what happened; their suites assert on
-  those records. Running the set against both package sets is the
-  "compatible with stable AND unstable" contract.
+  those records. The project policy's stable and unstable pin runs make
+  this the "compatible with stable AND unstable" contract.
 
   Returns `{ checks; vmTests; }`. The live-parser tests are VM tests
   because their probes run in a NixOS VM (./vm.nix); everything else is a

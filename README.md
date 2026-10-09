@@ -161,8 +161,8 @@ See [`docs/api.md`](docs/api.md) for the API details and validation examples.
 
 ## Compatibility and scope
 
-The schema follows the parser and serializer shipped by the locked stable and
-unstable nixpkgs inputs, including downstream nftables patches. It is not a
+The schema follows the parser and serializer shipped by the stable and unstable
+nixpkgs branches, including downstream nftables patches. It is not a
 claim that every nftables feature, parser condition, read-back form, or text
 spelling is modelled exactly.
 
@@ -239,24 +239,23 @@ nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
 nix eval --json '.#legacyPackages.x86_64-linux.vmTests' --apply builtins.attrNames | jq .
 ```
 
-Each package-set-dependent test is instantiated against both locked inputs:
-plain names use stable `nixpkgs`, and `-unstable` names use
-`nixpkgs-unstable`. Every test runs nix-unit suites. `unit-tests` holds the
-evaluation-only suites (schema/DSL, text parity, safety regressions, source
-policy). Each other test first runs a probe against the package set's `nft`
-or the source tooling and records what happened; its suite asserts on that
-record. The source-side tests (source provenance, upstream corpus, enum
-extraction, tooling self-tests) are checks. The live parser and renderer tests
-(JSON and text parser tests, selected JSON/text semantic equivalence cases,
-read-back validation) need private network namespaces, so they are VM tests
-whose probes run in a NixOS VM.
+Each package-set-dependent test is instantiated from `nixpkgs`; the policy's
+stable and unstable pin runs override it. Every test runs nix-unit suites.
+`unit-tests` holds the evaluation-only suites (schema/DSL, text parity, safety
+regressions, source policy). Each other test first runs a probe against the
+package set's `nft` or the source tooling and records what happened; its suite
+asserts on that record. The source-side tests (source provenance, upstream
+corpus, enum extraction, tooling self-tests) are checks. The live parser and
+renderer tests (JSON and text parser tests, selected JSON/text semantic
+equivalence cases, read-back validation) need private network namespaces, so
+they are VM tests whose probes run in a NixOS VM.
 
 For a fast loop, run only the evaluation-only suites with
 `nix-unit --flake .#tests`; the development shell provides `nix-unit`. This
-covers `unit-tests` against the stable `lib`, not the live tests or the
-`-unstable` variants. A live suite asserts on a probe's build output, so
-nix-unit could only reach it through import-from-derivation; the tests build
-the probes instead. Run one live suite by building its test, for example
+covers `unit-tests` against the locked `lib`, not the live tests. A live suite
+asserts on a probe's build output, so nix-unit could only reach it through
+import-from-derivation; the tests build the probes instead. Run one live suite
+by building its test, for example
 `nix build -L .#checks.x86_64-linux.nftables-corpus-tests` or, with KVM,
 `nix build -L .#legacyPackages.x86_64-linux.vmTests.integration-tests`.
 

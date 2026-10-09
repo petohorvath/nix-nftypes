@@ -28,15 +28,15 @@ x86_64 Linux:
 
 ```sh
 bash tooling/review-env.sh nix build --no-link -L \
-  .#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests \
-  .#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests-unstable
+  .#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests
 ```
 
 For a custom reproduction, pass its command and arguments to the wrapper.
 Run every `nft` invocation inside `unshare -rn`, including `nft -c`: the parser
 consults kernel state, and mutating commands must stay in a private namespace.
-`nix flake check -L` runs the checks for both locked flake inputs; CI also
-builds the VM tests (see the README's Verification section).
+`nix flake check -L` runs the checks with the locked `nixpkgs`; CI also runs
+them with the policy's stable and unstable pins and builds the VM tests (see
+the README's Verification section).
 
 Success means the namespace/parser probe and the requested test commands
 actually exited zero. Exit 125 from the wrapper means environment setup is
