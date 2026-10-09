@@ -10,4 +10,4 @@ The five default triage labels, each named after its role. See `docs/agents/tria
 
 ### Domain docs
 
-Single-context: one root `CONTEXT.md` plus `docs/adr/`. See `docs/agents/domain.md`.
+Single-context: one root `GLOSSARY.md` plus `docs/adr/`. See `docs/agents/domain.md`.

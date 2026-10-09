@@ -4,13 +4,13 @@ This is a single-context repo:
 
 ```
 /
-├── CONTEXT.md     # glossary of domain terms
+├── GLOSSARY.md    # glossary of domain terms
 └── docs/adr/      # architecture decision records
 ```
 
 ## Before exploring
 
-Read `CONTEXT.md`, plus any ADRs in `docs/adr/` about the area you're working in. If a file is missing, carry on without mentioning it. `/domain-modeling` creates these files once terms or decisions are settled.
+Read `GLOSSARY.md`, plus any ADRs in `docs/adr/` about the area you're working in. If a file is missing, carry on without mentioning it. `/domain-modeling` creates these files once terms or decisions are settled.
 
 ## While working
 
