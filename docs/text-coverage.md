@@ -39,7 +39,8 @@ initial elements remain supported inside their set/map definitions.
 | `text-block-integration-tests` | 6 table cases in compact and pretty form through `nft -c -f`, including chain/object references and inline/named limits | any parse failure fails |
 | `render-equivalence-tests` | 7 selected cases loaded through JSON and text in separate network namespaces, then compared using `nft list ruleset` | a load failure or output difference fails; 5 cases are excluded before execution |
 
-Stable and unstable checks use the corresponding package set's `nft` binary.
+Each check uses the `nft` binary of the nixpkgs it evaluates: the locked input
+or one of the project policy's stable and unstable pins.
 
 The equivalence suite is strong evidence for its seven selected cases. It is not
 a universal 1:1 guarantee for every schema value.

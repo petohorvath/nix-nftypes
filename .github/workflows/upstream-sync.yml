@@ -1,10 +1,11 @@
 name: Upstream sync
 
 # Keeps the schema in step with the nftables packages consumers receive from
-# the stable and unstable nixpkgs branches (docs/upstream-sync.md). Two jobs:
+# the stable and unstable nixpkgs branches (docs/upstream-sync.md). Each job
+# overrides the single `nixpkgs` input with the current tip of each branch:
 #
-#   nixpkgs-source-watch — compares each locked flake input's fully patched
-#     nftables source tree with the same package at its branch's current tip.
+#   nixpkgs-source-watch — compares the locked input's fully patched nftables
+#     source tree with the same package at the branch's current tip.
 #     A content change produces a parser diff and a GitHub issue. All source
 #     material comes through nixpkgs; there is no independent upstream Git pin.
 #
@@ -31,11 +32,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - input: nixpkgs
-            suffix: ""
+          # The branch of `inputs.nixpkgs.url` in flake.nix.
+          - branch: nixos-26.05
             label: stable
-          - input: nixpkgs-unstable
-            suffix: "-unstable"
+          - branch: nixos-unstable
             label: unstable
     runs-on: ubuntu-latest
     steps:
@@ -48,24 +48,22 @@ jobs:
         run: |
           set -euo pipefail
 
-          ref=$(jq -er '.nodes["${{ matrix.input }}"].original.ref' flake.lock)
-          locked_rev=$(jq -er '.nodes["${{ matrix.input }}"].locked.rev' flake.lock)
-          tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/$ref" | jq -er .revision)
+          locked_rev=$(jq -er '.nodes.nixpkgs.locked.rev' flake.lock)
+          tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/${{ matrix.branch }}" | jq -er .revision)
           tip_uri="github:NixOS/nixpkgs/$tip_rev"
-          source_attr="nftables-source${{ matrix.suffix }}"
+          source_attr=.#packages.x86_64-linux.nftables-source
 
-          locked_source=$(nix build --no-link --print-out-paths \
-            ".#packages.x86_64-linux.$source_attr")
+          locked_source=$(nix build --no-link --print-out-paths "$source_attr")
           tip_source=$(nix build --no-link --print-out-paths \
-            --override-input "${{ matrix.input }}" "$tip_uri" \
-            ".#packages.x86_64-linux.$source_attr")
+            --override-input nixpkgs "$tip_uri" \
+            "$source_attr")
           test -d "$locked_source"
           test -d "$tip_source"
 
-          locked_version=$(nix eval --raw ".#packages.x86_64-linux.$source_attr.version")
+          locked_version=$(nix eval --raw "$source_attr.version")
           tip_version=$(nix eval --raw \
-            --override-input "${{ matrix.input }}" "$tip_uri" \
-            ".#packages.x86_64-linux.$source_attr.version")
+            --override-input nixpkgs "$tip_uri" \
+            "$source_attr.version")
           locked_hash=$(nix hash path --type sha256 --base16 "$locked_source")
           tip_hash=$(nix hash path --type sha256 --base16 "$tip_source")
 
@@ -82,10 +80,10 @@ jobs:
 
           if [ "$locked_hash" = "$tip_hash" ]; then
             echo "drift=false" >>"$GITHUB_OUTPUT"
-            echo "No nftables source drift for ${{ matrix.input }}: $locked_version ($locked_hash)."
+            echo "No nftables source drift for ${{ matrix.branch }}: $locked_version ($locked_hash)."
           else
             echo "drift=true" >>"$GITHUB_OUTPUT"
-            echo "nftables source drift for ${{ matrix.input }}: $locked_version ($locked_hash) -> $tip_version ($tip_hash)."
+            echo "nftables source drift for ${{ matrix.branch }}: $locked_version ($locked_hash) -> $tip_version ($tip_hash)."
           fi
 
           {
@@ -181,7 +179,7 @@ jobs:
             cat >drift-report.md <<EOF
           # nixpkgs nftables source drift detected
 
-          Flake input: \`${{ matrix.input }}\`
+          Branch: \`${{ matrix.branch }}\`
 
           - Locked nixpkgs: \`${{ steps.source.outputs.locked_rev }}\`
           - Branch tip: \`${{ steps.source.outputs.tip_rev }}\`
@@ -198,8 +196,8 @@ jobs:
             --diff parser.diff \
             --schema-dir lib/schema \
             --spec-coverage docs/spec-coverage.md \
-            --old-source "${{ matrix.input }}:${{ steps.source.outputs.locked_hash }}" \
-            --new-source "${{ matrix.input }}:${{ steps.source.outputs.tip_hash }}" \
+            --old-source "nixpkgs:${{ steps.source.outputs.locked_hash }}" \
+            --new-source "${{ matrix.branch }}:${{ steps.source.outputs.tip_hash }}" \
             --out drift-report.md; then
             write_basic_report "AI triage failed; the deterministic source comparison remains authoritative."
           fi
@@ -226,14 +224,13 @@ jobs:
 
   canary:
     strategy:
-      fail-fast: false # let each flake input report independently
+      fail-fast: false # let each branch report independently
       matrix:
         include:
-          - input: nixpkgs # stable flake input; plain check names
-            suffix: ""
+          # The branch of `inputs.nixpkgs.url` in flake.nix.
+          - branch: nixos-26.05
             label: stable
-          - input: nixpkgs-unstable
-            suffix: "-unstable"
+          - branch: nixos-unstable
             label: unstable
     runs-on: ubuntu-latest
     continue-on-error: true # non-gating: a red canary is a signal, not a failure
@@ -244,13 +241,12 @@ jobs:
           enable_kvm: true # the live-parser tests run in a NixOS VM
       # Resolve the branch once, then override with that immutable revision so
       # every evaluation in this job sees exactly the same package set.
-      - name: Compatibility suite vs latest ${{ matrix.input }} nftables
+      - name: Compatibility suite vs latest ${{ matrix.branch }} nftables
         shell: bash
         run: |
           set -euo pipefail
-          ref=$(jq -er '.nodes["${{ matrix.input }}"].original.ref' flake.lock)
-          locked_rev=$(jq -er '.nodes["${{ matrix.input }}"].locked.rev' flake.lock)
-          tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/$ref" | jq -er .revision)
+          locked_rev=$(jq -er '.nodes.nixpkgs.locked.rev' flake.lock)
+          tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/${{ matrix.branch }}" | jq -er .revision)
           tip_uri="github:NixOS/nixpkgs/$tip_rev"
 
           {
@@ -259,13 +255,12 @@ jobs:
             echo "nixpkgs revision: \`$tip_rev\`."
           } >>"$GITHUB_STEP_SUMMARY"
 
-          source_attr="nftables-source${{ matrix.suffix }}"
-          locked_version=$(nix eval --raw ".#packages.x86_64-linux.$source_attr.version")
+          locked_version=$(nix eval --raw ".#packages.x86_64-linux.nftables-source.version")
           tip_version=$(nix eval --raw \
-            --override-input "${{ matrix.input }}" "$tip_uri" \
-            ".#packages.x86_64-linux.$source_attr.version")
+            --override-input nixpkgs "$tip_uri" \
+            ".#packages.x86_64-linux.nftables-source.version")
 
-          echo "Floating ${{ matrix.input }} ($ref) from ${locked_rev:0:12} to ${tip_rev:0:12}."
+          echo "Overriding nixpkgs from ${locked_rev:0:12} to ${{ matrix.branch }} at ${tip_rev:0:12}."
           echo "nftables package version: $locked_version -> $tip_version"
           echo "nftables version: \`$tip_version\`." >>"$GITHUB_STEP_SUMMARY"
 
@@ -284,14 +279,14 @@ jobs:
           )
           targets=()
           for test in "${vm_tests[@]}"; do
-            targets+=(".#legacyPackages.x86_64-linux.vmTests.${test}${{ matrix.suffix }}")
+            targets+=(".#legacyPackages.x86_64-linux.vmTests.${test}")
           done
           for check in "${checks[@]}"; do
-            targets+=(".#checks.x86_64-linux.${check}${{ matrix.suffix }}")
+            targets+=(".#checks.x86_64-linux.${check}")
           done
 
           nix build -L \
-            --override-input "${{ matrix.input }}" "$tip_uri" \
+            --override-input nixpkgs "$tip_uri" \
             "${targets[@]}"
 
           echo "Passed ${#targets[@]} nftables-facing tests." >>"$GITHUB_STEP_SUMMARY"

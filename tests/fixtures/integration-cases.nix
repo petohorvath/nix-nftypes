@@ -586,8 +586,9 @@ rec {
   # user/network namespaces on Linux, so nft gets a private netfilter
   # instance and can exercise its real parser without root.
   #
-  # Parameterized over the `nft` package so the same case set is instantiated
-  # against the stable and unstable nixpkgs package sets by tests/default.nix.
+  # Parameterized over the `nft` package so the same case set runs against
+  # whichever nixpkgs the flake check evaluates: the locked input or one of
+  # the project policy's stable and unstable pins.
 
   # Cases the nft text grammar can't represent. The JSON renderer
   # accepts them; this is a hard text-grammar limitation in nftables.

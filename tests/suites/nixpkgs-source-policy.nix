@@ -1,10 +1,21 @@
 { helpers, lib, ... }:
 
 # Static regression guard for the nixpkgs-authority design. The project must
-# not grow a second, independently pinned Netfilter source or reintroduce a
-# direct upstream Git dependency in the scheduled workflow.
+# not grow a second nixpkgs input or an independently pinned Netfilter
+# source, or reintroduce a direct upstream Git dependency in the scheduled
+# workflow.
 let
   flakeText = helpers.readProjectFile "flake.nix";
+  # The branch of the `nixpkgs` input, which the stable matrix entries track.
+  stableBranch = lib.findFirst (branch: branch != null) null (
+    map (
+      line:
+      let
+        match = builtins.match "[[:space:]]*nixpkgs\\.url = \"github:NixOS/nixpkgs/([^\"]+)\";" line;
+      in
+      if match == null then null else builtins.head match
+    ) (lib.splitString "\n" flakeText)
+  );
   sourcePackageText = helpers.readProjectFile "packages/nftables-source/package.nix";
   workflowText = helpers.readProjectFile ".github/workflows/upstream-sync.yml";
   docsText = helpers.readProjectFile "docs/upstream-sync.md";
@@ -39,9 +50,23 @@ let
   canaryScript = lib.last (lib.splitString "Compatibility suite vs latest" workflowText);
   canaryEvaluationMarker = "          locked_version=$(nix eval --raw";
   canaryPreEvaluation = builtins.head (lib.splitString canaryEvaluationMarker canaryScript);
+  # Both the source-watch and canary matrices list each branch once.
+  matrixEntries = branch: builtins.length (lib.splitString "- branch: ${branch}\n" workflowText) - 1;
   canaryRevisionEcho = ''echo "nixpkgs revision: \`$tip_rev\`."'';
 
   forbidden = [
+    {
+      name = "nixpkgs-unstable flake input";
+      present = lib.hasInfix "nixpkgs-unstable" flakeText;
+    }
+    {
+      name = "nixpkgs-unstable in the scheduled workflow";
+      present = lib.hasInfix "nixpkgs-unstable" workflowText;
+    }
+    {
+      name = "nixpkgs-unstable in the upstream-sync docs";
+      present = lib.hasInfix "nixpkgs-unstable" docsText;
+    }
     {
       name = "direct nftables-src flake input";
       present = lib.hasInfix "inputs.nftables-src" flakeText;
@@ -90,12 +115,16 @@ let
       present = lib.hasInfix "nix hash path" workflowText;
     }
     {
-      name = "stable flake input authority";
-      present = lib.hasInfix "- input: nixpkgs\n" workflowText;
+      name = "single nixpkgs branch-tip override";
+      present = lib.hasInfix "--override-input nixpkgs \"$tip_uri\"" workflowText;
     }
     {
-      name = "unstable flake input authority";
-      present = lib.hasInfix "- input: nixpkgs-unstable\n" workflowText;
+      name = "stable branch matches the nixpkgs input";
+      present = stableBranch != null && matrixEntries stableBranch == 2;
+    }
+    {
+      name = "unstable branch";
+      present = matrixEntries "nixos-unstable" == 2;
     }
     {
       name = "resolved-drift close condition";
@@ -118,24 +147,21 @@ let
         && lib.hasInfix "`parser.diff` is a selected-file diagnostic" docsText;
     }
     {
-      name = "stable and unstable canary reproduction selectors";
+      name = "canary reproduction overrides nixpkgs";
       present =
-        lib.hasInfix "- stable: `input=nixpkgs`, `suffix=`;" docsText
-        && lib.hasInfix "- unstable: `input=nixpkgs-unstable`, `suffix=-unstable`." docsText
-        && lib.hasInfix "revision=FULL_REVISION_FROM_SUMMARY\n" docsText;
+        lib.hasInfix "revision=FULL_REVISION_FROM_SUMMARY\n" docsText
+        && lib.hasInfix "--override-input nixpkgs \"github:NixOS/nixpkgs/$revision\"" docsText;
     }
     {
-      name = "current single-input update commands";
-      present =
-        lib.hasInfix "nix flake update nixpkgs\n" docsText
-        && lib.hasInfix "nix flake update nixpkgs-unstable\n" docsText;
+      name = "current single-input update command";
+      present = lib.hasInfix "nix flake update nixpkgs\n" docsText;
     }
   ]
   ++ lib.mapAttrsToList (name: attrPath: {
     name = "documented canary target ${name}";
     present =
       lib.hasInfix ("            " + name) canaryScript
-      && lib.hasInfix "\".#${attrPath}.${name}\${suffix}\"" docsText;
+      && lib.hasInfix "\".#${attrPath}.${name}\"" docsText;
   }) canaryTargets;
 
   namesWhere = predicate: entries: map (entry: entry.name) (builtins.filter predicate entries);

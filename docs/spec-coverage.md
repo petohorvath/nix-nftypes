@@ -6,10 +6,9 @@ not a history of earlier fixes.
 
 ## Compatibility authority
 
-The authorities are the nftables packages in the two locked flake inputs:
-
-- stable `nixpkgs`;
-- `nixpkgs-unstable`.
+The authorities are the nftables packages in the `nixpkgs` flake input, locked
+to the stable NixOS branch. The project policy reruns the checks with its
+stable and unstable pins overriding `nixpkgs`.
 
 For each package set, source checks use `pkgs.nftables.src` plus the
 derivation's complete downstream patch set. Live checks use that same package
@@ -49,11 +48,11 @@ including:
   cases.
 
 `ct count` objects and `ct count` object references require nftables 1.1.7 or
-later; earlier versions reject them. Both locked inputs carry an earlier
+later; earlier versions reject them. The locked `nixpkgs` carries an earlier
 nftables, so no live check exercises them yet. The corpus check covers their
 statement shapes when it runs against a package set with 1.1.7, as the shared
-policy's unstable pin does. Add live integration cases once a locked input
-carries 1.1.7.
+policy's unstable pin does. Add live integration cases once the locked
+`nixpkgs` carries 1.1.7.
 
 ## Known differences
 
@@ -154,8 +153,10 @@ passed through. See [`api.md`](api.md) for an explicit `evalModules` example.
 | `nftables-roundtrip-tests` | every command emitted by ten real-loaded selected cases validates as `types.ruleset` | two cases are explicitly excluded; it is sampled serializer coverage |
 | `nftables-tooling-selftests` | injected source/corpus/token defects make the drift checks fail | tests the tooling's chosen fault classes |
 
-All package-set-dependent checks are instantiated separately for locked stable
-and unstable package sets on each Linux check system.
+All package-set-dependent checks are instantiated from `nixpkgs` on each Linux
+check system. CI runs the checks with the locked input and with the policy's
+stable and unstable pins, and the VM tests with the locked input; the weekly
+canary also runs the VM tests against both branch tips.
 
 ## Updating the schema
 
@@ -164,6 +165,7 @@ For a confirmed parser or serializer change:
 1. inspect the exact patched source from the affected nixpkgs input;
 2. add a failing focused schema test;
 3. update the schema and the matching DSL/text surface when applicable;
-4. run the relevant live parser and read-back checks for stable and unstable;
+4. run the relevant live parser and read-back checks with the locked `nixpkgs`
+   and, overriding it, with the policy's unstable pin;
 5. remove or narrow any corpus baseline that no longer matches;
 6. update this document only with the remaining current differences.
