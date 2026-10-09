@@ -240,21 +240,22 @@ nix eval --json '.#legacyPackages.x86_64-linux.vmTests' --apply builtins.attrNam
 ```
 
 Each package-set-dependent test is instantiated from `nixpkgs`; the policy's
-stable and unstable pin runs override it. Every test runs nix-unit suites. `unit-tests` holds the
-evaluation-only suites (schema/DSL, text parity, safety regressions, source
-policy). Each other test first runs a probe against the package set's `nft`
-or the source tooling and records what happened; its suite asserts on that
-record. The source-side tests (source provenance, upstream corpus, enum
-extraction, tooling self-tests) are checks. The live parser and renderer tests
-(JSON and text parser tests, selected JSON/text semantic equivalence cases,
-read-back validation) need private network namespaces, so they are VM tests
-whose probes run in a NixOS VM.
+stable and unstable pin runs override it. Every test runs nix-unit suites.
+`unit-tests` holds the evaluation-only suites (schema/DSL, text parity, safety
+regressions, source policy). Each other test first runs a probe against the
+package set's `nft` or the source tooling and records what happened; its suite
+asserts on that record. The source-side tests (source provenance, upstream
+corpus, enum extraction, tooling self-tests) are checks. The live parser and
+renderer tests (JSON and text parser tests, selected JSON/text semantic
+equivalence cases, read-back validation) need private network namespaces, so
+they are VM tests whose probes run in a NixOS VM.
 
 For a fast loop, run only the evaluation-only suites with
 `nix-unit --flake .#tests`; the development shell provides `nix-unit`. This
 covers `unit-tests` against the locked `lib`, not the live tests. A live suite
 asserts on a probe's build output, so nix-unit could only reach it through
-import-from-derivation; the tests build the probes instead. Run one live suite by building its test, for example
+import-from-derivation; the tests build the probes instead. Run one live suite
+by building its test, for example
 `nix build -L .#checks.x86_64-linux.nftables-corpus-tests` or, with KVM,
 `nix build -L .#legacyPackages.x86_64-linux.vmTests.integration-tests`.
 

@@ -7,15 +7,12 @@
 let
   flakeText = helpers.readProjectFile "flake.nix";
   # The branch of the `nixpkgs` input, which the stable matrix entries track.
-  stableBranch = lib.findFirst (branch: branch != null) null (
-    map (
-      line:
-      let
-        match = builtins.match "[[:space:]]*nixpkgs\\.url = \"github:NixOS/nixpkgs/([^\"]+)\";" line;
-      in
-      if match == null then null else builtins.head match
-    ) (lib.splitString "\n" flakeText)
-  );
+  stableBranch = lib.pipe flakeText [
+    (lib.splitString "\n")
+    (map (builtins.match "[[:space:]]*nixpkgs\\.url = \"github:NixOS/nixpkgs/([^\"]+)\";"))
+    (lib.findFirst (match: match != null) [ null ])
+    builtins.head
+  ];
   sourcePackageText = helpers.readProjectFile "packages/nftables-source/package.nix";
   workflowText = helpers.readProjectFile ".github/workflows/upstream-sync.yml";
   docsText = helpers.readProjectFile "docs/upstream-sync.md";

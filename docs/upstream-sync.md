@@ -21,8 +21,8 @@ nftables or libnftnl flake inputs.
 ## Test matrix
 
 `tests/default.nix` creates every package-set-dependent test once, from
-`nixpkgs`. Every test runs nix-unit against the package set's `lib` and `nix-unit`.
-`unit-tests` runs the evaluation-only suites registered in `tests/unit.nix`;
+`nixpkgs`. Every test runs nix-unit against the package set's `lib` and
+`nix-unit`. `unit-tests` runs the evaluation-only suites registered in `tests/unit.nix`;
 its source-policy suite statically guards the single-authority design. Each
 other test runs one suite from `tests/live.nix`, which asserts on the JSON
 record of a probe (`tests/probes/`): a script that runs the package set's

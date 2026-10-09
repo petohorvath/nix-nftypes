@@ -32,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The branch of `inputs.nixpkgs.url` in flake.nix.
+          # The stable branch is the branch of `inputs.nixpkgs.url` in flake.nix.
           - branch: nixos-26.05
             label: stable
           - branch: nixos-unstable
@@ -51,19 +51,19 @@ jobs:
           locked_rev=$(jq -er '.nodes.nixpkgs.locked.rev' flake.lock)
           tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/${{ matrix.branch }}" | jq -er .revision)
           tip_uri="github:NixOS/nixpkgs/$tip_rev"
-          source_attr=.#packages.x86_64-linux.nftables-source
+          source_ref=.#packages.x86_64-linux.nftables-source
 
-          locked_source=$(nix build --no-link --print-out-paths "$source_attr")
+          locked_source=$(nix build --no-link --print-out-paths "$source_ref")
           tip_source=$(nix build --no-link --print-out-paths \
             --override-input nixpkgs "$tip_uri" \
-            "$source_attr")
+            "$source_ref")
           test -d "$locked_source"
           test -d "$tip_source"
 
-          locked_version=$(nix eval --raw "$source_attr.version")
+          locked_version=$(nix eval --raw "$source_ref.version")
           tip_version=$(nix eval --raw \
             --override-input nixpkgs "$tip_uri" \
-            "$source_attr.version")
+            "$source_ref.version")
           locked_hash=$(nix hash path --type sha256 --base16 "$locked_source")
           tip_hash=$(nix hash path --type sha256 --base16 "$tip_source")
 
@@ -227,7 +227,7 @@ jobs:
       fail-fast: false # let each branch report independently
       matrix:
         include:
-          # The branch of `inputs.nixpkgs.url` in flake.nix.
+          # The stable branch is the branch of `inputs.nixpkgs.url` in flake.nix.
           - branch: nixos-26.05
             label: stable
           - branch: nixos-unstable
@@ -255,10 +255,11 @@ jobs:
             echo "nixpkgs revision: \`$tip_rev\`."
           } >>"$GITHUB_STEP_SUMMARY"
 
-          locked_version=$(nix eval --raw ".#packages.x86_64-linux.nftables-source.version")
+          source_ref=.#packages.x86_64-linux.nftables-source
+          locked_version=$(nix eval --raw "$source_ref.version")
           tip_version=$(nix eval --raw \
             --override-input nixpkgs "$tip_uri" \
-            ".#packages.x86_64-linux.nftables-source.version")
+            "$source_ref.version")
 
           echo "Overriding nixpkgs from ${locked_rev:0:12} to ${{ matrix.branch }} at ${tip_rev:0:12}."
           echo "nftables package version: $locked_version -> $tip_version"
