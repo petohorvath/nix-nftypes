@@ -190,27 +190,27 @@ See:
 
 ## Verification
 
-Checks, VM tests, source packages, development shells, and the formatter are
-exposed on `x86_64-linux` and `aarch64-linux`; the library is
-platform-independent.
+Checks, source packages, development shells, and the formatter are exposed
+on `x86_64-linux` and `aarch64-linux`; the library is platform-independent.
 
 CI calls the shared
-[project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md)
+[project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.6/POLICY.md)
 from [`check.yml`](.github/workflows/check.yml). It checks the flake inputs
-and public outputs, runs `nix flake check` on both systems with the locked
-`nixpkgs` and with the policy's stable and unstable pins, and builds the VM
-tests on `x86_64-linux` with KVM. A PR merges only after its policy statuses
-pass. Run the same commands locally on the host system:
+and public outputs, and builds the checks on both systems with the locked
+`nixpkgs` and with the policy's stable and unstable pins: the VM tests in its
+`VM tests` jobs and the other checks in its `Tests` jobs. A runner without
+KVM reports the VM tests as skipped. A PR merges only after its policy
+statuses pass. Run the same commands locally on the host system:
 
 ```console
-nix run github:petohorvath/nixos-project-policy/v0.5 -- check .
-nix run github:petohorvath/nixos-project-policy/v0.5 -- test . --nixpkgs locked
-nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
+nix run github:petohorvath/nixos-project-policy/v0.6 -- check .
+nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs locked
+nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs locked --vm
 ```
 
-`test` also accepts `--nixpkgs stable` and `--nixpkgs unstable`; `vm` needs
-KVM. Without the policy, `nix flake check` runs the checks, including
-`formatting`.
+`test` also accepts `--nixpkgs stable` and `--nixpkgs unstable`. Without the
+policy, `nix flake check` builds every check, including `formatting` and the
+VM tests, so it needs KVM.
 
 Run each system on a matching native builder. The tests evaluate without
 import-from-derivation, but building them runs that system's `nft`, so
@@ -236,7 +236,6 @@ For the exact test lists:
 
 ```console
 nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
-nix eval --json '.#legacyPackages.x86_64-linux.vmTests' --apply builtins.attrNames | jq .
 ```
 
 Each package-set-dependent test is instantiated from `nixpkgs`; the policy's
@@ -248,7 +247,8 @@ asserts on that record. The source-side tests (source provenance, upstream
 corpus, enum extraction, tooling self-tests) are checks. The live parser and
 renderer tests (JSON and text parser tests, selected JSON/text semantic
 equivalence cases, read-back validation) need private network namespaces, so
-they are VM tests whose probes run in a NixOS VM.
+they are VM tests whose probes run in a NixOS VM. They declare
+`requiredSystemFeatures = [ "kvm" "nixos-test" ]`.
 
 For a fast loop, run only the evaluation-only suites with
 `nix-unit --flake .#tests`; the development shell provides `nix-unit`. This
@@ -257,7 +257,7 @@ asserts on a probe's build output, so nix-unit could only reach it through
 import-from-derivation; the tests build the probes instead. Run one live suite
 by building its test, for example
 `nix build -L .#checks.x86_64-linux.nftables-corpus-tests` or, with KVM,
-`nix build -L .#legacyPackages.x86_64-linux.vmTests.integration-tests`.
+`nix build -L .#checks.x86_64-linux.integration-tests`.
 
 A scheduled Monday canary repeats the nine nftables-facing tests against an
 immutable snapshot of each branch's current tip. It is deliberately

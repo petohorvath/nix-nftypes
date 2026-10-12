@@ -6,9 +6,9 @@
   those records. The project policy's stable and unstable pin runs make
   this the "compatible with stable AND unstable" contract.
 
-  Returns `{ checks; vmTests; }`. The live-parser tests are VM tests
-  because their probes run in a NixOS VM (./vm.nix); everything else is a
-  check.
+  Returns the checks by name. The live-parser tests are VM tests because
+  their probes run in a NixOS VM (./vm.nix). Each declares the VM's system
+  features, so the project policy builds it only on a runner that has them.
 */
 { pkgs, nftablesSource }:
 let
@@ -75,12 +75,12 @@ let
   };
 
   liveTest =
-    name: test:
+    requiredSystemFeatures: name: test:
     let
       testObservationPaths = lib.getAttrs (test.probes or [ test.suite ]) observationPaths;
     in
     nixUnitCheck {
-      inherit name;
+      inherit name requiredSystemFeatures;
       entryPoint = "live.nix";
       suites = [ test.suite ];
       observationPaths = testObservationPaths;
@@ -88,16 +88,16 @@ let
     };
 in
 {
-  checks = {
-    # Every evaluation-only suite: schema and DSL behaviour, text parity,
-    # safety regressions, validation messages, and the nixpkgs-source
-    # policy.
-    unit-tests = nixUnitCheck {
-      name = "unit-tests";
-      entryPoint = "unit.nix";
-    };
-  }
-  // lib.mapAttrs liveTest sourceTests;
-
-  vmTests = lib.mapAttrs liveTest liveParserTests;
+  # Every evaluation-only suite: schema and DSL behaviour, text parity,
+  # safety regressions, validation messages, and the nixpkgs-source policy.
+  unit-tests = nixUnitCheck {
+    name = "unit-tests";
+    entryPoint = "unit.nix";
+  };
 }
+// lib.mapAttrs (liveTest [ ]) sourceTests
+# The VM test that runs their probes requires these features.
+// lib.mapAttrs (liveTest [
+  "kvm"
+  "nixos-test"
+]) liveParserTests

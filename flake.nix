@@ -30,7 +30,6 @@
         checks = "dev";
         devShells = "dev";
         formatter = "dev";
-        legacyPackages = "dev";
         tests = "dev";
       };
 

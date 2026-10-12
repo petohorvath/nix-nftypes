@@ -154,9 +154,9 @@ passed through. See [`api.md`](api.md) for an explicit `evalModules` example.
 | `nftables-tooling-selftests` | injected source/corpus/token defects make the drift checks fail | tests the tooling's chosen fault classes |
 
 All package-set-dependent checks are instantiated from `nixpkgs` on each Linux
-check system. CI runs the checks with the locked input and with the policy's
-stable and unstable pins, and the VM tests with the locked input; the weekly
-canary also runs the VM tests against both branch tips.
+check system. CI runs the checks, including the VM tests, with the locked
+input and with the policy's stable and unstable pins; the weekly canary also
+runs the VM tests against both branch tips.
 
 ## Updating the schema
 

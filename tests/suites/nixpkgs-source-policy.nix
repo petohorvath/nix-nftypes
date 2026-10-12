@@ -30,21 +30,18 @@ let
     builtins.length parts == 2
     && builtins.match "[0-9a-f]{40}([[:space:]]+#.*)?[[:space:]]*" (lib.last parts) != null;
   unpinnedActionUseLines = builtins.filter (line: !actionUseIsPinned line) actionUseLines;
-  # Canary targets by name, with the attribute path that holds them.
-  canaryTargets =
-    lib.genAttrs [
-      "integration-tests"
-      "text-integration-tests"
-      "text-block-integration-tests"
-      "render-equivalence-tests"
-      "nftables-roundtrip-tests"
-    ] (_: "legacyPackages.x86_64-linux.vmTests")
-    // lib.genAttrs [
-      "nftables-source-provenance-tests"
-      "nftables-corpus-tests"
-      "nftables-enum-extraction-tests"
-      "nftables-tooling-selftests"
-    ] (_: "checks.x86_64-linux");
+  # Canary targets by check name.
+  canaryTargets = [
+    "integration-tests"
+    "text-integration-tests"
+    "text-block-integration-tests"
+    "render-equivalence-tests"
+    "nftables-roundtrip-tests"
+    "nftables-source-provenance-tests"
+    "nftables-corpus-tests"
+    "nftables-enum-extraction-tests"
+    "nftables-tooling-selftests"
+  ];
   canaryScript = lib.last (lib.splitString "Compatibility suite vs latest" workflowText);
   canaryEvaluationMarker = "          locked_version=$(nix eval --raw";
   canaryPreEvaluation = builtins.head (lib.splitString canaryEvaluationMarker canaryScript);
@@ -174,10 +171,11 @@ let
       present = hasInfix "nix flake update nixpkgs\n" docsText;
     }
   ]
-  ++ lib.mapAttrsToList (name: attrPath: {
+  ++ map (name: {
     name = "documented canary target ${name}";
     present =
-      hasInfix ("            " + name) canaryScript && hasInfix "\".#${attrPath}.${name}\"" docsText;
+      hasInfix ("            " + name) canaryScript
+      && hasInfix "\".#checks.x86_64-linux.${name}\"" docsText;
   }) canaryTargets;
 
   namesWhere = predicate: entries: map (entry: entry.name) (builtins.filter predicate entries);

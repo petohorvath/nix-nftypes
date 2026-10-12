@@ -28,26 +28,27 @@ other test runs one suite from `tests/live.nix`, which asserts on the JSON
 record of a probe (`tests/probes/`): a script that runs the package set's
 `nft` or the source tooling and records each run's exit status and output.
 
-The tests live in two places:
+All tests are checks in `checks.<system>`:
 
-- `checks.<system>`: `unit-tests`, the source-side tests, and `formatting`.
-  Their probes run in the build sandbox.
-- `legacyPackages.<system>.vmTests`: the live parser and renderer tests.
-  Their probes create private user and network namespaces, which hosted CI
-  runners deny inside the build sandbox, so `tests/vm.nix` runs them in one
-  NixOS VM. Building them requires KVM.
+- `unit-tests`, the source-side tests, and `formatting` run their probes in
+  the build sandbox.
+- The live parser and renderer tests are VM tests. Their probes create
+  private user and network namespaces, which hosted CI runners deny inside
+  the build sandbox, so `tests/vm.nix` runs them in one NixOS VM. They
+  declare `requiredSystemFeatures = [ "kvm" "nixos-test" ]`, so building
+  them requires KVM.
 
-Evaluate the exact current lists rather than relying on a copied count:
+Evaluate the exact current list rather than relying on a copied count:
 
 ```console
 nix eval --json '.#checks.x86_64-linux' --apply builtins.attrNames | jq .
-nix eval --json '.#legacyPackages.x86_64-linux.vmTests' --apply builtins.attrNames | jq .
 ```
 
-Checks, VM tests, and source packages are exposed for `x86_64-linux` and
-`aarch64-linux`. CI runs the shared project policy: `nix flake check` on both
-systems with the locked `nixpkgs` and with the policy's stable and unstable
-pins, and the VM tests on `x86_64-linux` with the locked `nixpkgs`. The tests
+Checks and source packages are exposed for `x86_64-linux` and
+`aarch64-linux`. CI runs the shared project policy on both systems with the
+locked `nixpkgs` and with the policy's stable and unstable pins: the VM tests
+in the `VM tests` jobs, and the other checks in the `Tests` jobs. A runner
+without KVM reports the VM tests as skipped. The tests
 evaluate without import-from-derivation, but building them runs the target
 architecture's `nft` and tooling, so build each architecture on a matching
 native builder; `--all-systems` from one architecture is not a cross-build
@@ -222,13 +223,14 @@ pins:
 ```console
 nix flake update nixpkgs
 nix flake check -L
-nix run github:petohorvath/nixos-project-policy/v0.5 -- test . --nixpkgs stable
-nix run github:petohorvath/nixos-project-policy/v0.5 -- test . --nixpkgs unstable
-nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
+nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs stable
+nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs stable --vm
+nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs unstable
+nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs unstable --vm
 ```
 
-The policy's `vm` command builds every VM test on the host system and needs
-KVM.
+`nix flake check` builds the VM tests too, so it needs KVM. The policy's
+`test --vm` builds the VM tests and skips them on a host without KVM.
 
 When a new NixOS release becomes stable, point `inputs.nixpkgs.url` in
 `flake.nix` at its branch before updating, and change the stable `branch` in
@@ -258,11 +260,11 @@ revision=FULL_REVISION_FROM_SUMMARY
 
 nix build -L \
     --override-input nixpkgs "github:NixOS/nixpkgs/$revision" \
-    ".#legacyPackages.x86_64-linux.vmTests.integration-tests" \
-    ".#legacyPackages.x86_64-linux.vmTests.text-integration-tests" \
-    ".#legacyPackages.x86_64-linux.vmTests.text-block-integration-tests" \
-    ".#legacyPackages.x86_64-linux.vmTests.render-equivalence-tests" \
-    ".#legacyPackages.x86_64-linux.vmTests.nftables-roundtrip-tests" \
+    ".#checks.x86_64-linux.integration-tests" \
+    ".#checks.x86_64-linux.text-integration-tests" \
+    ".#checks.x86_64-linux.text-block-integration-tests" \
+    ".#checks.x86_64-linux.render-equivalence-tests" \
+    ".#checks.x86_64-linux.nftables-roundtrip-tests" \
     ".#checks.x86_64-linux.nftables-source-provenance-tests" \
     ".#checks.x86_64-linux.nftables-corpus-tests" \
     ".#checks.x86_64-linux.nftables-enum-extraction-tests" \
