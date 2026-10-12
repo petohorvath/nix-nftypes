@@ -210,7 +210,9 @@ nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs locked 
 
 `test` also accepts `--nixpkgs stable` and `--nixpkgs unstable`. Without the
 policy, `nix flake check` builds every check, including `formatting` and the
-VM tests, so it needs KVM.
+VM tests, so it needs KVM. On a host without KVM, run `test` without `--vm`,
+build single checks with `nix build`, or give `nix flake check` a remote
+builder with the `kvm` feature.
 
 Run each system on a matching native builder. The tests evaluate without
 import-from-derivation, but building them runs that system's `nft`, so

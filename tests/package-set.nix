@@ -96,7 +96,7 @@ in
   };
 }
 // lib.mapAttrs (liveTest [ ]) sourceTests
-# The VM test that runs their probes requires these features.
+# The NixOS VM run of their probes requires these features.
 // lib.mapAttrs (liveTest [
   "kvm"
   "nixos-test"

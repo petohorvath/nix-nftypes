@@ -48,11 +48,10 @@ Checks and source packages are exposed for `x86_64-linux` and
 `aarch64-linux`. CI runs the shared project policy on both systems with the
 locked `nixpkgs` and with the policy's stable and unstable pins: the VM tests
 in the `VM tests` jobs, and the other checks in the `Tests` jobs. A runner
-without KVM reports the VM tests as skipped. The tests
-evaluate without import-from-derivation, but building them runs the target
-architecture's `nft` and tooling, so build each architecture on a matching
-native builder; `--all-systems` from one architecture is not a cross-build
-path.
+without KVM reports the VM tests as skipped. The tests evaluate without
+import-from-derivation, but building them runs the target architecture's
+`nft` and tooling, so build each architecture on a matching native builder;
+`--all-systems` from one architecture is not a cross-build path.
 
 ### Test groups
 

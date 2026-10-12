@@ -1,7 +1,7 @@
 /*
-  Assemble the project's checks, including the VM tests: the package-set
-  test set against `nixpkgs`, including both the live binary and the
-  patched source taken from the exported `nftables-source` package.
+  Assemble the project's checks, VM tests among them: the package-set test
+  set against `nixpkgs`, including both the live binary and the patched
+  source taken from the exported `nftables-source` package.
 
   The tests cover one package set per evaluation. The project policy builds
   them again with its stable and unstable pins overriding `nixpkgs`,

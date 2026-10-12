@@ -30,7 +30,7 @@ let
     builtins.length parts == 2
     && builtins.match "[0-9a-f]{40}([[:space:]]+#.*)?[[:space:]]*" (lib.last parts) != null;
   unpinnedActionUseLines = builtins.filter (line: !actionUseIsPinned line) actionUseLines;
-  # Canary targets by check name.
+  # The checks the canary builds.
   canaryTargets = [
     "integration-tests"
     "text-integration-tests"
