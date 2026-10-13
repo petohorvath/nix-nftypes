@@ -1,5 +1,5 @@
 /*
-  The patched source tree is exposed for the scheduled branch-tip comparison
+  The patched source tree is exposed for the scheduled policy-pin comparison
   and for manual inspection. The matching binary remains the ordinary
   `pkgs.nftables` package.
 */

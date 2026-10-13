@@ -1,17 +1,13 @@
 name: Upstream sync
 
-# Keeps the schema in step with the nftables packages consumers receive from
-# the stable and unstable nixpkgs branches (docs/upstream-sync.md). Each job
-# overrides the single `nixpkgs` input with the current tip of each branch:
-#
-#   nixpkgs-source-watch — compares the locked input's fully patched nftables
-#     source tree with the same package at the branch's current tip.
-#     A content change produces a parser diff and a GitHub issue. All source
-#     material comes through nixpkgs; there is no independent upstream Git pin.
-#
-#   canary — runs live-parser, patched-source, enum, corpus, and round-trip
-#     checks against an immutable snapshot of each branch's current tip.
-#     continue-on-error keeps this an early-warning signal rather than a gate.
+# Watches the nftables packages that the project policy's stable and unstable
+# pins carry (docs/upstream-sync.md). The job reads the pins from the policy
+# checker that check.yml calls, overrides the single `nixpkgs` input with each
+# pin, and compares the locked input's fully patched nftables source tree with
+# the pin's. A content change produces a parser diff and a GitHub issue. All
+# source material comes through nixpkgs; there is no independent upstream Git
+# pin. The policy's Pin-bump tests run the checks with proposed pins before
+# their release, so this workflow runs no tests.
 
 on:
   schedule:
@@ -22,6 +18,10 @@ permissions:
   contents: read
   issues: write
 
+env:
+  # The policy series that check.yml calls; its checker bundles the pins.
+  POLICY: github:petohorvath/nixos-project-policy/v0.6
+
 concurrency:
   group: upstream-sync
   cancel-in-progress: false
@@ -31,68 +31,68 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # The stable branch is the branch of `inputs.nixpkgs.url` in flake.nix.
-          - branch: nixos-26.05
-            label: stable
-          - branch: nixos-unstable
-            label: unstable
+        label: [stable, unstable]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1; upstream Nix
 
-      - name: Compare locked and branch-tip nftables sources
+      - name: Compare locked and pinned nftables sources
         id: source
         shell: bash
         run: |
           set -euo pipefail
 
           locked_rev=$(jq -er '.nodes.nixpkgs.locked.rev' flake.lock)
-          tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/${{ matrix.branch }}" | jq -er .revision)
-          tip_uri="github:NixOS/nixpkgs/$tip_rev"
+          policy_report=$(nix run "$POLICY" -- validate)
+          checker_version=$(jq -er .checkerVersion <<<"$policy_report")
+          pin_rev=$(jq -er --arg label "${{ matrix.label }}" '.pins[$label]' <<<"$policy_report")
+          pin_uri="github:NixOS/nixpkgs/$pin_rev"
           source_ref=.#packages.x86_64-linux.nftables-source
 
           locked_source=$(nix build --no-link --print-out-paths "$source_ref")
-          tip_source=$(nix build --no-link --print-out-paths \
-            --override-input nixpkgs "$tip_uri" \
+          pin_source=$(nix build --no-link --print-out-paths \
+            --override-input nixpkgs "$pin_uri" \
             "$source_ref")
           test -d "$locked_source"
-          test -d "$tip_source"
+          test -d "$pin_source"
 
           locked_version=$(nix eval --raw "$source_ref.version")
-          tip_version=$(nix eval --raw \
-            --override-input nixpkgs "$tip_uri" \
+          pin_version=$(nix eval --raw \
+            --override-input nixpkgs "$pin_uri" \
             "$source_ref.version")
           locked_hash=$(nix hash path --type sha256 --base16 "$locked_source")
-          tip_hash=$(nix hash path --type sha256 --base16 "$tip_source")
+          pin_hash=$(nix hash path --type sha256 --base16 "$pin_source")
 
           printf '%s\n' "$locked_source" >"$RUNNER_TEMP/locked-nftables-source"
-          printf '%s\n' "$tip_source" >"$RUNNER_TEMP/tip-nftables-source"
+          printf '%s\n' "$pin_source" >"$RUNNER_TEMP/pin-nftables-source"
           {
             echo "locked_rev=$locked_rev"
-            echo "tip_rev=$tip_rev"
+            echo "checker_version=$checker_version"
+            echo "pin_rev=$pin_rev"
             echo "locked_version=$locked_version"
-            echo "tip_version=$tip_version"
+            echo "pin_version=$pin_version"
             echo "locked_hash=$locked_hash"
-            echo "tip_hash=$tip_hash"
+            echo "pin_hash=$pin_hash"
           } >>"$GITHUB_OUTPUT"
 
-          if [ "$locked_hash" = "$tip_hash" ]; then
+          if [ "$locked_hash" = "$pin_hash" ]; then
             echo "drift=false" >>"$GITHUB_OUTPUT"
-            echo "No nftables source drift for ${{ matrix.branch }}: $locked_version ($locked_hash)."
+            echo "No nftables source drift for the ${{ matrix.label }} pin: $locked_version ($locked_hash)."
           else
             echo "drift=true" >>"$GITHUB_OUTPUT"
-            echo "nftables source drift for ${{ matrix.branch }}: $locked_version ($locked_hash) -> $tip_version ($tip_hash)."
+            echo "nftables source drift for the ${{ matrix.label }} pin: $locked_version ($locked_hash) -> $pin_version ($pin_hash)."
           fi
 
           {
             echo "### ${{ matrix.label }} nftables source comparison"
             echo
+            echo "Pins from nixos-project-policy $checker_version."
+            echo
             echo "| | nixpkgs revision | nftables | patched-source SHA-256 |"
             echo "|---|---|---|---|"
             echo "| locked | \`${locked_rev:0:12}\` | \`$locked_version\` | \`${locked_hash:0:16}…\` |"
-            echo "| tip | \`${tip_rev:0:12}\` | \`$tip_version\` | \`${tip_hash:0:16}…\` |"
+            echo "| ${{ matrix.label }} pin | \`${pin_rev:0:12}\` | \`$pin_version\` | \`${pin_hash:0:16}…\` |"
           } >>"$GITHUB_STEP_SUMMARY"
 
       - name: Close resolved drift issues
@@ -100,7 +100,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           LOCKED_HASH: ${{ steps.source.outputs.locked_hash }}
-          TIP_HASH: ${{ steps.source.outputs.tip_hash }}
+          PIN_HASH: ${{ steps.source.outputs.pin_hash }}
         run: |
           set -euo pipefail
           label=nixpkgs-nftables-drift
@@ -122,7 +122,7 @@ jobs:
 
           while IFS= read -r issue; do
             gh issue close "$issue" --reason completed --comment \
-              "Resolved: the locked and branch-tip patched nftables sources now match at ${TIP_HASH:0:12} (locked ${LOCKED_HASH:0:12})."
+              "Resolved: the locked and ${{ matrix.label }} pin patched nftables sources now match at ${PIN_HASH:0:12} (locked ${LOCKED_HASH:0:12})."
           done <<<"$issues"
 
       - name: Diff schema-relevant source files
@@ -131,7 +131,7 @@ jobs:
         run: |
           set -euo pipefail
           locked_source=$(<"$RUNNER_TEMP/locked-nftables-source")
-          tip_source=$(<"$RUNNER_TEMP/tip-nftables-source")
+          pin_source=$(<"$RUNNER_TEMP/pin-nftables-source")
           files=(
             src/parser_json.c
             src/json.c
@@ -145,12 +145,12 @@ jobs:
           : >parser.diff
           for file in "${files[@]}"; do
             locked_file="$locked_source/$file"
-            tip_file="$tip_source/$file"
+            pin_file="$pin_source/$file"
             [ -e "$locked_file" ] || locked_file=/dev/null
-            [ -e "$tip_file" ] || tip_file=/dev/null
+            [ -e "$pin_file" ] || pin_file=/dev/null
             if diff -u \
               --label "locked/$file" "$locked_file" \
-              --label "tip/$file" "$tip_file" >>parser.diff; then
+              --label "pin/$file" "$pin_file" >>parser.diff; then
               :
             else
               status=$?
@@ -179,12 +179,12 @@ jobs:
             cat >drift-report.md <<EOF
           # nixpkgs nftables source drift detected
 
-          Branch: \`${{ matrix.branch }}\`
+          Pin: ${{ matrix.label }}, from nixos-project-policy \`${{ steps.source.outputs.checker_version }}\`
 
           - Locked nixpkgs: \`${{ steps.source.outputs.locked_rev }}\`
-          - Branch tip: \`${{ steps.source.outputs.tip_rev }}\`
-          - nftables: \`${{ steps.source.outputs.locked_version }}\` → \`${{ steps.source.outputs.tip_version }}\`
-          - Patched source: \`${{ steps.source.outputs.locked_hash }}\` → \`${{ steps.source.outputs.tip_hash }}\`
+          - Pinned nixpkgs: \`${{ steps.source.outputs.pin_rev }}\`
+          - nftables: \`${{ steps.source.outputs.locked_version }}\` → \`${{ steps.source.outputs.pin_version }}\`
+          - Patched source: \`${{ steps.source.outputs.locked_hash }}\` → \`${{ steps.source.outputs.pin_hash }}\`
 
           $reason The schema-relevant source diff is attached to the workflow run.
           EOF
@@ -197,7 +197,7 @@ jobs:
             --schema-dir lib/schema \
             --spec-coverage docs/spec-coverage.md \
             --old-source "nixpkgs:${{ steps.source.outputs.locked_hash }}" \
-            --new-source "${{ matrix.branch }}:${{ steps.source.outputs.tip_hash }}" \
+            --new-source "${{ matrix.label }} pin:${{ steps.source.outputs.pin_hash }}" \
             --out drift-report.md; then
             write_basic_report "AI triage failed; the deterministic source comparison remains authoritative."
           fi
@@ -206,96 +206,32 @@ jobs:
         if: steps.source.outputs.drift == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          TIP_HASH: ${{ steps.source.outputs.tip_hash }}
+          PIN_HASH: ${{ steps.source.outputs.pin_hash }}
         run: |
           set -euo pipefail
           title_prefix="nixpkgs nftables drift (${{ matrix.label }}): "
-          title="$title_prefix${TIP_HASH:0:12}"
+          title="$title_prefix${PIN_HASH:0:12}"
           gh label create nixpkgs-nftables-drift --color FBCA04 \
-            --description "A nixpkgs branch carries nftables source different from the lock" 2>/dev/null || true
+            --description "A policy pin carries nftables source different from the lock" 2>/dev/null || true
           open_issues=$(gh issue list --state open --label nixpkgs-nftables-drift \
             --limit 100 --json number,title)
           current=$(jq -r --arg title "$title" \
             '[.[] | select(.title == $title)][0].number // empty' <<<"$open_issues")
           if [ -n "$current" ]; then
-            echo "Issue #$current already tracks $TIP_HASH; appending a fresh report."
+            echo "Issue #$current already tracks $PIN_HASH; appending a fresh report."
             gh issue comment "$current" --body-file drift-report.md
           else
             url=$(gh issue create --title "$title" --label nixpkgs-nftables-drift --body-file drift-report.md)
             current=${url##*/}
           fi
 
-          # The newest tip supersedes older drift issues for this branch.
+          # The current pin supersedes older drift issues for this label.
           superseded=$(jq -r --arg prefix "$title_prefix" --arg title "$title" \
             '.[] | select((.title | startswith($prefix)) and .title != $title) | .number' \
             <<<"$open_issues")
           while IFS= read -r issue; do
             [ -n "$issue" ] || continue
             gh issue close "$issue" --reason "not planned" --comment \
-              "Superseded by #$current: the ${{ matrix.label }} branch tip now carries patched source ${TIP_HASH:0:12}."
+              "Superseded by #$current: the ${{ matrix.label }} pin now carries patched source ${PIN_HASH:0:12}."
           done <<<"$superseded"
 
-  canary:
-    strategy:
-      fail-fast: false # let each branch report independently
-      matrix:
-        include:
-          # The stable branch is the branch of `inputs.nixpkgs.url` in flake.nix.
-          - branch: nixos-26.05
-            label: stable
-          - branch: nixos-unstable
-            label: unstable
-    runs-on: ubuntu-latest
-    continue-on-error: true # non-gating: a red canary is a signal, not a failure
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1; upstream Nix
-        with:
-          enable_kvm: true # the live-parser tests run in a NixOS VM
-      # Resolve the branch once, then override with that immutable revision so
-      # every evaluation in this job sees exactly the same package set.
-      - name: Compatibility suite vs latest ${{ matrix.branch }} nftables
-        shell: bash
-        run: |
-          set -euo pipefail
-          locked_rev=$(jq -er '.nodes.nixpkgs.locked.rev' flake.lock)
-          tip_rev=$(nix flake metadata --json "github:NixOS/nixpkgs/${{ matrix.branch }}" | jq -er .revision)
-          tip_uri="github:NixOS/nixpkgs/$tip_rev"
-
-          {
-            echo "### ${{ matrix.label }} branch-tip compatibility"
-            echo
-            echo "nixpkgs revision: \`$tip_rev\`."
-          } >>"$GITHUB_STEP_SUMMARY"
-
-          source_ref=.#packages.x86_64-linux.nftables-source
-          locked_version=$(nix eval --raw "$source_ref.version")
-          tip_version=$(nix eval --raw \
-            --override-input nixpkgs "$tip_uri" \
-            "$source_ref.version")
-
-          echo "Overriding nixpkgs from ${locked_rev:0:12} to ${{ matrix.branch }} at ${tip_rev:0:12}."
-          echo "nftables package version: $locked_version -> $tip_version"
-          echo "nftables version: \`$tip_version\`." >>"$GITHUB_STEP_SUMMARY"
-
-          checks=(
-            integration-tests
-            text-integration-tests
-            text-block-integration-tests
-            render-equivalence-tests
-            nftables-roundtrip-tests
-            nftables-source-provenance-tests
-            nftables-corpus-tests
-            nftables-enum-extraction-tests
-            nftables-tooling-selftests
-          )
-          targets=()
-          for check in "${checks[@]}"; do
-            targets+=(".#checks.x86_64-linux.${check}")
-          done
-
-          nix build -L \
-            --override-input nixpkgs "$tip_uri" \
-            "${targets[@]}"
-
-          echo "Passed ${#targets[@]} nftables-facing tests." >>"$GITHUB_STEP_SUMMARY"

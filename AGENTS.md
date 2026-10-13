@@ -19,7 +19,7 @@ nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs locked
 nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs locked --vm
 ```
 
-`test` also accepts `--nixpkgs stable` and `--nixpkgs unstable`; with `--vm` it builds only the VM tests, and skips them on a host without KVM. `docs/upstream-sync.md` describes the test matrix and the weekly canary. For ad-hoc parser checks, `nix develop .#review` supplies just nftables and util-linux; review sandboxes run commands through `tooling/review-env.sh`, described in `.greptile/rules.md`.
+`test` also accepts `--nixpkgs stable` and `--nixpkgs unstable`; with `--vm` it builds only the VM tests, and skips them on a host without KVM. `docs/upstream-sync.md` describes the test matrix and the weekly policy-pin source watch. For ad-hoc parser checks, `nix develop .#review` supplies just nftables and util-linux; review sandboxes run commands through `tooling/review-env.sh`, described in `.greptile/rules.md`.
 
 ## Agent skills
 

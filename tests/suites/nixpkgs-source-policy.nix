@@ -2,23 +2,27 @@
 
 # Static regression guard for the nixpkgs-authority design. The project must
 # not grow a second nixpkgs input or an independently pinned Netfilter
-# source, or reintroduce a direct upstream Git dependency in the scheduled
-# workflow.
+# source, or reintroduce a direct upstream Git dependency or its own nixpkgs
+# revision resolution in the scheduled workflow, which reads the policy pins.
 let
   # `hasInfix` matches `.*infix.*` against the whole text, which
   # overflows nix-unit's stack on files this long; splitting does not.
   hasInfix = infix: text: builtins.length (lib.splitString infix text) > 1;
   flakeText = helpers.readProjectFile "flake.nix";
-  # The branch of the `nixpkgs` input, which the stable matrix entries track.
-  stableBranch = lib.pipe flakeText [
+  sourcePackageText = helpers.readProjectFile "packages/nftables-source/package.nix";
+  workflowText = helpers.readProjectFile ".github/workflows/upstream-sync.yml";
+  checkWorkflowText = helpers.readProjectFile ".github/workflows/check.yml";
+  docsText = helpers.readProjectFile "docs/upstream-sync.md";
+  # The policy series that check.yml calls, such as `v0.6`; the scheduled
+  # workflow reads the pins from the same series.
+  policySeries = lib.pipe checkWorkflowText [
     (lib.splitString "\n")
-    (map (builtins.match "[[:space:]]*nixpkgs\\.url = \"github:NixOS/nixpkgs/([^\"]+)\";"))
+    (map (
+      builtins.match "[[:space:]]*uses: petohorvath/nixos-project-policy/\\.github/workflows/check\\.yml@([^[:space:]]+).*"
+    ))
     (lib.findFirst (match: match != null) [ null ])
     builtins.head
   ];
-  sourcePackageText = helpers.readProjectFile "packages/nftables-source/package.nix";
-  workflowText = helpers.readProjectFile ".github/workflows/upstream-sync.yml";
-  docsText = helpers.readProjectFile "docs/upstream-sync.md";
   # check.yml calls the policy through its moving minor-series tag, as the
   # policy requires, so only the scheduled workflow pins actions.
   actionUseLines = builtins.filter (line: hasInfix "uses:" line) (lib.splitString "\n" workflowText);
@@ -30,38 +34,6 @@ let
     builtins.length parts == 2
     && builtins.match "[0-9a-f]{40}([[:space:]]+#.*)?[[:space:]]*" (lib.last parts) != null;
   unpinnedActionUseLines = builtins.filter (line: !actionUseIsPinned line) actionUseLines;
-  # The checks the canary builds.
-  canaryTargets = [
-    "integration-tests"
-    "text-integration-tests"
-    "text-block-integration-tests"
-    "render-equivalence-tests"
-    "nftables-roundtrip-tests"
-    "nftables-source-provenance-tests"
-    "nftables-corpus-tests"
-    "nftables-enum-extraction-tests"
-    "nftables-tooling-selftests"
-  ];
-  canaryScript = lib.last (lib.splitString "Compatibility suite vs latest" workflowText);
-  canaryEvaluationMarker = "          locked_version=$(nix eval --raw";
-  canaryPreEvaluation = builtins.head (lib.splitString canaryEvaluationMarker canaryScript);
-  # The workflow's jobs, split at the canary job's key. Each job's matrix
-  # must list each branch exactly once.
-  workflowJobs =
-    let
-      parts = lib.splitString "\n  canary:\n" workflowText;
-    in
-    {
-      nixpkgs-source-watch = builtins.head parts;
-      canary = lib.last parts;
-    };
-  matrixEntries =
-    jobText: branch: builtins.length (lib.splitString "- branch: ${branch}\n" jobText) - 1;
-  everyMatrixListsOnce =
-    branch:
-    builtins.length (lib.splitString "\n  canary:\n" workflowText) == 2
-    && lib.all (jobText: matrixEntries jobText branch == 1) (builtins.attrValues workflowJobs);
-  canaryRevisionEcho = ''echo "nixpkgs revision: \`$tip_rev\`."'';
 
   forbidden = [
     {
@@ -105,6 +77,11 @@ let
       present = hasInfix "nix flake lock --update-input" docsText;
     }
     {
+      name = "nixpkgs branch-tip resolution in the scheduled workflow";
+      present =
+        hasInfix "nix flake metadata" workflowText || hasInfix "github:NixOS/nixpkgs/nixos-" workflowText;
+    }
+    {
       name = "mutable GitHub Action references: ${lib.concatStringsSep " | " unpinnedActionUseLines}";
       present = unpinnedActionUseLines != [ ];
     }
@@ -116,24 +93,23 @@ let
       present = hasInfix "applyPatches" sourcePackageText;
     }
     {
-      name = "floating branch-tip override";
-      present = hasInfix "--override-input" workflowText;
-    }
-    {
       name = "content-based source comparison";
       present = hasInfix "nix hash path" workflowText;
     }
     {
-      name = "single nixpkgs branch-tip override";
-      present = hasInfix "--override-input nixpkgs \"$tip_uri\"" workflowText;
+      name = "single nixpkgs policy-pin override";
+      present = hasInfix "--override-input nixpkgs \"$pin_uri\"" workflowText;
     }
     {
-      name = "stable branch matches the nixpkgs input";
-      present = stableBranch != null && everyMatrixListsOnce stableBranch;
+      name = "pins read from the policy series that check.yml calls";
+      present =
+        policySeries != null
+        && hasInfix "POLICY: github:petohorvath/nixos-project-policy/${policySeries}\n" workflowText
+        && hasInfix "nix run \"$POLICY\" -- validate" workflowText;
     }
     {
-      name = "unstable branch";
-      present = everyMatrixListsOnce "nixos-unstable";
+      name = "stable and unstable pins";
+      present = hasInfix "label: [stable, unstable]\n" workflowText;
     }
     {
       name = "resolved-drift close condition";
@@ -147,12 +123,7 @@ let
       name = "superseded drift issue closure";
       present =
         hasInfix "Superseded by #" workflowText
-        && hasInfix "closes older open drift issues for the same branch" docsText;
-    }
-    {
-      name = "full branch-tip revision recorded before canary evaluation";
-      present =
-        hasInfix canaryEvaluationMarker canaryScript && hasInfix canaryRevisionEcho canaryPreEvaluation;
+        && hasInfix "closes older open drift issues for the same pin" docsText;
     }
     {
       name = "full-source hash distinguished from selected-file diagnostic";
@@ -161,22 +132,10 @@ let
         && hasInfix "`parser.diff` is a selected-file diagnostic" docsText;
     }
     {
-      name = "canary reproduction overrides nixpkgs";
-      present =
-        hasInfix "revision=FULL_REVISION_FROM_SUMMARY\n" docsText
-        && hasInfix "--override-input nixpkgs \"github:NixOS/nixpkgs/$revision\"" docsText;
-    }
-    {
       name = "current single-input update command";
       present = hasInfix "nix flake update nixpkgs\n" docsText;
     }
-  ]
-  ++ map (name: {
-    name = "documented canary target ${name}";
-    present =
-      hasInfix ("            " + name) canaryScript
-      && hasInfix "\".#checks.x86_64-linux.${name}\"" docsText;
-  }) canaryTargets;
+  ];
 
   namesWhere = predicate: entries: map (entry: entry.name) (builtins.filter predicate entries);
 in
