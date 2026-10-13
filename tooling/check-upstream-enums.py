@@ -38,8 +38,8 @@ longer matches reads as "no drift").
 Only a *subset* of the schema's enums are source-table-backed and therefore
 checkable here; the rest are parsed via `strcmp` ladders or live in other
 files. The uncovered enums are listed explicitly in the report (no silent
-caps) — they are the corpus check's and the drift review's job, not this
-script's.
+caps) — they are the corpus check's job and the Drift issue reviewer's,
+not this script's.
 """
 
 import json
