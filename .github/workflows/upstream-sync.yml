@@ -167,16 +167,12 @@ jobs:
           path: parser.diff
           if-no-files-found: error
 
-      - name: AI-assisted drift triage
+      - name: Write drift report
         if: steps.source.outputs.drift == 'true'
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
-          write_basic_report() {
-            local reason=$1
-            cat >drift-report.md <<EOF
+          cat >drift-report.md <<EOF
           # nixpkgs nftables source drift detected
 
           Pin: ${{ matrix.label }}, from nixos-project-policy \`${{ steps.source.outputs.checker_version }}\`
@@ -186,21 +182,8 @@ jobs:
           - nftables: \`${{ steps.source.outputs.locked_version }}\` → \`${{ steps.source.outputs.pin_version }}\`
           - Patched source: \`${{ steps.source.outputs.locked_hash }}\` → \`${{ steps.source.outputs.pin_hash }}\`
 
-          $reason The schema-relevant source diff is attached to the workflow run.
+          The schema-relevant source diff is attached to the workflow run.
           EOF
-          }
-
-          if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-            write_basic_report "AI triage was skipped because no \`ANTHROPIC_API_KEY\` secret is configured."
-          elif ! bash tooling/drift-triage.sh \
-            --diff parser.diff \
-            --schema-dir lib/schema \
-            --spec-coverage docs/spec-coverage.md \
-            --old-source "nixpkgs:${{ steps.source.outputs.locked_hash }}" \
-            --new-source "${{ matrix.label }} pin:${{ steps.source.outputs.pin_hash }}" \
-            --out drift-report.md; then
-            write_basic_report "AI triage failed; the deterministic source comparison remains authoritative."
-          fi
 
       - name: File or update drift issue
         if: steps.source.outputs.drift == 'true'

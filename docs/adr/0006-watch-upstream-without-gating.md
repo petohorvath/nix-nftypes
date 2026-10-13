@@ -8,7 +8,6 @@ Merges are gated only by deterministic checks, run with the locked `nixpkgs` and
 
 ## Consequences
 
-- Optional AI triage only drafts prose for the drift issue; a missing or failed triage never changes the deterministic result.
 - The unstable pin usually carries a newer nftables than the stable lock, so its drift issue normally stays open until a lock update catches up.
 - Drift appears after the policy releases a pin bump, not when a branch moves.
 

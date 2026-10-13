@@ -9,9 +9,9 @@ source tree and diffs them against this library's schema: the
 primitive enums (`nftlib.enums`) and the statement/expression tag unions
 (the `attrTag` sets behind `types.statement` / `types.taggedExpression`).
 
-This is the belt-and-suspenders complement to the AI watcher: where the AI
-reads unstructured `strcmp` ladders, this script reads the well-formed C
-tables with zero AI and zero false positives. It catches the historical
+Unstructured `strcmp` ladders are left to the corpus check and to the
+maintainer reviewing a drift issue's source diff; this script reads the
+well-formed C tables with zero false positives. It catches the historical
 drift class recorded in docs/spec-coverage.md (G1 `rt key ipsec`, G3
 `fib result check`), the highest-churn enum (`metaKey`), and — via the
 dispatch tables — the "upstream added a whole new statement/expression
@@ -38,7 +38,7 @@ longer matches reads as "no drift").
 Only a *subset* of the schema's enums are source-table-backed and therefore
 checkable here; the rest are parsed via `strcmp` ladders or live in other
 files. The uncovered enums are listed explicitly in the report (no silent
-caps) — they are the corpus check's and the AI watcher's job, not this
+caps) — they are the corpus check's and the drift review's job, not this
 script's.
 """
 
