@@ -176,10 +176,6 @@ patched-source NAR hashes are authoritative for whether drift exists.
 `parser.diff` is a selected-file diagnostic: it can be incomplete or empty when
 the changed source lies outside the fixed review list.
 
-If `ANTHROPIC_API_KEY` is configured, `tooling/drift-triage.sh` can add a prose
-summary. Missing or failed AI triage falls back to a basic report and never
-changes the deterministic result.
-
 ### Tests with new pins
 
 The workflow runs no tests. The policy lists this repository in its
