@@ -36,7 +36,7 @@ Run every `nft` invocation inside `unshare -rn`, including `nft -c`: the parser
 consults kernel state, and mutating commands must stay in a private namespace.
 `nix flake check -L` runs the checks with the locked `nixpkgs`; CI also runs
 them with the policy's stable and unstable pins and builds the VM tests (see
-the README's Verification section).
+the README's Development section).
 
 Success means the namespace/parser probe and the requested test commands
 actually exited zero. Exit 125 from the wrapper means environment setup is
