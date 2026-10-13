@@ -8,7 +8,7 @@ Because a raw attrset can reach the text renderer unvalidated, the text renderer
 
 ## Evidence
 
-- `README.md` "Validate hand-written rulesets": "The renderers do not validate: they serialize whatever they receive."
+- `README.md` "Validate hand-written rulesets": "The renderers do not validate: they clean and render whatever they receive."
 - `docs/api.md` "Validation model" names three distinct operations (schema validation, DSL construction, rendering) and ends "Cleaning is not validation."
 - `docs/dsl-coverage.md` "Validation boundaries": "A raw attrset remains the escape hatch for parser-valid shapes outside the model."
 - The comment above `toJson` in `lib/default.nix`; the wording was settled in `a2fd1fd`.

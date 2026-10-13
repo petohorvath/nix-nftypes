@@ -14,20 +14,10 @@ JSON is the compatibility target. The text renderers cover the common path and h
 
 ## Install
 
-Add the flake as an input; `lib` is system-independent:
+Add the flake as an input and take the library from its system-independent `lib` output:
 
 ```nix
-{
-  inputs.nix-nftypes.url = "github:petohorvath/nix-nftypes";
-
-  outputs = { nix-nftypes, ... }:
-    let
-      nftlib = nix-nftypes.lib;
-    in
-    {
-      # ...
-    };
-}
+inputs.nix-nftypes.url = "github:petohorvath/nix-nftypes";
 ```
 
 ## Usage
@@ -43,8 +33,8 @@ This flake renders a ruleset with one input chain as nftables text:
     let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       nftlib = nix-nftypes.lib;
-      inherit (nftlib.dsl) ruleset flush table eq inSet accept;
-      inherit (nftlib.dsl.fields) tcp ct;
+      inherit (nftlib.dsl) accept eq flush inSet ruleset table;
+      inherit (nftlib.dsl.fields) ct tcp;
     in
     {
       packages.x86_64-linux.rules = pkgs.writeText "rules.nft" (
@@ -85,8 +75,21 @@ Load the text with `sudo nft -f result`. To produce libnftables JSON, the compat
 The [`examples`](examples) directory holds longer rulesets, each a function of `nftlib`:
 
 - [`basic-firewall-dsl.nix`](examples/basic-firewall-dsl.nix): a small firewall with sets, maps, NAT, logging, and rate limits.
-- [`basic-firewall.nix`](examples/basic-firewall.nix): the same firewall written as raw attrsets.
+- [`basic-firewall.nix`](examples/basic-firewall.nix): a similar firewall written as raw attrsets.
 - [`home-router-dsl.nix`](examples/home-router-dsl.nix): a broader showcase of the DSL.
+
+## Choose a renderer
+
+| Renderer | Output | Consumer |
+| --- | --- | --- |
+| `toJson` | compact libnftables JSON | `nft -j -f` |
+| `toText` | compact imperative nftables text | `nft -f` |
+| `toTextPretty` | multi-line imperative nftables text | `nft -f` |
+| `toTextBlock` | compact block form of one table | a host that supplies the `table { … }` wrapper |
+| `toTextBlockPretty` | multi-line block form of one table | a host that supplies the `table { … }` wrapper |
+| `toNix` | Nix syntax for inspection | people, not `nft` |
+
+[`docs/api.md`](docs/api.md) documents every renderer, the schema types, the DSL, and the compatibility helpers. [`GLOSSARY.md`](GLOSSARY.md) defines the project's terms.
 
 ## Embed a table in NixOS
 
@@ -116,39 +119,9 @@ Block form has no standalone `element` command, so it rejects a table tree with 
 
 ## Validate hand-written rulesets
 
-The DSL validates every object, chain, and rule it assembles when output is requested. The renderers do not validate: they serialize whatever they receive. A raw attrset, whether rendered directly or passed among the commands of `dsl.ruleset`, reaches the output unchecked.
+The DSL validates every object, chain, and rule it assembles when output is requested. The renderers do not validate: they clean and render whatever they receive. A raw attrset, whether rendered directly or passed among the commands of `dsl.ruleset`, reaches the output unchecked.
 
 Validate raw values that come from users or other modules by declaring an option of type `nftlib.types.ruleset` and evaluating it with `lib.evalModules`. [`docs/api.md`](docs/api.md#validation-model) shows the full pattern.
-
-## API
-
-| Namespace | Purpose |
-| --- | --- |
-| `nftlib.types` | schema types, including restricted types such as `statementOf` |
-| `nftlib.enums` | primitive enum values as lists |
-| `nftlib.dsl` | fields, operators, statements, table trees, and command builders |
-| `nftlib.compatibility` | family, hook, chain-type, and priority reference tables |
-| `resolvePriority`, `priorityNameOf` | family-aware conversion between symbolic and integer priorities |
-| `chainTypeFor` | the project's chain-type classification for a family, hook, and priority |
-| `validChainPlacement` | static check of a family, chain type, and hook |
-| `cleanValue` | removes module markers and unset nullable fields before rendering |
-
-| Renderer | Output | Consumer |
-| --- | --- | --- |
-| `toJson` | compact libnftables JSON | `nft -j -f` |
-| `toText` | compact imperative nftables text | `nft -f` |
-| `toTextPretty` | multi-line imperative nftables text | `nft -f` |
-| `toTextBlock` | compact block form of one table | a host that supplies the `table { … }` wrapper |
-| `toTextBlockPretty` | multi-line block form of one table | a host that supplies the `table { … }` wrapper |
-| `toNix` | Nix syntax for inspection | people, not `nft` |
-
-[`docs/api.md`](docs/api.md) documents each function, the table tree, and the command builders. [`GLOSSARY.md`](GLOSSARY.md) defines the project's terms.
-
-## Limitations
-
-- The schema follows the patched nftables that nixpkgs ships on its stable and unstable branches, not upstream nftables. It has known differences from that parser, such as parser conditions left to `nft` and command selectors it does not model; [`docs/spec-coverage.md`](docs/spec-coverage.md) lists them, and [`docs/dsl-coverage.md`](docs/dsl-coverage.md) lists what the DSL reaches.
-- Text output cannot represent every value that JSON can, and some cases depend on the environment; [`docs/text-coverage.md`](docs/text-coverage.md) records the evidence and gaps.
-- The compatibility helpers check only static family, chain-type, hook, and priority tables. They do not inspect kernel versions, modules, devices, or runtime state.
 
 ## Development
 
@@ -163,7 +136,7 @@ The development shell, loaded by `nix develop` or by direnv through `.envrc`, su
 
 Checks and VM tests exist for `x86_64-linux` and `aarch64-linux`. Run each system on a native builder: the tests run that system's `nft`, so `nix flake check --all-systems` does not verify another architecture.
 
-CI runs the shared [project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md) from [`check.yml`](.github/workflows/check.yml). It runs `nix flake check` on both systems with the locked `nixpkgs` and with the policy's stable and unstable pins, and builds the VM tests on `x86_64-linux`. Run the same steps locally:
+CI runs the shared [project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md) from [`check.yml`](.github/workflows/check.yml). It runs `nix flake check` on both systems with the locked `nixpkgs` and with the policy's stable and unstable pins, and builds the VM tests on `x86_64-linux`. A pull request merges only after the policy statuses pass. Run the same steps locally:
 
 ```console
 nix run github:petohorvath/nixos-project-policy/v0.5 -- check .
@@ -171,7 +144,13 @@ nix run github:petohorvath/nixos-project-policy/v0.5 -- test . --nixpkgs locked
 nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
 ```
 
-[`docs/upstream-sync.md`](docs/upstream-sync.md) describes the test matrix and the weekly canary against the tips of the nixpkgs branches. Review sandboxes can run commands through `tooling/review-env.sh`, described in [`.greptile/rules.md`](.greptile/rules.md).
+[`docs/upstream-sync.md`](docs/upstream-sync.md) describes the test matrix and the weekly canary against the tips of the nixpkgs branches. For ad-hoc parser checks, `nix develop .#review` supplies just nftables and util-linux, for `nft` and `unshare`, from the locked `nixpkgs`. Review sandboxes can run commands through `tooling/review-env.sh`, described in [`.greptile/rules.md`](.greptile/rules.md).
+
+## Limitations
+
+- The schema follows the patched nftables that nixpkgs ships on its stable and unstable branches, not upstream nftables. It has known differences from that parser, such as parser conditions left to `nft` and command selectors it does not model; [`docs/spec-coverage.md`](docs/spec-coverage.md) lists them, and [`docs/dsl-coverage.md`](docs/dsl-coverage.md) lists what the DSL reaches.
+- Text output cannot represent every value that JSON can, and some cases depend on the environment; [`docs/text-coverage.md`](docs/text-coverage.md) records the evidence and gaps.
+- The compatibility helpers, such as `validChainPlacement`, check only static family, chain-type, hook, and priority tables. They do not inspect kernel versions, modules, devices, or runtime state.
 
 ## License
 
