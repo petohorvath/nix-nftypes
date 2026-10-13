@@ -111,19 +111,16 @@ A named category of corpus statements that the schema knowingly rejects, recorde
 _Avoid_: named pattern, known gap
 
 **Drift**:
-A difference between the Authority and the model, or between the locked and branch-tip patched source, that no Known difference accounts for yet.
+A difference between the Authority and the model, or between the locked and pinned patched source, that no Known difference accounts for yet.
 
-**Branch tip**:
-The newest revision of a tracked nixpkgs branch, resolved once to an immutable revision for one run.
+**Pin**:
+The stable or unstable nixpkgs revision that a project policy release approves; the policy tests every change with both, and tests proposed pins before releasing them.
 
 **Source watch**:
-The weekly job that compares each branch tip's patched source with the locked one and keeps a Drift issue open while they differ.
+The weekly job that compares each Pin's patched source with the locked one and keeps a Drift issue open while they differ.
 
 **Drift issue**:
-The issue the Source watch keeps open for a branch while that branch tip's patched source differs from the lock; each branch has at most one.
-
-**Canary**:
-The weekly, non-gating run of the nftables-facing tests against each branch tip.
+The issue the Source watch keeps open for a Pin while its patched source differs from the lock; each Pin has at most one.
 
 **Read-back**:
 The JSON that `nft` emits when it lists loaded state, which the schema must also accept.

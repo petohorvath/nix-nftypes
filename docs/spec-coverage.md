@@ -155,8 +155,8 @@ passed through. See [`api.md`](api.md) for an explicit `evalModules` example.
 
 All package-set-dependent checks are instantiated from `nixpkgs` on each Linux
 check system. CI runs the checks, including the VM tests, with the locked
-input and with the policy's stable and unstable pins; the weekly canary also
-runs the VM tests against both branch tips.
+input and with the policy's stable and unstable pins; the policy's Pin-bump
+tests also run them with proposed pins before their release.
 
 ## Updating the schema
 

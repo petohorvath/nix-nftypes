@@ -139,33 +139,37 @@ the package set's NixOS VM.
 Named exclusions and text-only limits are documented in
 [`text-coverage.md`](text-coverage.md).
 
-## Weekly branch-tip workflow
+## Weekly policy-pin workflow
 
 [`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml)
-runs Mondays at 06:00 UTC and on manual dispatch. Each job runs once for the
-stable branch that `nixpkgs` locks (`nixos-26.05`) and once for
-`nixos-unstable`, independently, overriding `nixpkgs` with that branch's tip.
+runs Mondays at 06:00 UTC and on manual dispatch. It reads the stable and
+unstable pins from the `validate` report of the checker in the policy series
+that `check.yml` calls (`v0.6`), and runs once per pin, overriding `nixpkgs`
+with that pin. It resolves no nixpkgs branch itself, so the source watch and
+the policy's test runs see the same revisions.
 
 ### Patched-source watch
 
-For each branch, the job:
+For each pin, the job:
 
 1. reads the locked `nixpkgs` revision from `flake.lock`;
-2. resolves the branch tip once to an immutable nixpkgs revision;
-3. builds the locked patched source and, with `nixpkgs` overridden by the tip,
-   the tip patched source;
+2. reads the pin's nixpkgs revision from the policy checker;
+3. builds the locked patched source and, with `nixpkgs` overridden by the pin,
+   the pinned patched source;
 4. compares their NAR content hashes;
 5. when different, diffs parser/serializer/grammar/reference files and uploads
    `parser.diff`;
 6. files or updates a labelled GitHub issue, then
-   closes older open drift issues for the same branch, which the new tip
+   closes older open drift issues for the same pin, which the new pin
    supersedes;
-7. closes matching open drift issues when locked and tip sources match again.
+7. closes matching open drift issues when locked and pinned sources match
+   again.
 
-Unstable usually carries a newer nftables than the stable lock, so its issue
-stays open until a lock update brings the same source. A new tip hash files a
-new issue and closes the older one, so each branch keeps at most one open drift
-issue.
+The stable pin's issue signals that the lock is behind the stable pin. The
+unstable pin usually carries a newer nftables than the stable lock, so its
+issue stays open until a lock update brings the same source. When a pin bump
+changes the source, the job files a new issue and closes the older one, so
+each pin keeps at most one open drift issue.
 
 A hash difference is a review signal, not proof of incompatibility. The full
 patched-source NAR hashes are authoritative for whether drift exists.
@@ -176,27 +180,14 @@ If `ANTHROPIC_API_KEY` is configured, `tooling/drift-triage.sh` can add a prose
 summary. Missing or failed AI triage falls back to a basic report and never
 changes the deterministic result.
 
-### Canary checks
+### Tests with new pins
 
-A separate job overrides `nixpkgs` with the immutable tip revision and runs
-nine nftables-facing tests, five of them VM tests on a KVM-enabled runner:
-
-1. JSON integration;
-2. text integration;
-3. table-block integration;
-4. JSON/text equivalence;
-5. source provenance;
-6. upstream corpus;
-7. enum/tag extraction;
-8. read-back round trip;
-9. tooling self-tests.
-
-The job is `continue-on-error: true`: it is an early-warning signal, not a merge
-gate. It does not update `flake.lock`.
-
-The source-watch and canary jobs each resolve their own immutable tip. A branch
-can move between those resolutions, so compare the revisions shown in the job
-summaries when correlating results.
+The workflow runs no tests. The policy lists this repository in its
+`data/repos.json`, so its Pin-bump tests workflow runs `test` and `test --vm`
+with each proposed stable and unstable pin on both Linux systems before the
+pins are released. A failure there holds the pin bump until this repository
+is fixed. After the release, the `Policy / Tests` and `Policy / VM tests` jobs
+run every check with the new pins on each pull request.
 
 ## Interpreting failures
 
@@ -208,9 +199,9 @@ summaries when correlating results.
 | round trip red | a selected case failed to load or emitted an unmodelled command | inspect load logs and serializer output; do not reduce coverage silently |
 | JSON integration red | selected rendered JSON is rejected by the packaged parser | fix schema/DSL/renderer or narrow the claim with evidence |
 | text/equivalence red | selected native syntax is rejected or differs semantically | fix text rendering or add a narrowly justified named exclusion |
-| unstable-only red | the policy's unstable pin or the unstable canary failed while stable passed: likely future stable incompatibility | fix before updating the stable floor |
-| canary-only red | one of the nine selected tip-revision tests failed, or its job environment/tooling failed, while the locked checks remained green | reproduce at the reported immutable revision and inspect the failing check |
-| drift issue | patched source at the branch tip differs from the lock | review the artifact and canary before updating; an unstable issue tracks the next nftables |
+| unstable-only red | the policy's unstable pin failed while stable passed: likely future stable incompatibility | fix before updating the stable floor |
+| pin-bump red | the policy's Pin-bump tests failed for this repository with a proposed pin | reproduce with the proposed revision, fix here, then re-run the failed policy jobs |
+| drift issue | patched source at a policy pin differs from the lock | review the artifact before updating; an unstable issue tracks the next nftables |
 
 ## Updating inputs
 
@@ -230,9 +221,11 @@ nix run github:petohorvath/nixos-project-policy/v0.6 -- test . --nixpkgs unstabl
 `test --vm` builds the VM tests and skips them on a host without KVM.
 
 When a new NixOS release becomes stable, point `inputs.nixpkgs.url` in
-`flake.nix` at its branch before updating, and change the stable `branch` in
-both matrices of `upstream-sync.yml` to match; `unit-tests` fails until they
-agree.
+`flake.nix` at its branch before updating. The policy moves its stable pin to
+that release, so the stable drift issue stays open until the lock follows.
+
+When `check.yml` moves to a new policy series, change `POLICY` in
+`upstream-sync.yml` to the same series; `unit-tests` fails until they agree.
 
 The `flake-parts` input only assembles the flake outputs; its `nixpkgs-lib`
 input follows `nixpkgs`. Update it separately with
@@ -248,22 +241,12 @@ Before merging an input update:
 4. keep known differences in code and coverage docs synchronized;
 5. confirm that the policy's required statuses pass on the PR.
 
-To reproduce the complete canary for either branch, run all nine canary
-targets, replacing `FULL_REVISION_FROM_SUMMARY` with the 40-character revision
-printed in the job summary:
+To reproduce a Pin-bump tests failure, override `nixpkgs` with the proposed
+revision from the pin-bump pull request, replacing
+`FULL_REVISION_FROM_PULL_REQUEST` with its 40-character revision:
 
 ```console
-revision=FULL_REVISION_FROM_SUMMARY
+revision=FULL_REVISION_FROM_PULL_REQUEST
 
-nix build -L \
-    --override-input nixpkgs "github:NixOS/nixpkgs/$revision" \
-    ".#checks.x86_64-linux.integration-tests" \
-    ".#checks.x86_64-linux.text-integration-tests" \
-    ".#checks.x86_64-linux.text-block-integration-tests" \
-    ".#checks.x86_64-linux.render-equivalence-tests" \
-    ".#checks.x86_64-linux.nftables-roundtrip-tests" \
-    ".#checks.x86_64-linux.nftables-source-provenance-tests" \
-    ".#checks.x86_64-linux.nftables-corpus-tests" \
-    ".#checks.x86_64-linux.nftables-enum-extraction-tests" \
-    ".#checks.x86_64-linux.nftables-tooling-selftests"
+nix flake check -L --override-input nixpkgs "github:NixOS/nixpkgs/$revision"
 ```
