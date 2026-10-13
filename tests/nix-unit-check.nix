@@ -11,6 +11,8 @@
     nix-unit.
   - `summary`: a shell snippet that prints informational counts to the
     build log after the suites pass; `jq` is available.
+  - `requiredSystemFeatures`: system features the build needs, such as
+    those of the NixOS VM run whose output it reads.
 
   Returns the check derivation.
 */
@@ -21,6 +23,7 @@
   suites ? null,
   observationPaths ? { },
   summary ? "",
+  requiredSystemFeatures ? [ ],
 }:
 let
   inherit (pkgs) lib;
@@ -64,6 +67,7 @@ let
 in
 pkgs.runCommandLocal name
   {
+    inherit requiredSystemFeatures;
     nativeBuildInputs = [
       pkgs.jq
       pkgs.nix-unit

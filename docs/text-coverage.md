@@ -34,27 +34,23 @@ initial elements remain supported inside their set/map definitions.
 | --- | --- | --- |
 | `unit-tests`: text parity suite | expected strings for statements, expressions, objects, and commands | any mismatch fails |
 | `unit-tests`: schema/text drift assertions | every schema statement/expression/object tag has a renderer registration | missing registration fails |
-| `text-integration-tests` | the 3 text cases that render equivalence cannot load, through `nft -c -f` | any selected-case parse failure fails; render equivalence real-loads the other 7 text cases |
+| `text-integration-tests` | the 3 text cases that render equivalence cannot load, through `nft -c -f` | any selected-case parse failure fails; render equivalence real-loads the other 8 text cases |
 | `unit-tests`: block parity suite | 36 exact-output, structure, validation, ordering, and rejection assertions through the public table interface | any mismatch fails |
 | `text-block-integration-tests` | 6 table cases in compact and pretty form through `nft -c -f`, including chain/object references and inline/named limits | any parse failure fails |
-| `render-equivalence-tests` | 7 selected cases loaded through JSON and text in separate network namespaces, then compared using `nft list ruleset` | a load failure or output difference fails; 5 cases are excluded before execution |
+| `render-equivalence-tests` | 8 selected cases loaded through JSON and text in separate network namespaces, then compared using `nft list ruleset` | a load failure or output difference fails; 4 cases are excluded before execution |
 
 Each check uses the `nft` binary of the nixpkgs it evaluates: the locked input
 or one of the project policy's stable and unstable pins.
 
-The equivalence suite is strong evidence for its seven selected cases. It is not
+The equivalence suite is strong evidence for its eight selected cases. It is not
 a universal 1:1 guarantee for every schema value.
 
 ## Explicit integration exclusions
 
-`tests/fixtures/integration-cases.nix` excludes from both live text checks:
-
-1. `example-home-router-dsl`: its flowtable is named `offload` and a rule uses
-   `flow add @offload`. JSON accepts both, but the text grammar treats `offload`
-   as reserved in the flowtable-name and flowtable-reference positions.
-2. `add-rule-via-tree-and-standalone`: the text check resolves `handle 42`
-   against live kernel state and fails because that rule does not exist in the
-   isolated namespace. JSON check mode tolerates the dangling handle.
+`tests/fixtures/integration-cases.nix` excludes `example-home-router-dsl` from
+both live text checks: its flowtable is named `offload` and a rule uses
+`flow add @offload`. JSON accepts both, but the text grammar treats `offload` as
+reserved in the flowtable-name and flowtable-reference positions.
 
 Render equivalence additionally excludes:
 
