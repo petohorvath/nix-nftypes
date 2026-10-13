@@ -20,6 +20,8 @@ Add the flake as an input and take the library from its system-independent `lib`
 inputs.nix-nftypes.url = "github:petohorvath/nix-nftypes";
 ```
 
+To pin a release, append its tag to the URL: `github:petohorvath/nix-nftypes/v0.1.0`.
+
 ## Usage
 
 This flake renders a ruleset with one input chain as nftables text:
