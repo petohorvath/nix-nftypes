@@ -1,4 +1,4 @@
-# nix-nft-types
+# nix-nftypes
 
 Strict Nix types, an ergonomic DSL, and pure renderers for nftables rulesets, checked against the nftables that nixpkgs packages.
 

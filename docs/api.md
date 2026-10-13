@@ -3,7 +3,7 @@
 The flake exports a system-independent `lib`. Import it as:
 
 ```nix
-nftlib = inputs.nix-nft-types.lib;
+nftlib = inputs.nix-nftypes.lib;
 ```
 
 ## Validation model
