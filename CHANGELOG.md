@@ -22,3 +22,7 @@ The weekly upstream-sync workflow overrides `nixpkgs` with the tips of the `nixo
 
 - Model the named `ct count` object from nftables 1.1.7: `add`, `create`, `delete`, `destroy`, and `list` commands, `dsl.table` `ctCounts`, `dsl.create.ctCount` and the other command builders, and text rendering as `ct count NAME { over|until N; }`. `ct count` statements also accept a reference to the object, through `dsl.ctCount.ref`. nftables 1.1.6 and earlier reject both.
 - Accept a map expression as the named-object reference of the `counter`, `quota`, `limit`, `synproxy`, and `ct count` statements (`quota name tcp dport map { … }`), and render it as text. The corpus baseline drops its four `stmt-map` categories.
+
+### Changed
+
+- Prefix error messages with the project name, `nix-nftypes:`.

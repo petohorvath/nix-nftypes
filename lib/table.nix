@@ -48,7 +48,7 @@ let
     if conflicts == [ ] then
       validated
     else
-      throw "nix-nft-types: ${path} must match its table-tree scope ${builtins.toJSON scope.${key}}, got ${
+      throw "nix-nftypes: ${path} must match its table-tree scope ${builtins.toJSON scope.${key}}, got ${
         builtins.toJSON validated.${key}
       }";
 
@@ -113,7 +113,7 @@ let
           body
         else
           throw (
-            "nix-nft-types: dsl.table ${family}.${name} has unsupported key(s): "
+            "nix-nftypes: dsl.table ${family}.${name} has unsupported key(s): "
             + lib.concatStringsSep ", " unknownBodyKeys
           );
       tableOptions = builtins.intersectAttrs {
@@ -164,11 +164,11 @@ let
   renderTableBlock =
     pretty: node:
     if !(builtins.isAttrs node && (node.${markers.table} or false)) then
-      throw "nix-nft-types: block-form text rendering expects one dsl.table node"
+      throw "nix-nftypes: block-form text rendering expects one dsl.table node"
     else if
       node ? elements && !(builtins.isAttrs node.elements && sortedNames node.elements == [ ])
     then
-      throw "nix-nft-types: block-form text rendering cannot embed standalone table elements; put initial elements on the set/map definition or use an imperative renderer"
+      throw "nix-nftypes: block-form text rendering cannot embed standalone table elements; put initial elements on the set/map definition or use an imperative renderer"
     else
       let
         table = clean (prepareTable node);

@@ -1,5 +1,5 @@
 /*
-  nix-nft-types — strict NixOS-style schema for libnftables JSON values,
+  nix-nftypes — strict NixOS-style schema for libnftables JSON values,
   plus matching renderers and an ergonomic DSL.
 
   Outputs:

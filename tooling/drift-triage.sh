@@ -61,7 +61,7 @@ for f in primitives.nix statements.nix expressions.nix objects.nix commands.nix;
   fi
 done
 
-SYSTEM='You are a maintainer of nix-nft-types, a Nix library whose type schema
+SYSTEM='You are a maintainer of nix-nftypes, a Nix library whose type schema
 in lib/schema/ is hand-derived to be 1:1 with the nftables JSON parser
 (src/parser_json.c) plus its lookup tables in src/meta.c and src/rt.c. Each
 schema file cites the exact parser lines it mirrors. Your job is to triage a

@@ -123,34 +123,15 @@ The DSL validates every object, chain, and rule it assembles when output is requ
 
 Validate raw values that come from users or other modules by declaring an option of type `nftlib.types.ruleset` and evaluating it with `lib.evalModules`. [`docs/api.md`](docs/api.md#validation-model) shows the full pattern.
 
-## Development
-
-The development shell, loaded by `nix develop` or by direnv through `.envrc`, supplies Nix, nix-unit, the linters, and the parser tools.
-
-| Command | Runs |
-| --- | --- |
-| `nix-unit --flake .#tests` | the evaluation-only suites, for a fast loop |
-| `nix flake check -L` | every check, including `formatting`, with the locked `nixpkgs` |
-| `nix build -L .#legacyPackages.x86_64-linux.vmTests.<name>` | one live parser or renderer test in a NixOS VM; needs KVM |
-| `nix fmt` | the formatter |
-
-Checks and VM tests exist for `x86_64-linux` and `aarch64-linux`. Run each system on a native builder: the tests run that system's `nft`, so `nix flake check --all-systems` does not verify another architecture.
-
-CI runs the shared [project policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md) from [`check.yml`](.github/workflows/check.yml). It runs `nix flake check` on both systems with the locked `nixpkgs` and with the policy's stable and unstable pins, and builds the VM tests on `x86_64-linux`. A pull request merges only after the policy statuses pass. Run the same steps locally:
-
-```console
-nix run github:petohorvath/nixos-project-policy/v0.5 -- check .
-nix run github:petohorvath/nixos-project-policy/v0.5 -- test . --nixpkgs locked
-nix run github:petohorvath/nixos-project-policy/v0.5 -- vm .
-```
-
-[`docs/upstream-sync.md`](docs/upstream-sync.md) describes the test matrix and the weekly canary against the tips of the nixpkgs branches. For ad-hoc parser checks, `nix develop .#review` supplies just nftables and util-linux, for `nft` and `unshare`, from the locked `nixpkgs`. Review sandboxes can run commands through `tooling/review-env.sh`, described in [`.greptile/rules.md`](.greptile/rules.md).
-
 ## Limitations
 
 - The schema follows the patched nftables that nixpkgs ships on its stable and unstable branches, not upstream nftables. It has known differences from that parser, such as parser conditions left to `nft` and command selectors it does not model; [`docs/spec-coverage.md`](docs/spec-coverage.md) lists them, and [`docs/dsl-coverage.md`](docs/dsl-coverage.md) lists what the DSL reaches.
 - Text output cannot represent every value that JSON can, and some cases depend on the environment; [`docs/text-coverage.md`](docs/text-coverage.md) records the evidence and gaps.
 - The compatibility helpers, such as `validChainPlacement`, check only static family, chain-type, hook, and priority tables. They do not inspect kernel versions, modules, devices, or runtime state.
+
+## Contributing
+
+Report bugs and ask questions in [GitHub Issues](https://github.com/petohorvath/nix-nftypes/issues). [AGENTS.md](AGENTS.md) lists the required checks, and [`docs/upstream-sync.md`](docs/upstream-sync.md) describes the test matrix.
 
 ## License
 
