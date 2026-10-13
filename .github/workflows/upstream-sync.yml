@@ -4,14 +4,14 @@ name: Upstream sync
 # pins carry (docs/upstream-sync.md). The job reads the pins from the policy
 # checker that check.yml calls, overrides the single `nixpkgs` input with each
 # pin, and compares the locked input's fully patched nftables source tree with
-# the pin's. A content change produces a parser diff and a GitHub issue. All
-# source material comes through nixpkgs; there is no independent upstream Git
-# pin. The policy's Pin-bump tests run the checks with proposed pins before
-# their release, so this workflow runs no tests.
+# the pin's. While they differ, one GitHub issue per pin carries the current
+# report. All source material comes through nixpkgs; there is no independent
+# upstream Git pin. The policy's Pin-bump tests run the checks with proposed
+# pins before their release, so this workflow runs no tests.
 
 on:
   schedule:
-    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+    - cron: "0 9 * * *" # daily 09:00 UTC
   workflow_dispatch: {} # allow manual runs
 
 permissions:
@@ -64,8 +64,6 @@ jobs:
           locked_hash=$(nix hash path --type sha256 --base16 "$locked_source")
           pin_hash=$(nix hash path --type sha256 --base16 "$pin_source")
 
-          printf '%s\n' "$locked_source" >"$RUNNER_TEMP/locked-nftables-source"
-          printf '%s\n' "$pin_source" >"$RUNNER_TEMP/pin-nftables-source"
           {
             echo "locked_rev=$locked_rev"
             echo "checker_version=$checker_version"
@@ -82,6 +80,21 @@ jobs:
           else
             echo "drift=true" >>"$GITHUB_OUTPUT"
             echo "nftables source drift for the ${{ matrix.label }} pin: $locked_version ($locked_hash) -> $pin_version ($pin_hash)."
+
+            # List the changed files relative to the tree roots.
+            ln -s "$locked_source" "$RUNNER_TEMP/locked"
+            ln -s "$pin_source" "$RUNNER_TEMP/pinned"
+            status=0
+            (cd "$RUNNER_TEMP" && diff -rq locked pinned) >"$RUNNER_TEMP/diff-rq.txt" || status=$?
+            [ "$status" -le 1 ] || exit "$status"
+            sed -E \
+              -e 's|^Files locked/(.*) and pinned/.* differ$|changed: \1|' \
+              -e 's|^Only in locked: |removed: |' \
+              -e 's|^Only in locked/(.*): |removed: \1/|' \
+              -e 's|^Only in pinned: |added: |' \
+              -e 's|^Only in pinned/(.*): |added: \1/|' \
+              "$RUNNER_TEMP/diff-rq.txt" | sort -k2 >"$RUNNER_TEMP/changed-files.txt"
+            echo "changed files: $(wc -l <"$RUNNER_TEMP/changed-files.txt")"
           fi
 
           {
@@ -95,126 +108,91 @@ jobs:
             echo "| ${{ matrix.label }} pin | \`${pin_rev:0:12}\` | \`$pin_version\` | \`${pin_hash:0:16}…\` |"
           } >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Close resolved drift issues
-        if: steps.source.outputs.drift == 'false'
+      - name: Update the drift issue
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          PIN: ${{ matrix.label }}
+          DRIFT: ${{ steps.source.outputs.drift }}
+          CHECKER_VERSION: ${{ steps.source.outputs.checker_version }}
+          LOCKED_REV: ${{ steps.source.outputs.locked_rev }}
+          PIN_REV: ${{ steps.source.outputs.pin_rev }}
+          LOCKED_VERSION: ${{ steps.source.outputs.locked_version }}
+          PIN_VERSION: ${{ steps.source.outputs.pin_version }}
           LOCKED_HASH: ${{ steps.source.outputs.locked_hash }}
           PIN_HASH: ${{ steps.source.outputs.pin_hash }}
         run: |
           set -euo pipefail
           label=nixpkgs-nftables-drift
-          label_exists=$(gh label list --limit 1000 --json name \
-            | jq -r --arg label "$label" 'any(.[]; .name == $label)')
-          if [ "$label_exists" != true ]; then
-            echo "No $label label exists; there are no drift issues to close."
-            exit 0
-          fi
+          title="nixpkgs nftables drift ($PIN)"
 
-          title_prefix="nixpkgs nftables drift (${{ matrix.label }}): "
-          issues=$(gh issue list --state open --label "$label" \
-            --limit 100 --json number,title \
-            | jq -r --arg prefix "$title_prefix" '.[] | select(.title | startswith($prefix)) | .number')
-          if [ -z "$issues" ]; then
-            echo "No open ${{ matrix.label }} drift issues need closing."
-            exit 0
-          fi
+          # The open drift issue of this pin. Issues filed before the title
+          # dropped the hash are titled "$title: <hash>"; adopting one renames
+          # it.
+          issue=$(gh issue list --state open --label "$label" \
+            --limit 100 --json number,title,body \
+            | jq -c --arg title "$title" \
+              '[.[] | select(.title == $title or (.title | startswith($title + ": ")))]
+               | sort_by(.number) | first // empty')
 
-          while IFS= read -r issue; do
-            gh issue close "$issue" --reason completed --comment \
-              "Resolved: the locked and ${{ matrix.label }} pin patched nftables sources now match at ${PIN_HASH:0:12} (locked ${LOCKED_HASH:0:12})."
-          done <<<"$issues"
-
-      - name: Diff schema-relevant source files
-        if: steps.source.outputs.drift == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          locked_source=$(<"$RUNNER_TEMP/locked-nftables-source")
-          pin_source=$(<"$RUNNER_TEMP/pin-nftables-source")
-          files=(
-            src/parser_json.c
-            src/json.c
-            src/meta.c
-            src/rt.c
-            src/parser_bison.y
-            src/scanner.l
-            doc/libnftables-json.adoc
-          )
-
-          : >parser.diff
-          for file in "${files[@]}"; do
-            locked_file="$locked_source/$file"
-            pin_file="$pin_source/$file"
-            [ -e "$locked_file" ] || locked_file=/dev/null
-            [ -e "$pin_file" ] || pin_file=/dev/null
-            if diff -u \
-              --label "locked/$file" "$locked_file" \
-              --label "pin/$file" "$pin_file" >>parser.diff; then
-              :
-            else
-              status=$?
-              [ "$status" -eq 1 ] || exit "$status"
+          if [ "$DRIFT" = false ]; then
+            if [ -z "$issue" ]; then
+              echo "No open $PIN drift issue needs closing."
+              exit 0
             fi
-          done
-          echo "diff bytes: $(wc -c <parser.diff)"
-
-      - name: Upload source diff
-        if: steps.source.outputs.drift == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: nftables-source-diff-${{ matrix.label }}
-          path: parser.diff
-          if-no-files-found: error
-
-      - name: Write drift report
-        if: steps.source.outputs.drift == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat >drift-report.md <<EOF
-          # nixpkgs nftables source drift detected
-
-          Pin: ${{ matrix.label }}, from nixos-project-policy \`${{ steps.source.outputs.checker_version }}\`
-
-          - Locked nixpkgs: \`${{ steps.source.outputs.locked_rev }}\`
-          - Pinned nixpkgs: \`${{ steps.source.outputs.pin_rev }}\`
-          - nftables: \`${{ steps.source.outputs.locked_version }}\` → \`${{ steps.source.outputs.pin_version }}\`
-          - Patched source: \`${{ steps.source.outputs.locked_hash }}\` → \`${{ steps.source.outputs.pin_hash }}\`
-
-          The schema-relevant source diff is attached to the workflow run.
-          EOF
-
-      - name: File or update drift issue
-        if: steps.source.outputs.drift == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PIN_HASH: ${{ steps.source.outputs.pin_hash }}
-        run: |
-          set -euo pipefail
-          title_prefix="nixpkgs nftables drift (${{ matrix.label }}): "
-          title="$title_prefix${PIN_HASH:0:12}"
-          gh label create nixpkgs-nftables-drift --color FBCA04 \
-            --description "A policy pin carries nftables source different from the lock" 2>/dev/null || true
-          open_issues=$(gh issue list --state open --label nixpkgs-nftables-drift \
-            --limit 100 --json number,title)
-          current=$(jq -r --arg title "$title" \
-            '[.[] | select(.title == $title)][0].number // empty' <<<"$open_issues")
-          if [ -n "$current" ]; then
-            echo "Issue #$current already tracks $PIN_HASH; appending a fresh report."
-            gh issue comment "$current" --body-file drift-report.md
-          else
-            url=$(gh issue create --title "$title" --label nixpkgs-nftables-drift --body-file drift-report.md)
-            current=${url##*/}
+            gh issue close "$(jq -r .number <<<"$issue")" --reason completed --comment \
+              "Resolved: the locked and $PIN pin patched nftables sources now match at ${PIN_HASH:0:12}."
+            exit 0
           fi
 
-          # The current pin supersedes older drift issues for this label.
-          superseded=$(jq -r --arg prefix "$title_prefix" --arg title "$title" \
-            '.[] | select((.title | startswith($prefix)) and .title != $title) | .number' \
-            <<<"$open_issues")
-          while IFS= read -r issue; do
-            [ -n "$issue" ] || continue
-            gh issue close "$issue" --reason "not planned" --comment \
-              "Superseded by #$current: the ${{ matrix.label }} pin now carries patched source ${PIN_HASH:0:12}."
-          done <<<"$superseded"
+          changed_files="$RUNNER_TEMP/changed-files.txt"
+          changed_count=$(wc -l <"$changed_files")
+          shown=300
+          {
+            echo "<!-- pinned-hash: $PIN_HASH -->"
+            echo "The patched nftables source at the $PIN pin of nixos-project-policy \`$CHECKER_VERSION\` differs from the lock. This issue carries the latest report and closes when the sources match again."
+            echo
+            echo "| | nixpkgs revision | nftables | patched-source SHA-256 |"
+            echo "|---|---|---|---|"
+            echo "| locked | \`$LOCKED_REV\` | \`$LOCKED_VERSION\` | \`$LOCKED_HASH\` |"
+            echo "| $PIN pin | \`$PIN_REV\` | \`$PIN_VERSION\` | \`$PIN_HASH\` |"
+            echo
+            echo "## Changed files"
+            echo
+            echo '```text'
+            head -n "$shown" "$changed_files"
+            echo '```'
+            if [ "$changed_count" -gt "$shown" ]; then
+              echo
+              echo "The list shows $shown of $changed_count changed files."
+            fi
+            echo
+            echo "## Full diff"
+            echo
+            echo '```sh'
+            echo "diff -ru \$(nix build --no-link --print-out-paths .#nftables-source) \\"
+            echo "         \$(nix build --no-link --print-out-paths .#nftables-source --override-input nixpkgs github:NixOS/nixpkgs/$PIN_REV)"
+            echo '```'
+          } >"$RUNNER_TEMP/drift-report.md"
 
+          gh label create "$label" --force --color FBCA04 \
+            --description "A policy pin carries nftables source different from the lock"
+
+          if [ -z "$issue" ]; then
+            gh issue create --title "$title" --label "$label" \
+              --body-file "$RUNNER_TEMP/drift-report.md"
+            exit 0
+          fi
+
+          number=$(jq -r .number <<<"$issue")
+          reported_hash=$(jq -r .body <<<"$issue" \
+            | sed -nE 's/^<!-- pinned-hash: ([0-9a-f]+) -->$/\1/p')
+          gh issue edit "$number" --title "$title" \
+            --body-file "$RUNNER_TEMP/drift-report.md"
+          # Edits send no notification, so a new pinned source also comments.
+          if [ "$reported_hash" != "$PIN_HASH" ]; then
+            gh issue comment "$number" --body \
+              "The $PIN pin now carries patched source \`${PIN_HASH:0:12}\` (nftables $PIN_VERSION); the issue body has the new report."
+          else
+            echo "Issue #$number already reports ${PIN_HASH:0:12}; refreshed its body."
+          fi

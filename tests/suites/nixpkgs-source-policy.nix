@@ -112,24 +112,21 @@ let
       present = hasInfix "label: [stable, unstable]\n" workflowText;
     }
     {
-      name = "resolved-drift close condition";
-      present = hasInfix "if: steps.source.outputs.drift == 'false'" workflowText;
-    }
-    {
       name = "resolved-drift issue closure";
       present = hasInfix "gh issue close" workflowText;
     }
     {
-      name = "superseded drift issue closure";
+      name = "one drift issue per pin, edited in place";
       present =
-        hasInfix "Superseded by #" workflowText
-        && hasInfix "closes older open drift issues for the same pin" docsText;
+        hasInfix "title=\"nixpkgs nftables drift ($PIN)\"\n" workflowText
+        && hasInfix "gh issue edit" workflowText
+        && hasInfix "edits that issue in place" docsText;
     }
     {
-      name = "full-source hash distinguished from selected-file diagnostic";
+      name = "full-source hash distinguished from the changed-file list";
       present =
-        hasInfix "NAR hashes are authoritative for whether drift exists" docsText
-        && hasInfix "`parser.diff` is a selected-file diagnostic" docsText;
+        hasInfix "diff -rq locked pinned" workflowText
+        && hasInfix "NAR hashes are authoritative for whether drift exists" docsText;
     }
     {
       name = "current single-input update command";
