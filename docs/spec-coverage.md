@@ -150,7 +150,7 @@ passed through. See [`api.md`](api.md) for an explicit `evalModules` example.
 | `nftables-source-provenance-tests` | source analysis uses the selected package source and patches | provenance, not semantic coverage |
 | `nftables-enum-extraction-tests` | extracted parser tokens/tags match schema lists and plausibility floors | extractor covers enumerated patterns, not every conditional branch |
 | `nftables-corpus-tests` | upstream statement corpus has no unclassified schema rejection | 7 categories are explicitly baselined |
-| `nftables-roundtrip-tests` | every command emitted by ten real-loaded selected cases validates as `types.ruleset` | two cases are explicitly excluded; it is sampled serializer coverage |
+| `nftables-roundtrip-tests` | every command emitted by eleven real-loaded selected cases validates as `types.ruleset` | one case is explicitly excluded; it is sampled serializer coverage |
 | `nftables-tooling-selftests` | injected source/corpus/token defects make the drift checks fail | tests the tooling's chosen fault classes |
 
 All package-set-dependent checks are instantiated from `nixpkgs` on each Linux

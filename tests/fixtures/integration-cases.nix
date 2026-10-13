@@ -159,8 +159,9 @@ rec {
     # -- add (via table tree + dsl.rule) -----------------------------------
     # `add.rule` is the canonical way to add a rule; the declarative table
     # tree emits `add rule` commands for every entry in `chains.*.rules`.
-    # Also exercises `dsl.rule` for a standalone rule with an explicit
-    # handle.
+    # Also exercises `dsl.rule` for a standalone rule. It has no explicit
+    # handle: nft resolves `handle N` against live kernel state, and no
+    # rule exists to resolve it against. The parity suites cover handles.
     {
       name = "add-rule-via-tree-and-standalone";
       ruleset = ruleset [
@@ -177,7 +178,6 @@ rec {
           family = "ip";
           table = "t";
           chain = "c";
-          handle = 42;
           expr = [ accept ];
         })
       ];
@@ -599,14 +599,6 @@ rec {
     # rejects both. Verified against the upstream parser_bison.y
     # grammar.
     "example-home-router-dsl"
-
-    # `add rule … handle 42 …` resolves the handle against existing
-    # kernel state. Inside the unprivileged sandbox there's no rule
-    # with handle 42, so nft fails with "Could not process rule: No
-    # such file or directory". The JSON path works because nft -c -j
-    # tolerates the dangling handle in check-only mode while nft -c
-    # (text) doesn't.
-    "add-rule-via-tree-and-standalone"
   ];
   textCases = builtins.filter (c: !(builtins.elem c.name knownTextLimitations)) cases;
 
@@ -639,8 +631,6 @@ rec {
     round trip instead of silently reducing its coverage.
   */
   knownNoLoad = {
-    "add-rule-via-tree-and-standalone" =
-      "uses `handle 42`, which real-load validates against live kernel state";
     "example-home-router-dsl" =
       "flowtable `flags offload` is rejected on dummy devices — real-load fails with 'Operation not supported'";
   };

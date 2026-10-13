@@ -98,14 +98,12 @@ manual review or corpus/live coverage.
 
 ### Read-back round trip
 
-`nftables-roundtrip-tests`, a VM test, real-loads ten selected integration
+`nftables-roundtrip-tests`, a VM test, real-loads eleven selected integration
 cases in private network namespaces, captures `nft -j list ruleset`, and
 validates every emitted command with `nftlib.types.ruleset`.
 
-Two cases are excluded before execution with exact reasons:
-
-- a standalone rule using nonexistent `handle 42`;
-- flowtable offload on dummy devices in an unprivileged namespace.
+One case is excluded before execution with its exact reason: flowtable offload
+on dummy devices in an unprivileged namespace.
 
 Every remaining selected case must load. An unexpected load failure now fails
 the check instead of reducing coverage. The minimum-loaded floor remains as an
@@ -134,7 +132,7 @@ the package set's NixOS VM.
   validation, so render equivalence covers the rest.
 - `text-block-integration-tests` wraps selected block output in a table and
   sends it to the text parser.
-- `render-equivalence-tests` real-loads seven selected cases through JSON and
+- `render-equivalence-tests` real-loads eight selected cases through JSON and
   text in separate namespaces and compares `nft list ruleset` output. A load
   failure or difference fails.
 
