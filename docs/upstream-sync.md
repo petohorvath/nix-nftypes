@@ -69,8 +69,23 @@ The exact attribute names remain the machine-readable source of truth.
 ### Source provenance
 
 `nftables-source-provenance-tests` verifies that source analysis receives the
-selected package set's release source and full patch list. Other source
+tree the selected package set builds `pkgs.nftables` from. Other source
 results are not trustworthy if this check fails.
+
+It compares these attributes of the `nftables-source` package with those of
+`pkgs.nftables`:
+
+- `src`, the release archive;
+- `patches`, the full patch list;
+- `patchFlags`;
+- `prePatch` and `postPatch`, with a `null` or missing hook equal to `""`.
+
+`nftables-source` does not pass the unpack-phase and patch-phase attributes
+`sourceRoot`, `setSourceRoot`, `preUnpack`, `postUnpack`, `unpackPhase`, and
+`patchPhase`. The check fails, naming the attribute, when `pkgs.nftables`
+sets one of them. Then either pass it in
+`packages/nftables-source/package.nix` or record why it leaves the tree
+unchanged.
 
 ### Upstream statement corpus
 
@@ -116,9 +131,12 @@ or listed object shape has been observed.
 ### Tooling self-tests
 
 `nftables-tooling-selftests` supplies synthetic source/corpus defects and checks
-that enum extraction and corpus classification turn red. The schema suite in
-`unit-tests` checks that read-back validation rejects junk. Both validate the
-drift net's chosen fault classes, not nftables semantics themselves.
+that enum extraction and corpus classification turn red. It also runs the
+provenance assertions against doctored `pkgs.nftables` copies, one with a
+`postPatch` the source tree lacks and one with a `postUnpack`, and checks that
+each turns red. The schema suite in `unit-tests` checks that read-back
+validation rejects junk. Both validate the drift net's chosen fault classes,
+not nftables semantics themselves.
 
 ## Live parser and renderer tests
 
@@ -139,14 +157,15 @@ the package set's NixOS VM.
 Named exclusions and text-only limits are documented in
 [`text-coverage.md`](text-coverage.md).
 
-## Weekly policy-pin workflow
+## Daily policy-pin workflow
 
 [`.github/workflows/upstream-sync.yml`](../.github/workflows/upstream-sync.yml)
-runs Mondays at 06:00 UTC and on manual dispatch. It reads the stable and
+runs daily at 09:00 UTC and on manual dispatch. It reads the stable and
 unstable pins from the `validate` report of the checker in the policy series
 that `check.yml` calls (`v0.6`), and runs once per pin, overriding `nixpkgs`
 with that pin. It resolves no nixpkgs branch itself, so the source watch and
-the policy's test runs see the same revisions.
+the policy's test runs see the same revisions. A pin release shows up in a
+drift issue within a day.
 
 ### Patched-source watch
 
@@ -157,24 +176,35 @@ For each pin, the job:
 3. builds the locked patched source and, with `nixpkgs` overridden by the pin,
    the pinned patched source;
 4. compares their NAR content hashes;
-5. when different, diffs parser/serializer/grammar/reference files and uploads
-   `parser.diff`;
-6. files or updates a labelled GitHub issue, then
-   closes older open drift issues for the same pin, which the new pin
-   supersedes;
-7. closes matching open drift issues when locked and pinned sources match
-   again.
+5. when they match, closes the pin's open drift issues;
+6. when they differ, lists the changed files with `diff -rq` and writes the
+   report into the pin's drift issue.
+
+Each pin has at most one open drift issue, titled
+`nixpkgs nftables drift (<pin>)` and labelled `nixpkgs-nftables-drift`. The
+job opens the issue when none is open, and otherwise edits that issue in place,
+replacing its body with the current report. The report gives both nixpkgs
+revisions, both nftables versions, both hashes, the changed files, and a
+command for the full diff:
+
+```console
+diff -ru $(nix build --no-link --print-out-paths .#nftables-source) \
+         $(nix build --no-link --print-out-paths .#nftables-source --override-input nixpkgs github:NixOS/nixpkgs/<pin-revision>)
+```
+
+An edit sends no notification, so the job also comments on the issue when the
+pinned source differs from the one the issue last reported. The issue body
+records that hash in an HTML comment.
 
 The stable pin's issue signals that the lock is behind the stable pin. The
 unstable pin usually carries a newer nftables than the stable lock, so its
-issue stays open until a lock update brings the same source. When a pin bump
-changes the source, the job files a new issue and closes the older one, so
-each pin keeps at most one open drift issue.
+issue stays open until a lock update brings the same source, and a pin bump
+that changes the source updates it with a comment.
 
 A hash difference is a review signal, not proof of incompatibility. The full
-patched-source NAR hashes are authoritative for whether drift exists.
-`parser.diff` is a selected-file diagnostic: it can be incomplete or empty when
-the changed source lies outside the fixed review list.
+patched-source NAR hashes are authoritative for whether drift exists. The
+changed-file list names files only; the full-diff command shows their
+contents.
 
 ### Tests with new pins
 
@@ -197,7 +227,7 @@ run every check with the new pins on each pull request.
 | text/equivalence red | selected native syntax is rejected or differs semantically | fix text rendering or add a narrowly justified named exclusion |
 | unstable-only red | the policy's unstable pin failed while stable passed: likely future stable incompatibility | fix before updating the stable floor |
 | pin-bump red | the policy's Pin-bump tests failed for this repository with a proposed pin | reproduce with the proposed revision, fix here, then re-run the failed policy jobs |
-| drift issue | patched source at a policy pin differs from the lock | review the artifact before updating; an unstable issue tracks the next nftables |
+| drift issue | patched source at a policy pin differs from the lock | review the changed files and the full diff before updating; an unstable issue tracks the next nftables |
 
 ## Updating inputs
 

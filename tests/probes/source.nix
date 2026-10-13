@@ -45,6 +45,41 @@ let
   writeSchemaTokens = name: document: pkgs.writeText "${name}.json" (builtins.toJSON document);
   schemaTokens = writeSchemaTokens "schema-tokens" schemaDocument;
 
+  # A patch hook, normalized the way the source package passes it: the
+  # source tree has `""` where the package has `null` or nothing.
+  patchHookOrEmpty = drv: name: if drv ? ${name} && drv.${name} != null then drv.${name} else "";
+
+  # Unpack- and patch-phase attributes the source package does not pass.
+  unpassedAttributes = [
+    "sourceRoot"
+    "setSourceRoot"
+    "preUnpack"
+    "postUnpack"
+    "unpackPhase"
+    "patchPhase"
+  ];
+
+  # What decides the source tree, on the source side and on `package`'s
+  # side, and `package`'s unpassed attributes. `package` is the package
+  # set's nftables, or a doctored copy in the self-tests.
+  provenanceRecord = package: {
+    source = {
+      src = if nftablesSource ? src then toString nftablesSource.src else null;
+      patches = if nftablesSource ? patches then map toString nftablesSource.patches else null;
+      patchFlags = nftablesSource.patchFlags or null;
+      prePatch = patchHookOrEmpty nftablesSource "prePatch";
+      postPatch = patchHookOrEmpty nftablesSource "postPatch";
+    };
+    package = {
+      src = toString package.src;
+      patches = map toString (package.patches or [ ]);
+      patchFlags = package.patchFlags or null;
+      prePatch = patchHookOrEmpty package "prePatch";
+      postPatch = patchHookOrEmpty package "postPatch";
+      unpassed = lib.genAttrs unpassedAttributes (attribute: package.${attribute} or null);
+    };
+  };
+
   renameTable = "s/rt_key_tbl/rt_key_renamed/g";
   breakTemplates = "s/META_TEMPLATE(/META_TEMPLAT_(/g";
 
@@ -107,19 +142,21 @@ in
   # The fake corpus, normalized the same way as the real one.
   nftablesToolingSelftestCorpus = normalizeCorpus "fake-nft-corpus.json" fakeCorpusSource;
 
+  # Provenance records of doctored nftables packages against the real
+  # source tree. Only their attributes are read; neither is built.
+  nftablesToolingSelftestProvenance = pkgs.writeText "nftables-tooling-selftest-provenance.json" (
+    builtins.toJSON {
+      droppedPostPatch = provenanceRecord (pkgs.nftables.overrideAttrs { postPatch = "touch doctored"; });
+      unpassedPostUnpack = provenanceRecord (
+        pkgs.nftables.overrideAttrs { postUnpack = "touch doctored"; }
+      );
+    }
+  );
+
   # The provenance of the source tree, compared against the package set's
   # nftables derivation, and the files the source checks read.
   nftablesSourceProvenance = pkgs.writeText "nftables-source-provenance.json" (
-    builtins.toJSON {
-      source = {
-        src = if nftablesSource ? src then toString nftablesSource.src else null;
-        patches = if nftablesSource ? patches then map toString nftablesSource.patches else null;
-      };
-      package = {
-        src = toString pkgs.nftables.src;
-        patches = map toString (pkgs.nftables.patches or [ ]);
-      };
-    }
+    builtins.toJSON (provenanceRecord pkgs.nftables)
   );
 
   nftablesSourceTree = recordRuns {

@@ -70,6 +70,7 @@ let
       probes = [
         "nftablesToolingSelftest"
         "nftablesToolingSelftestCorpus"
+        "nftablesToolingSelftestProvenance"
       ];
     };
   };

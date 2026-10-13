@@ -18,7 +18,7 @@ let
     ++ lib.mapAttrsToList (name: reason: "    ${name}: ${reason}") knownNoLoad
   );
 
-  provenanceNote = "nftables ${pkgs.nftables.version} source and patches match pkgs.nftables";
+  provenanceNote = "nftables ${pkgs.nftables.version} source, patches, and patch hooks match pkgs.nftables";
 in
 {
   nftables-corpus-tests = observationPaths: ''

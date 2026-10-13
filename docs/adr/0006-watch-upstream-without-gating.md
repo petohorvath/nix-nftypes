@@ -1,4 +1,4 @@
-# Watch upstream nftables weekly without gating merges
+# Watch upstream nftables without gating merges
 
 Merges are gated only by deterministic checks, run with the locked `nixpkgs` and with the project policy's stable and unstable pins. Newer nftables reaches the project through a scheduled workflow that never gates and never edits `flake.lock`: a source watch compares each pin's patched source with the locked one and keeps one drift issue per pin. Moving the lock is a separate, reviewed change, so corpus baseline changes and other drift failures land in that change rather than in unrelated work. The workflow reads the pins from the policy instead of resolving nixpkgs branches itself, and the policy's Pin-bump tests run the checks with proposed pins before their release, so the project needs no canary of its own.
 
@@ -17,4 +17,4 @@ Merges are gated only by deterministic checks, run with the locked `nixpkgs` and
 - `9e239ae` introduces the weekly canary and the issue-filing source diff; `b787032` moves both onto nixpkgs branch tips.
 - `bd0a4ea` closes superseded drift issues so each branch keeps at most one; `888bfb8` makes stale corpus baselines fail, noting the corpus only changes when `flake.lock` moves.
 - `.github/workflows/upstream-sync.yml` reads the pins with the policy checker's `validate` command and has no canary job; `tests/suites/nixpkgs-source-policy.nix` fails if it resolves a nixpkgs branch itself or reads a different policy series than `check.yml`.
-- The policy's `data/repos.json` lists `petohorvath/nix-nftypes`; `docs/upstream-sync.md` "Weekly policy-pin workflow" and "Updating inputs".
+- The policy's `data/repos.json` lists `petohorvath/nix-nftypes`; `docs/upstream-sync.md` "Daily policy-pin workflow" and "Updating inputs".
