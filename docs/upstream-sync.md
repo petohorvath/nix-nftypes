@@ -134,9 +134,9 @@ or listed object shape has been observed.
 that enum extraction and corpus classification turn red. It also runs the
 provenance assertions against doctored `pkgs.nftables` copies, one with a
 `postPatch` the source tree lacks and one with a `postUnpack`, and checks that
-each turns red. The schema suite in
-`unit-tests` checks that read-back validation rejects junk. Both validate the
-drift net's chosen fault classes, not nftables semantics themselves.
+each turns red. The schema suite in `unit-tests` checks that read-back
+validation rejects junk. Both validate the drift net's chosen fault classes,
+not nftables semantics themselves.
 
 ## Live parser and renderer tests
 
@@ -176,7 +176,7 @@ For each pin, the job:
 3. builds the locked patched source and, with `nixpkgs` overridden by the pin,
    the pinned patched source;
 4. compares their NAR content hashes;
-5. when they match, closes the pin's open drift issue;
+5. when they match, closes the pin's open drift issues;
 6. when they differ, lists the changed files with `diff -rq` and writes the
    report into the pin's drift issue.
 

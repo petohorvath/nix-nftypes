@@ -47,14 +47,14 @@ let
 
   # A patch hook, normalized the way the source package passes it: the
   # source tree has `""` where the package has `null` or nothing.
-  patchHook = drv: name: if drv ? ${name} && drv.${name} != null then drv.${name} else "";
+  patchHookOrEmpty = drv: name: if drv ? ${name} && drv.${name} != null then drv.${name} else "";
 
   # Unpack- and patch-phase attributes the source package does not pass.
   unpassedAttributes = [
     "sourceRoot"
     "setSourceRoot"
-    "postUnpack"
     "preUnpack"
+    "postUnpack"
     "unpackPhase"
     "patchPhase"
   ];
@@ -67,15 +67,15 @@ let
       src = if nftablesSource ? src then toString nftablesSource.src else null;
       patches = if nftablesSource ? patches then map toString nftablesSource.patches else null;
       patchFlags = nftablesSource.patchFlags or null;
-      prePatch = patchHook nftablesSource "prePatch";
-      postPatch = patchHook nftablesSource "postPatch";
+      prePatch = patchHookOrEmpty nftablesSource "prePatch";
+      postPatch = patchHookOrEmpty nftablesSource "postPatch";
     };
     package = {
       src = toString package.src;
       patches = map toString (package.patches or [ ]);
       patchFlags = package.patchFlags or null;
-      prePatch = patchHook package "prePatch";
-      postPatch = patchHook package "postPatch";
+      prePatch = patchHookOrEmpty package "prePatch";
+      postPatch = patchHookOrEmpty package "postPatch";
       unpassed = lib.genAttrs unpassedAttributes (attribute: package.${attribute} or null);
     };
   };

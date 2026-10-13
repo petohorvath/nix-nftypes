@@ -123,9 +123,9 @@ let
         && hasInfix "edits that issue in place" docsText;
     }
     {
-      name = "full-source hash distinguished from the changed-file list";
+      name = "changed-file list beside the authoritative full-source hash";
       present =
-        hasInfix "diff -rq locked pinned" workflowText
+        hasInfix "diff -rq --no-dereference locked/ pinned/" workflowText
         && hasInfix "NAR hashes are authoritative for whether drift exists" docsText;
     }
     {

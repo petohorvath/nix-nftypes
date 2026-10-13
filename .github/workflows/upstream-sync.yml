@@ -81,11 +81,14 @@ jobs:
             echo "drift=true" >>"$GITHUB_OUTPUT"
             echo "nftables source drift for the ${{ matrix.label }} pin: $locked_version ($locked_hash) -> $pin_version ($pin_hash)."
 
-            # List the changed files relative to the tree roots.
+            # List the changed files relative to the tree roots. The trailing
+            # slashes follow the root links; --no-dereference compares the
+            # links inside the trees instead of failing on dangling ones.
             ln -s "$locked_source" "$RUNNER_TEMP/locked"
             ln -s "$pin_source" "$RUNNER_TEMP/pinned"
             status=0
-            (cd "$RUNNER_TEMP" && diff -rq locked pinned) >"$RUNNER_TEMP/diff-rq.txt" || status=$?
+            (cd "$RUNNER_TEMP" && diff -rq --no-dereference locked/ pinned/) \
+              >"$RUNNER_TEMP/diff-rq.txt" || status=$?
             [ "$status" -le 1 ] || exit "$status"
             sed -E \
               -e 's|^Files locked/(.*) and pinned/.* differ$|changed: \1|' \
@@ -126,28 +129,31 @@ jobs:
           label=nixpkgs-nftables-drift
           title="nixpkgs nftables drift ($PIN)"
 
-          # The open drift issue of this pin. Issues filed before the title
-          # dropped the hash are titled "$title: <hash>"; adopting one renames
-          # it.
-          issue=$(gh issue list --state open --label "$label" \
+          # The open drift issues of this pin, oldest first; normally at most
+          # one. Issues filed before the title dropped the hash are titled
+          # "$title: <hash>"; adopting one renames it.
+          issues=$(gh issue list --state open --label "$label" \
             --limit 100 --json number,title,body \
             | jq -c --arg title "$title" \
               '[.[] | select(.title == $title or (.title | startswith($title + ": ")))]
-               | sort_by(.number) | first // empty')
+               | sort_by(.number)')
 
           if [ "$DRIFT" = false ]; then
-            if [ -z "$issue" ]; then
+            numbers=$(jq -r '.[].number' <<<"$issues")
+            if [ -z "$numbers" ]; then
               echo "No open $PIN drift issue needs closing."
               exit 0
             fi
-            gh issue close "$(jq -r .number <<<"$issue")" --reason completed --comment \
-              "Resolved: the locked and $PIN pin patched nftables sources now match at ${PIN_HASH:0:12}."
+            while IFS= read -r number; do
+              gh issue close "$number" --reason completed --comment \
+                "Resolved: the locked and $PIN pin patched nftables sources now match at ${PIN_HASH:0:12}."
+            done <<<"$numbers"
             exit 0
           fi
 
           changed_files="$RUNNER_TEMP/changed-files.txt"
           changed_count=$(wc -l <"$changed_files")
-          shown=300
+          max_listed_files=300
           {
             echo "<!-- pinned-hash: $PIN_HASH -->"
             echo "The patched nftables source at the $PIN pin of nixos-project-policy \`$CHECKER_VERSION\` differs from the lock. This issue carries the latest report and closes when the sources match again."
@@ -159,12 +165,16 @@ jobs:
             echo
             echo "## Changed files"
             echo
-            echo '```text'
-            head -n "$shown" "$changed_files"
-            echo '```'
-            if [ "$changed_count" -gt "$shown" ]; then
+            if [ "$changed_count" -eq 0 ]; then
+              echo "No file contents differ; the trees differ in file modes or other metadata."
+            else
+              echo '```text'
+              head -n "$max_listed_files" "$changed_files"
+              echo '```'
+            fi
+            if [ "$changed_count" -gt "$max_listed_files" ]; then
               echo
-              echo "The list shows $shown of $changed_count changed files."
+              echo "The list shows $max_listed_files of $changed_count changed files."
             fi
             echo
             echo "## Full diff"
@@ -178,6 +188,7 @@ jobs:
           gh label create "$label" --force --color FBCA04 \
             --description "A policy pin carries nftables source different from the lock"
 
+          issue=$(jq -c 'first // empty' <<<"$issues")
           if [ -z "$issue" ]; then
             gh issue create --title "$title" --label "$label" \
               --body-file "$RUNNER_TEMP/drift-report.md"
@@ -185,7 +196,7 @@ jobs:
           fi
 
           number=$(jq -r .number <<<"$issue")
-          reported_hash=$(jq -r .body <<<"$issue" \
+          reported_hash=$(jq -r .body <<<"$issue" | tr -d '\r' \
             | sed -nE 's/^<!-- pinned-hash: ([0-9a-f]+) -->$/\1/p')
           gh issue edit "$number" --title "$title" \
             --body-file "$RUNNER_TEMP/drift-report.md"

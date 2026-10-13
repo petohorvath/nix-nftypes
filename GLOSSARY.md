@@ -120,7 +120,7 @@ The stable or unstable nixpkgs revision that a project policy release approves; 
 The daily job that compares each Pin's patched source with the locked one and keeps a Drift issue open while they differ.
 
 **Drift issue**:
-The issue the Source watch keeps open for a Pin while its patched source differs from the lock; each Pin has at most one, which carries the latest comparison.
+The issue the Source watch keeps open for a Pin while its patched source differs from the lock; each Pin has at most one, which carries the latest report.
 
 **Read-back**:
 The JSON that `nft` emits when it lists loaded state, which the schema must also accept.
