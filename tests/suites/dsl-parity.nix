@@ -147,18 +147,12 @@ in
   # Escape hatches
   # =========================================================================
 
-  testPayloadEscape =
-    pe
-      (dsl.payload {
-        protocol = "tcp";
-        field = "dport";
-      })
-      {
-        payload = {
-          protocol = "tcp";
-          field = "dport";
-        };
-      };
+  testPayloadEscape = pe (dsl.payload "tcp" "dport") {
+    payload = {
+      protocol = "tcp";
+      field = "dport";
+    };
+  };
 
   testPayloadRaw =
     pe
@@ -320,23 +314,17 @@ in
     set = [ "1.2.3.4" ];
   };
 
-  testExprMap =
-    pe
-      (dsl.expr.map {
-        key = dsl.fields.tcp.dport;
-        data = "@pf";
-      })
-      {
-        map = {
-          key = {
-            payload = {
-              protocol = "tcp";
-              field = "dport";
-            };
-          };
-          data = "@pf";
+  testExprMap = pe (dsl.expr.map dsl.fields.tcp.dport "@pf") {
+    map = {
+      key = {
+        payload = {
+          protocol = "tcp";
+          field = "dport";
         };
       };
+      data = "@pf";
+    };
+  };
 
   # Named-map reference mirror cases for setRef. The schema's `mapBody`
   # requires `{ key, data }` so the `{map: "@name"}` shape can't be
@@ -793,9 +781,22 @@ in
         };
       };
   testCounterAuto = ps dsl.counter.auto { counter = null; };
+
+  # `x { }` is the empty form, so no statement builder carries a `.plain`
+  # alias for it.
+  testNoPlainVariants = {
+    expr = builtins.filter (name: dsl.${name} ? plain) [
+      "log"
+      "masquerade"
+      "queue"
+      "redirect"
+      "reject"
+    ];
+    expected = [ ];
+  };
   testCounterRef = ps (dsl.counter.ref "pkts") { counter = "pkts"; };
 
-  # reject — base, .plain, .icmp, .icmpv6, .icmpx, .tcpReset
+  # reject — base, empty body, .icmp, .icmpv6, .icmpx, .tcpReset
   testRejectBase =
     ps
       (dsl.reject {
@@ -808,7 +809,7 @@ in
           expr = "host-unreachable";
         };
       };
-  testRejectPlain = ps dsl.reject.plain { reject = { }; };
+  testRejectEmptyBody = ps (dsl.reject { }) { reject = { }; };
   testRejectIcmp = ps (dsl.reject.icmp "net-unreachable") {
     reject = {
       type = "icmp";
@@ -833,7 +834,7 @@ in
     };
   };
 
-  # log — base, .plain, camelCase rename
+  # log — base, empty body, camelCase rename
   testLogBase =
     ps
       (dsl.log {
@@ -854,7 +855,7 @@ in
           ];
         };
       };
-  testLogPlain = ps dsl.log.plain { log = { }; };
+  testLogEmptyBody = ps (dsl.log { }) { log = { }; };
   testLogQueueThreshold = ps (dsl.log { queueThreshold = 50; }) {
     log = {
       "queue-threshold" = 50;
@@ -876,17 +877,39 @@ in
           burst = 5;
         };
       };
+  testLimitUnitsCamelCase =
+    ps
+      (dsl.limit {
+        rate = 10;
+        per = "second";
+        rateUnit = "kbytes";
+        burst = 5;
+        burstUnit = "bytes";
+      })
+      {
+        limit = {
+          rate = 10;
+          per = "second";
+          rate_unit = "kbytes";
+          burst = 5;
+          burst_unit = "bytes";
+        };
+      };
   testLimitRef = ps (dsl.limit.ref "lim") { limit = "lim"; };
   testQuotaBase =
     ps
       (dsl.quota {
         val = 1000;
-        val_unit = "mbytes";
+        valUnit = "mbytes";
+        used = 10;
+        usedUnit = "kbytes";
       })
       {
         quota = {
           val = 1000;
           val_unit = "mbytes";
+          used = 10;
+          used_unit = "kbytes";
         };
       };
   testQuotaRef = ps (dsl.quota.ref "q1") { quota = "q1"; };
@@ -902,6 +925,20 @@ in
         snat = {
           addr = "192.0.2.1";
           family = "ip";
+        };
+      };
+  testSnatTypeFlags =
+    ps
+      (dsl.snat {
+        addr = "192.0.2.1";
+        family = "ip";
+        typeFlags = [ "interval" ];
+      })
+      {
+        snat = {
+          addr = "192.0.2.1";
+          family = "ip";
+          type_flags = [ "interval" ];
         };
       };
   testDnat =
@@ -923,13 +960,13 @@ in
       flags = [ "random" ];
     };
   };
-  testMasqueradePlain = ps dsl.masquerade.plain { masquerade = { }; };
+  testMasqueradeEmptyBody = ps (dsl.masquerade { }) { masquerade = { }; };
   testRedirectBase = ps (dsl.redirect { port = 8080; }) {
     redirect = {
       port = 8080;
     };
   };
-  testRedirectPlain = ps dsl.redirect.plain { redirect = { }; };
+  testRedirectEmptyBody = ps (dsl.redirect { }) { redirect = { }; };
   testFwd = ps (dsl.fwd { dev = "eth0"; }) {
     fwd = {
       dev = "eth0";
@@ -991,7 +1028,7 @@ in
           flags = [ "bypass" ];
         };
       };
-  testQueuePlain = ps dsl.queue.plain { queue = { }; };
+  testQueueEmptyBody = ps (dsl.queue { }) { queue = { }; };
 
   # ct set/count statements
   testCtHelper = ps (dsl.ctHelper "ftp") { "ct helper" = "ftp"; };
@@ -1012,20 +1049,12 @@ in
 
   testCtCountRef = ps (dsl.ctCount.ref "c1") { "ct count" = "c1"; };
   # `.ref` also takes a map expression that selects the object by key.
-  testCtCountRefMap =
-    ps
-      (dsl.ctCount.ref (
-        dsl.expr.map {
-          key.meta.key = "mark";
-          data = "@limits";
-        }
-      ))
-      {
-        "ct count".map = {
-          key.meta.key = "mark";
-          data = "@limits";
-        };
-      };
+  testCtCountRefMap = ps (dsl.ctCount.ref (dsl.expr.map { meta.key = "mark"; } "@limits")) {
+    "ct count".map = {
+      key.meta.key = "mark";
+      data = "@limits";
+    };
+  };
 
   # flow / meter / vmap
   testFlow = ps (dsl.flow { flowtable = "@ft"; }) {
@@ -1151,7 +1180,7 @@ in
   testRenderTableWithOptions =
     pr
       (dsl.ruleset [
-        dsl.flush
+        (dsl.flush.ruleset { })
         (dsl.table "inet" "t" { comment = "demo"; })
       ])
       {
@@ -1579,6 +1608,41 @@ in
         ];
       };
 
+  # Geneve options sit in a list under the nested `tunnel` attribute; each
+  # option's `optType` still maps to the hyphenated JSON key.
+  testCmdCreateTunnelGeneveOptType =
+    pc
+      (dsl.create.tunnel {
+        family = "inet";
+        table = "t";
+        name = "g";
+        type = "geneve";
+        tunnel = [
+          {
+            class = 1;
+            optType = 2;
+            data = "0xff";
+          }
+        ];
+      })
+      {
+        create = {
+          tunnel = {
+            family = "inet";
+            table = "t";
+            name = "g";
+            type = "geneve";
+            tunnel = [
+              {
+                class = 1;
+                "opt-type" = 2;
+                data = "0xff";
+              }
+            ];
+          };
+        };
+      };
+
   # Tunnel object with hyphenated keys — camelCase → hyphen rename.
   testRenderTunnelHyphenRename =
     pr
@@ -1628,7 +1692,7 @@ in
   testRenderMixRawAndTable =
     pr
       (dsl.ruleset [
-        dsl.flush
+        (dsl.flush.ruleset { })
         (dsl.table "ip" "x" { })
         {
           add = {
@@ -1684,6 +1748,9 @@ in
           limits.lim = {
             rate = 10;
             per = "second";
+            rateUnit = "kbytes";
+            burst = 5;
+            burstUnit = "bytes";
           };
           secmarks.s = {
             context = "u:r:t:s0";
@@ -1735,6 +1802,9 @@ in
                 name = "lim";
                 rate = 10;
                 per = "second";
+                rate_unit = "kbytes";
+                burst = 5;
+                burst_unit = "bytes";
               };
             };
           }
@@ -1784,7 +1854,7 @@ in
   testRenderNestedListFlatten =
     pr
       (dsl.ruleset [
-        dsl.flush
+        (dsl.flush.ruleset { })
         [
           (dsl.table "ip" "a" { })
           (dsl.table "ip" "b" { })
@@ -1829,7 +1899,7 @@ in
   testRenderDeepNestedListFlatten =
     pr
       (dsl.ruleset [
-        [ [ [ dsl.flush ] ] ]
+        [ [ [ (dsl.flush.ruleset { }) ] ] ]
         [ (dsl.table "ip" "x" { }) ]
       ])
       {
@@ -1933,7 +2003,7 @@ in
   testRenderMultiTable =
     pr
       (dsl.ruleset [
-        dsl.flush
+        (dsl.flush.ruleset { })
         (dsl.table "inet" "filter" {
           chains.input = {
             type = "filter";
@@ -2430,13 +2500,10 @@ in
               [
                 (dsl.dnat {
                   family = "ip";
-                  addr = dsl.expr.map {
-                    key = dsl.expr.concat [
-                      dsl.fields.ip.daddr
-                      dsl.fields.tcp.dport
-                    ];
-                    data = "@port_forward";
-                  };
+                  addr = dsl.expr.map (dsl.expr.concat [
+                    dsl.fields.ip.daddr
+                    dsl.fields.tcp.dport
+                  ]) "@port_forward";
                 })
               ]
             ];
@@ -2897,6 +2964,89 @@ in
   # plus replace / insert (rule-only) and the flush variants.
   # =========================================================================
 
+  # `add.<kind>` covers every add-object kind; `add.rule` is the standalone
+  # rule outside a table tree, typically with an explicit handle or index.
+  testCmdAddRule =
+    pc
+      (dsl.add.rule {
+        family = "ip";
+        table = "t";
+        chain = "c";
+        expr = [ dsl.accept ];
+        handle = 4;
+      })
+      {
+        add = {
+          rule = {
+            family = "ip";
+            table = "t";
+            chain = "c";
+            expr = [ { accept = null; } ];
+            handle = 4;
+          };
+        };
+      };
+  testCmdCreateLimitUnitsCamelCase =
+    pc
+      (dsl.create.limit {
+        family = "inet";
+        table = "t";
+        name = "fast";
+        rate = 10;
+        per = "second";
+        rateUnit = "kbytes";
+        burst = 5;
+        burstUnit = "bytes";
+      })
+      {
+        create = {
+          limit = {
+            family = "inet";
+            table = "t";
+            name = "fast";
+            rate = 10;
+            per = "second";
+            rate_unit = "kbytes";
+            burst = 5;
+            burst_unit = "bytes";
+          };
+        };
+      };
+  testCmdAddTable =
+    pc
+      (dsl.add.table {
+        family = "inet";
+        name = "filter";
+      })
+      {
+        add = {
+          table = {
+            family = "inet";
+            name = "filter";
+          };
+        };
+      };
+  testCmdAddSetRenamesElements =
+    pc
+      (dsl.add.set {
+        family = "inet";
+        table = "t";
+        name = "trusted";
+        type = "ipv4_addr";
+        elements = [ "192.0.2.1" ];
+      })
+      {
+        add = {
+          set = {
+            family = "inet";
+            table = "t";
+            name = "trusted";
+            type = "ipv4_addr";
+            elem = [ "192.0.2.1" ];
+          };
+        };
+      };
+
   testCmdCreateTable =
     pc
       (dsl.create.table {
@@ -3057,8 +3207,8 @@ in
     pc
       (dsl.list.metainfo {
         version = "1.1.6";
-        release_name = "Commodore Bullmoose";
-        json_schema_version = 1;
+        releaseName = "Commodore Bullmoose";
+        jsonSchemaVersion = 1;
       })
       {
         list = {
@@ -3180,15 +3330,15 @@ in
         };
       };
 
-  # Flush variants — body-taking siblings (bare `flush` stays a value).
-  # Note: `set`/`map` bodies still require `type` (and `map`) per the
-  # shared schema, even for flush-by-name.
-  testCmdFlushBare = pc dsl.flush {
+  # Flush variants — one `flush.<kind>` builder per flushable kind, like
+  # the other command namespaces. Note: `set`/`map` bodies still require
+  # `type` (and `map`) per the shared schema, even for flush-by-name.
+  testCmdFlushRulesetEmptyBody = pc (dsl.flush.ruleset { }) {
     flush = {
       ruleset = null;
     };
   };
-  testCmdFlushRuleset = pc (dsl.flushRuleset { family = "ip"; }) {
+  testCmdFlushRuleset = pc (dsl.flush.ruleset { family = "ip"; }) {
     flush = {
       ruleset = {
         family = "ip";
@@ -3197,7 +3347,7 @@ in
   };
   testCmdFlushTable =
     pc
-      (dsl.flushTable {
+      (dsl.flush.table {
         family = "inet";
         name = "filter";
       })
@@ -3211,7 +3361,7 @@ in
       };
   testCmdFlushChain =
     pc
-      (dsl.flushChain {
+      (dsl.flush.chain {
         family = "inet";
         table = "t";
         name = "input";
@@ -3227,7 +3377,7 @@ in
       };
   testCmdFlushSet =
     pc
-      (dsl.flushSet {
+      (dsl.flush.set {
         family = "inet";
         table = "t";
         name = "trusted";
@@ -3245,7 +3395,7 @@ in
       };
   testCmdFlushMap =
     pc
-      (dsl.flushMap {
+      (dsl.flush.map {
         family = "ip";
         table = "nat";
         name = "port_forward";
@@ -3263,14 +3413,14 @@ in
           };
         };
       };
-  # `flushFlowtable` is intentionally omitted from both DSL and schema —
+  # `flush.flowtable` is intentionally omitted from both DSL and schema —
   # the nftables parser rejects `flush flowtable` with "Unknown object
   # passed to flush command". See lib/dsl/structure/ruleset.nix for the
   # rationale.
 
   testCmdFlushMeter =
     pc
-      (dsl.flushMeter {
+      (dsl.flush.meter {
         family = "inet";
         table = "filter";
         name = "rate_meter";
@@ -3306,7 +3456,7 @@ in
   testCmdRulesetIntegration =
     pr
       (dsl.ruleset [
-        dsl.flush
+        (dsl.flush.ruleset { })
         (dsl.create.table {
           family = "ip";
           name = "t";

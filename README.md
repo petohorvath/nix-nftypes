@@ -41,7 +41,7 @@ This flake renders a ruleset with one input chain as nftables text:
     {
       packages.x86_64-linux.rules = pkgs.writeText "rules.nft" (
         nftlib.toTextPretty (ruleset [
-          flush
+          (flush.ruleset { })
           (table "inet" "filter" {
             chains.input = {
               type = "filter";

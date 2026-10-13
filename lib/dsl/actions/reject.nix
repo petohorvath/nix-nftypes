@@ -9,8 +9,8 @@ in
   /*
     Reject matching packets.
 
-    `reject { type?; expr?; }` builds an arbitrary reject body.
-    `reject.plain` is the empty form. `reject.icmp code`,
+    `reject { type?; expr?; }` builds an arbitrary reject body;
+    `reject { }` is the empty form. `reject.icmp code`,
     `reject.icmpv6 code`, and `reject.icmpx code` answer with an ICMP,
     ICMPv6, or family-independent ICMPX `code`. `reject.tcpReset` answers
     with a TCP RST. Each returns a reject statement.
@@ -27,9 +27,6 @@ in
         }
       )
       {
-        plain = {
-          reject = { };
-        };
         icmp = code: {
           reject = {
             type = "icmp";

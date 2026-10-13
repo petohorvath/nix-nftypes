@@ -26,11 +26,6 @@ let
     destroy
     drop
     flush
-    flushChain
-    flushMap
-    flushRuleset
-    flushSet
-    flushTable
     list
     reset
     ruleset
@@ -54,7 +49,7 @@ rec {
     {
       name = "create-supported-kinds";
       ruleset = ruleset [
-        flush
+        (flush.ruleset { })
         (create.table tableIdentity)
         (create.chain (
           tableScope
@@ -156,16 +151,16 @@ rec {
       ];
     }
 
-    # -- add (via table tree + dsl.rule) -----------------------------------
-    # `add.rule` is the canonical way to add a rule; the declarative table
-    # tree emits `add rule` commands for every entry in `chains.*.rules`.
-    # Also exercises `dsl.rule` for a standalone rule. It has no explicit
-    # handle: nft resolves `handle N` against live kernel state, and no
-    # rule exists to resolve it against. The parity suites cover handles.
+    # -- add (via table tree + add.rule) -----------------------------------
+    # The declarative table tree emits `add rule` commands for every entry
+    # in `chains.*.rules`. Also exercises `add.rule` for a standalone rule.
+    # It has no explicit handle: nft resolves `handle N` against live
+    # kernel state, and no rule exists to resolve it against. The parity
+    # suites cover handles.
     {
       name = "add-rule-via-tree-and-standalone";
       ruleset = ruleset [
-        flush
+        (flush.ruleset { })
         (dsl.table "ip" "t" {
           chains.c = {
             rules = [
@@ -174,7 +169,7 @@ rec {
             ];
           };
         })
-        (dsl.rule {
+        (dsl.add.rule {
           family = "ip";
           table = "t";
           chain = "c";
@@ -191,7 +186,7 @@ rec {
     {
       name = "delete-supported-kinds";
       ruleset = ruleset [
-        flush
+        (flush.ruleset { })
         (create.table tableIdentity)
         (create.chain (tableScope // { name = "c"; }))
         (create.counter (tableScope // { name = "ctr"; }))
@@ -319,7 +314,7 @@ rec {
     {
       name = "destroy-idempotent";
       ruleset = ruleset [
-        flush
+        (flush.ruleset { })
         (create.table tableIdentity)
         (create.chain (tableScope // { name = "c"; }))
         (create.counter (tableScope // { name = "ctr"; }))
@@ -341,7 +336,7 @@ rec {
     {
       name = "flush-variants";
       ruleset = ruleset [
-        flush
+        (flush.ruleset { })
         (create.table tableIdentity)
         (create.chain (tableScope // { name = "c"; }))
         (create.set (
@@ -359,15 +354,15 @@ rec {
             map = "inet_service";
           }
         ))
-        (flushChain (tableScope // { name = "c"; }))
-        (flushSet (
+        (flush.chain (tableScope // { name = "c"; }))
+        (flush.set (
           tableScope
           // {
             name = "s";
             type = "ipv4_addr";
           }
         ))
-        (flushMap (
+        (flush.map (
           tableScope
           // {
             name = "m";
@@ -375,16 +370,16 @@ rec {
             map = "inet_service";
           }
         ))
-        (flushTable tableIdentity)
+        (flush.table tableIdentity)
       ];
     }
 
-    # -- flushRuleset with family scope ---------------------------------
+    # -- flush.ruleset with family scope ---------------------------------
     {
       name = "flush-ruleset-by-family";
       ruleset = ruleset [
-        (flushRuleset { family = "ip"; })
-        (flushRuleset { family = "inet"; })
+        (flush.ruleset { family = "ip"; })
+        (flush.ruleset { family = "inet"; })
       ];
     }
 
@@ -411,7 +406,7 @@ rec {
     {
       name = "list-table";
       ruleset = ruleset [
-        flush
+        (flush.ruleset { })
         (create.table tableIdentity)
         (list.table tableIdentity)
       ];
@@ -423,7 +418,7 @@ rec {
     {
       name = "reset-counters-and-quotas";
       ruleset = ruleset [
-        flush
+        (flush.ruleset { })
         (create.table tableIdentity)
         (create.counter (tableScope // { name = "ctr"; }))
         (create.quota (

@@ -18,9 +18,9 @@ rec {
           rate = 10;
           per = "minute";
           inv = true;
-          rate_unit = "kbytes";
+          rateUnit = "kbytes";
           burst = 5;
-          burst_unit = "bytes";
+          burstUnit = "bytes";
         })
       ]
       [

@@ -65,7 +65,7 @@ in
   limit = {
     tag = "limit";
     plural = "limits";
-    renameBody = lib.id;
+    renameBody = rename.limit;
     body = objects.limitObjectBody;
   };
   ctHelper = {
@@ -104,9 +104,8 @@ in
     renameBody = lib.id;
     body = objects.synproxyObjectBody;
   };
-  # Tunnel bodies have hyphenated top-level keys (src-ipv4, …). The
-  # nested `tunnel` attribute's shape depends on `type` and isn't renamed
-  # here — users of geneve options write the hyphenated keys directly.
+  # Tunnel bodies have hyphenated top-level keys (src-ipv4, …) and, for
+  # geneve, a hyphenated `opt-type` in each nested option.
   tunnel = {
     tag = "tunnel";
     plural = "tunnels";

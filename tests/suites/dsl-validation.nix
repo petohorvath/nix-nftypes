@@ -284,76 +284,76 @@ in
     expectedError.msg = "insert\\.rule\\.index.*is not of type";
   };
 
-  # ----- flush helpers and standalone rule (ruleset.nix) ----------------
+  # ----- flush and add namespaces (commands.nix) -------------------------
 
   testFlushTableBadFamilyRejected = {
     expr = toJson (
-      dsl.flushTable {
+      dsl.flush.table {
         family = "wireguard";
         name = "t";
       }
     );
-    expectedError.msg = "flushTable\\.family";
+    expectedError.msg = "flush\\.table\\.family";
   };
 
   testFlushChainBadHandleRejected = {
     expr = toJson (
-      dsl.flushChain {
+      dsl.flush.chain {
         family = "ip";
         table = "t";
         name = "c";
         handle = "not-a-number";
       }
     );
-    expectedError.msg = "flushChain\\.handle.*is not of type";
+    expectedError.msg = "flush\\.chain\\.handle.*is not of type";
   };
 
   testFlushSetMissingTypeRejected = {
     expr = toJson (
-      dsl.flushSet {
+      dsl.flush.set {
         family = "ip";
         table = "t";
         name = "s";
       }
     );
-    expectedError.msg = "flushSet\\.type.*was accessed but has no value defined";
+    expectedError.msg = "flush\\.set\\.type.*was accessed but has no value defined";
   };
 
   testFlushMapMissingMapRejected = {
     expr = toJson (
-      dsl.flushMap {
+      dsl.flush.map {
         family = "ip";
         table = "t";
         name = "m";
         type = "ipv4_addr";
       }
     );
-    expectedError.msg = "flushMap\\.map.*was accessed but has no value defined";
+    expectedError.msg = "flush\\.map\\.map.*was accessed but has no value defined";
   };
 
   testFlushMeterBadTableRejected = {
     expr = toJson (
-      dsl.flushMeter {
+      dsl.flush.meter {
         family = "ip";
         table = 42;
         name = "m";
       }
     );
-    expectedError.msg = "flushMeter\\.table.*is not of type";
+    expectedError.msg = "flush\\.meter\\.table.*is not of type";
   };
 
   testFlushRulesetBadFamilyRejected = {
     expr = toJson (
-      dsl.flushRuleset {
+      dsl.flush.ruleset {
         family = "wireguard";
       }
     );
-    expectedError.msg = "flushRuleset\\.value\\.family.*is not of type";
+    expectedError.msg = "flush\\.ruleset\\.value\\.family.*is not of type";
   };
 
   testStandaloneRuleBadHandleRejected = {
     expr = toJson (
-      dsl.rule {
+      dsl.add.rule {
         family = "ip";
         table = "t";
         chain = "c";
@@ -361,7 +361,7 @@ in
         handle = "abc";
       }
     );
-    expectedError.msg = "rule\\.handle";
+    expectedError.msg = "add\\.rule\\.handle";
   };
 
   # ----- table-tree leaves (lib/table.nix) ------------------------------
