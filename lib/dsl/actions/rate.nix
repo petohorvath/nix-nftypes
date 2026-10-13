@@ -12,7 +12,7 @@ let
   rename = import ../internal/rename.nix { inherit lib; };
 
   limitBase =
-    {
+    args@{
       rate,
       per,
       rateUnit ? null,
@@ -21,22 +21,11 @@ let
       inv ? null,
     }:
     {
-      limit = compact (
-        rename.limit {
-          inherit
-            rate
-            per
-            rateUnit
-            burst
-            burstUnit
-            inv
-            ;
-        }
-      );
+      limit = compact (rename.limit args);
     };
 
   quotaBase =
-    {
+    args@{
       val,
       valUnit ? null,
       used ? null,
@@ -44,17 +33,7 @@ let
       inv ? null,
     }:
     {
-      quota = compact (
-        rename.quota {
-          inherit
-            val
-            valUnit
-            used
-            usedUnit
-            inv
-            ;
-        }
-      );
+      quota = compact (rename.quota args);
     };
 in
 {

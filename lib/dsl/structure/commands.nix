@@ -38,11 +38,13 @@
 }:
 
 let
+  # DSL-key → JSON-key renames; distinct from the `rename` command below.
+  keyRenames = import ../internal/rename.nix { inherit lib; };
+
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
   # body; plural; }`). Drop the `plural` field — irrelevant here — and
   # add the three command-only kinds (table/chain/rule) that aren't
   # table-tree containers.
-  rename = import ../internal/rename.nix { inherit lib; };
   objectKindRegistry = import ./object-kinds.nix { inherit lib objects; };
   sharedKinds = lib.mapAttrs (_: cfg: removeAttrs cfg [ "plural" ]) objectKindRegistry;
   addObjectKinds = sharedKinds // {
@@ -69,7 +71,7 @@ let
   listObjectKinds = addObjectKinds // {
     metainfo = {
       tag = "metainfo";
-      renameBody = rename.metainfo;
+      renameBody = keyRenames.metainfo;
       body = objects.metainfoBody;
     };
     meter = {

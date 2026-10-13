@@ -11,7 +11,7 @@ let
 
   natBase =
     tag:
-    {
+    args@{
       addr ? null,
       family ? null,
       port ? null,
@@ -19,17 +19,7 @@ let
       typeFlags ? null,
     }:
     {
-      ${tag} = compact (
-        rename.nat {
-          inherit
-            addr
-            family
-            port
-            flags
-            typeFlags
-            ;
-        }
-      );
+      ${tag} = compact (rename.nat args);
     };
 
   masqueradeBase =

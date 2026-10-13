@@ -137,9 +137,8 @@ nftlib.dsl.fields.fib.oif
 
 Use `payload protocol field`, `payloadRaw`, and `payloadTunnel` when no
 pre-built leaf exists. Structural and generated expressions live under
-`dsl.expr`, including
-`concat`, `prefix`, `range`, `set`, `setRef`, `map`, `mapRef`, `numgen`,
-`jhash`, and `symhash`.
+`dsl.expr`, including `concat`, `prefix`, `range`, `set`, `setRef`, `map`,
+`mapRef`, `numgen`, `jhash`, and `symhash`.
 
 Top-level match helpers include:
 

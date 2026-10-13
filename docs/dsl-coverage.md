@@ -111,8 +111,8 @@ rejects those commands.
 
 ## Key renaming
 
-Every DSL name is camel case. The DSL translates it where nftables uses spaces,
-hyphens, or underscores. Examples:
+Every DSL field and object-kind name is camel case. The DSL translates it where
+nftables uses spaces, hyphens, or underscores. Examples:
 
 | DSL | JSON |
 | --- | --- |
