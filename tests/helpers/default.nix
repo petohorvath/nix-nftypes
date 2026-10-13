@@ -81,6 +81,9 @@ in
     validatesStatement = validates nftlib.types.statement;
   };
 
+  # The source-provenance tests for one provenance record.
+  sourceProvenanceTests = import ./source-provenance.nix { inherit lib; };
+
   /*
     nix-unit test asserting that a recorded probe run
     (`{ status, output }`) exited zero. On failure the diff shows the

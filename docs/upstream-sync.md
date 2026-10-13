@@ -69,8 +69,23 @@ The exact attribute names remain the machine-readable source of truth.
 ### Source provenance
 
 `nftables-source-provenance-tests` verifies that source analysis receives the
-selected package set's release source and full patch list. Other source
+tree the selected package set builds `pkgs.nftables` from. Other source
 results are not trustworthy if this check fails.
+
+It compares these attributes of the `nftables-source` package with those of
+`pkgs.nftables`:
+
+- `src`, the release archive;
+- `patches`, the full patch list;
+- `patchFlags`;
+- `prePatch` and `postPatch`, with a `null` or missing hook equal to `""`.
+
+`nftables-source` does not pass the unpack-phase and patch-phase attributes
+`sourceRoot`, `setSourceRoot`, `preUnpack`, `postUnpack`, `unpackPhase`, and
+`patchPhase`. The check fails, naming the attribute, when `pkgs.nftables`
+sets one of them. Then either pass it in
+`packages/nftables-source/package.nix` or record why it leaves the tree
+unchanged.
 
 ### Upstream statement corpus
 
@@ -116,7 +131,10 @@ or listed object shape has been observed.
 ### Tooling self-tests
 
 `nftables-tooling-selftests` supplies synthetic source/corpus defects and checks
-that enum extraction and corpus classification turn red. The schema suite in
+that enum extraction and corpus classification turn red. It also runs the
+provenance assertions against doctored `pkgs.nftables` copies, one with a
+`postPatch` the source tree lacks and one with a `postUnpack`, and checks that
+each turns red. The schema suite in
 `unit-tests` checks that read-back validation rejects junk. Both validate the
 drift net's chosen fault classes, not nftables semantics themselves.
 
