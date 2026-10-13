@@ -278,23 +278,18 @@ jobs:
           echo "nftables package version: $locked_version -> $tip_version"
           echo "nftables version: \`$tip_version\`." >>"$GITHUB_STEP_SUMMARY"
 
-          vm_tests=(
+          checks=(
             integration-tests
             text-integration-tests
             text-block-integration-tests
             render-equivalence-tests
             nftables-roundtrip-tests
-          )
-          checks=(
             nftables-source-provenance-tests
             nftables-corpus-tests
             nftables-enum-extraction-tests
             nftables-tooling-selftests
           )
           targets=()
-          for test in "${vm_tests[@]}"; do
-            targets+=(".#legacyPackages.x86_64-linux.vmTests.${test}")
-          done
           for check in "${checks[@]}"; do
             targets+=(".#checks.x86_64-linux.${check}")
           done

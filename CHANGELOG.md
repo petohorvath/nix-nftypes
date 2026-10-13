@@ -2,19 +2,19 @@
 
 ## Unreleased
 
-### Breaking CI and test layout: project policy v0.5
+### Breaking CI and test layout: project policy v0.6
 
-Call [nixos-project-policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.5/POLICY.md) `v0.5` from `.github/workflows/check.yml`, with no caller inputs, and remove `ci.yml`. The policy checks the inputs, public outputs, development shell, and formatter, runs root `nix flake check` on `x86_64-linux` and `aarch64-linux` with the locked `nixpkgs` and with the policy's stable and unstable pins, and builds the VM tests on `x86_64-linux` with KVM. A new `formatting` check replaces the `format` job.
+Call [nixos-project-policy](https://github.com/petohorvath/nixos-project-policy/blob/v0.6/POLICY.md) `v0.6` from `.github/workflows/check.yml`, with no caller inputs, and remove `ci.yml`. The policy checks the inputs, public outputs, development shell, and formatter, and builds the checks on `x86_64-linux` and `aarch64-linux` with the locked `nixpkgs` and with the policy's stable and unstable pins. A new `formatting` check replaces the `format` job.
 
-Move the live parser and renderer tests from `checks.<system>` to `legacyPackages.<system>.vmTests`, keeping their names: `integration-tests`, `text-integration-tests`, `text-block-integration-tests`, `render-equivalence-tests`, `comment-safety-integration-tests`, `ifname-safety-integration-tests`, and `nftables-roundtrip-tests`. Their probes create private user and network namespaces, which hosted runners deny inside the build sandbox, so one NixOS VM runs them. The VM tests run only with the locked `nixpkgs`; the policy's stable and unstable pin runs cover the remaining checks. The weekly canary builds them on a KVM-enabled runner and no longer installs the AppArmor profile.
+The live parser and renderer tests stay in `checks.<system>` with their names: `integration-tests`, `text-integration-tests`, `text-block-integration-tests`, `render-equivalence-tests`, `comment-safety-integration-tests`, `ifname-safety-integration-tests`, and `nftables-roundtrip-tests`. Their probes create private user and network namespaces, which hosted runners deny inside the build sandbox, so one NixOS VM runs them. They declare `requiredSystemFeatures = [ "kvm" "nixos-test" ]`, which makes them VM tests: the policy builds them in its VM jobs with all three nixpkgs versions, and a runner without KVM reports them as skipped. Plain `nix flake check` now needs KVM. The weekly canary builds them on a KVM-enabled runner and no longer installs the AppArmor profile.
 
-The required statuses on `main` become `Policy / Check (<system>)`, `Policy / Tests (locked|stable|unstable, <system>)` for both Linux systems, and `Policy / VM tests`, replacing `tests` and `format`.
+The required statuses on `main` become `Policy / Check (<system>)`, `Policy / Tests (locked|stable|unstable, <system>)`, and `Policy / VM tests (locked|stable|unstable, <system>)` for both Linux systems, replacing `tests` and `format`.
 
 Add the MIT license.
 
 ### Breaking flake outputs: a single `nixpkgs` input
 
-Drop the `nixpkgs-unstable` flake input. The checks and VM tests are built once from `nixpkgs`, and the policy's stable and unstable pin runs, which override `nixpkgs`, test the other nixpkgs versions. This removes the `packages.<system>.nftables-source-unstable` package, every `-unstable` check in `checks.<system>`, and every `-unstable` VM test in `legacyPackages.<system>.vmTests`. CI no longer builds VM tests against unstable; the weekly canary still does.
+Drop the `nixpkgs-unstable` flake input. The checks and VM tests are built once from `nixpkgs`, and the policy's stable and unstable pin runs, which override `nixpkgs`, test the other nixpkgs versions. This removes the `packages.<system>.nftables-source-unstable` package and every `-unstable` check in `checks.<system>`, including the `-unstable` VM tests. The policy's unstable pin runs build the VM tests against unstable instead.
 
 The weekly upstream-sync workflow overrides `nixpkgs` with the tips of the `nixos-26.05` and `nixos-unstable` branches. The unstable source watch now compares the locked stable source with the unstable tip, so its drift issue stays open while unstable carries a newer nftables. A new drift issue closes the older open ones for the same branch.
 

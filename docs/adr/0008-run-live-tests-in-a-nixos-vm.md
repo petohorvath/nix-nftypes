@@ -1,6 +1,6 @@
 # Run live tests in a NixOS VM
 
-Live tests create private user and network namespaces so that `nft` can parse and load rulesets without touching the host. Hosted CI runners deny those namespaces inside the build sandbox, and the shared project policy's jobs cannot install the AppArmor profile the old workflow used, so the probes run as root in one NixOS VM. Those tests are exposed as `legacyPackages.<system>.vmTests` and need KVM; source-side tests stay in `checks`.
+Live tests create private user and network namespaces so that `nft` can parse and load rulesets without touching the host. Hosted CI runners deny those namespaces inside the build sandbox, and the shared project policy's jobs cannot install the AppArmor profile the old workflow used, so the probes run as root in one NixOS VM. Those tests are checks that declare `requiredSystemFeatures = [ "kvm" "nixos-test" ]`, so the project policy builds them in its VM jobs and skips them on a runner without KVM.
 
 ## Considered options
 
