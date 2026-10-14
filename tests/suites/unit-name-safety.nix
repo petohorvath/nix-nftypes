@@ -7,7 +7,8 @@
 
 # Regression coverage for the limit/quota unit-name injection class.
 # `limit` and `quota` carry `rate_unit`, `burst_unit`, `val_unit`,
-# `used_unit` fields typed `types.str` in the schema. The renderer
+# `used_unit` fields typed `types.str` in the schema (`rateUnit`, … in
+# the DSL). The renderer
 # emitted each bare into the surrounding clause:
 #
 #   limit rate <N> <rate_unit>/<per> burst <N> <burst_unit>
@@ -106,14 +107,14 @@ let
     ];
 
   surfaces = {
-    limitStmt_rate_unit = rulesetLimitStmt "rate_unit";
-    limitStmt_burst_unit = rulesetLimitStmt "burst_unit";
-    quotaStmt_val_unit = rulesetQuotaStmt "val_unit";
-    quotaStmt_used_unit = rulesetQuotaStmt "used_unit";
-    limitObject_rate_unit = rulesetLimitObject "rate_unit";
-    limitObject_burst_unit = rulesetLimitObject "burst_unit";
-    createLimit_rate_unit = rulesetCreateLimit "rate_unit";
-    createLimit_burst_unit = rulesetCreateLimit "burst_unit";
+    limitStmt_rate_unit = rulesetLimitStmt "rateUnit";
+    limitStmt_burst_unit = rulesetLimitStmt "burstUnit";
+    quotaStmt_val_unit = rulesetQuotaStmt "valUnit";
+    quotaStmt_used_unit = rulesetQuotaStmt "usedUnit";
+    limitObject_rate_unit = rulesetLimitObject "rateUnit";
+    limitObject_burst_unit = rulesetLimitObject "burstUnit";
+    createLimit_rate_unit = rulesetCreateLimit "rateUnit";
+    createLimit_burst_unit = rulesetCreateLimit "burstUnit";
   };
 
   # Field label each surface's renderer names in its refusal.
@@ -178,15 +179,15 @@ let
 
   prettyTests = {
     testPrettyRejects_limitStmt_rate_unit_newline = {
-      expr = toTextPretty (rulesetLimitStmt "rate_unit" badInputs.newline);
+      expr = toTextPretty (rulesetLimitStmt "rateUnit" badInputs.newline);
       expectedError.msg = refusal "limit rate_unit";
     };
     testPrettyRejects_limitObject_burst_unit_newline = {
-      expr = toTextPretty (rulesetLimitObject "burst_unit" badInputs.newline);
+      expr = toTextPretty (rulesetLimitObject "burstUnit" badInputs.newline);
       expectedError.msg = refusal "limit burst_unit";
     };
     testPrettyRejects_createLimit_burst_unit_newline = {
-      expr = toTextPretty (rulesetCreateLimit "burst_unit" badInputs.newline);
+      expr = toTextPretty (rulesetCreateLimit "burstUnit" badInputs.newline);
       expectedError.msg = refusal "limit burst_unit";
     };
   };

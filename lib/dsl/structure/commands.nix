@@ -1,14 +1,17 @@
 /*
   Namespaced builders for commands that don't fit the declarative table
-  tree: create, delete, destroy, list, rename, reset. Each command's schema
-  accepts a specific subset of object kinds (see `lib/schema/commands.nix` and
-  `lib/schema/objects.nix`), so one namespace per command enumerates exactly the
-  kinds the schema allows.
+  tree: add, create, delete, destroy, flush, list, rename, reset. Each
+  command's schema accepts a specific subset of object kinds (see
+  `lib/schema/commands.nix` and `lib/schema/objects.nix`), so one namespace
+  per command enumerates exactly the kinds the schema allows.
 
   Usage:
+    dsl.add.rule { family; table; chain; expr; handle; }
     dsl.create.counter { family; table; name; }
     dsl.delete.chain { family; table; name; }
     dsl.destroy.set { family; table; name; type; }
+    dsl.flush.table { family; name; }
+    dsl.flush.ruleset { }                         # every family
     dsl.list.table { family; name; }
     dsl.rename.chain { family; table; name; newname; }
     dsl.reset.counter { family; table; name; }   # command (sub-attr)
@@ -35,6 +38,9 @@
 }:
 
 let
+  # DSL-key → JSON-key renames; distinct from the `rename` command below.
+  keyRenames = import ../internal/rename.nix { inherit lib; };
+
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
   # body; plural; }`). Drop the `plural` field — irrelevant here — and
   # add the three command-only kinds (table/chain/rule) that aren't
@@ -65,7 +71,7 @@ let
   listObjectKinds = addObjectKinds // {
     metainfo = {
       tag = "metainfo";
-      renameBody = lib.id;
+      renameBody = keyRenames.metainfo;
       body = objects.metainfoBody;
     };
     meter = {
@@ -75,12 +81,40 @@ let
     };
   };
 
-  # `create rule` is explicitly rejected by the nftables parser with
-  # "Create command not available for rules" — use `add.rule` / `dsl.rule`
-  # instead (the existing table-tree `rules = [ … ]` path also produces
-  # `add rule`). Omitting `rule` from the `create` namespace turns the
-  # schema's over-permissiveness into a DSL-level error.
+  /*
+    `create rule` is explicitly rejected by the nftables parser with
+    "Create command not available for rules" — use `add.rule` instead (the
+    table-tree `rules = [ … ]` path also produces `add rule`). Omitting
+    `rule` from the `create` namespace turns the schema's
+    over-permissiveness into a DSL-level error.
+  */
   createObjectKinds = removeAttrs addObjectKinds [ "rule" ];
+
+  /*
+    `flush` accepts table, chain, set, map, meter, and ruleset
+    (parser_json.c:4297-4304). `flush flowtable` is absent because the
+    nftables parser rejects it ("Unknown object passed to flush command").
+    `set`/`map` bodies still require `type` (and `map`) even for a
+    flush-by-name, since the submodule is shared with add-object commands.
+
+    The ruleset body is either `{ family; }` or the JSON `null` meaning
+    every family. An empty attrset stands for `null`, so every flush kind
+    takes an attrset: `flush.ruleset { }` flushes everything.
+  */
+  flushObjectKinds = {
+    inherit (listObjectKinds)
+      table
+      chain
+      set
+      map
+      meter
+      ;
+    ruleset = {
+      tag = "ruleset";
+      renameBody = body: if body == { } then null else body;
+      body = objects.rulesetBody;
+    };
+  };
 
   resetObjectKinds = {
     inherit (addObjectKinds)
@@ -125,13 +159,18 @@ let
     ) kinds;
 in
 {
-  # Per-kind command builders; each `<command>.<kind>` takes an object body
-  # and returns the validated command (see `mkNamespace`). `create` omits
-  # `rule`, `list` adds `metainfo` and `meter`, and `delete` / `destroy`
-  # accept every add-object kind.
+  /*
+    Per-kind command builders; each `<command>.<kind>` takes an object body
+    and returns the validated command (see `mkNamespace`). `add`, `delete`,
+    and `destroy` accept every add-object kind, `create` omits `rule`,
+    `list` adds `metainfo` and `meter`, and `flush` takes the flushable
+    kinds plus `ruleset`.
+  */
+  add = mkNamespace "add" addObjectKinds;
   create = mkNamespace "create" createObjectKinds;
   delete = mkNamespace "delete" addObjectKinds;
   destroy = mkNamespace "destroy" addObjectKinds;
+  flush = mkNamespace "flush" flushObjectKinds;
   list = mkNamespace "list" listObjectKinds;
 
   # Reset-as-command — merged with the reset-as-statement form (in

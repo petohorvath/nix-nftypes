@@ -1,33 +1,25 @@
 /*
   Address-translation statements: snat, dnat, masquerade, redirect, fwd,
   dup, and tproxy. SNAT/DNAT take the full NAT body; masquerade/redirect take
-  a reduced port-and-flags body plus a `.plain` variant for an empty body.
+  a reduced port-and-flags body.
 */
 { lib }:
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
-  variant = import ../internal/variant.nix { inherit lib; };
+  rename = import ../internal/rename.nix { inherit lib; };
 
   natBase =
     tag:
-    {
+    args@{
       addr ? null,
       family ? null,
       port ? null,
       flags ? null,
-      type_flags ? null,
+      typeFlags ? null,
     }:
     {
-      ${tag} = compact {
-        inherit
-          addr
-          family
-          port
-          flags
-          type_flags
-          ;
-      };
+      ${tag} = compact (rename.nat args);
     };
 
   masqueradeBase =
@@ -44,7 +36,7 @@ in
   /*
     Rewrite the source address. Every argument is optional and omitted when
     null: `addr` is the new address, `family` the address family, `port`
-    the new port, `flags` the NAT flags, and `type_flags` the address-type
+    the new port, `flags` the NAT flags, and `typeFlags` the address-type
     flags. Returns an snat statement.
   */
   snat = natBase "snat";
@@ -52,7 +44,7 @@ in
   /*
     Rewrite the destination address. Every argument is optional and omitted
     when null: `addr` is the new address, `family` the address family,
-    `port` the new port, `flags` the NAT flags, and `type_flags` the
+    `port` the new port, `flags` the NAT flags, and `typeFlags` the
     address-type flags. Returns a dnat statement.
   */
   dnat = natBase "dnat";
@@ -60,28 +52,18 @@ in
   /*
     Rewrite the source address to the outgoing interface's address.
 
-    `masquerade { port?; flags?; }` takes an optional port and NAT flags.
-    `masquerade.plain` is the empty form. Each returns a masquerade
-    statement.
+    `masquerade { port?; flags?; }` takes an optional port and NAT flags;
+    `masquerade { }` is the empty form. Returns a masquerade statement.
   */
-  masquerade = variant (masqueradeBase "masquerade") {
-    plain = {
-      masquerade = { };
-    };
-  };
+  masquerade = masqueradeBase "masquerade";
 
   /*
     Redirect the packet to the local machine.
 
-    `redirect { port?; flags?; }` takes an optional port and NAT flags.
-    `redirect.plain` is the empty form. Each returns a redirect
-    statement.
+    `redirect { port?; flags?; }` takes an optional port and NAT flags;
+    `redirect { }` is the empty form. Returns a redirect statement.
   */
-  redirect = variant (masqueradeBase "redirect") {
-    plain = {
-      redirect = { };
-    };
-  };
+  redirect = masqueradeBase "redirect";
 
   /*
     Forward the packet out of a device. `dev` is the output device, and

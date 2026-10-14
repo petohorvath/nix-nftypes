@@ -33,7 +33,7 @@ let
   inherit (nftlib.dsl.expr) map prefix;
 in
 ruleset [
-  flush
+  (flush.ruleset { })
 
   (table "inet" "main" {
     sets.trusted_v4 = {
@@ -119,10 +119,7 @@ ruleset [
           (dnat {
             family = "ip";
             addr = "10.0.0.10";
-            port = map {
-              key = tcp.dport;
-              data = "@port_forward";
-            };
+            port = map tcp.dport "@port_forward";
           })
         ]
       ];

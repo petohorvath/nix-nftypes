@@ -97,28 +97,32 @@ and removed during expansion.
 
 The DSL exposes all modelled command verbs:
 
-- `rule`, `replace`, and `insert` for rule commands;
+- `add.<kind>` for the 17 add-object kinds, including `add.rule`;
+- `replace` and `insert` for rule commands;
 - `create.<kind>`, excluding `rule`;
 - `delete.<kind>` and `destroy.<kind>` for the 17 add-object kinds;
 - `list.<kind>` plus `list.metainfo` and `list.meter`;
 - `reset.<kind>` for counter, quota, rule, set, map, and element;
-- `flush` plus explicit ruleset/table/chain/set/map/meter helpers;
+- `flush.<kind>` for ruleset, table, chain, set, map, and meter;
 - `rename.chain`.
 
-`create.rule` and `flushFlowtable` are absent because the live JSON parser
+`create.rule` and `flush.flowtable` are absent because the live JSON parser
 rejects those commands.
 
 ## Key renaming
 
-The DSL uses Nix-friendly camel case and translates only where nftables uses
-hyphenated names. Examples:
+Every DSL field and object-kind name is camel case. The DSL translates it where
+nftables uses spaces, hyphens, or underscores. Examples:
 
 | DSL | JSON |
-| --- | --- | --- |
+| --- | --- |
 | `ctHelper` | `ct helper` |
 | `queueThreshold` | `queue-threshold` |
 | `gcInterval` | `gc-interval` |
 | `srcIpv4` | `src-ipv4` |
+| `optType` | `opt-type` |
+| `rateUnit` | `rate_unit` |
+| `typeFlags` | `type_flags` |
 
 The mapping is centralized in
 [`lib/dsl/internal/rename.nix`](../lib/dsl/internal/rename.nix).

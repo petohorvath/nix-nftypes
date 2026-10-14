@@ -5,7 +5,7 @@
       `base`   is the function called when the result is invoked:
                `(variant base …) args  ==  base args`
       `extras` is a plain attrset of named variants reachable by attribute
-               access: `.auto`, `.ref`, `.plain`, …
+               access: `.auto`, `.ref`, `.icmp`, …
 
   Returns `extras` plus a `__functor` that delegates to `base`.
 

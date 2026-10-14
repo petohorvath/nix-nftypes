@@ -24,14 +24,7 @@ let
   exprs = import ./exprs.nix { inherit lib; };
   payload = import ./payload.nix { inherit lib; };
   actions = import ./actions { inherit lib; };
-  ruleset = import ./structure/ruleset.nix {
-    inherit
-      expandTable
-      lib
-      objects
-      validate
-      ;
-  };
+  ruleset = import ./structure/ruleset.nix { inherit expandTable lib; };
   table = import ./structure/table.nix { inherit lib; };
   commands = import ./structure/commands.nix { inherit lib objects validate; };
   variant = import ./internal/variant.nix { inherit lib; };
@@ -51,11 +44,14 @@ in
 # names.
 {
   inherit fields reset table;
+  inherit (ruleset) ruleset;
   expr = exprs;
   inherit (commands)
+    add
     create
     delete
     destroy
+    flush
     insert
     list
     rename
@@ -66,6 +62,3 @@ in
 // ops # eq, ne, lt, gt, le, ge, inSet, notInSet, within, match
 // verdicts # accept, drop, continue, return, notrack, jump, goto
 // actionsWithoutReset # counter, log, limit, snat, … (reset handled above)
-# ruleset, rule, flush, flushTable, flushChain, flushSet, flushMap,
-# flushMeter, flushRuleset
-// ruleset

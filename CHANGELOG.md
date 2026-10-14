@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+The DSL follows one set of naming and argument conventions ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). These changes break DSL callers; the schema types and renderers are unchanged.
+
+### Added
+
+- `add.<kind>`, a command builder for each of the 17 add-object kinds, like `create.<kind>`.
+
+### Changed
+
+- Flush commands are a `flush.<kind>` namespace like the other verbs: `flush.ruleset`, `flush.table`, `flush.chain`, `flush.set`, `flush.map`, and `flush.meter`. Each takes an object body, and `flush.ruleset { }` flushes every family. They replace `flushRuleset`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`, and the bare `flush` value.
+- Every DSL field name is camelCase:
+  - `limit` takes `rateUnit` and `burstUnit`, and so do named limits in a table tree and `create.limit`.
+  - `quota` takes `valUnit` and `usedUnit`.
+  - `snat` and `dnat` take `typeFlags`.
+  - `list.metainfo` takes `releaseName` and `jsonSchemaVersion`.
+  - Geneve tunnel options take `optType`.
+- `expr.map key data` and `payload protocol field` take positional arguments, like `vmap key data`.
+
+### Removed
+
+- `dsl.rule`. Use `add.rule`, which takes the same body.
+- The `.plain` variants of `log`, `queue`, `reject`, `masquerade`, and `redirect`. Use the empty body, for example `log { }`.
+
 ## [0.1.0] - 2026-10-13
 
 First release. The [API reference](docs/api.md) documents the library's exports, and the [glossary](GLOSSARY.md) defines the project's terms.

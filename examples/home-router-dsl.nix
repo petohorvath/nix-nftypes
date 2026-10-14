@@ -51,7 +51,7 @@ let
   mapLookup = nftlib.dsl.expr.map;
 in
 ruleset [
-  flush
+  (flush.ruleset { })
 
   # -------------------------------------------------------------------------
   # Filter table (inet family) — packet acceptance/rejection
@@ -316,13 +316,10 @@ ruleset [
           (eq ip.protocol "tcp")
           (dnat {
             family = "ip";
-            addr = mapLookup {
-              key = concat [
-                ip.daddr
-                tcp.dport
-              ];
-              data = "@port_forward";
-            };
+            addr = mapLookup (concat [
+              ip.daddr
+              tcp.dport
+            ]) "@port_forward";
           })
         ]
       ];

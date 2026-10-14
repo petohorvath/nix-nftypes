@@ -135,10 +135,10 @@ nftlib.dsl.fields.meta.iifname
 nftlib.dsl.fields.fib.oif
 ```
 
-Use `payload`, `payloadRaw`, and `payloadTunnel` when no pre-built leaf exists.
-Structural and generated expressions live under `dsl.expr`, including
-`concat`, `prefix`, `range`, `set`, `setRef`, `map`, `mapRef`, `numgen`,
-`jhash`, and `symhash`.
+Use `payload protocol field`, `payloadRaw`, and `payloadTunnel` when no
+pre-built leaf exists. Structural and generated expressions live under
+`dsl.expr`, including `concat`, `prefix`, `range`, `set`, `setRef`, `map`,
+`mapRef`, `numgen`, `jhash`, and `symhash`.
 
 Top-level match helpers include:
 
@@ -147,7 +147,8 @@ Top-level match helpers include:
 - `match.in_` and `match.raw` for less common forms.
 
 `expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` emits a named
-set reference. The equivalent map helpers are `expr.map` and `expr.mapRef`.
+set reference. The equivalent map helpers are `expr.map key data` and
+`expr.mapRef`.
 
 ### Statements
 
@@ -166,15 +167,20 @@ notrack
 Most statement families are callable attrsets with named variants. Examples:
 
 ```nix
-counter.auto
 counter { packets = 0; bytes = 0; }
 counter.ref "named_counter"
-quota.ref (expr.map { key = fields.tcp.dport; data = "@quota_by_port"; })
+counter.auto
+quota.ref (expr.map fields.tcp.dport "@quota_by_port")
 
 reject.icmpx "admin-prohibited"
 log { prefix = "DROP: "; level = "info"; }
 limit { rate = 10; per = "minute"; burst = 5; }
 ```
+
+`.ref name` references a named object. `.auto` is the null-body form, such as
+`{ counter = null; }`, that `nft -j list --stateless` prints; `counter` and
+`synproxy` have it. A statement whose fields are all optional takes `{ }` for
+its empty form, for example `log { }` or `masquerade { }`.
 
 Other top-level constructors include `snat`, `dnat`, `masquerade`, `redirect`,
 `queue`, `synproxy`, `flow`, `meter`, `vmap`, `mangle`, `tproxy`, `fwd`, `dup`,
@@ -230,23 +236,37 @@ responsibility.
 A rule entry may be either a statement list or an attrset with `expr` plus
 optional `handle`, `index`, and `comment`.
 
-Camel-case DSL fields are renamed where JSON uses hyphens, for example
-`queueThreshold` to `queue-threshold`, `gcInterval` to `gc-interval`, and
-`srcIpv4` to `src-ipv4`.
+### Naming and argument conventions
+
+Every DSL field name is camelCase. The DSL renames it where JSON uses hyphens
+or underscores, for example `queueThreshold` to `queue-threshold`, `gcInterval`
+to `gc-interval`, `srcIpv4` to `src-ipv4`, `rateUnit` to `rate_unit`, and
+`typeFlags` to `type_flags`. The same renames apply to statements, table-tree
+objects, and command builders. Named sets and maps also take `elements` for the
+JSON `elem` key.
+
+A builder takes positional arguments only when every argument is required and
+there are at most two, as in `eq left right`, `vmap key data`, `expr.map key
+data`, `payload protocol field`, `prefix addr len`, and `counter.ref name`.
+Every other builder takes one attrset. `dsl.table family name body` is the
+exception; it mirrors nftables' `table inet filter { … }` syntax. See
+[ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 
 ### Commands
 
 | API | Notes |
 | --- | --- |
-| `flush` | bare `flush ruleset` value |
-| `flushRuleset`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter` | explicit flush builders; nftables has no `flush flowtable` command |
-| `rule body` | standalone `add rule` |
+| `add.<kind>` | 17 add-object kinds; `add.rule` adds a standalone rule |
 | `create.<kind>` | 16 object kinds; `rule` is excluded |
 | `delete.<kind>`, `destroy.<kind>` | 17 add-object kinds |
+| `flush.<kind>` | table, chain, set, map, meter, or ruleset; nftables has no `flush flowtable` command |
 | `list.<kind>` | 17 add-object kinds plus `metainfo` and `meter` |
 | `reset.<kind>` | counter, quota, rule, set, map, or element |
 | `replace body`, `insert body` | rule-only commands |
 | `rename.chain body` | chain-only rename |
+
+Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
+every family, and `flush.ruleset { family = "ip"; }` flushes one.
 
 Command builders validate against the current schema body. Some nftables verbs
 accept slimmer selector bodies than the shared schema models; those differences

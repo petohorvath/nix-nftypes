@@ -55,11 +55,7 @@ in
     Build a map lookup. `key` is the lookup expression and `data` the
     anonymous map body or named map reference. Returns a map expression.
   */
-  map =
-    { key, data }:
-    {
-      map = { inherit key data; };
-    };
+  map = key: data: { map = { inherit key data; }; };
 
   /*
     Reference a named map, mirroring `setRef`. `name` is the map name, with
