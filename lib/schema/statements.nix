@@ -7,7 +7,7 @@
 
 let
   inherit (lib) mkOption types;
-  inherit (internal) taggedUnion;
+  inherit (internal) submodule taggedUnion;
   inherit (expressions) verdictTargetBody;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
@@ -15,9 +15,10 @@ let
     ipFamily
     logFlag
     logLevel
+    logPrefix
+    namedReference
     natFlag
     natTypeFlag
-    nftQuotedString
     nullLiteral
     operator
     perUnit
@@ -34,8 +35,23 @@ let
   objectRef = types.either types.str (expressions.expressionOf [ "map" ]);
   refOrInline = internal.refOrInline objectRef;
 
+  # nft lists a log, masquerade, redirect, queue or reject statement with
+  # no options as a null body (src/json.c), and its JSON parser loads that
+  # body back.
+  orNull = types.either nullLiteral;
+
+  # A translation body that names an address or a port: nft refuses an
+  # empty tproxy, and the kernel an snat or dnat with neither.
+  addressOrPort =
+    name: options:
+    internal.discriminatedSubmodule {
+      inherit options;
+      extraCheck = body: (body.addr or null) != null || (body.port or null) != null;
+      description = "${name} body with addr or port";
+    };
+
   bodies = rec {
-    matchBody = types.submodule {
+    matchBody = submodule {
       options = {
         left = mkOption {
           type = expr;
@@ -52,22 +68,28 @@ let
       };
     };
 
-    # Counter: parser_json.c:1914 accepts null (emitted by stateless output),
-    # inline {packets, bytes}, or a named-reference string. Wraps `nullLiteral`
-    # around the standard ref-or-inline pattern.
+    /*
+      Counter: parser_json.c:1894-1920 accepts null (emitted by stateless
+      output), an inline `{ packets; bytes; }`, or a reference to a named
+      counter. The inline form needs both fields: any other object is
+      parsed as a reference and fails.
+    */
     counterRefOrBody = types.oneOf [
       nullLiteral
       (refOrInline (
-        types.submodule {
+        internal.discriminatedSubmodule {
+          requireKeys = [
+            "packets"
+            "bytes"
+          ];
+          description = "inline counter with packets and bytes";
           options = {
             packets = mkOption {
-              type = types.nullOr types.ints.unsigned;
-              default = null;
+              type = types.ints.unsigned;
               description = "initial packet counter";
             };
             bytes = mkOption {
-              type = types.nullOr types.ints.unsigned;
-              default = null;
+              type = types.ints.unsigned;
               description = "initial byte counter";
             };
           };
@@ -75,7 +97,7 @@ let
       ))
     ];
 
-    mangleBody = types.submodule {
+    mangleBody = submodule {
       options = {
         key = mkOption {
           type = expr;
@@ -88,74 +110,70 @@ let
       };
     };
 
-    quotaRefOrBody = refOrInline (
-      types.submodule {
-        options = {
-          val = mkOption {
-            type = types.ints.unsigned;
-            description = "quota value";
-          };
-          val_unit = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "unit of val (bytes/kbytes/mbytes/…)";
-          };
-          used = mkOption {
-            type = types.nullOr types.ints.unsigned;
-            default = null;
-            description = "initial used value";
-          };
-          used_unit = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "unit of used";
-          };
-          inv = mkOption {
-            type = types.nullOr types.bool;
-            default = null;
-            description = "invert match semantics";
-          };
+    quotaRefOrBody = refOrInline (submodule {
+      options = {
+        val = mkOption {
+          type = types.ints.unsigned;
+          description = "quota value";
         };
-      }
-    );
+        val_unit = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "unit of val (bytes/kbytes/mbytes/…)";
+        };
+        used = mkOption {
+          type = types.nullOr types.ints.unsigned;
+          default = null;
+          description = "initial used value";
+        };
+        used_unit = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "unit of used";
+        };
+        inv = mkOption {
+          type = types.nullOr types.bool;
+          default = null;
+          description = "invert match semantics";
+        };
+      };
+    });
 
     # Inline limit: `rate` and `per` are required together (parser_json.c:2084).
-    limitRefOrBody = refOrInline (
-      types.submodule {
-        options = {
-          rate = mkOption {
-            type = types.ints.positive;
-            description = "rate value";
-          };
-          per = mkOption {
-            type = perUnit;
-            description = "time unit (required for inline form)";
-          };
-          rate_unit = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "unit of rate; defaults to \"packets\"";
-          };
-          burst = mkOption {
-            type = types.nullOr types.ints.unsigned;
-            default = null;
-            description = "burst value; defaults to 0";
-          };
-          burst_unit = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "unit of burst";
-          };
-          inv = mkOption {
-            type = types.nullOr types.bool;
-            default = null;
-            description = "invert match semantics";
-          };
+    limitRefOrBody = refOrInline (submodule {
+      options = {
+        rate = mkOption {
+          type = types.ints.positive;
+          description = "rate value";
         };
-      }
-    );
+        per = mkOption {
+          type = perUnit;
+          description = "time unit (required for inline form)";
+        };
+        rate_unit = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "unit of rate; defaults to \"packets\"";
+        };
+        burst = mkOption {
+          type = types.nullOr types.ints.unsigned;
+          default = null;
+          description = "burst value; defaults to 0";
+        };
+        burst_unit = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "unit of burst";
+        };
+        inv = mkOption {
+          type = types.nullOr types.bool;
+          default = null;
+          description = "invert match semantics";
+        };
+      };
+    });
 
-    fwdBody = types.submodule {
+    fwdBody = submodule {
       options = {
         dev = mkOption {
           type = expr;
@@ -174,7 +192,7 @@ let
       };
     };
 
-    dupBody = types.submodule {
+    dupBody = submodule {
       options = {
         addr = mkOption {
           type = expr;
@@ -188,39 +206,37 @@ let
       };
     };
 
-    natBody = types.submodule {
-      options = {
-        addr = mkOption {
-          type = types.nullOr expr;
-          default = null;
-          description = "address to translate to";
-        };
-        family = mkOption {
-          type = types.nullOr ipFamily;
-          default = null;
-          description = "family of addr (required in inet)";
-        };
-        port = mkOption {
-          type = types.nullOr expr;
-          default = null;
-          description = "port to translate to";
-        };
-        flags = mkOption {
-          type = types.nullOr (listOrSingleton natFlag);
-          default = null;
-          description = ''
-            NAT mapping flags (random/fully-random/persistent/netmap)
-          '';
-        };
-        type_flags = mkOption {
-          type = types.nullOr (listOrSingleton natTypeFlag);
-          default = null;
-          description = "NAT range semantics (interval/prefix/concat)";
-        };
+    natBody = addressOrPort "snat/dnat" {
+      addr = mkOption {
+        type = types.nullOr expr;
+        default = null;
+        description = "address to translate to";
+      };
+      family = mkOption {
+        type = types.nullOr ipFamily;
+        default = null;
+        description = "family of addr (required in inet)";
+      };
+      port = mkOption {
+        type = types.nullOr expr;
+        default = null;
+        description = "port to translate to";
+      };
+      flags = mkOption {
+        type = types.nullOr (listOrSingleton natFlag);
+        default = null;
+        description = ''
+          NAT mapping flags (random/fully-random/persistent/netmap)
+        '';
+      };
+      type_flags = mkOption {
+        type = types.nullOr (listOrSingleton natTypeFlag);
+        default = null;
+        description = "NAT range semantics (interval/prefix/concat)";
       };
     };
 
-    masqueradeBody = types.submodule {
+    masqueradeBody = submodule {
       options = {
         port = mkOption {
           type = types.nullOr expr;
@@ -235,7 +251,7 @@ let
       };
     };
 
-    rejectBody = types.submodule {
+    rejectBody = submodule {
       options = {
         type = mkOption {
           type = types.nullOr rejectType;
@@ -250,7 +266,7 @@ let
       };
     };
 
-    setStatementBody = types.submodule {
+    setStatementBody = submodule {
       options = {
         op = mkOption {
           type = setOp;
@@ -261,8 +277,8 @@ let
           description = "element to add/update/delete";
         };
         set = mkOption {
-          type = types.str;
-          description = "set reference";
+          type = namedReference;
+          description = "set reference (\"@name\")";
         };
         stmt = mkOption {
           type = types.nullOr (types.listOf statement);
@@ -273,7 +289,7 @@ let
     };
 
     # `map` statement: dynamic map modification (distinct from vmap).
-    mapStatementBody = types.submodule {
+    mapStatementBody = submodule {
       options = {
         op = mkOption {
           type = setOp;
@@ -288,7 +304,7 @@ let
           description = "value expression";
         };
         map = mkOption {
-          type = types.str;
+          type = namedReference;
           description = "map reference (\"@name\")";
         };
         stmt = mkOption {
@@ -299,12 +315,10 @@ let
       };
     };
 
-    logBody = types.submodule {
+    logBody = submodule {
       options = {
         prefix = mkOption {
-          # nft renders this through the same quoted-string path as
-          # comments — see nftQuotedString.
-          type = types.nullOr nftQuotedString;
+          type = types.nullOr logPrefix;
           default = null;
           description = "log prefix";
         };
@@ -336,7 +350,7 @@ let
       };
     };
 
-    meterBody = types.submodule {
+    meterBody = submodule {
       options = {
         name = mkOption {
           type = types.str;
@@ -358,7 +372,7 @@ let
       };
     };
 
-    queueBody = types.submodule {
+    queueBody = submodule {
       options = {
         num = mkOption {
           type = types.nullOr expr;
@@ -373,7 +387,7 @@ let
       };
     };
 
-    vmapBody = types.submodule {
+    vmapBody = submodule {
       options = {
         key = mkOption {
           type = expr;
@@ -390,7 +404,7 @@ let
     # `ct count` object (parser_json.c json_parse_connlimit_stmt).
     ctCountRefOrBody = refOrInline ctCountBody;
 
-    ctCountBody = types.submodule {
+    ctCountBody = submodule {
       options = {
         val = mkOption {
           type = types.ints.unsigned;
@@ -404,7 +418,7 @@ let
       };
     };
 
-    xtBody = types.submodule {
+    xtBody = submodule {
       options = {
         type = mkOption {
           type = xtType;
@@ -417,49 +431,45 @@ let
       };
     };
 
-    lastBody = types.either nullLiteral (
-      types.submodule {
-        options.used = mkOption {
-          type = types.int;
-          description = "time in ms since last match (-1 = never matched)";
-        };
-      }
-    );
+    lastBody = types.either nullLiteral (submodule {
+      options.used = mkOption {
+        type = types.int;
+        description = "time in ms since last match (-1 = never matched)";
+      };
+    });
 
-    flowBody = types.submodule {
+    flowBody = submodule {
       options = {
         op = mkOption {
           type = flowOp;
           description = "flow offload operation (only \"add\" accepted)";
         };
         flowtable = mkOption {
-          type = types.str;
-          description = "flowtable reference starting with \"@\"";
+          type = namedReference;
+          description = "flowtable reference (\"@name\")";
         };
       };
     };
 
-    tproxyBody = types.submodule {
-      options = {
-        family = mkOption {
-          type = types.nullOr ipFamily;
-          default = null;
-          description = "address family";
-        };
-        addr = mkOption {
-          type = types.nullOr expr;
-          default = null;
-          description = "address to redirect to";
-        };
-        port = mkOption {
-          type = types.nullOr expr;
-          default = null;
-          description = "port to redirect to";
-        };
+    tproxyBody = addressOrPort "tproxy" {
+      family = mkOption {
+        type = types.nullOr ipFamily;
+        default = null;
+        description = "address family";
+      };
+      addr = mkOption {
+        type = types.nullOr expr;
+        default = null;
+        description = "address to redirect to";
+      };
+      port = mkOption {
+        type = types.nullOr expr;
+        default = null;
+        description = "port to redirect to";
       };
     };
 
-    synproxyAnonBody = types.submodule {
+    synproxyAnonBody = submodule {
       options = {
         mss = mkOption {
           type = types.ints.unsigned;
@@ -515,17 +525,17 @@ let
       dup = dupBody;
       snat = natBody;
       dnat = natBody;
-      masquerade = masqueradeBody;
-      redirect = masqueradeBody;
-      reject = rejectBody;
+      masquerade = orNull masqueradeBody;
+      redirect = orNull masqueradeBody;
+      reject = orNull rejectBody;
       set = setStatementBody;
       map = mapStatementBody;
-      log = logBody;
+      log = orNull logBody;
       "ct helper" = expr;
       "ct timeout" = expr;
       "ct expectation" = expr;
       meter = meterBody;
-      queue = queueBody;
+      queue = orNull queueBody;
       vmap = vmapBody;
       "ct count" = ctCountRefOrBody;
       xt = xtBody;
@@ -566,12 +576,12 @@ let
         renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
       in
       if !(builtins.isList kinds) then
-        throw "nftypes.types.statementOf: argument must be a list of strings"
+        throw "nix-nftypes: types.statementOf: argument must be a list of strings"
       else if kinds == [ ] then
-        throw "nftypes.types.statementOf: kinds list must be non-empty"
+        throw "nix-nftypes: types.statementOf: kinds list must be non-empty"
       else if invalid != [ ] then
         throw (
-          "nftypes.types.statementOf: unknown statement kind(s): "
+          "nix-nftypes: types.statementOf: unknown statement kind(s): "
           + "${renderList invalid}. Valid kinds: ${renderList valid}."
         )
       else
@@ -582,7 +592,7 @@ let
   };
 in
 {
-  inherit (bodies) statement statementOf;
+  inherit (bodies) statement statementBodies statementOf;
   matchStatement = bodies.statementOf [ "match" ];
   all = removeAttrs bodies [
     "statement"

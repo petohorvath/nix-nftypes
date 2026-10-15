@@ -1,15 +1,16 @@
 /*
   Namespaced builders for commands that don't fit the declarative table
-  tree: add, create, delete, destroy, flush, list, rename, reset. Each
-  command's schema accepts a specific subset of object kinds (see
-  `lib/schema/commands.nix` and `lib/schema/objects.nix`), so one namespace
-  per command enumerates exactly the kinds the schema allows.
+  tree: add, create, delete, destroy, flush, list, rename, reset. One
+  namespace per command enumerates the object kinds nft runs as written
+  for it (ADR 0009). That is the kinds its schema union accepts (see
+  `lib/schema/commands.nix` and `lib/schema/objects.nix`), minus the ones
+  nft's JSON parser rejects for the verb.
 
   Usage:
-    dsl.add.rule { family; table; chain; expr; handle; }
+    dsl.add.rule { family; table; chain; expr; }
     dsl.create.counter { family; table; name; }
     dsl.delete.chain { family; table; name; }
-    dsl.destroy.set { family; table; name; type; }
+    dsl.destroy.set { family; table; name; }
     dsl.flush.table { family; name; }
     dsl.flush.ruleset { }                         # every family
     dsl.list.table { family; name; }
@@ -22,14 +23,14 @@
   `replace` and `insert` accept only rule bodies per the schema, so they're
   plain single-argument functions rather than namespaces.
 
-  DSL idiomatic renames (elements → elem, srcIpv4 → src-ipv4, …) are
+  DSL idiomatic renames (elements → elem, gcInterval → gc-interval, …) are
   applied per kind so users never have to write hyphenated keys even in
   command-builder positions.
 
   Every constructor runs the renamed body through the matching schema
   submodule before wrapping it in a command tag, so a type-mismatched
   field throws at eval time naming the verb, kind, and field
-  (e.g. `create.chain.prio: not of type 'null or signed integer'`).
+  (e.g. `dsl.create.chain.prio' is not of type `null or signed integer'`).
 */
 {
   lib,
@@ -40,6 +41,8 @@
 let
   # DSL-key → JSON-key renames; distinct from the `rename` command below.
   keyRenames = import ../internal/rename.nix { inherit lib; };
+  ruleBody = import ../internal/rule-body.nix { inherit lib; };
+  inherit (import ../internal/location.nix { inherit lib; }) builder;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
   # body; plural; }`). Drop the `plural` field — irrelevant here — and
@@ -50,36 +53,84 @@ let
   addObjectKinds = sharedKinds // {
     table = {
       tag = "table";
-      renameBody = lib.id;
+      renameBody = keyRenames.none;
       body = objects.tableBody;
     };
     chain = {
       tag = "chain";
-      renameBody = lib.id;
+      renameBody = keyRenames.none;
       body = objects.chainBody;
     };
+    # nft 1.1.6's JSON parser ignores a handle on `add rule`, so the body
+    # has none.
     rule = {
       tag = "rule";
-      renameBody = lib.id;
-      body = objects.ruleBody;
+      renameBody = keyRenames.none;
+      body = objects.addRuleBody;
     };
   };
 
-  # `meter` listing (parser_json.c:4191) is supported even though there's no
-  # `add meter` command — meters are anonymous sets created via the `meter`
-  # *statement*. Listed via `dsl.list.meter { family; table; name; }`.
-  listObjectKinds = addObjectKinds // {
-    metainfo = {
-      tag = "metainfo";
-      renameBody = keyRenames.metainfo;
-      body = objects.metainfoBody;
-    };
-    meter = {
-      tag = "meter";
-      renameBody = lib.id;
-      body = objects.meterObjectBody;
-    };
+  /*
+    delete, destroy, list, flush, and reset select an object by family,
+    table, and name (ADR 0009): nft ignores the datatypes, rate, hook, and
+    mss that adding a set, map, limit, flowtable, or synproxy requires. A
+    rule is selected by its chain and positive handle. `selecting kinds`
+    gives each of these kinds in `kinds` its selection body.
+  */
+  selectBodies = {
+    flowtable = objects.selectFlowtableBody;
+    limit = objects.selectLimitBody;
+    map = objects.selectMapBody;
+    rule = objects.selectRuleBody;
+    set = objects.selectSetBody;
+    synproxy = objects.selectSynproxyBody;
   };
+  selecting =
+    kinds:
+    kinds
+    // lib.mapAttrs (kind: body: kinds.${kind} // { inherit body; }) (
+      builtins.intersectAttrs kinds selectBodies
+    );
+
+  /*
+    nft mishandles delete and destroy of a ct timeout or ct expectation
+    (Known differences, ADR 0010): its JSON parser passes the kernel object
+    number as the command object type, so deleting a ct expectation deletes
+    its whole table. nft 1.1.7 aborts on delete and destroy of a ct count,
+    which 1.1.6 has no object for. The schema rejects all six commands.
+  */
+  deleteObjectKinds = selecting (
+    removeAttrs addObjectKinds [
+      "ctCount"
+      "ctExpectation"
+      "ctTimeout"
+    ]
+  );
+
+  /*
+    nft's JSON `list` command has no singular rule, element, flowtable,
+    synproxy, metainfo, or ct count selector ("Unknown object passed to list
+    command"), lists the whole table for a ct expectation, and aborts on a
+    ct timeout. `meter` lists the dynamic set a `meter` statement creates.
+  */
+  listObjectKinds = selecting (
+    removeAttrs addObjectKinds [
+      "ctCount"
+      "ctExpectation"
+      "ctTimeout"
+      "element"
+      "flowtable"
+      "rule"
+      "synproxy"
+    ]
+    // {
+      meter = {
+        tag = "meter";
+        renameBody = keyRenames.none;
+        body = objects.meterObjectBody;
+      };
+    }
+  );
 
   /*
     `create rule` is explicitly rejected by the nftables parser with
@@ -94,8 +145,6 @@ let
     `flush` accepts table, chain, set, map, meter, and ruleset
     (parser_json.c:4297-4304). `flush flowtable` is absent because the
     nftables parser rejects it ("Unknown object passed to flush command").
-    `set`/`map` bodies still require `type` (and `map`) even for a
-    flush-by-name, since the submodule is shared with add-object commands.
 
     The ruleset body is either `{ family; }` or the JSON `null` meaning
     every family. An empty attrset stands for `null`, so every flush kind
@@ -111,16 +160,17 @@ let
       ;
     ruleset = {
       tag = "ruleset";
-      renameBody = body: if body == { } then null else body;
+      renameBody = _location: body: if body == { } then null else body;
       body = objects.rulesetBody;
     };
   };
 
-  resetObjectKinds = {
+  # nft's JSON path fails `reset rule` with "Operation not supported",
+  # though text resets the rule.
+  resetObjectKinds = selecting {
     inherit (addObjectKinds)
       counter
       quota
-      rule
       set
       map
       element
@@ -133,22 +183,22 @@ let
 
     Returns `{ <dslKey> = body: { <command> = { <jsonTag> = validated; }; };
     … }`. Each builder takes the object body with DSL spellings, renames it,
-    and validates it against the kind's schema body; errors name the command
-    and kind (`create.chain.prio: …`).
+    and validates it against the kind's schema body; errors name the
+    builder (`dsl.create.chain.prio`).
   */
   mkNamespace =
     command: kinds:
     lib.mapAttrs (
-      _: cfg: userBody:
+      kind: cfg: userBody:
       let
-        renamed = cfg.renameBody userBody;
+        location = builder [
+          command
+          kind
+        ];
         validated = validate {
           type = cfg.body;
-          value = renamed;
-          prefix = [
-            command
-            cfg.tag
-          ];
+          value = cfg.renameBody location userBody;
+          inherit location;
         };
       in
       {
@@ -161,15 +211,26 @@ in
 {
   /*
     Per-kind command builders; each `<command>.<kind>` takes an object body
-    and returns the validated command (see `mkNamespace`). `add`, `delete`,
-    and `destroy` accept every add-object kind, `create` omits `rule`,
-    `list` adds `metainfo` and `meter`, and `flush` takes the flushable
-    kinds plus `ruleset`.
+    and returns the validated command (see `mkNamespace`). Each namespace
+    offers only the kinds nft runs as written (ADR 0009): `add` accepts
+    every add-object kind, `create` omits `rule`, `delete` and `destroy`
+    omit the ct count, timeout, and expectation, `list` takes the listable
+    kinds plus `meter`, `reset` the resettable kinds but `rule`, and
+    `flush` the flushable kinds plus `ruleset`.
   */
-  add = mkNamespace "add" addObjectKinds;
+  # A rule takes no renames; its body only needs statements, like a table
+  # tree's rule entry (../internal/rule-body.nix).
+  add = mkNamespace "add" (
+    addObjectKinds
+    // {
+      rule = addObjectKinds.rule // {
+        renameBody = ruleBody.ruleBody;
+      };
+    }
+  );
   create = mkNamespace "create" createObjectKinds;
-  delete = mkNamespace "delete" addObjectKinds;
-  destroy = mkNamespace "destroy" addObjectKinds;
+  delete = mkNamespace "delete" deleteObjectKinds;
+  destroy = mkNamespace "destroy" deleteObjectKinds;
   flush = mkNamespace "flush" flushObjectKinds;
   list = mkNamespace "list" listObjectKinds;
 
@@ -182,16 +243,17 @@ in
   # create/delete/… and tab completion surfaces the single valid object kind.
   rename = {
     /*
-      Rename a chain. `body` is the chain body, carrying `newname`. Returns
-      the tagged `{ rename = { chain = validated; }; }` command that the
-      nftables JSON parser expects; throws when `body` fails the schema.
+      Rename a chain. `body` names the chain (`family`, `table`, `name`)
+      and its `newname`. Returns the tagged `{ rename = { chain =
+      validated; }; }` command that the nftables JSON parser expects;
+      throws when `body` fails the schema, including a missing `newname`.
     */
     chain = body: {
       rename = {
         chain = validate {
-          type = objects.chainBody;
+          type = objects.renameChainBody;
           value = body;
-          prefix = [
+          location = builder [
             "rename"
             "chain"
           ];
@@ -202,39 +264,44 @@ in
 
   /*
     Replace an existing rule; the schema accepts only rule bodies, so the
-    object kind is fixed. `body` is the rule body, including its `handle`.
-    Returns the tagged `{ replace = { rule = validated; }; }` command;
-    throws when `body` fails the schema.
+    object kind is fixed. `body` is the rule body, including the `handle`
+    of the rule it replaces. Returns the tagged `{ replace = { rule =
+    validated; }; }` command; throws when `body` has no statements or
+    fails the schema, including a missing `handle`.
   */
-  replace = body: {
-    replace = {
-      rule = validate {
-        type = objects.ruleBody;
-        value = body;
-        prefix = [
-          "replace"
-          "rule"
-        ];
+  replace =
+    body:
+    let
+      location = builder [ "replace" ];
+    in
+    {
+      replace = {
+        rule = validate {
+          type = objects.replaceRuleBody;
+          value = ruleBody.ruleBody location body;
+          inherit location;
+        };
       };
     };
-  };
 
   /*
     Insert a rule before existing rules; the schema accepts only rule
     bodies, so the object kind is fixed. `body` is the rule body. Returns
     the tagged `{ insert = { rule = validated; }; }` command; throws when
-    `body` fails the schema.
+    `body` has no statements or fails the schema.
   */
-  insert = body: {
-    insert = {
-      rule = validate {
-        type = objects.ruleBody;
-        value = body;
-        prefix = [
-          "insert"
-          "rule"
-        ];
+  insert =
+    body:
+    let
+      location = builder [ "insert" ];
+    in
+    {
+      insert = {
+        rule = validate {
+          type = objects.ruleBody;
+          value = ruleBody.ruleBody location body;
+          inherit location;
+        };
       };
     };
-  };
 }

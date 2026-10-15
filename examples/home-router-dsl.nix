@@ -7,14 +7,15 @@
 #     dynamic+timeout
 #   - Named counters referenced from rules by name
 #   - Named limit object reused across rules
-#   - Flowtable for kernel flow-offload, referenced by a `flow` statement
+#   - Flowtable for the forwarding fast path, referenced by a `flow`
+#     statement in the forward chain
 #   - Verdict map dispatching input by interface to per-zone sub-chains
 #   - Five base chains across both tables plus two regular sub-chains
 #   - Concatenated-key port-forward map: (ext-ip, dport) → (int-ip, dport)
 #   - Rate-limited SSH, ICMP shaping, anti-bruteforce blocklist, logging
 #
-# This renders byte-identical JSON to a hand-written form and is accepted by
-# `nft -c -j -f`. Compare with examples/basic-firewall-dsl.nix for the
+# Its JSON and text forms load the same ruleset, given interfaces eth0 and
+# eth1. Compare with examples/basic-firewall-dsl.nix for the
 # minimal version.
 
 let
@@ -107,9 +108,10 @@ ruleset [
       burst = 10;
     };
 
-    # Flowtable for kernel flow-offload ------------------------------------
+    # Flowtable for the forwarding fast path -------------------------------
 
-    flowtables.offload = {
+    # Not `offload`: the text grammar reserves that word as a flowtable name.
+    flowtables.fastpath = {
       hook = "ingress";
       prio = 0;
       dev = [
@@ -143,13 +145,13 @@ ruleset [
       prio = 0;
       policy = "drop";
       rules = [
-        # Fast path: established/related with kernel flow-offload
+        # Established/related traffic. The kernel takes a `flow` statement
+        # only in a forward chain.
         [
           (inSet ct.state [
             "established"
             "related"
           ])
-          (flow { flowtable = "@offload"; })
           (counter.ref "pkts_accepted")
           accept
         ]
@@ -240,13 +242,13 @@ ruleset [
       prio = 0;
       policy = "drop";
       rules = [
-        # Established flows bypass the filter via offload
+        # Established flows take the flowtable's fast path
         [
           (inSet ct.state [
             "established"
             "related"
           ])
-          (flow { flowtable = "@offload"; })
+          (flow { flowtable = "@fastpath"; })
           accept
         ]
         # Outbound from LAN

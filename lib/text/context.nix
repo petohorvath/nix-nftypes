@@ -15,6 +15,8 @@
                   binary-op renderers to decide whether to parenthesize.
                   Higher number = tighter binding. 0 means "top level, no
                   parens needed".
+    family      — the family of the rule whose statements are rendering,
+                  or null outside a rule. NAT checks it against its own.
 */
 { lib }:
 
@@ -27,12 +29,14 @@ let
       block ? false,
       depth ? 0,
       parentPrec ? 0,
+      family ? null,
     }:
     {
       inherit
         pretty
         block
         depth
+        family
         parentPrec
         ;
     };
@@ -40,6 +44,7 @@ let
   withDepth = ctx: ctx // { depth = ctx.depth + 1; };
   withPrec = prec: ctx: ctx // { parentPrec = prec; };
   resetPrec = ctx: ctx // { parentPrec = 0; };
+  withFamily = family: ctx: ctx // { inherit family; };
 
   # Indentation string for the current depth. Empty in compact mode.
   indent = ctx: if ctx.pretty then lib.strings.replicate ctx.depth indentUnit else "";
@@ -51,6 +56,7 @@ in
     mkCtx
     resetPrec
     withDepth
+    withFamily
     withPrec
     ;
 }

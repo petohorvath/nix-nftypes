@@ -13,26 +13,30 @@
 {
   lib,
   clean,
-  nftSafeString,
   nftSafeIfname,
+  nftSafeLogPrefix,
   nftSafeScalar,
+  nftSafeString,
 }:
 
 let
   context = import ./context.nix { inherit lib; };
-  primitives = import ./primitives.nix { inherit lib nftSafeScalar nftSafeString; };
+  primitives = import ./primitives.nix {
+    inherit
+      lib
+      nftSafeIfname
+      nftSafeLogPrefix
+      nftSafeScalar
+      nftSafeString
+      ;
+  };
   limit = import ./limit.nix { inherit lib primitives; };
-  # Mutual reference: `statements` consumes `expressions.renderExpression`,
-  # while `renderElem` (in expressions) calls back into
-  # `statements.renderStatement` to render element-attached `stmt` lists.
-  # Recursive `let` resolves the cycle lazily.
   expressions = import ./expressions.nix {
     inherit
       context
       lib
       nftSafeScalar
       primitives
-      statements
       ;
   };
   statements = import ./statements.nix {
@@ -41,7 +45,6 @@ let
       expressions
       lib
       limit
-      nftSafeIfname
       primitives
       ;
   };
@@ -51,7 +54,6 @@ let
       expressions
       lib
       limit
-      nftSafeIfname
       nftSafeScalar
       primitives
       statements
@@ -71,9 +73,15 @@ let
     let
       cleaned = clean ruleset;
       rulesetCommands =
-        if cleaned ? nftables then cleaned.nftables else throw "text: ruleset must have a `nftables` key";
+        if cleaned ? nftables then
+          cleaned.nftables
+        else
+          throw "nix-nftypes: text: ruleset must have a `nftables` key";
     in
-    lib.concatMapStringsSep "\n" (commands.renderCommand ctx) rulesetCommands;
+    lib.concatStringsSep "\n" (
+      # A dropped command, such as a listing's metainfo, renders as null.
+      builtins.filter (line: line != null) (map (commands.renderCommand ctx) rulesetCommands)
+    );
 in
 {
   /*
@@ -100,7 +108,7 @@ in
   toTextPretty = renderRuleset (context.mkCtx { pretty = true; });
 
   # Internal spelling helpers for lib/table.nix; not exposed by nftlib.
-  inherit (objects) renderChainBlock renderObject;
+  inherit (objects) renderChainBlock renderObject renderTableBlockOptions;
 
   # Internals for the test suites, not exposed by nftlib: the dispatch
   # tables read by the schema↔text drift tests, and the primitives the

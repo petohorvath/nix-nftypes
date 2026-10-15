@@ -4,19 +4,14 @@
   passing test reports. Each takes the test's observation paths and
   returns a shell snippet that runs after the suites pass.
 */
-{ fixtures, pkgs }:
+{ pkgs }:
 let
   inherit (pkgs) lib;
-  inherit (fixtures.integrationCases) knownNoLoad;
 
   # jq program over the round-trip probe record: the listings of the
-  # loaded cases and the read-back commands they hold.
-  roundtripSummaryFilter = "[.[] | select(.status == 0) | .output | fromjson | .nftables | length] | \"nftables-roundtrip: \\(length) case listings, \\(add // 0) read-back commands validated against `ruleset`\"";
-
-  skippedNote = lib.concatStringsSep "\n" (
-    [ "Skipped (cannot real-load in an unprivileged netns):" ]
-    ++ lib.mapAttrsToList (name: reason: "    ${name}: ${reason}") knownNoLoad
-  );
+  # loaded cases and the read-back commands they hold. The `nftVersion`
+  # run's output is not JSON, so it is left out.
+  roundtripSummaryFilter = "del(.nftVersion) | [.[] | select(.status == 0) | .output | fromjson | .nftables | length] | \"nftables-roundtrip: \\(length) case listings, \\(add // 0) read-back commands validated against `ruleset`\"";
 
   provenanceNote = "nftables ${pkgs.nftables.version} source, patches, and patch hooks match pkgs.nftables";
 in
@@ -29,7 +24,6 @@ in
   nftables-roundtrip-tests = observationPaths: ''
     jq -r ${lib.escapeShellArg roundtripSummaryFilter} \
       ${observationPaths.nftablesRoundtrip}
-    echo ${lib.escapeShellArg skippedNote}
   '';
 
   nftables-source-provenance-tests = _: ''

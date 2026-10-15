@@ -8,27 +8,26 @@
   the parser context — at rule scope a newline + `add chain …` payload
   silently appends an attacker-controlled chain.
 
-  The regex below covers the exact subset that's safe at this
-  position; both the schema's expression-string branch (via
-  `nftSafeScalar`) and the renderer's defence-in-depth assert in
-  `lib/text/expressions.nix renderScalar` use it so neither path can
-  drift from the other.
+  The text renderer's bare-token checks (`safeToken` and `renderScalar`
+  in lib/text) use it.
 */
 _:
 
 let
-  # Forbidden byte set:
-  #   - `,` `;` `{` `}` `"` `\` `#`  parser-meta in scope context
-  #   - `[:space:]`                  whitespace (incl. newline/tab)
-  #                                  would split a single scalar into
-  #                                  multiple tokens
-  #   - `[:cntrl:]`                  control characters (NUL, DEL, …)
-  #
-  # Non-empty: a zero-byte scalar carries no meaning at this position
-  # and would also be rendered as a syntactically empty token.
-  regex = ''[^,;{}"\\#[:space:][:cntrl:]]+'';
-  isSafe = s: builtins.match regex s != null;
+  /*
+    Printable ASCII, non-empty. nft's lexer (scanner.l) builds bare tokens
+    from ASCII only and reads any byte above 0x7F, such as the 0xA0 of a
+    no-break space, as junk. Whitespace (incl. newline/tab) would split a
+    single scalar into multiple tokens, and control characters (NUL, DEL,
+    …) corrupt the parse. A zero-byte scalar carries no meaning.
+  */
+  printableRegex = "[!-~]+";
+
+  # Parser-meta in scope context: `,` `;` `{` `}` `"` `\` `#`.
+  noParserMetaRegex = ''[^,;{}"\\#]*'';
+
+  isSafe = s: builtins.match printableRegex s != null && builtins.match noParserMetaRegex s != null;
 in
 {
-  inherit isSafe regex;
+  inherit isSafe;
 }

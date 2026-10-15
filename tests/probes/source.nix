@@ -5,45 +5,77 @@
 */
 {
   nftablesSource,
-  nftlib,
   pkgs,
   recordRuns,
 }:
 let
   inherit (pkgs) lib;
 
-  checkEnums = ../../tooling/check-upstream-enums.py;
+  extractTokens = ../../tooling/extract-upstream-tokens.py;
+
+  normalizeCorpusScript = ../../tooling/normalize-corpus.py;
 
   # Normalizes `tests/py/**/*.t.json` under `source` to
   # `[ { file, title, expr }, … ]`.
   normalizeCorpus =
     name: source:
     pkgs.runCommandLocal name { nativeBuildInputs = [ pkgs.python3 ]; } ''
-      python3 ${../../tooling/normalize-corpus.py} ${source}/tests/py > $out
+      python3 ${normalizeCorpusScript} ${source}/tests/py > $out
     '';
 
-  # A fake nftables tree whose corpus contains one statement shape that is
-  # deliberately not in the schema and matches no baselined pattern.
-  fakeCorpusSource = pkgs.runCommandLocal "fake-nftables-corpus" { } ''
-    mkdir -p $out/tests/py/any
-    cat > $out/tests/py/any/fake.t.json <<'EOF'
+  # A fake nftables tree holding one corpus file, `fake.t.json`.
+  writeFakeCorpus =
+    name: records:
+    pkgs.runCommandLocal name { } ''
+      mkdir -p $out/tests/py/any
+      cp ${pkgs.writeText "fake.t.json" records} $out/tests/py/any/fake.t.json
+    '';
+
+  # A fake corpus with one statement shape not in the schema nor in the
+  # baseline, and two records whose titles hold brackets, as nftables' IPv6
+  # NAT and `srh sid[N]` records do.
+  fakeCorpusSource = writeFakeCorpus "fake-nftables-corpus" ''
     # frobnicate the wug
     [
         {
             "frobnicate": { "wug": 1 }
         }
     ]
-    EOF
+
+    # dnat to [2001:db8::1]:80
+    [
+        {
+            "dnat": { "addr": "2001:db8::1", "port": 80 }
+        }
+    ]
+
+    # srh sid[1] dead::beef
+    [
+        {
+            "match": {
+                "left": { "exthdr": { "field": "sid[1]", "name": "srh" } },
+                "op": "==",
+                "right": "dead::beef"
+            }
+        }
+    ]
   '';
 
-  # The schema's accepted tokens, in the document the checker reads.
-  schemaDocument = {
-    enums = nftlib.enums;
-    statementTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
-    expressionTags = builtins.attrNames nftlib.types.taggedExpression.functor.payload.tags;
-  };
-  writeSchemaTokens = name: document: pkgs.writeText "${name}.json" (builtins.toJSON document);
-  schemaTokens = writeSchemaTokens "schema-tokens" schemaDocument;
+  # A fake corpus whose second record's array is cut short.
+  unparsableCorpusSource = writeFakeCorpus "unparsable-nftables-corpus" ''
+    # accept
+    [
+        {
+            "accept": null
+        }
+    ]
+
+    # half an array
+    [
+        {
+            "accept": null
+        }
+  '';
 
   # A patch hook, normalized the way the source package passes it: the
   # source tree has `""` where the package has `null` or nothing.
@@ -80,63 +112,78 @@ let
     };
   };
 
-  renameTable = "s/rt_key_tbl/rt_key_renamed/g";
-  breakTemplates = "s/META_TEMPLATE(/META_TEMPLAT_(/g";
+  # A sed script per C file the extractor reads, deleting one entry of
+  # each table.
+  missingEntryEdits = {
+    expressionTag."parser_json.c" = "/{ \"osf\", json_parse_osf_expr,/d";
+    family."parser_json.c" = "/{ \"netdev\", NFPROTO_NETDEV }/d";
+    fibResult."parser_json.c" = "/= \"check\",/d";
+    metaKey."meta.c" = "/META_TEMPLATE(\"secmark\",/d";
+    rtKey."parser_json.c" = "/{ \"ipsec\", NFT_RT_XFRM },/d";
+    statementTag."parser_json.c" = "/{ \"tproxy\", json_parse_tproxy_stmt },/d";
+  };
 
-  # Copies the two C files the checker reads and applies `sedScript` to
-  # `file`, producing a doctored source tree in `dir`.
-  doctorSource = dir: file: sedScript: ''
-    mkdir -p ${dir}/src
-    cp ${nftablesSource}/src/parser_json.c ${nftablesSource}/src/meta.c \
-      ${dir}/src/
-    chmod +w ${dir}/src/*
-    sed -i ${lib.escapeShellArg sedScript} ${dir}/src/${file}
+  # Rewrites entries as designated initializers with the token last:
+  # family_tbl's and stmt_parser_tbl's, and two meta templates, whose macro
+  # call spans two lines.
+  designatedEntryEdits = {
+    "parser_json.c" = lib.concatStringsSep "\n" [
+      "s/{ \\(\"[a-z0-9]*\"\\), \\(NFPROTO_[A-Z0-9]*\\) }/{ .val = \\2, .name = \\1 }/"
+      "s/{ \\(\"[a-z ]*\"\\), \\(json_parse_[a-z_]*_stmt\\) }/{ .cb = \\2, .key = \\1 }/"
+    ];
+    "meta.c" =
+      "/META_TEMPLATE(\"\\(length\\|mark\\)\",/{N;s/META_TEMPLATE(\\(\"[a-z]*\"\\),\\([^)]*\\))/{ .dtype = \\2, .token = \\1 }/}";
+  };
+
+  # Copies the two C files the extractor reads to `dir`/src and applies
+  # each file's sed script in `edits`, `{ <file> = <script>; }`.
+  doctorSource =
+    dir: edits:
+    ''
+      mkdir -p ${dir}/src
+      cp ${nftablesSource}/src/parser_json.c ${nftablesSource}/src/meta.c \
+        ${dir}/src/
+      chmod +w ${dir}/src/*
+    ''
+    + lib.concatStrings (
+      lib.mapAttrsToList (file: script: ''
+        sed -i ${lib.escapeShellArg script} ${dir}/src/${file}
+      '') edits
+    );
+
+  # Runs the extractor on a source tree doctored with `edits`.
+  extractDoctored = name: edits: ''
+    ${doctorSource "doctored-${name}" edits}
+    python3 ${extractTokens} doctored-${name}
   '';
 in
 {
   # `[ { file, title, expr }, … ]` from the packaged corpus.
   nftablesCorpus = normalizeCorpus "nft-corpus.json" nftablesSource;
 
+  # `{ <table> = [ <token> … ]; }` as the `extract` run's output.
   nftablesEnumExtraction = recordRuns {
     name = "nftables-enum-extraction-probe";
     nativeBuildInputs = [ pkgs.python3 ];
-    runs.check = "python3 ${checkEnums} ${nftablesSource} ${schemaTokens}";
+    runs.extract = "python3 ${extractTokens} ${nftablesSource}";
   };
 
-  # Each run feeds the checker one injected defect, plus an undoctored
-  # control run.
+  # Each run feeds the tooling one injected defect, plus an undoctored
+  # control extraction.
   nftablesToolingSelftest = recordRuns {
     name = "nftables-tooling-selftest-probe";
     nativeBuildInputs = [ pkgs.python3 ];
-    runs = {
-      # The real schema minus rtKey "ipsec", reintroducing the historical
-      # gap G1 so the checker must rediscover it.
-      enumDrift = "python3 ${checkEnums} ${nftablesSource} ${
-        writeSchemaTokens "schema-tokens-doctored" (
-          schemaDocument
-          // {
-            enums = nftlib.enums // {
-              rtKey = lib.remove "ipsec" nftlib.enums.rtKey;
-            };
-          }
-        )
-      }";
-      # The real schema minus the `tproxy` statement tag.
-      tagDrift = "python3 ${checkEnums} ${nftablesSource} ${
-        writeSchemaTokens "schema-tokens-doctored-tags" (
-          schemaDocument // { statementTags = lib.remove "tproxy" schemaDocument.statementTags; }
-        )
-      }";
-      renamedTable = ''
-        ${doctorSource "doctored-rename" "parser_json.c" renameTable}
-        python3 ${checkEnums} doctored-rename ${schemaTokens}
-      '';
-      unreadableTable = ''
-        ${doctorSource "doctored-floor" "meta.c" breakTemplates}
-        python3 ${checkEnums} doctored-floor ${schemaTokens}
-      '';
-      control = "python3 ${checkEnums} ${nftablesSource} ${schemaTokens}";
-    };
+    runs =
+      lib.mapAttrs' (
+        name: edits: lib.nameValuePair "missingEntry_${name}" (extractDoctored name edits)
+      ) missingEntryEdits
+      // {
+        renamedTable = extractDoctored "rename" { "parser_json.c" = "s/rt_key_tbl/rt_key_renamed/g"; };
+        unreadableTable = extractDoctored "floor" { "meta.c" = "s/META_TEMPLATE(/META_TEMPLAT_(/g"; };
+        designatedEntries = extractDoctored "designated" designatedEntryEdits;
+        control = "python3 ${extractTokens} ${nftablesSource}";
+        unparsableCorpusRecord = "python3 ${normalizeCorpusScript} ${unparsableCorpusSource}/tests/py";
+      };
   };
 
   # The fake corpus, normalized the same way as the real one.

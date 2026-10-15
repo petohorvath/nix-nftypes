@@ -1,4 +1,9 @@
-{ helpers, nftlib, ... }:
+{
+  helpers,
+  lib,
+  nftlib,
+  ...
+}:
 
 # Parity tests for the `dsl` layer. Each test asserts that a DSL value
 # renders to the same JSON as a hand-written attrset, going through the same
@@ -56,11 +61,86 @@ in
       field = "daddr";
     };
   };
-  testFieldIcmpv6PacketTooBig = pe dsl.fields.icmpv6.packetTooBig {
+  testFieldIcmpv6Mtu = pe dsl.fields.icmpv6.mtu {
     payload = {
       protocol = "icmpv6";
-      field = "packet-too-big";
+      field = "mtu";
     };
+  };
+  testFieldIcmpv6ParamProblem = pe dsl.fields.icmpv6.paramProblem {
+    payload = {
+      protocol = "icmpv6";
+      field = "parameter-problem";
+    };
+  };
+  testFieldUdpliteCsumcov = pe dsl.fields.udplite.csumcov {
+    payload = {
+      protocol = "udplite";
+      field = "csumcov";
+    };
+  };
+  testFieldArpSaddrEther = pe dsl.fields.arp.saddrEther {
+    payload = {
+      protocol = "arp";
+      field = "saddr ether";
+    };
+  };
+  testFieldArpSaddrIp = pe dsl.fields.arp.saddrIp {
+    payload = {
+      protocol = "arp";
+      field = "saddr ip";
+    };
+  };
+  testFieldArpDaddrEther = pe dsl.fields.arp.daddrEther {
+    payload = {
+      protocol = "arp";
+      field = "daddr ether";
+    };
+  };
+  testFieldArpDaddrIp = pe dsl.fields.arp.daddrIp {
+    payload = {
+      protocol = "arp";
+      field = "daddr ip";
+    };
+  };
+  # Leaves nft has no field or key for.
+  testFieldLeavesNftLacks = {
+    expr = lib.filter (path: lib.hasAttrByPath path dsl.fields) [
+      [
+        "arp"
+        "saddr"
+      ]
+      [
+        "arp"
+        "daddr"
+      ]
+      [
+        "ct"
+        "count"
+      ]
+      [
+        "icmpv6"
+        "packetTooBig"
+      ]
+      [
+        "udplite"
+        "cksumcov"
+      ]
+    ];
+    expected = [ ];
+  };
+  # Every leaf name is camelCase (ADR 0009), with no JSON spelling beside
+  # it: `ct.protoSrc`, not `ct.proto-src`.
+  testFieldLeavesAreCamelCase = {
+    expr = lib.concatLists (
+      lib.mapAttrsToList (
+        group: leaves:
+        map (leaf: "${group}.${leaf}") (
+          builtins.filter (leaf: builtins.match "[a-z][A-Za-z0-9]*" leaf == null) (builtins.attrNames leaves)
+        )
+      ) dsl.fields
+    );
+    expected = [ ];
   };
   testFieldEtherSaddr = pe dsl.fields.ether.saddr {
     payload = {
@@ -292,14 +372,22 @@ in
         ];
       };
 
-  # Named-set reference: bare name gets the canonical `@` prefix; an
-  # already-prefixed name is tolerated (idempotent migration). Both produce
-  # the libnftables-JSON shape `{"set":"@<name>"}`.
-  testExprSetRef = pe (dsl.expr.setRef "trusted_v4") {
-    set = "@trusted_v4";
+  # Named-set reference: the name with or without its `@` becomes the
+  # reference string `"@<name>"`, the shape `expr.mapRef` returns and nft
+  # lists.
+  testExprSetRef = ps (dsl.eq dsl.fields.ip.saddr (dsl.expr.setRef "trusted_v4")) {
+    match = {
+      op = "==";
+      left.payload = {
+        protocol = "ip";
+        field = "saddr";
+      };
+      right = "@trusted_v4";
+    };
   };
-  testExprSetRefIdempotent = pe (dsl.expr.setRef "@trusted_v4") {
-    set = "@trusted_v4";
+  testExprSetRefIdempotent = {
+    expr = map dsl.expr.setRef [ "@trusted_v4" ];
+    expected = [ "@trusted_v4" ];
   };
 
   # `expr.set <bare-string>` is a footgun (silently rendered to invalid
@@ -326,21 +414,41 @@ in
     };
   };
 
-  # Named-map reference mirror cases for setRef. The schema's `mapBody`
-  # requires `{ key, data }` so the `{map: "@name"}` shape can't be
-  # round-tripped through `toJson`; assert on the constructed value
-  # directly instead.
-  testExprMapRef = {
-    expr = dsl.expr.mapRef "cache";
-    expected = {
-      map = "@cache";
+  # A named map reference is the `"@<name>"` string a map lookup or a
+  # verdict map takes as its data, with or without the `@` given.
+  testExprMapRef = pe (dsl.expr.map dsl.fields.tcp.dport (dsl.expr.mapRef "pf")) {
+    map = {
+      key = {
+        payload = {
+          protocol = "tcp";
+          field = "dport";
+        };
+      };
+      data = "@pf";
+    };
+  };
+  # A map lookup's data names a map: a bare name gets its `@`, which nft's
+  # JSON parser needs (it reads `"pf"` as a hostname).
+  testExprMapBareName = pe (dsl.expr.map dsl.fields.tcp.dport "pf") {
+    map = {
+      key = {
+        payload = {
+          protocol = "tcp";
+          field = "dport";
+        };
+      };
+      data = "@pf";
     };
   };
   testExprMapRefIdempotent = {
-    expr = dsl.expr.mapRef "@cache";
-    expected = {
-      map = "@cache";
-    };
+    expr = map dsl.expr.mapRef [
+      "pf"
+      "@pf"
+    ];
+    expected = [
+      "@pf"
+      "@pf"
+    ];
   };
   testExprMapRefRejectsNonString = {
     expr = dsl.expr.mapRef 42;
@@ -381,6 +489,7 @@ in
       (dsl.expr.jhash {
         mod = 256;
         expr = dsl.fields.ip.saddr;
+        offset = 100;
         seed = 42;
       })
       {
@@ -392,6 +501,7 @@ in
               field = "saddr";
             };
           };
+          offset = 100;
           seed = 42;
         };
       };
@@ -443,6 +553,18 @@ in
         };
       };
 
+  testExprMeta = pe (dsl.expr.meta "mark") {
+    meta = {
+      key = "mark";
+    };
+  };
+
+  testExprSocket = pe (dsl.expr.socket "mark") {
+    socket = {
+      key = "mark";
+    };
+  };
+
   testExprRtRefined =
     pe
       (dsl.expr.rt {
@@ -475,12 +597,14 @@ in
         key = "saddr";
         family = "ip";
         dir = "in";
+        spnum = 2;
       })
       {
         ipsec = {
           key = "saddr";
           family = "ip";
           dir = "in";
+          spnum = 2;
         };
       };
 
@@ -489,17 +613,21 @@ in
       (dsl.expr.elem {
         val = "10.0.0.1";
         timeout = 60;
+        expires = 45;
+        comment = "seen";
       })
       {
         elem = {
           val = "10.0.0.1";
           timeout = 60;
+          expires = 45;
+          comment = "seen";
         };
       };
 
-  # `stmt = null` must not appear in the rendered shape — the DSL `compact`
+  # Unset options don't appear in the rendered shape: the DSL `compact`
   # helper drops null-valued attrs before wrapping.
-  testExprElemNoStmt = {
+  testExprElemOmitsUnsetOptions = {
     expr = toJson (
       dsl.expr.elem {
         val = "1.2.3.4";
@@ -509,20 +637,15 @@ in
     expected = ''{"elem":{"timeout":60,"val":"1.2.3.4"}}'';
   };
 
-  # Element-attached stateful statement via expr.elem — produces the same
-  # shape as a hand-written attrset.
-  testExprElemWithStmt =
-    pe
-      (dsl.expr.elem {
-        val = "1.2.3.4";
-        stmt = [ { counter = "tracker-hits"; } ];
-      })
-      {
-        elem = {
-          val = "1.2.3.4";
-          stmt = [ { counter = "tracker-hits"; } ];
-        };
-      };
+  # nft's JSON parser ignores element statements, so `expr.elem` takes
+  # none.
+  testExprElemTakesNoStatement = {
+    expr = dsl.expr.elem {
+      val = "1.2.3.4";
+      stmt = [ { counter = null; } ];
+    };
+    expectedError.msg = "unexpected argument 'stmt'";
+  };
 
   testExprBitor = pe (dsl.expr.bitor dsl.fields.meta.mark 255) {
     "|" = [
@@ -606,37 +729,37 @@ in
       op = "==";
     };
   };
-  testOpNe = ps (dsl.ne 1 2) {
+  testOpNe = ps (dsl.ne dsl.fields.meta.mark 2) {
     match = {
-      left = 1;
+      left.meta.key = "mark";
       right = 2;
       op = "!=";
     };
   };
-  testOpLt = ps (dsl.lt 1 2) {
+  testOpLt = ps (dsl.lt dsl.fields.meta.mark 2) {
     match = {
-      left = 1;
+      left.meta.key = "mark";
       right = 2;
       op = "<";
     };
   };
-  testOpGt = ps (dsl.gt 1 2) {
+  testOpGt = ps (dsl.gt dsl.fields.meta.mark 2) {
     match = {
-      left = 1;
+      left.meta.key = "mark";
       right = 2;
       op = ">";
     };
   };
-  testOpLe = ps (dsl.le 1 2) {
+  testOpLe = ps (dsl.le dsl.fields.meta.mark 2) {
     match = {
-      left = 1;
+      left.meta.key = "mark";
       right = 2;
       op = "<=";
     };
   };
-  testOpGe = ps (dsl.ge 1 2) {
+  testOpGe = ps (dsl.ge dsl.fields.meta.mark 2) {
     match = {
-      left = 1;
+      left.meta.key = "mark";
       right = 2;
       op = ">=";
     };
@@ -763,6 +886,75 @@ in
         };
       };
 
+  # The `match` namespace offers the comparison operators under the same
+  # names as the top level.
+  testOpMatchEq = ps (dsl.match.eq dsl.fields.meta.mark 1) {
+    match = {
+      left = {
+        meta = {
+          key = "mark";
+        };
+      };
+      right = 1;
+      op = "==";
+    };
+  };
+  testOpMatchNe = ps (dsl.match.ne dsl.fields.meta.mark 1) {
+    match = {
+      left = {
+        meta = {
+          key = "mark";
+        };
+      };
+      right = 1;
+      op = "!=";
+    };
+  };
+  testOpMatchLt = ps (dsl.match.lt dsl.fields.meta.mark 1) {
+    match = {
+      left = {
+        meta = {
+          key = "mark";
+        };
+      };
+      right = 1;
+      op = "<";
+    };
+  };
+  testOpMatchGt = ps (dsl.match.gt dsl.fields.meta.mark 1) {
+    match = {
+      left = {
+        meta = {
+          key = "mark";
+        };
+      };
+      right = 1;
+      op = ">";
+    };
+  };
+  testOpMatchLe = ps (dsl.match.le dsl.fields.meta.mark 1) {
+    match = {
+      left = {
+        meta = {
+          key = "mark";
+        };
+      };
+      right = 1;
+      op = "<=";
+    };
+  };
+  testOpMatchGe = ps (dsl.match.ge dsl.fields.meta.mark 1) {
+    match = {
+      left = {
+        meta = {
+          key = "mark";
+        };
+      };
+      right = 1;
+      op = ">=";
+    };
+  };
+
   # =========================================================================
   # Variant namespaces
   # =========================================================================
@@ -781,6 +973,20 @@ in
         };
       };
   testCounterAuto = ps dsl.counter.auto { counter = null; };
+  # nft parses an inline counter only with both fields, so the empty and
+  # one-field forms throw and point to `counter.auto`.
+  testCounterEmptyBodyThrows = {
+    expr = dsl.counter { };
+    expectedError.msg = "counter: .*packets.*bytes.*counter\\.auto";
+  };
+  testCounterPacketsOnlyThrows = {
+    expr = dsl.counter { packets = 5; };
+    expectedError.msg = "counter: .*packets.*bytes.*counter\\.auto";
+  };
+  testCounterBytesOnlyThrows = {
+    expr = dsl.counter { bytes = 5; };
+    expectedError.msg = "counter: .*packets.*bytes.*counter\\.auto";
+  };
 
   # `x { }` is the empty form, so no statement builder carries a `.plain`
   # alias for it.
@@ -856,11 +1062,29 @@ in
         };
       };
   testLogEmptyBody = ps (dsl.log { }) { log = { }; };
+  # nft takes a log prefix of up to 127 bytes.
+  testLogPrefixMaxLength =
+    let
+      prefix = lib.concatStrings (lib.replicate 127 "a");
+    in
+    ps (dsl.log { inherit prefix; }) { log = { inherit prefix; }; };
   testLogQueueThreshold = ps (dsl.log { queueThreshold = 50; }) {
     log = {
       "queue-threshold" = 50;
     };
   };
+  testLogGroupSnaplen =
+    ps
+      (dsl.log {
+        group = 2;
+        snaplen = 64;
+      })
+      {
+        log = {
+          group = 2;
+          snaplen = 64;
+        };
+      };
 
   # limit / quota
   testLimitBase =
@@ -895,6 +1119,21 @@ in
           burst_unit = "bytes";
         };
       };
+  # `inv` matches over the rate.
+  testLimitInv =
+    ps
+      (dsl.limit {
+        rate = 10;
+        per = "second";
+        inv = true;
+      })
+      {
+        limit = {
+          rate = 10;
+          per = "second";
+          inv = true;
+        };
+      };
   testLimitRef = ps (dsl.limit.ref "lim") { limit = "lim"; };
   testQuotaBase =
     ps
@@ -912,6 +1151,19 @@ in
           used_unit = "kbytes";
         };
       };
+  # `inv` matches once the quota is used up.
+  testQuotaInv =
+    ps
+      (dsl.quota {
+        val = 1000;
+        inv = true;
+      })
+      {
+        quota = {
+          val = 1000;
+          inv = true;
+        };
+      };
   testQuotaRef = ps (dsl.quota.ref "q1") { quota = "q1"; };
 
   # NAT family
@@ -925,6 +1177,26 @@ in
         snat = {
           addr = "192.0.2.1";
           family = "ip";
+        };
+      };
+  testSnatFlags =
+    ps
+      (dsl.snat {
+        addr = "192.0.2.1";
+        family = "ip";
+        flags = [
+          "random"
+          "persistent"
+        ];
+      })
+      {
+        snat = {
+          addr = "192.0.2.1";
+          family = "ip";
+          flags = [
+            "random"
+            "persistent"
+          ];
         };
       };
   testSnatTypeFlags =
@@ -1031,9 +1303,9 @@ in
   testQueueEmptyBody = ps (dsl.queue { }) { queue = { }; };
 
   # ct set/count statements
-  testCtHelper = ps (dsl.ctHelper "ftp") { "ct helper" = "ftp"; };
-  testCtTimeout = ps (dsl.ctTimeout "fast_tcp") { "ct timeout" = "fast_tcp"; };
-  testCtExpectation = ps (dsl.ctExpectation "e1") { "ct expectation" = "e1"; };
+  testCtHelper = ps (dsl.ctHelper.ref "ftp") { "ct helper" = "ftp"; };
+  testCtTimeout = ps (dsl.ctTimeout.ref "fast_tcp") { "ct timeout" = "fast_tcp"; };
+  testCtExpectation = ps (dsl.ctExpectation.ref "e1") { "ct expectation" = "e1"; };
   testCtCount =
     ps
       (dsl.ctCount {
@@ -1056,8 +1328,63 @@ in
     };
   };
 
+  # A stateful object reference takes the name with or without its `@` and
+  # emits the bare name, which nft's JSON parser looks up: `{ counter =
+  # "@pkts"; }` fails with "No such file or directory".
+  testCounterRefAtName = ps (dsl.counter.ref "@pkts") { counter = "pkts"; };
+  testQuotaRefAtName = ps (dsl.quota.ref "@q1") { quota = "q1"; };
+  testLimitRefAtName = ps (dsl.limit.ref "@lim") { limit = "lim"; };
+  testSynproxyRefAtName = ps (dsl.synproxy.ref "@sp1") { synproxy = "sp1"; };
+  testCtCountRefAtName = ps (dsl.ctCount.ref "@c1") { "ct count" = "c1"; };
+  testCtHelperAtName = ps (dsl.ctHelper.ref "@ftp") { "ct helper" = "ftp"; };
+  testCtTimeoutAtName = ps (dsl.ctTimeout.ref "@fast_tcp") { "ct timeout" = "fast_tcp"; };
+  testCtExpectationAtName = ps (dsl.ctExpectation.ref "@e1") { "ct expectation" = "e1"; };
+  testSecmarkAtName = ps (dsl.secmark.ref "@my_secmark") { secmark = "my_secmark"; };
+  testTunnelStmtAtName = ps (dsl.tunnel.ref "@my_tunnel") { tunnel = "my_tunnel"; };
+
+  # A reference is a name or a map expression; anything else throws,
+  # naming the builder.
+  testObjectReferencesRejectOtherValues = {
+    expr = dsl.counter.ref 42;
+    expectedError.msg = "nix-nftypes: dsl\\.counter\\.ref: expected an object name or a map expression, got int";
+  };
+  testObjectReferencesRejectAtAlone = {
+    expr = dsl.ctHelper.ref "@";
+    expectedError.msg = "nix-nftypes: dsl\\.ctHelper\\.ref: expected an object name";
+  };
+
+  # Every stateful statement that names an object does so through
+  # `.ref`; one with no inline form throws when called, pointing there.
+  testObjectReferenceStatementsUseRef = {
+    expr = builtins.filter (name: !(dsl.${name} ? ref)) [
+      "counter"
+      "ctCount"
+      "ctExpectation"
+      "ctHelper"
+      "ctTimeout"
+      "limit"
+      "quota"
+      "secmark"
+      "synproxy"
+      "tunnel"
+    ];
+    expected = [ ];
+  };
+  testCtHelperWithoutRefThrows = {
+    expr = dsl.ctHelper "ftp";
+    expectedError.msg = "nix-nftypes: dsl\\.ctHelper: .*ctHelper\\.ref";
+  };
+
   # flow / meter / vmap
   testFlow = ps (dsl.flow { flowtable = "@ft"; }) {
+    flow = {
+      op = "add";
+      flowtable = "@ft";
+    };
+  };
+  # A set, map or flow statement takes its reference with or without
+  # the `@`, like `expr.setRef`.
+  testFlowBareName = ps (dsl.flow { flowtable = "ft"; }) {
     flow = {
       op = "add";
       flowtable = "@ft";
@@ -1091,6 +1418,16 @@ in
           size = 4096;
         };
       };
+  testVmapBareName = ps (dsl.vmap dsl.fields.meta.iifname "v") {
+    vmap = {
+      key = {
+        meta = {
+          key = "iifname";
+        };
+      };
+      data = "@v";
+    };
+  };
   testVmap = ps (dsl.vmap dsl.fields.meta.iifname "@v") {
     vmap = {
       key = {
@@ -1143,8 +1480,91 @@ in
           map = "@cache";
         };
       };
-  testSecmark = ps (dsl.secmark "@my_secmark") { secmark = "@my_secmark"; };
-  testTunnelStmt = ps (dsl.tunnel "@my_tunnel") { tunnel = "@my_tunnel"; };
+  # `stmt` holds statements that run per element, such as a counter.
+  testSetStmtStatements =
+    ps
+      (dsl.setStmt {
+        op = "update";
+        elem = dsl.fields.ip.saddr;
+        set = "@blocked";
+        stmt = [ dsl.counter.auto ];
+      })
+      {
+        set = {
+          op = "update";
+          elem = {
+            payload = {
+              protocol = "ip";
+              field = "saddr";
+            };
+          };
+          set = "@blocked";
+          stmt = [ { counter = null; } ];
+        };
+      };
+  testMapStmtStatements =
+    ps
+      (dsl.mapStmt {
+        op = "update";
+        elem = dsl.fields.ip.saddr;
+        data = 42;
+        map = "@cache";
+        stmt = [ dsl.counter.auto ];
+      })
+      {
+        map = {
+          op = "update";
+          elem = {
+            payload = {
+              protocol = "ip";
+              field = "saddr";
+            };
+          };
+          data = 42;
+          map = "@cache";
+          stmt = [ { counter = null; } ];
+        };
+      };
+  testSetStmtBareName =
+    ps
+      (dsl.setStmt {
+        op = "add";
+        elem = "10.0.0.1";
+        set = "blocked";
+      })
+      {
+        set = {
+          op = "add";
+          elem = "10.0.0.1";
+          set = "@blocked";
+        };
+      };
+  testMapStmtBareName =
+    ps
+      (dsl.mapStmt {
+        op = "update";
+        elem = "10.0.0.1";
+        data = 42;
+        map = "cache";
+      })
+      {
+        map = {
+          op = "update";
+          elem = "10.0.0.1";
+          data = 42;
+          map = "@cache";
+        };
+      };
+  testStatementReferencesRejectNonString = {
+    expr = dsl.setStmt {
+      op = "add";
+      elem = "10.0.0.1";
+      set = dsl.expr.set [ "blocked" ];
+    };
+    expectedError.msg = "setStmt: expected a name string, got set";
+  };
+  testSecmark = ps (dsl.secmark.ref "my_secmark") { secmark = "my_secmark"; };
+  testTunnelStmt = ps (dsl.tunnel.ref "my_tunnel") { tunnel = "my_tunnel"; };
   testXt = ps (dsl.xt "match" "connlimit") {
     xt = {
       type = "match";
@@ -1181,7 +1601,11 @@ in
     pr
       (dsl.ruleset [
         (dsl.flush.ruleset { })
-        (dsl.table "inet" "t" { comment = "demo"; })
+        (dsl.table "inet" "t" {
+          handle = 5;
+          flags = [ "dormant" ];
+          comment = "demo";
+        })
       ])
       {
         nftables = [
@@ -1195,6 +1619,8 @@ in
               table = {
                 family = "inet";
                 name = "t";
+                handle = 5;
+                flags = [ "dormant" ];
                 comment = "demo";
               };
             };
@@ -1376,6 +1802,43 @@ in
         ];
       };
 
+  # Set with camelCase-aliased autoMerge (→ "auto-merge").
+  testRenderSetAutoMerge =
+    pr
+      (dsl.ruleset [
+        (dsl.table "inet" "t" {
+          sets.ranges = {
+            type = "ipv4_addr";
+            flags = [ "interval" ];
+            autoMerge = true;
+          };
+        })
+      ])
+      {
+        nftables = [
+          {
+            add = {
+              table = {
+                family = "inet";
+                name = "t";
+              };
+            };
+          }
+          {
+            add = {
+              set = {
+                family = "inet";
+                table = "t";
+                name = "ranges";
+                type = "ipv4_addr";
+                flags = [ "interval" ];
+                "auto-merge" = true;
+              };
+            };
+          }
+        ];
+      };
+
   # Map with camelCase-aliased gcInterval (→ "gc-interval").
   testRenderMapGcInterval =
     pr
@@ -1385,6 +1848,7 @@ in
             type = "inet_service";
             map = "inet_service";
             gcInterval = 60;
+            flags = [ "timeout" ];
           };
         })
       ])
@@ -1407,6 +1871,7 @@ in
                 type = "inet_service";
                 map = "inet_service";
                 "gc-interval" = 60;
+                flags = [ "timeout" ];
               };
             };
           }
@@ -1558,7 +2023,7 @@ in
         ];
       };
 
-  # Rule attrset form (with handle/comment).
+  # Rule attrset form (with a comment).
   testRenderRuleAttrset =
     pr
       (dsl.ruleset [
@@ -1567,7 +2032,6 @@ in
             rules = [
               {
                 expr = [ dsl.accept ];
-                handle = 42;
                 comment = "the rule";
               }
             ];
@@ -1600,88 +2064,7 @@ in
                 table = "t";
                 chain = "c";
                 expr = [ { accept = null; } ];
-                handle = 42;
                 comment = "the rule";
-              };
-            };
-          }
-        ];
-      };
-
-  # Geneve options sit in a list under the nested `tunnel` attribute; each
-  # option's `optType` still maps to the hyphenated JSON key.
-  testCmdCreateTunnelGeneveOptType =
-    pc
-      (dsl.create.tunnel {
-        family = "inet";
-        table = "t";
-        name = "g";
-        type = "geneve";
-        tunnel = [
-          {
-            class = 1;
-            optType = 2;
-            data = "0xff";
-          }
-        ];
-      })
-      {
-        create = {
-          tunnel = {
-            family = "inet";
-            table = "t";
-            name = "g";
-            type = "geneve";
-            tunnel = [
-              {
-                class = 1;
-                "opt-type" = 2;
-                data = "0xff";
-              }
-            ];
-          };
-        };
-      };
-
-  # Tunnel object with hyphenated keys — camelCase → hyphen rename.
-  testRenderTunnelHyphenRename =
-    pr
-      (dsl.ruleset [
-        (dsl.table "inet" "t" {
-          tunnels.v = {
-            id = 42;
-            srcIpv4 = "10.0.0.1";
-            dstIpv4 = "10.0.0.2";
-            type = "vxlan";
-            tunnel = {
-              gbp = 100;
-            };
-          };
-        })
-      ])
-      {
-        nftables = [
-          {
-            add = {
-              table = {
-                family = "inet";
-                name = "t";
-              };
-            };
-          }
-          {
-            add = {
-              tunnel = {
-                family = "inet";
-                table = "t";
-                name = "v";
-                id = 42;
-                "src-ipv4" = "10.0.0.1";
-                "dst-ipv4" = "10.0.0.2";
-                type = "vxlan";
-                tunnel = {
-                  gbp = 100;
-                };
               };
             };
           }
@@ -1785,12 +2168,11 @@ in
           }
           {
             add = {
-              "ct count" = {
+              quota = {
                 family = "inet";
                 table = "t";
-                name = "cc";
-                val = 5;
-                inv = true;
+                name = "q";
+                bytes = 1000;
               };
             };
           }
@@ -1805,16 +2187,6 @@ in
                 rate_unit = "kbytes";
                 burst = 5;
                 burst_unit = "bytes";
-              };
-            };
-          }
-          {
-            add = {
-              quota = {
-                family = "inet";
-                table = "t";
-                name = "q";
-                bytes = 1000;
               };
             };
           }
@@ -1840,8 +2212,106 @@ in
               };
             };
           }
+          {
+            add = {
+              "ct count" = {
+                family = "inet";
+                table = "t";
+                name = "cc";
+                val = 5;
+                inv = true;
+              };
+            };
+          }
         ];
       };
+
+  # Expansion adds stateful objects before sets and maps, whose elements
+  # can name them (an object map), and standalone elements last. A map of
+  # quotas added before its quotas fails to load as JSON or imperative text.
+  testExpansionOrdersObjectKinds = {
+    expr =
+      map
+        (
+          command:
+          let
+            kind = builtins.head (builtins.attrNames command.add);
+          in
+          "${kind} ${command.add.${kind}.name or command.add.${kind}.chain}"
+        )
+        (
+          (builtins.fromJSON (
+            toJson (
+              dsl.ruleset [
+                (dsl.table "inet" "t" {
+                  chains.input.rules = [ [ dsl.accept ] ];
+                  counters.c = { };
+                  ctCounts.cc.val = 5;
+                  ctExpectations.ce = {
+                    protocol = "tcp";
+                    l3proto = "ip";
+                    dport = 21;
+                    timeout = 1000;
+                    size = 1;
+                  };
+                  ctHelpers.ch = {
+                    type = "ftp";
+                    protocol = "tcp";
+                  };
+                  ctTimeouts.ct = {
+                    protocol = "tcp";
+                    policy.established = 300;
+                  };
+                  elements.s.elem = [ "192.0.2.2" ];
+                  flowtables.f = {
+                    hook = "ingress";
+                    prio = 0;
+                  };
+                  limits.l = {
+                    rate = 10;
+                    per = "second";
+                  };
+                  maps.m = {
+                    type = "ipv4_addr";
+                    map = "quota";
+                    elements = [
+                      [
+                        "192.0.2.1"
+                        "q"
+                      ]
+                    ];
+                  };
+                  quotas.q.bytes = 1000;
+                  secmarks.sm.context = "u:r:t:s0";
+                  sets.s.type = "ipv4_addr";
+                  synproxies.sp = {
+                    mss = 1460;
+                    wscale = 7;
+                  };
+                })
+              ]
+            )
+          )).nftables
+        );
+    expected = [
+      "table t"
+      "chain input"
+      "counter c"
+      "quota q"
+      "limit l"
+      "ct helper ch"
+      "ct timeout ct"
+      "ct expectation ce"
+      "secmark sm"
+      "synproxy sp"
+      "ct count cc"
+      "flowtable f"
+      "map m"
+      "set s"
+      "element s"
+      "rule input"
+    ];
+  };
 
   # =========================================================================
   # Renderer — error cases and edge cases
@@ -2941,8 +3411,8 @@ in
   # =========================================================================
   # Byte-parity with basic-firewall.nix is not meaningful because the DSL
   # renderer emits chains alphabetically (input, postrouting, prerouting)
-  # and object kinds alphabetically, while the raw example uses a different
-  # order. Both submissions are semantically identical to nftables.
+  # and object kinds in expansion order, while the raw example uses a
+  # different order. Both submissions are semantically identical to nftables.
 
   testDslExampleValidates = {
     expr = builtins.isString (roundtrip nftlib.types.ruleset helpers.examples.basicFirewallDsl);
@@ -2959,13 +3429,24 @@ in
     expected = true;
   };
 
+  # The Integration cases load the examples from their children, in block
+  # form too; those children must build the examples as shipped. (A
+  # Boolean: the parse check would send an attrset expectation to nft.)
+  testExampleChildrenBuildTheExamples = {
+    expr =
+      lib.mapAttrs (_: nftlib.dsl.ruleset) helpers.exampleChildren == {
+        inherit (helpers.examples) basicFirewallDsl homeRouterDsl;
+      };
+    expected = true;
+  };
+
   # =========================================================================
   # Non-add commands: create / delete / destroy / list / rename / reset,
   # plus replace / insert (rule-only) and the flush variants.
   # =========================================================================
 
   # `add.<kind>` covers every add-object kind; `add.rule` is the standalone
-  # rule outside a table tree, typically with an explicit handle or index.
+  # rule outside a table tree, typically with an explicit index.
   testCmdAddRule =
     pc
       (dsl.add.rule {
@@ -2973,7 +3454,7 @@ in
         table = "t";
         chain = "c";
         expr = [ dsl.accept ];
-        handle = 4;
+        index = 1;
       })
       {
         add = {
@@ -2982,7 +3463,7 @@ in
             table = "t";
             chain = "c";
             expr = [ { accept = null; } ];
-            handle = 4;
+            index = 1;
           };
         };
       };
@@ -3098,17 +3579,81 @@ in
         };
       };
 
-  # Note: the schema's `setObjectBody` / `mapObjectBody` / `limitObjectBody`
-  # etc. require certain fields (`type`, `rate`/`per`, …) that nftables
-  # doesn't actually need for delete/destroy by name. Tests here provide
-  # full bodies to satisfy the schema; see lib/schema/objects.nix.
+  testCmdCreateCtHelperInet =
+    pc
+      (dsl.create.ctHelper {
+        family = "inet";
+        table = "t";
+        name = "h";
+        type = "ftp";
+        protocol = "tcp";
+        l3proto = "inet";
+      })
+      {
+        create = {
+          "ct helper" = {
+            family = "inet";
+            table = "t";
+            name = "h";
+            type = "ftp";
+            protocol = "tcp";
+            l3proto = "inet";
+          };
+        };
+      };
+
+  testCmdAddSetComment =
+    pc
+      (dsl.add.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        type = "ipv4_addr";
+        comment = "blocked hosts";
+      })
+      {
+        add = {
+          set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            type = "ipv4_addr";
+            comment = "blocked hosts";
+          };
+        };
+      };
+
+  testCmdAddMapComment =
+    pc
+      (dsl.add.map {
+        family = "inet";
+        table = "t";
+        name = "m";
+        type = "ipv4_addr";
+        map = "verdict";
+        comment = "per-host verdicts";
+      })
+      {
+        add = {
+          map = {
+            family = "inet";
+            table = "t";
+            name = "m";
+            type = "ipv4_addr";
+            map = "verdict";
+            comment = "per-host verdicts";
+          };
+        };
+      };
+
+  # Delete and destroy select by name: nft ignores a set's or map's
+  # datatypes, a limit's rate, and a flowtable's hook on delete.
   testCmdDeleteSet =
     pc
       (dsl.delete.set {
         family = "inet";
         table = "t";
         name = "blocked";
-        type = "ipv4_addr";
       })
       {
         delete = {
@@ -3116,7 +3661,54 @@ in
             family = "inet";
             table = "t";
             name = "blocked";
-            type = "ipv4_addr";
+          };
+        };
+      };
+  testCmdDeleteMap =
+    pc
+      (dsl.delete.map {
+        family = "inet";
+        table = "t";
+        name = "ports";
+      })
+      {
+        delete = {
+          map = {
+            family = "inet";
+            table = "t";
+            name = "ports";
+          };
+        };
+      };
+  testCmdDeleteLimit =
+    pc
+      (dsl.delete.limit {
+        family = "inet";
+        table = "t";
+        name = "lim";
+      })
+      {
+        delete = {
+          limit = {
+            family = "inet";
+            table = "t";
+            name = "lim";
+          };
+        };
+      };
+  testCmdDestroyFlowtable =
+    pc
+      (dsl.destroy.flowtable {
+        family = "inet";
+        table = "t";
+        name = "ft";
+      })
+      {
+        destroy = {
+          flowtable = {
+            family = "inet";
+            table = "t";
+            name = "ft";
           };
         };
       };
@@ -3203,22 +3795,178 @@ in
           };
         };
       };
-  testCmdListMetainfo =
-    pc
-      (dsl.list.metainfo {
-        version = "1.1.6";
-        releaseName = "Commodore Bullmoose";
-        jsonSchemaVersion = 1;
-      })
-      {
-        list = {
-          metainfo = {
-            version = "1.1.6";
-            release_name = "Commodore Bullmoose";
-            json_schema_version = 1;
-          };
-        };
+  /*
+    Each verb namespace offers only the kinds nft runs as written (ADR 0009),
+    measured on nft 1.1.6 and 1.1.7. nft rejects `list` of a rule, element,
+    flowtable, synproxy, metainfo, or ct count and the JSON `reset rule`. It
+    mishandles delete, destroy, and list of a ct timeout or ct expectation,
+    and 1.1.7 crashes on delete and destroy of a ct count. nft crashes on
+    delete, destroy, and list of a tunnel, and JSON loads a tunnel's ports
+    wrongly, so no namespace offers a tunnel; see
+    tests/fixtures/nft-misbehaviour.nix.
+  */
+  testVerbNamespaceKinds = {
+    expr =
+      lib.concatMap
+        (
+          verb:
+          map (kind: "${verb}.${kind}") (
+            builtins.filter (name: name != "__functor") (builtins.attrNames dsl.${verb})
+          )
+        )
+        [
+          "delete"
+          "destroy"
+          "list"
+          "reset"
+        ];
+    expected = [
+      "delete.chain"
+      "delete.counter"
+      "delete.ctHelper"
+      "delete.element"
+      "delete.flowtable"
+      "delete.limit"
+      "delete.map"
+      "delete.quota"
+      "delete.rule"
+      "delete.secmark"
+      "delete.set"
+      "delete.synproxy"
+      "delete.table"
+      "destroy.chain"
+      "destroy.counter"
+      "destroy.ctHelper"
+      "destroy.element"
+      "destroy.flowtable"
+      "destroy.limit"
+      "destroy.map"
+      "destroy.quota"
+      "destroy.rule"
+      "destroy.secmark"
+      "destroy.set"
+      "destroy.synproxy"
+      "destroy.table"
+      "list.chain"
+      "list.counter"
+      "list.ctHelper"
+      "list.limit"
+      "list.map"
+      "list.meter"
+      "list.quota"
+      "list.secmark"
+      "list.set"
+      "list.table"
+      "reset.counter"
+      "reset.element"
+      "reset.map"
+      "reset.quota"
+      "reset.set"
+    ];
+  };
+
+  /*
+    delete, destroy, list, flush, and reset select an object by family,
+    table, and name, and demand no field nft ignores for the verb: each
+    builder takes that selector alone. A rule is selected by its chain and
+    handle, an element by its value, a table by family and name, and
+    `flush.ruleset { }` flushes every family.
+  */
+  testSelectingVerbsTakeOnlyTheSelector =
+    let
+      scope = {
+        family = "inet";
+        table = "t";
       };
+      selectorOf =
+        kind:
+        {
+          element = scope // {
+            name = "s";
+            elem = [ "10.0.0.1" ];
+          };
+          rule = scope // {
+            chain = "c";
+            handle = 5;
+          };
+          ruleset = { };
+          table = {
+            family = "inet";
+            name = "t";
+          };
+        }
+        .${kind} or (scope // { name = "x"; });
+      builds =
+        verb: kind:
+        (builtins.tryEval (builtins.deepSeq (toJson (dsl.${verb}.${kind} (selectorOf kind))) true)).success;
+    in
+    {
+      expr =
+        lib.concatMap
+          (
+            verb:
+            map (kind: "${verb}.${kind}") (
+              builtins.filter (kind: kind != "__functor" && !(builds verb kind)) (builtins.attrNames dsl.${verb})
+            )
+          )
+          [
+            "delete"
+            "destroy"
+            "flush"
+            "list"
+            "reset"
+          ];
+      expected = [ ];
+    };
+
+  # nft deletes a rule by handle, and with handle 0 (or none, through text)
+  # deletes every rule in the chain, so delete and destroy require a
+  # positive handle (measured on nft 1.1.6 and 1.1.7).
+  testCmdDeleteRuleRequiresHandle = {
+    expr = toJson (
+      dsl.delete.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+      }
+    );
+    expectedError.msg = "dsl\\.delete\\.rule\\.handle' was accessed but has no value defined";
+  };
+  testCmdDestroyRuleRejectsHandleZero = {
+    expr = toJson (
+      dsl.destroy.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        handle = 0;
+      }
+    );
+    expectedError.msg = "dsl\\.destroy\\.rule\\.handle' is not of type `positive integer";
+  };
+  testSchemaRejectsDeleteRuleHandleZero = {
+    expr = helpers.validates nftlib.types.command {
+      delete.rule = {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        handle = 0;
+      };
+    };
+    expected = false;
+  };
+
+  # No namespace or table-tree kind produces a tunnel object: JSON loads its
+  # ports wrongly and text has no spelling of it.
+  testNoTunnelBuilders = {
+    expr = builtins.filter (verb: dsl.${verb} ? tunnel) [
+      "add"
+      "create"
+      "delete"
+      "destroy"
+      "list"
+    ];
+    expected = [ ];
+  };
 
   # rename wraps its chain body in an inner `chain` tag, matching the
   # nftables JSON parser. Namespaced for API symmetry with create/delete.
@@ -3266,29 +4014,66 @@ in
           };
         };
       };
-  testCmdResetRule =
+  # replace / insert wrap the rule body in an inner `rule` tag — matches
+  # what the nftables JSON parser expects.
+  # reset of a set, map or element zeroes the stateful data of its elements.
+  testCmdResetSet =
     pc
-      (dsl.reset.rule {
-        family = "ip";
+      (dsl.reset.set {
+        family = "inet";
         table = "t";
-        chain = "c";
-        handle = 42;
-        expr = [ { accept = null; } ];
+        name = "s";
+        type = "ipv4_addr";
       })
       {
         reset = {
-          rule = {
-            family = "ip";
+          set = {
+            family = "inet";
             table = "t";
-            chain = "c";
-            handle = 42;
-            expr = [ { accept = null; } ];
+            name = "s";
+            type = "ipv4_addr";
+          };
+        };
+      };
+  testCmdResetMap =
+    pc
+      (dsl.reset.map {
+        family = "inet";
+        table = "t";
+        name = "m";
+        type = "ipv4_addr";
+        map = "mark";
+      })
+      {
+        reset = {
+          map = {
+            family = "inet";
+            table = "t";
+            name = "m";
+            type = "ipv4_addr";
+            map = "mark";
+          };
+        };
+      };
+  testCmdResetElement =
+    pc
+      (dsl.reset.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+      })
+      {
+        reset = {
+          element = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            elem = [ "10.0.0.1" ];
           };
         };
       };
 
-  # replace / insert wrap the rule body in an inner `rule` tag — matches
-  # what the nftables JSON parser expects.
   testCmdReplace =
     pc
       (dsl.replace {
@@ -3453,13 +4238,13 @@ in
       };
 
   # Full ruleset integration: several new command kinds mixed together.
+  # The reset comes last, the only place nft runs it.
   testCmdRulesetIntegration =
     pr
       (dsl.ruleset [
-        (dsl.flush.ruleset { })
         (dsl.create.table {
           family = "ip";
-          name = "t";
+          name = "u";
         })
         (dsl.rename.chain {
           family = "ip";
@@ -3474,30 +4259,25 @@ in
           handle = 7;
           expr = [ { accept = null; } ];
         })
-        (dsl.reset.counter {
-          family = "ip";
-          table = "t";
-          name = "c";
-        })
         (dsl.destroy.set {
           family = "ip";
           table = "t";
           name = "stale";
           type = "ipv4_addr";
         })
+        (dsl.reset.counter {
+          family = "ip";
+          table = "t";
+          name = "c";
+        })
       ])
       {
         nftables = [
           {
-            flush = {
-              ruleset = null;
-            };
-          }
-          {
             create = {
               table = {
                 family = "ip";
-                name = "t";
+                name = "u";
               };
             };
           }
@@ -3523,21 +4303,21 @@ in
             };
           }
           {
-            reset = {
-              counter = {
-                family = "ip";
-                table = "t";
-                name = "c";
-              };
-            };
-          }
-          {
             destroy = {
               set = {
                 family = "ip";
                 table = "t";
                 name = "stale";
                 type = "ipv4_addr";
+              };
+            };
+          }
+          {
+            reset = {
+              counter = {
+                family = "ip";
+                table = "t";
+                name = "c";
               };
             };
           }

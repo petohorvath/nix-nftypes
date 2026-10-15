@@ -17,9 +17,10 @@
         ref = name: { counter = name; };
       };
 
-    counter { packets = 0; }    ⇒ via __functor ⇒ base { packets = 0; }
-    counter.auto                 ⇒ { counter = null; }
-    counter.ref "pkts"           ⇒ { counter = "pkts"; }
+    counter { packets = 0; bytes = 0; }
+                        ⇒ base { packets = 0; bytes = 0; }  (via __functor)
+    counter.auto        ⇒ { counter = null; }
+    counter.ref "pkts"  ⇒ { counter = "pkts"; }
 */
 { lib }:
 

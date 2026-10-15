@@ -10,12 +10,32 @@
   observations,
   ...
 }:
+let
+  record = observations.textBlockIntegration;
+in
 lib.concatMapAttrs (
   name: _:
   lib.genAttrs' [ "compact" "pretty" ] (
     form:
-    lib.nameValuePair "testAccepted_${name}_${form}" (
-      helpers.runSucceeds observations.textBlockIntegration."${name}-${form}"
-    )
+    lib.nameValuePair "testAccepted_${name}_${form}" (helpers.runSucceeds record."${name}-${form}")
   )
 ) fixtures.blockTables.integrationTables
+// {
+  testCaseNames = {
+    expr = builtins.attrNames (helpers.caseRuns record);
+    expected =
+      lib.concatMap
+        (name: [
+          "${name}-compact"
+          "${name}-pretty"
+        ])
+        [
+          "chain-object-references"
+          "chain-with-rules"
+          "inline-and-named-limits"
+          "minimal-base-chain"
+          "mixed-chain-set-counter"
+          "set-with-inline-elements"
+        ];
+  };
+}

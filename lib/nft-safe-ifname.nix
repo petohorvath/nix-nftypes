@@ -1,29 +1,27 @@
 /*
-  Shared predicate for nft `ifname`-typed set/map elements. The set body
-  declares `type ifname;` and elements render bare into the
-  `elements = { … }` clause — so an element string containing `,` lexes
-  as TWO elements, silently widening the set to interfaces the user
-  never declared. The kernel's `dev_valid_name` already rejects `/` `:`
-  whitespace and `.` / `..` and >15-byte names; this predicate is the
-  strict-superset that the renderer also requires (no `,` `;` `{` `}`
-  `"` `\` `#` or control characters).
+  Shared predicate for interface names. The text renderer quotes every
+  value it knows to be an interface name (ADR 0004), so a name needs only
+  what a quoted string needs (no `"`, `\`, or control characters) and what
+  the kernel's `dev_valid_name` needs: 1 to 15 bytes (IFNAMSIZ - 1), not
+  `.` or `..`, and no `/`, `:`, or whitespace. The kernel's `isspace` reads
+  bytes as Latin-1, so whitespace includes byte 0xA0, which UTF-8 uses in
+  U+00A0 (no-break space), U+00E0, U+0420 and more.
 
-  Both the schema type (`primitives.types.ifname`) and the renderer's
-  defence-in-depth assert (lib/text/objects.nix) consult this predicate,
-  so the two layers cannot drift.
+  The schema type (`primitives.types.ifname`) and the renderer's
+  `quoteIfname` (lib/text/primitives.nix) both consult this predicate, so
+  the two layers cannot drift.
 */
 _:
 
 let
-  # Bytes excluded from an unquoted ifname element. `[:space:]` covers
-  # ASCII whitespace; `[:cntrl:]` covers NUL..0x1F + DEL. `\\` is the
+  # Bytes excluded from an interface name. `[:space:]` covers ASCII
+  # whitespace; `[:cntrl:]` covers NUL..0x1F + DEL. `\\` is the
   # regex-escaped backslash, matching one literal `\` byte.
-  regex = ''[^/:[:space:],;{}"\\#[:cntrl:]]*'';
+  regex = ''[^/:"\\[:space:][:cntrl:]]*'';
 
-  # Full kernel-and-renderer-safe ifname predicate:
-  #   - non-empty, ≤ IFNAMSIZ-1 (15) bytes
-  #   - not `.` or `..`
-  #   - byte-set excluded by `regex` above
+  # Byte 0xA0 alone: the second byte of U+00A0's UTF-8 encoding.
+  byteA0 = builtins.substring 1 1 (builtins.fromJSON ''"\u00a0"'');
+
   isSafe =
     s:
     builtins.isString s
@@ -31,61 +29,9 @@ let
     && builtins.stringLength s <= 15
     && s != "."
     && s != ".."
-    && builtins.match regex s != null;
-
-  # Return the first value in `values` that is a plain string failing
-  # `isSafe`, or `null` if every plain string is safe (non-string values
-  # pass through). Shared scanner for the ifname-list surfaces — set/map
-  # element walker, `chain.dev`, `flowtable.dev` — so callers can embed
-  # the bad bytes in their error message verbatim.
-  findUnsafeOrNull =
-    values:
-    let
-      valueList = if builtins.isList values then values else [ values ];
-      unsafeValues = builtins.filter (v: builtins.isString v && !(isSafe v)) valueList;
-    in
-    if unsafeValues == [ ] then null else builtins.head unsafeValues;
-
-  # Walk a set/map body and return the first plain-string element that
-  # fails `isSafe`, or `null` if every plain-string element is safe (or
-  # the body's `type` isn't `"ifname"` at all). Two callers — the DSL
-  # preparation step (lib/table.nix) and the text renderer
-  # (lib/text/objects.nix) — share this walker so the validation rule
-  # cannot drift between layers.
-  #
-  # Permissive about non-string element shapes (range expressions,
-  # tagged elem-with-options, [k, v] map pairs); only flags plain
-  # strings carrying the ifname value. For map elements `[k, v]` the
-  # KEY is what's typed `ifname` (the set/map's `type` field describes
-  # the key datatype).
-  findUnsafeIfnameElementOrNull =
-    body:
-    let
-      isIfname = (body.type or null) == "ifname";
-      rawElems = body.elem or null;
-      elemList =
-        if rawElems == null then
-          [ ]
-        else if builtins.isList rawElems then
-          rawElems
-        else
-          [ rawElems ];
-      valueOf =
-        e:
-        if builtins.isList e && builtins.length e == 2 then
-          builtins.elemAt e 0
-        else if builtins.isAttrs e && e ? elem && (e.elem ? val) then
-          e.elem.val
-        else
-          e;
-    in
-    if !isIfname then null else findUnsafeOrNull (map valueOf elemList);
+    && builtins.match regex s != null
+    && builtins.replaceStrings [ byteA0 ] [ "" ] s == s;
 in
 {
-  inherit
-    findUnsafeIfnameElementOrNull
-    findUnsafeOrNull
-    isSafe
-    regex
-    ;
+  inherit isSafe regex;
 }

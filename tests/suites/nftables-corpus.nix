@@ -27,9 +27,23 @@
   ...
 }:
 let
-  drift = helpers.corpusDrift observations.nftablesCorpus;
+  corpus = observations.nftablesCorpus;
+  drift = helpers.corpusDrift corpus;
+
+  /*
+    The normalizer fails on a record it can't parse; the floor also
+    catches records lost before parsing, such as a renamed corpus file.
+    It is the record count of the locked nixpkgs' nftables 1.1.6, so a
+    single dropped record fails there.
+  */
+  minCorpusRecords = 1762;
 in
 {
+  testCorpusMeetsRecordFloor = {
+    expr = builtins.length corpus >= minCorpusRecords;
+    expected = true;
+  };
+
   testCorpusHasNoNewDrift = {
     expr = map builtins.toJSON drift.newDrift;
     expected = [ ];

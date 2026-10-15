@@ -8,6 +8,7 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
+  location = import ../internal/location.nix { inherit lib; };
 
   natBase =
     tag:
@@ -19,7 +20,7 @@ let
       typeFlags ? null,
     }:
     {
-      ${tag} = compact (rename.nat args);
+      ${tag} = compact (rename.nat (location.builder [ tag ]) args);
     };
 
   masqueradeBase =

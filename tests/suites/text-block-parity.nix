@@ -1,5 +1,6 @@
 {
   fixtures,
+  helpers,
   lib,
   nftlib,
   ...
@@ -28,6 +29,76 @@ let
 
 in
 {
+  # nft's JSON parser ignores a set or map comment, so block form refuses
+  # it as imperative text does.
+  testSetCommentRefused = {
+    expr = toTextBlock (
+      dsl.table "inet" "t" {
+        sets.s = {
+          type = "ipv4_addr";
+          comment = "blocked hosts";
+        };
+      }
+    );
+    expectedError.msg = helpers.refusals.jsonIgnored "set comment";
+  };
+
+  testMapCommentRefused = {
+    expr = toTextBlockPretty (
+      dsl.table "inet" "t" {
+        maps.m = {
+          type = "ipv4_addr";
+          map = "verdict";
+          comment = "per-host verdicts";
+        };
+      }
+    );
+    expectedError.msg = helpers.refusals.jsonIgnored "map comment";
+  };
+
+  # Without an address, nft's JSON parser fails on a NAT family other than
+  # an ip table's, while text, which can't write the family, loads.
+  testNatOtherFamilyPortOnlyRefused = {
+    expr = toTextBlock (
+      dsl.table "ip" "t" {
+        chains.c.rules = [
+          [
+            (dsl.eq dsl.fields.meta.l4proto "tcp")
+            (dsl.snat {
+              family = "ip6";
+              port = 1024;
+            })
+          ]
+        ];
+      }
+    );
+    expectedError.msg = helpers.refusals.noTextSpelling "nat family";
+  };
+
+  # nft's JSON parser also ignores element statements.
+  testElementStatementRefused = {
+    expr = toTextBlock (
+      dsl.table "ip" "t" {
+        sets.s = {
+          type = "ipv4_addr";
+          stmt = [ { counter = null; } ];
+          elem = [
+            {
+              elem = {
+                val = "10.0.0.1";
+                counter = {
+                  packets = 1;
+                  bytes = 2;
+                };
+              };
+            }
+          ];
+        };
+      }
+    );
+    expectedError.msg = helpers.refusals.jsonIgnored "element counter";
+  };
+
   # ---- empty input ---------------------------------------------------
   testEmptyTableCompact = {
     expr = toTextBlock (dsl.table "inet" "fw" { });
@@ -60,7 +131,7 @@ in
         name = "fw";
       };
     };
-    expectedError.msg = "block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "nix-nftypes: text: block-form text rendering expects one dsl\\.table node";
   };
 
   testRawChainCommandRejectedPretty = {
@@ -71,14 +142,14 @@ in
         name = "input";
       };
     };
-    expectedError.msg = "block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "nix-nftypes: text: block-form text rendering expects one dsl\\.table node";
   };
 
   # Assertions cross the public table interface. The old internal command
   # envelope and its partition/regroup protocol no longer exist.
   testRulesetEnvelopeRejected = {
     expr = toTextBlock (dsl.ruleset [ (dsl.table "inet" "fw" { }) ]);
-    expectedError.msg = "block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "nix-nftypes: text: block-form text rendering expects one dsl\\.table node";
   };
 
   testTableListRejectedPretty = {
@@ -86,12 +157,12 @@ in
       (dsl.table "inet" "fw" { })
       (dsl.table "inet" "other" { })
     ];
-    expectedError.msg = "block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "nix-nftypes: text: block-form text rendering expects one dsl\\.table node";
   };
 
   testUnknownTableKeyRejected = {
     expr = toTextBlock (dsl.table "inet" "fw" { chians.input = { }; });
-    expectedError.msg = "dsl\\.table inet\\.fw has unsupported key.*chians";
+    expectedError.msg = "nix-nftypes: dsl\\.table inet\\.fw: unsupported key.*chians";
   };
 
   # Omitting wrapper fields from output must not skip their validation,
@@ -111,7 +182,10 @@ in
     expectedError.msg = "option .*comment.*not of type";
   };
 
-  testTableOptionsBelongToOmittedWrapper = {
+  # The wrapper holds only the family and name: flags and comment stay in
+  # the block, or a dormant table would load active. A handle has no
+  # block-form spelling.
+  testTableFlagsAndCommentStayInBlock = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         comment = "table";
@@ -119,7 +193,23 @@ in
         handle = 7;
       }
     );
-    expected = "";
+    expected = "flags dormant;\ncomment \"table\";";
+  };
+
+  testTableFlagsAndCommentStayInBlockPretty = {
+    expr = toTextBlockPretty (
+      dsl.table "inet" "fw" {
+        comment = "table";
+        flags = [ "dormant" ];
+        chains.input = baseChain;
+      }
+    );
+    expected = ''
+      flags dormant;
+      comment "table";
+      chain input {
+        type filter hook input priority 0;
+      }'';
   };
 
   testInvalidChainPriorityRejected = {
@@ -133,18 +223,19 @@ in
     expectedError.msg = "chains\\.input\\.prio";
   };
 
-  testInvalidRuleHandleRejectedPretty = {
+  # A rule loads through `add rule`, which takes no handle.
+  testRuleHandleRejectedPretty = {
     expr = toTextBlockPretty (
       dsl.table "inet" "fw" {
         chains.input.rules = [
           {
             expr = [ dsl.accept ];
-            handle = "invalid";
+            handle = 7;
           }
         ];
       }
     );
-    expectedError.msg = "chains\\.input\\.rules\\.\"?0\"?\\.handle";
+    expectedError.msg = "chains\\.input\\.rules\\.\"?0\"?\\.handle' does not exist";
   };
 
   testInvalidNamedObjectRejected = {
@@ -152,16 +243,37 @@ in
     expectedError.msg = "counters\\.hits\\.packets.*is not of type";
   };
 
-  testUnsafeIfnameElementRejectedPretty = {
+  # Quoted, `010` is the name, not the number 8, and a `,` can't split
+  # an element.
+  testIfnameElementsQuotedPretty = {
     expr = toTextBlockPretty (
       dsl.table "inet" "fw" {
         sets.interfaces = {
           type = "ifname";
-          elements = [ "eth0,eth1" ];
+          elements = [
+            "eth0,eth1"
+            "010"
+          ];
         };
       }
     );
-    expectedError.msg = "sets\\.interfaces: .*is not a safe interface name";
+    expected = ''
+      set interfaces {
+        type ifname;
+        elements = { "eth0,eth1", "010" };
+      }'';
+  };
+
+  testUnsafeIfnameElementRefusedPretty = {
+    expr = toTextBlockPretty (
+      dsl.table "inet" "fw" {
+        sets.interfaces = {
+          type = "ifname";
+          elements = [ "eth/0" ];
+        };
+      }
+    );
+    expectedError.msg = helpers.refusals.ifname "set element";
   };
 
   # Standalone `element` is an imperative command and has no legal form
@@ -178,7 +290,7 @@ in
         };
       }
     );
-    expectedError.msg = "block-form text rendering cannot embed standalone table elements";
+    expectedError.msg = "nix-nftypes: text: block-form text rendering cannot embed standalone table elements";
   };
 
   testStandaloneElementsRejectedPretty = {
@@ -198,7 +310,7 @@ in
         };
       }
     );
-    expectedError.msg = "block-form text rendering cannot embed standalone table elements";
+    expectedError.msg = "nix-nftypes: text: block-form text rendering cannot embed standalone table elements";
   };
 
   # ---- chain only (base chain, no rules) -----------------------------
@@ -288,17 +400,19 @@ in
               table = "fw";
               chain = "input";
               expr = [
-                (dsl.counter { packets = 1; })
+                (dsl.counter {
+                  packets = 1;
+                  bytes = 2;
+                })
                 dsl.accept
               ];
               comment = "allow";
-              handle = 7;
             }
           ];
         };
       }
     );
-    expected = "chain input { counter packets 1 accept comment \"allow\"; }";
+    expected = "chain input { counter packets 1 bytes 2 accept comment \"allow\"; }";
   };
 
   # ---- set / map / counter (block-form decls, no add prefix) ---------
@@ -344,7 +458,7 @@ in
   testChainTwoRulesEndsWithSemiCompact = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
-        chains.fwd = (baseChain // { hook = "forward"; }) // {
+        chains.forward = (baseChain // { hook = "forward"; }) // {
           rules = [
             [ dsl.accept ]
             [ dsl.accept ]
@@ -352,7 +466,7 @@ in
         };
       }
     );
-    expected = "chain fwd { type filter hook forward priority 0; accept; accept; }";
+    expected = "chain forward { type filter hook forward priority 0; accept; accept; }";
   };
 
   # Same regression for sibling decls inside the table block.
@@ -422,7 +536,7 @@ in
     expr = toTextBlock referencedTable;
     expected = lib.concatStringsSep "\n" [
       "chain input { type filter hook input priority 0; tcp dport vmap @dispatch; }"
-      "chain service { ip saddr @trusted counter name \"hits\" accept; drop; }"
+      "chain service { ip saddr == @trusted counter name \"hits\" accept; drop; }"
       "counter hits { }"
       "map dispatch { type inet_service : verdict; elements = { 22 : jump service }; }"
       "set trusted { type ipv4_addr; elements = { 192.0.2.1 }; }"
@@ -437,7 +551,7 @@ in
         tcp dport vmap @dispatch;
       }
       chain service {
-        ip saddr @trusted counter name "hits" accept;
+        ip saddr == @trusted counter name "hits" accept;
         drop;
       }
       counter hits { }

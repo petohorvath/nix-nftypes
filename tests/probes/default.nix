@@ -22,7 +22,6 @@ in
   source = import ./source.nix {
     inherit
       nftablesSource
-      nftlib
       pkgs
       recordRuns
       ;

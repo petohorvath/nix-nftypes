@@ -68,8 +68,8 @@ add chain inet filter input {
   type filter hook input priority 0;
   policy drop;
 }
-add rule inet filter input ct state { established, related } accept
-add rule inet filter input tcp dport 22 accept
+add rule inet filter input ct state == { established, related } accept
+add rule inet filter input tcp dport == 22 accept
 ```
 
 Load the text with `sudo nft -f result`. To produce libnftables JSON, the compatibility target, render with `nftlib.toJson` instead and load the result with `sudo nft -j -f result`.
@@ -95,7 +95,7 @@ The [`examples`](examples) directory holds longer rulesets, each a function of `
 
 ## Embed a table in NixOS
 
-`toTextBlockPretty` renders one `dsl.table` as block form: the table's contents without the `table { … }` wrapper, with each rule inside its chain. The NixOS nftables module takes this form in `networking.nftables.tables.<name>.content` and supplies the wrapper:
+`toTextBlockPretty` renders one `dsl.table` as block form: the table's contents, including its `flags` and `comment`, without the `table { … }` wrapper, with each rule inside its chain. The NixOS nftables module takes this form in `networking.nftables.tables.<name>.content` and supplies the wrapper:
 
 ```nix
 networking.nftables = {

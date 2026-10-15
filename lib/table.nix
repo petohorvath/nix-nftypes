@@ -15,85 +15,115 @@
 
 let
   validate = import ./dsl/internal/validate.nix { inherit lib; };
+  requireBody = import ./dsl/internal/require-body.nix { inherit lib; };
+  location = import ./dsl/internal/location.nix { inherit lib; };
+  ruleBody = import ./dsl/internal/rule-body.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
   markers = import ./dsl/internal/markers.nix { };
-  nftSafeIfname = import ./nft-safe-ifname.nix { };
   context = import ./text/context.nix { inherit lib; };
   objectKindRegistry = import ./dsl/structure/object-kinds.nix { inherit lib objects; };
   objectKinds = lib.mapAttrs' (
     _: cfg: lib.nameValuePair cfg.plural (removeAttrs cfg [ "plural" ])
   ) objectKindRegistry;
 
-  # Attribute names are sorted. Standalone elements are the one exception
-  # to kind order: their set/map definitions must already exist.
+  # Attribute names are sorted.
   sortedNames = builtins.attrNames;
+
+  /*
+    Stateful objects come first: a set or map element can name one (a map
+    of quotas, say), and JSON and imperative text load commands in order.
+    Standalone elements come last, after their set/map definitions. The
+    other kinds keep their sorted order.
+  */
+  statefulObjectKindNames = [
+    "counters"
+    "quotas"
+    "limits"
+    "ctHelpers"
+    "ctTimeouts"
+    "ctExpectations"
+    "secmarks"
+    "synproxies"
+    "ctCounts"
+  ];
   orderedObjectKindNames =
-    builtins.filter (name: name != "elements") (sortedNames objectKinds)
-    ++ lib.optional (objectKinds ? elements) "elements";
+    statefulObjectKindNames
+    ++ lib.subtractLists (statefulObjectKindNames ++ [ "elements" ]) (sortedNames objectKinds)
+    ++ [ "elements" ];
 
   # The tree owns scope. Check after schema validation so ordinary type
   # errors keep their existing paths, and matching explicit scope fields
   # remain useful when composing bodies. Raw commands can choose any scope.
   prepareBody =
-    type: prefix: scope: userBody:
+    type: at: scope: userBody:
     let
       validated = compact (validate {
-        inherit type prefix;
-        value = compact (scope // userBody);
+        inherit type;
+        location = at;
+        value = compact (scope // requireBody at userBody);
       });
       conflicts = builtins.filter (key: validated.${key} != scope.${key}) (sortedNames scope);
       key = builtins.head conflicts;
-      path = lib.concatStringsSep "." (prefix ++ [ key ]);
     in
     if conflicts == [ ] then
       validated
     else
-      throw "nix-nftypes: ${path} must match its table-tree scope ${builtins.toJSON scope.${key}}, got ${
-        builtins.toJSON validated.${key}
-      }";
+      location.fail (location.within at [ key ])
+        "must match its table-tree scope ${builtins.toJSON scope.${key}}, got ${
+          builtins.toJSON validated.${key}
+        }";
 
+  # `tree` is the table tree's location (../dsl/internal/location.nix).
   prepareObject =
-    scope: pluralKey: name: userBody:
+    tree: scope: pluralKey: name: userBody:
     let
       cfg = objectKinds.${pluralKey};
-      body = prepareBody cfg.body [ pluralKey name ] (scope // { inherit name; }) (
-        cfg.renameBody userBody
-      );
-      # Cross-field validation supplements the schema: ifname set/map
-      # elements render bare, so unsafe characters can widen a set or break
-      # the parser. The text object renderer also checks raw callers.
-      unsafeElement =
-        if cfg.tag == "set" || cfg.tag == "map" then
-          nftSafeIfname.findUnsafeIfnameElementOrNull body
-        else
-          null;
+      at = location.within tree [
+        pluralKey
+        name
+      ];
+      body = prepareBody cfg.body at (scope // { inherit name; }) (cfg.renameBody at userBody);
     in
     {
       kind = cfg.tag;
-      body =
-        if unsafeElement == null then
-          body
-        else
-          throw "${pluralKey}.${name}: set has type = \"ifname\" but element ${builtins.toJSON unsafeElement} is not a safe interface name (see lib/nft-safe-ifname.nix). nft renders ifname elements bare into `elements = { ... }`, so unsafe characters can silently widen the set or break the text parser.\n";
+      inherit body;
     };
 
+  # A rule entry is a list of statements or a rule body with them in `expr`
+  # (./dsl/internal/rule-body.nix).
   prepareRule =
-    scope: index: entry:
-    prepareBody objects.ruleBody [ "chains" scope.chain "rules" (toString index) ] scope (
-      if builtins.isList entry then { expr = entry; } else entry
-    );
+    tree: scope: index: entry:
+    let
+      at = location.within tree [
+        "chains"
+        scope.chain
+        "rules"
+        (toString index)
+      ];
+    in
+    prepareBody objects.addRuleBody at scope (ruleBody.ruleEntry at entry);
 
-  prepareChain = scope: name: userBody: {
-    body = prepareBody objects.chainBody [ "chains" name ] (scope // { inherit name; }) (
-      removeAttrs userBody [ "rules" ]
-    );
-    rules = lib.imap0 (prepareRule (scope // { chain = name; })) (userBody.rules or [ ]);
-  };
+  prepareChain =
+    tree: scope: name: userBody:
+    let
+      at = location.within tree [
+        "chains"
+        name
+      ];
+      checkedBody = requireBody at userBody;
+    in
+    {
+      body = prepareBody objects.chainBody at (scope // { inherit name; }) (
+        removeAttrs checkedBody [ "rules" ]
+      );
+      rules = lib.imap0 (prepareRule tree (scope // { chain = name; })) (checkedBody.rules or [ ]);
+    };
 
   prepareTable =
     node:
     let
       inherit (node) family name;
+      tree = location.tableTree family name;
       body = removeAttrs node [
         markers.table
         "family"
@@ -112,10 +142,7 @@ let
         if unknownBodyKeys == [ ] then
           body
         else
-          throw (
-            "nix-nftypes: dsl.table ${family}.${name} has unsupported key(s): "
-            + lib.concatStringsSep ", " unknownBodyKeys
-          );
+          location.fail tree "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}";
       tableOptions = builtins.intersectAttrs {
         handle = null;
         flags = null;
@@ -129,11 +156,11 @@ let
       presentKinds = builtins.filter (kind: checkedBody ? ${kind}) orderedObjectKindNames;
     in
     {
-      body = prepareBody objects.tableBody [ ] { inherit family name; } tableOptions;
-      chains = map (name: prepareChain scope name chains.${name}) (sortedNames chains);
+      body = prepareBody objects.tableBody tree { inherit family name; } tableOptions;
+      chains = map (name: prepareChain tree scope name chains.${name}) (sortedNames chains);
       objects = lib.concatMap (
         kind:
-        map (name: prepareObject scope kind name checkedBody.${kind}.${name}) (
+        map (name: prepareObject tree scope kind name checkedBody.${kind}.${name}) (
           sortedNames checkedBody.${kind}
         )
       ) presentKinds;
@@ -155,20 +182,20 @@ let
 
   /*
     Render one `dsl.table` node's contents in block form. `pretty` selects
-    multi-line output and `node` is the table node. Returns the chain and
-    object declarations joined by newlines, without the
-    `table <family> <name> { … }` wrapper. Throws when `node` is not a table
-    node or has standalone `elements` entries, which block grammar cannot
-    represent.
+    multi-line output and `node` is the table node. Returns the table's
+    `flags` and `comment`, then the chain and object declarations, joined
+    by newlines, without the `table <family> <name> { … }` wrapper. Throws
+    when `node` is not a table node or has standalone `elements` entries,
+    which block grammar cannot represent.
   */
   renderTableBlock =
     pretty: node:
     if !(builtins.isAttrs node && (node.${markers.table} or false)) then
-      throw "nix-nftypes: block-form text rendering expects one dsl.table node"
+      throw "nix-nftypes: text: block-form text rendering expects one dsl.table node"
     else if
       node ? elements && !(builtins.isAttrs node.elements && sortedNames node.elements == [ ])
     then
-      throw "nix-nftypes: block-form text rendering cannot embed standalone table elements; put initial elements on the set/map definition or use an imperative renderer"
+      throw "nix-nftypes: text: block-form text rendering cannot embed standalone table elements; put initial elements on the set/map definition or use an imperative renderer"
     else
       let
         table = clean (prepareTable node);
@@ -177,7 +204,8 @@ let
           block = true;
         };
         declarations =
-          map (chain: text.renderChainBlock ctx chain.body chain.rules) table.chains
+          text.renderTableBlockOptions ctx table.body
+          ++ map (chain: text.renderChainBlock ctx chain.body chain.rules) table.chains
           ++ map (object: text.renderObject ctx object.kind object.body) table.objects;
       in
       # Validate even an empty table's omitted wrapper fields. Construction

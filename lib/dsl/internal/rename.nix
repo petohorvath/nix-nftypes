@@ -17,16 +17,41 @@
   Builders and table preparation call the per-tag rename function on the
   user's arguments before handing them to the schema, so the DSL spelling
   never leaks into evalModules and the JSON spelling never leaks into user
-  code.
+  code. Each function takes the body's location (./location.nix), such as
+  a table tree's `sets.s`, for its errors, then the body.
 */
 { lib }:
 
 let
-  # Apply a { dslName = "jsonName"; } map to an attrset's keys. Keys
-  # not in the map pass through unchanged.
-  renameKeys = renames: attrs: lib.mapAttrs' (k: v: lib.nameValuePair (renames.${k} or k) v) attrs;
+  inherit (import ./location.nix { inherit lib; }) fail within;
+
+  /*
+    Apply a { dslName = "jsonName"; } map to an attrset's keys. Keys not in
+    the map pass through unchanged, and so does a value that isn't an
+    attrset, for the schema to reject. Throws when a body gives both
+    spellings of a field, which would keep one of the two values.
+  */
+  renameKeys =
+    renames: location: attrs:
+    let
+      bothSpellings = builtins.filter (dslName: attrs ? ${dslName} && attrs ? ${renames.${dslName}}) (
+        builtins.attrNames renames
+      );
+      dslName = builtins.head bothSpellings;
+    in
+    if !(builtins.isAttrs attrs) then
+      attrs
+    else if bothSpellings != [ ] then
+      fail (within location [
+        dslName
+      ]) "also given as `${renames.${dslName}}`, its JSON spelling; give the field once, as `${dslName}`"
+    else
+      lib.mapAttrs' (k: v: lib.nameValuePair (renames.${k} or k) v) attrs;
 in
 {
+  # For a body without DSL-only spellings.
+  none = _location: lib.id;
+
   log = renameKeys {
     queueThreshold = "queue-threshold";
   };
@@ -62,27 +87,4 @@ in
   element = renameKeys {
     elements = "elem";
   };
-
-  metainfo = renameKeys {
-    releaseName = "release_name";
-    jsonSchemaVersion = "json_schema_version";
-  };
-
-  # A geneve tunnel's nested `tunnel` is a list of options, each carrying
-  # `opt-type`; the vxlan and erspan nested attrsets need no rename.
-  tunnel =
-    body:
-    let
-      renamed = renameKeys {
-        srcIpv4 = "src-ipv4";
-        srcIpv6 = "src-ipv6";
-        dstIpv4 = "dst-ipv4";
-        dstIpv6 = "dst-ipv6";
-      } body;
-      renameGeneveOption = renameKeys { optType = "opt-type"; };
-    in
-    if builtins.isList (renamed.tunnel or null) then
-      renamed // { tunnel = map renameGeneveOption renamed.tunnel; }
-    else
-      renamed;
 }

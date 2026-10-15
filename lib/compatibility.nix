@@ -22,8 +22,11 @@
     nftypes.lib.priorityNameOf "bridge" (-200)
     # → "filter"
 
-    nftypes.lib.chainTypeFor "bridge" "postrouting" 300
+    nftypes.lib.chainTypeFor "ip" "postrouting" "srcnat"
     # → "nat"
+
+    nftypes.lib.chainTypeFor "bridge" "postrouting" 300
+    # → "filter"  (bridge has no nat chains)
 
     nftypes.lib.validChainPlacement "ip" "nat" "forward"
     # → false  (nat does not attach at forward)
@@ -178,23 +181,13 @@ let
 
   knownFamilies = builtins.attrNames hooksByFamily;
 
-  /*
-    priorityIntsByFamily :: family -> { symbol -> int }
-
-    Returns the canonical symbol→int priority table for `family`.
-    `bridge` gets `priorityIntsBridge`; every other known family
-    gets `priorityIntsDefault`. Throws on unknown family.
-
-    Internal dispatch shared by `resolvePriority` (symbol → int)
-    and the reverse-lookup helpers `priorityNameOf` / `chainTypeFor`.
-    Exposed because consumers occasionally need the raw table to
-    iterate symbols family-aware.
-  */
-  priorityIntsByFamily =
-    family:
+  # The priority table of `family`; an unknown family throws naming
+  # `caller`, the public function the user called.
+  priorityTableFor =
+    caller: family:
     if !(builtins.elem family knownFamilies) then
       throw (
-        "priorityIntsByFamily: unknown family '${toString family}'. "
+        "nix-nftypes: ${caller}: unknown family '${toString family}'. "
         + "Valid families: "
         + builtins.concatStringsSep ", " knownFamilies
         + "."
@@ -205,6 +198,20 @@ let
       priorityIntsDefault;
 
   /*
+    priorityIntsByFamily :: family -> { symbol -> int }
+
+    Returns the canonical symbol→int priority table for `family`.
+    `bridge` gets `priorityIntsBridge`; every other known family
+    gets `priorityIntsDefault`. Throws on unknown family.
+
+    The same table backs `resolvePriority` (symbol → int) and the
+    reverse-lookup helpers `priorityNameOf` / `chainTypeFor`. Exposed
+    because consumers occasionally need the raw table to iterate
+    symbols family-aware.
+  */
+  priorityIntsByFamily = priorityTableFor "compatibility.priorityIntsByFamily";
+
+  /*
     resolvePriority :: family -> (int | symbol) -> int
 
     Pass an int through unchanged without consulting `family`; look a symbol
@@ -213,8 +220,10 @@ let
     separately for unknown family vs unknown symbol so the error message
     distinguishes the two.
 
-    Scope: symbol-to-int translation only. The kernel accepts any
-    int as a priority, so `man nft` Table 6's family/hook
+    Scope: symbol-to-int translation only. It takes a bare symbol such
+    as `"filter"`, not an expression such as `"filter + 10"`; add an
+    offset with Nix arithmetic: `resolvePriority "ip" "filter" + 10`.
+    The kernel accepts any int as a priority, so `man nft` Table 6's family/hook
     restrictions (e.g. `mangle` is conventionally ip/ip6/inet only;
     `dstnat` is prerouting-only) are *not* enforced here —
     `resolvePriority "netdev" "mangle"` returns `-150` even though
@@ -228,11 +237,11 @@ let
       prio
     else
       let
-        table = priorityIntsByFamily family;
+        table = priorityTableFor "resolvePriority" family;
         symbols = builtins.attrNames table;
       in
       table.${prio} or (throw (
-        "resolvePriority: unknown priority symbol '${toString prio}' "
+        "nix-nftypes: resolvePriority: unknown priority symbol '${toString prio}' "
         + "for family '${family}'. Valid symbols: "
         + builtins.concatStringsSep ", " symbols
         + "."
@@ -287,7 +296,7 @@ let
       prio
     else
       let
-        table = priorityIntsByFamily family;
+        table = priorityTableFor "priorityNameOf" family;
         symbols = builtins.attrNames table;
         matching = builtins.filter (s: table.${s} == prio) symbols;
       in
@@ -297,46 +306,48 @@ let
     chainTypeFor :: family -> hook -> (int | symbol) -> (chainType | null)
 
     Classify a `(family, hook, priority)` placement according to this
-    library's conventional `"filter"` / `"nat"` / `"route"` policy.
-    Returns `"filter"` for any placement that doesn't unambiguously
-    pick another type; returns `null` only if `prio` is a symbol
-    not in the family's priority table.
+    library's conventional `"filter"` / `"nat"` / `"route"` policy, and
+    never return a type `validChainPlacement` rejects for the placement.
+    Returns `null` only if `prio` is a symbol not in the family's
+    priority table.
 
     Mapping (family-aware via `priorityIntsByFamily`):
       - priority == srcnat || priority == dstnat
           → "nat"
-      - priority == mangle && hook is a route-chain hook
-          → "route"  (route chains are output-only;
-                       prerouting + mangle is a filter chain
-                       that does mangling)
+      - priority == mangle
+          → "route"
       - otherwise
           → "filter"
 
-    Bridge family note: `priorityIntsBridge` has different ints
-    for `srcnat` (300) / `dstnat` (-300) / `filter` (-200), plus a
-    `bridge`-only `out` symbol. The mapping above resolves symbols
-    via `priorityIntsByFamily`, so bridge int 300 correctly
-    classifies as `"nat"`. Bridge has no `mangle`, so the route
-    branch is unreachable for bridge.
+    When `validChainPlacement` rejects the classified type at `hook`,
+    the result is `"filter"`: nat doesn't attach at forward, ingress,
+    or egress, nor in the arp, bridge, or netdev family; route attaches
+    only at output in ip, ip6, and inet. So `prerouting` at `mangle`
+    is a filter chain that mangles, and bridge `srcnat` (300, not 100)
+    is a filter chain. At a hook the family lacks no type is valid, and
+    the result is `"filter"` too.
 
-    Throws on unknown family (via `priorityIntsByFamily`); never
+    Throws on unknown family; never
     throws on unknown hook (the kernel rejects those separately —
     see `validChainPlacement`).
   */
   chainTypeFor =
     family: hook: prio:
     let
-      table = priorityIntsByFamily family;
+      table = priorityTableFor "chainTypeFor" family;
       priorityInt = if builtins.isInt prio then prio else table.${prio} or null;
+      classified =
+        if priorityInt == (table.srcnat or null) || priorityInt == (table.dstnat or null) then
+          "nat"
+        else if priorityInt == (table.mangle or null) then
+          "route"
+        else
+          "filter";
     in
     if priorityInt == null then
       null
-    else if priorityInt == (table.srcnat or null) || priorityInt == (table.dstnat or null) then
-      "nat"
-    else if
-      (table ? mangle) && priorityInt == table.mangle && builtins.elem hook hooksByChainType.route
-    then
-      "route"
+    else if validChainPlacement family classified hook then
+      classified
     else
       "filter";
 in

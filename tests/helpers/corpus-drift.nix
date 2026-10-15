@@ -40,14 +40,9 @@ let
 
   # Baselined divergence patterns: parser accepts, schema rejects, confirmed
   # against the packaged `nft -c -j -f`. Value is the reason + fix pointer.
-  # Keep in sync with docs/upstream-sync.md's "Known corpus divergences".
+  # Keep in sync with docs/spec-coverage.md, "Parser input accepted but
+  # schema rejected".
   knownDivergences = {
-    "null-body:reject" =
-      "bare `{reject:null}` (default icmp/icmpx reject); schema requires an object body";
-    "null-body:redirect" = "bare `{redirect:null}`; schema requires an object body";
-    "null-body:masquerade" = "bare `{masquerade:null}`; schema requires an object body";
-    "null-body:log" = "bare `{log:null}` (log with no options); schema requires an object body";
-    "null-body:queue" = "bare `{queue:null}`; schema requires an object body";
     "op-negation" =
       "match `op:\"!\"` (unary negation); missing from the `operator` enum (strcmp-parsed, so the table extractor cannot see it)";
     "synproxy-flags-only" =

@@ -18,34 +18,62 @@ let
 
   # `types.attrTag` over an attrset of tag → body type.
   taggedUnion = bodies: types.attrTag (lib.mapAttrs tagOption bodies);
-in
-{
-  # Submodule with a key-presence (and optional value) discriminator. Wraps
-  # the submodule in addCheck so `types.oneOf` can route correctly between
-  # siblings that share the same nominal shape (e.g. raw / tunnel / named
-  # payload, ERSPAN v1 / v2, …).
-  #
-  #   discriminatedSubmodule {
-  #     options = { … };
-  #     requireKeys = [ "base" "offset" "len" ];
-  #     forbidKeys  = [ "tunnel" ];
-  #     extraCheck  = v: (v.version or null) == 2;   # optional value check
-  #   }
+
+  /*
+    A body value is data: an attrset of fields. `types.submodule` also takes
+    a module function or a path, so a path-like name such as "/sp1" in a
+    union with a body was imported as a file, which aborts evaluation.
+    `_module` would reconfigure the body's evaluation (`_module.check =
+    false` lets unknown fields through).
+  */
+  isData = v: builtins.isAttrs v && !(v ? _module);
+
+  /*
+    Submodule with a key-presence (and optional value) discriminator. Wraps
+    the submodule in addCheck so `types.oneOf` can route correctly between
+    siblings that share the same nominal shape (e.g. raw / tunnel / named
+    payload, ERSPAN v1 / v2, …), and so a body declared directly (an
+    attrTag tag) rejects a value that fails the check. `description`
+    names the constraint in that error.
+
+      discriminatedSubmodule {
+        options = { … };
+        requireKeys = [ "base" "offset" "len" ];
+        forbidKeys  = [ "tunnel" ];
+        extraCheck  = v: (v.version or null) == 2;   # optional value check
+      }
+  */
   discriminatedSubmodule =
     {
       options,
       requireKeys ? [ ],
       forbidKeys ? [ ],
       extraCheck ? null,
+      description ? null,
     }:
     let
-      submodule = types.submodule { inherit options; };
       hasExpectedKeys =
-        v: builtins.isAttrs v && lib.all (k: v ? ${k}) requireKeys && lib.all (k: !(v ? ${k})) forbidKeys;
+        v: isData v && lib.all (k: v ? ${k}) requireKeys && lib.all (k: !(v ? ${k})) forbidKeys;
+      check = v: hasExpectedKeys v && (if extraCheck == null then true else extraCheck v);
+      # The module system re-creates a submodule declared by an option
+      # (`substSubModules`), which drops an `addCheck`; re-apply it there.
+      withCheck =
+        submodule:
+        types.addCheck submodule check
+        // {
+          substSubModules = modules: withCheck (submodule.substSubModules modules);
+        }
+        // lib.optionalAttrs (description != null) { inherit description; };
     in
-    types.addCheck submodule (
-      v: hasExpectedKeys v && (if extraCheck == null then true else extraCheck v)
-    );
+    withCheck (types.submodule { inherit options; });
+in
+{
+  inherit discriminatedSubmodule;
+
+  # `types.submodule` for a schema body: it takes only an attrset of its
+  # fields (see `isData`), so a string in a union with a body is always a
+  # name and never a module path.
+  submodule = { options }: discriminatedSubmodule { inherit options; };
 
   # Like `types.listOf t` but constrained to exactly `n` elements
   # (e.g. range expressions are 2-element lists).

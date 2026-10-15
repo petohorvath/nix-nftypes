@@ -8,14 +8,19 @@
 
 let
   inherit (lib) mkOption types;
-  inherit (internal) discriminatedSubmodule taggedUnion wrap;
+  inherit (internal)
+    discriminatedSubmodule
+    submodule
+    taggedUnion
+    wrap
+    ;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     chainType
+    ctL3Proto
     family
     hook
     ifname
-    ipFamily
     nftQuotedString
     nullLiteral
     perUnit
@@ -32,7 +37,7 @@ let
   stmt = statements.statement;
 
   # Set/map datatype: string, list of strings, or { typeof = EXPRESSION; }.
-  typeofBody = types.submodule {
+  typeofBody = submodule {
     options.typeof = mkOption {
       type = expr;
       description = "extract datatype from expression";
@@ -46,6 +51,21 @@ let
 
   # A set element is either a bare expression or a list of expressions.
   setElem = types.either expr (types.listOf expr);
+
+  # `options` with each option in `names` made optional (null by default).
+  # A selection body uses it for the fields its add body requires but nft's
+  # JSON parser ignores for the selecting verbs.
+  withOptional =
+    names: options:
+    options
+    // lib.genAttrs names (
+      name:
+      options.${name}
+      // {
+        type = types.nullOr options.${name}.type;
+        default = null;
+      }
+    );
 
   # ----- Identity-options fragments -----
   # Composable building blocks for the family/table/name/handle/comment fields
@@ -120,7 +140,9 @@ let
 
   # Shared by sets and maps (parser_json.c:3307-3436 — both routed to
   # json_parse_cmd_add_set, the only difference is the `map` field).
+  # A comment is a Read-back shape: nft's JSON parser ignores it.
   setMapCommonOptions = namedInTableOptions // {
+    inherit (commentOption) comment;
     type = mkOption {
       type = setDatatype;
       description = "set datatype";
@@ -169,8 +191,104 @@ let
     };
   };
 
+  mapOptions = setMapCommonOptions // {
+    # Override `type`'s description: same shape, slightly different intent.
+    type = mkOption {
+      type = setDatatype;
+      description = "map key datatype";
+    };
+    map = mkOption {
+      # parser_json.c:3365 accepts a string (either object-type name like
+      # "counter" or datatype) OR a dtype expression (list/typeof).
+      type = setDatatype;
+      description = "map value datatype or object-type name";
+    };
+  };
+
+  limitOptions = commonObjectOptions // {
+    # parser_json.c:3863: rate AND per are required together.
+    rate = mkOption {
+      type = types.ints.positive;
+      description = "rate value";
+    };
+    per = mkOption {
+      type = perUnit;
+      description = "time unit";
+    };
+    rate_unit = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = ''
+        unit of rate (packets/kbytes/mbytes/…); defaults to packets
+      '';
+    };
+    burst = mkOption {
+      type = types.nullOr types.ints.unsigned;
+      default = null;
+      description = "burst value; defaults to 0";
+    };
+    burst_unit = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "unit of burst; defaults to bytes";
+    };
+    inv = mkOption {
+      type = types.nullOr types.bool;
+      default = null;
+      description = "invert match semantics";
+    };
+  };
+
+  synproxyOptions = commonObjectOptions // {
+    mss = mkOption {
+      type = types.ints.unsigned;
+      description = "maximum segment size";
+    };
+    wscale = mkOption {
+      type = types.ints.unsigned;
+      description = "window scale";
+    };
+    flags = mkOption {
+      type = types.nullOr (listOrSingleton synproxyFlag);
+      default = null;
+      description = "synproxy option flags";
+    };
+  };
+
+  flowtableOptions = namedInTableOptions // {
+    hook = mkOption {
+      type = hook;
+      description = "hook point";
+    };
+    prio = mkOption {
+      type = types.int;
+      description = "priority";
+    };
+    dev = mkOption {
+      # Each device is an interface name, as in chainBody.dev.
+      type = types.nullOr (listOrSingleton ifname);
+      default = null;
+      description = "bound interface(s)";
+    };
+  };
+
+  ruleOptions =
+    ruleContainerOptions
+    // {
+      expr = mkOption {
+        type = types.listOf stmt;
+        description = "rule body — list of statements";
+      };
+      index = mkOption {
+        type = types.nullOr types.ints.unsigned;
+        default = null;
+        description = "rule index";
+      };
+    }
+    // commentOption;
+
   bodies = rec {
-    tableBody = types.submodule {
+    tableBody = submodule {
       options =
         tableContainerOptions
         // {
@@ -183,38 +301,46 @@ let
         // commentOption;
     };
 
-    chainBody = types.submodule {
+    /*
+      nft's chain parser reads `type`, `hook` and `prio` as one optional
+      group: a chain missing any of them loads as a regular chain whose
+      rules never see packets. So a chain sets all three (a base chain) or
+      none, which is stricter than the parser: a Known difference (ADR
+      0010).
+    */
+    chainBody = discriminatedSubmodule {
+      extraCheck =
+        body:
+        let
+          setPlacementFields = builtins.filter (field: (body.${field} or null) != null) [
+            "type"
+            "hook"
+            "prio"
+          ];
+        in
+        setPlacementFields == [ ] || builtins.length setPlacementFields == 3;
+      description = "chain body with type, hook and prio all set (a base chain) or all unset";
       options =
         namedInTableOptions
         // {
-          newname = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "new name (rename command only)";
-          };
           type = mkOption {
             type = types.nullOr chainType;
             default = null;
-            description = "base chain type (required for base chains)";
+            description = "base chain type (with hook and prio)";
           };
           hook = mkOption {
             type = types.nullOr hook;
             default = null;
-            description = "hook point (required for base chains)";
+            description = "hook point (with type and prio)";
           };
           prio = mkOption {
             type = types.nullOr types.int;
             default = null;
-            description = "priority (required for base chains)";
+            description = "priority (with type and hook)";
           };
           dev = mkOption {
             # parser_json.c:3143 → json_parse_devs accepts string | [string].
-            # Element type is `ifname` (not `types.str`) for the same
-            # reason set/map elements with `type = "ifname"` are
-            # tightened — the renderer emits a multi-dev list bare as
-            # `devices = { eth0, eth1 }`, and an unsafe character would
-            # silently widen the binding to interfaces the user never
-            # declared. See lib/nft-safe-ifname.nix.
+            # Each device is an interface name (lib/nft-safe-ifname.nix).
             type = types.nullOr (listOrSingleton ifname);
             default = null;
             description = "bound interface(s) for netdev-family base chains";
@@ -228,44 +354,49 @@ let
         // commentOption;
     };
 
-    ruleBody = types.submodule {
-      options =
-        ruleContainerOptions
-        // {
-          expr = mkOption {
-            type = types.listOf stmt;
-            description = "rule body — list of statements";
-          };
-          index = mkOption {
-            type = types.nullOr types.ints.unsigned;
-            default = null;
-            description = "rule index";
-          };
-        }
-        // commentOption;
-    };
-
-    setObjectBody = types.submodule {
-      options = setMapCommonOptions;
-    };
-
-    mapObjectBody = types.submodule {
-      options = setMapCommonOptions // {
-        # Override `type`'s description: same shape, slightly different intent.
-        type = mkOption {
-          type = setDatatype;
-          description = "map key datatype";
-        };
-        map = mkOption {
-          # parser_json.c:3365 accepts a string (either object-type name like
-          # "counter" or datatype) OR a dtype expression (list/typeof).
-          type = setDatatype;
-          description = "map value datatype or object-type name";
+    # `rename chain` (parser_json.c, json_parse_cmd_rename) reads only
+    # these four fields, and requires each.
+    renameChainBody = submodule {
+      options = namedInTableOptions // {
+        newname = mkOption {
+          type = types.str;
+          description = "new chain name";
         };
       };
     };
 
-    elementBody = types.submodule {
+    ruleBody = submodule {
+      options = ruleOptions;
+    };
+
+    # `add rule` takes no handle: nft 1.1.6's JSON parser ignores one and
+    # appends the rule, while 1.1.7 and text read it as a position (a Known
+    # difference, ADR 0010). `index` places the rule.
+    addRuleBody = submodule {
+      options = removeAttrs ruleOptions [ "handle" ];
+    };
+
+    # `replace rule` (parser_json.c, json_parse_cmd_replace) needs the
+    # handle of the rule it replaces, and takes handle 0 as missing ("Handle
+    # is required when replacing a rule.").
+    replaceRuleBody = submodule {
+      options = ruleOptions // {
+        handle = mkOption {
+          type = types.ints.positive;
+          description = "handle of the rule to replace";
+        };
+      };
+    };
+
+    setObjectBody = submodule {
+      options = setMapCommonOptions;
+    };
+
+    mapObjectBody = submodule {
+      options = mapOptions;
+    };
+
+    elementBody = submodule {
       options = elementContainerOptions // {
         elem = mkOption {
           type = setElem;
@@ -274,29 +405,52 @@ let
       };
     };
 
-    flowtableBody = types.submodule {
-      options = namedInTableOptions // {
-        hook = mkOption {
-          type = types.nullOr hook;
-          default = null;
-          description = "hook point";
-        };
-        prio = mkOption {
-          type = types.nullOr types.int;
-          default = null;
-          description = "priority";
-        };
-        dev = mkOption {
-          # See chainBody.dev for the ifname-tightening rationale —
-          # multi-dev list rendering is bare comma-joined.
-          type = types.nullOr (listOrSingleton ifname);
-          default = null;
-          description = "bound interface(s)";
+    # `add` and `create` require `hook` and `prio` (parser_json.c,
+    # json_parse_cmd_add_flowtable).
+    flowtableBody = submodule {
+      options = flowtableOptions;
+    };
+
+    /*
+      Selection bodies, for the verbs that select an existing object:
+      delete, destroy, list, flush, and reset. nft's JSON parser reads
+      only the family, table, and name (or handle) for these verbs
+      (parser_json.c, json_parse_cmd_add_set, json_parse_cmd_add_object,
+      json_parse_cmd_add_flowtable), so the fields adding one requires
+      are optional here.
+    */
+    selectFlowtableBody = submodule {
+      options = withOptional [ "hook" "prio" ] flowtableOptions;
+    };
+    selectSetBody = submodule {
+      options = withOptional [ "type" ] setMapCommonOptions;
+    };
+    selectMapBody = submodule {
+      options = withOptional [ "type" "map" ] mapOptions;
+    };
+    selectLimitBody = submodule {
+      options = withOptional [ "rate" "per" ] limitOptions;
+    };
+    selectSynproxyBody = submodule {
+      options = withOptional [ "mss" "wscale" ] synproxyOptions;
+    };
+
+    /*
+      A rule is selected by its chain and handle (json_parse_cmd_add_rule,
+      json_parse_cmd_reset_rule). nft takes handle 0 as no handle, and the
+      kernel then deletes every rule in the chain, so the handle is
+      positive. nft ignores `expr` here, but `destroy` requires the key.
+    */
+    selectRuleBody = submodule {
+      options = ruleOptions // {
+        handle = mkOption {
+          type = types.ints.positive;
+          description = "handle of the selected rule";
         };
       };
     };
 
-    counterObjectBody = types.submodule {
+    counterObjectBody = submodule {
       options = commonObjectOptions // {
         packets = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -311,7 +465,7 @@ let
       };
     };
 
-    quotaObjectBody = types.submodule {
+    quotaObjectBody = submodule {
       options = commonObjectOptions // {
         # parser_json.c:3761: bytes is `json_unpack` (optional, defaults to 0).
         bytes = mkOption {
@@ -335,7 +489,7 @@ let
     # Named connection-count limit (nftables 1.1.7+, NFT_OBJECT_CONNLIMIT).
     # parser_json.c json_parse_cmd_add_object: `val` is required, `inv`
     # optional.
-    ctCountObjectBody = types.submodule {
+    ctCountObjectBody = submodule {
       options = commonObjectOptions // {
         val = mkOption {
           type = types.ints.unsigned;
@@ -349,7 +503,7 @@ let
       };
     };
 
-    ctHelperObjectBody = types.submodule {
+    ctHelperObjectBody = submodule {
       # All fields optional per parser_json.c:3782-3809 (all json_unpack,
       # no _err).
       options = commonObjectOptions // {
@@ -364,52 +518,20 @@ let
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr ipFamily;
+          type = types.nullOr ctL3Proto;
           default = null;
           description = "layer-3 protocol";
         };
       };
     };
 
-    limitObjectBody = types.submodule {
-      options = commonObjectOptions // {
-        # parser_json.c:3863: rate AND per are required together.
-        rate = mkOption {
-          type = types.ints.positive;
-          description = "rate value";
-        };
-        per = mkOption {
-          type = perUnit;
-          description = "time unit";
-        };
-        rate_unit = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = ''
-            unit of rate (packets/kbytes/mbytes/…); defaults to packets
-          '';
-        };
-        burst = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "burst value; defaults to 0";
-        };
-        burst_unit = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "unit of burst; defaults to bytes";
-        };
-        inv = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "invert match semantics";
-        };
-      };
+    limitObjectBody = submodule {
+      options = limitOptions;
     };
 
     # ct timeout object: parser_json.c:3811-3833 — all fields optional on
     # the JSON path.
-    ctTimeoutObjectBody = types.submodule {
+    ctTimeoutObjectBody = submodule {
       options = commonObjectOptions // {
         protocol = mkOption {
           type = types.nullOr tcpUdpProto;
@@ -417,7 +539,7 @@ let
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr ipFamily;
+          type = types.nullOr ctL3Proto;
           default = null;
           description = "layer-3 protocol";
         };
@@ -433,11 +555,13 @@ let
 
     # ct expectation object: parser_json.c:3835-3860 — all fields optional
     # on the JSON path.
-    ctExpectationObjectBody = types.submodule {
+    ctExpectationObjectBody = submodule {
       options = commonObjectOptions // {
         l3proto = mkOption {
-          type = types.nullOr ipFamily;
+          type = types.nullOr ctL3Proto;
           default = null;
+          # Recent kernels refuse `inet`, and an omitted l3proto in an inet
+          # table, with "Address family not supported by protocol".
           description = "layer-3 protocol";
         };
         protocol = mkOption {
@@ -463,7 +587,7 @@ let
       };
     };
 
-    metainfoBody = types.submodule {
+    metainfoBody = submodule {
       options = {
         version = mkOption {
           type = types.str;
@@ -480,7 +604,7 @@ let
       };
     };
 
-    secmarkObjectBody = types.submodule {
+    secmarkObjectBody = submodule {
       options = commonObjectOptions // {
         # parser_json.c:3769: context is json_unpack (optional).
         context = mkOption {
@@ -491,22 +615,8 @@ let
       };
     };
 
-    synproxyObjectBody = types.submodule {
-      options = commonObjectOptions // {
-        mss = mkOption {
-          type = types.ints.unsigned;
-          description = "maximum segment size";
-        };
-        wscale = mkOption {
-          type = types.ints.unsigned;
-          description = "window scale";
-        };
-        flags = mkOption {
-          type = types.nullOr (listOrSingleton synproxyFlag);
-          default = null;
-          description = "synproxy option flags";
-        };
-      };
+    synproxyObjectBody = submodule {
+      options = synproxyOptions;
     };
 
     # --- Tunnel nested encapsulation variants ---
@@ -558,7 +668,7 @@ let
     };
 
     # GENEVE: [ { class, opt-type, data }, … ]
-    tunnelGeneveOpt = types.submodule {
+    tunnelGeneveOpt = submodule {
       options = {
         class = mkOption {
           type = types.ints.unsigned;
@@ -582,7 +692,7 @@ let
       (types.listOf tunnelGeneveOpt)
     ];
 
-    tunnelObjectBody = types.submodule {
+    tunnelObjectBody = submodule {
       options = commonObjectOptions // {
         id = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -647,7 +757,7 @@ let
     # `ruleset` body is `null` (operate on all) OR `{ family = "ip"; }`.
     rulesetBody = types.oneOf [
       nullLiteral
-      (types.submodule {
+      (submodule {
         options.family = mkOption {
           type = family;
           description = "limit scope to this family";
@@ -659,7 +769,7 @@ let
     # (parser_json.c routes meter to json_parse_cmd_add_set), so the
     # only fields meaningful for a `flush meter` / `list meter` command
     # are family + table + name (+ handle on listed output).
-    meterObjectBody = types.submodule {
+    meterObjectBody = submodule {
       options = namedInTableOptions;
     };
   };
@@ -690,7 +800,7 @@ let
   addObjectBodies = {
     table = bodies.tableBody;
     chain = bodies.chainBody;
-    rule = bodies.ruleBody;
+    rule = bodies.addRuleBody;
     set = bodies.setObjectBody;
     map = bodies.mapObjectBody;
     element = bodies.elementBody;
@@ -704,57 +814,129 @@ let
     "ct count" = bodies.ctCountObjectBody;
     secmark = bodies.secmarkObjectBody;
     synproxy = bodies.synproxyObjectBody;
-    tunnel = bodies.tunnelObjectBody;
   };
 
   addObject = taggedUnion addObjectBodies;
+
+  # The selection body of each kind whose add body requires fields that
+  # the selecting verbs ignore; a union takes the ones it has kinds for.
+  selectBodies = {
+    flowtable = bodies.selectFlowtableBody;
+    limit = bodies.selectLimitBody;
+    map = bodies.selectMapBody;
+    rule = bodies.selectRuleBody;
+    set = bodies.selectSetBody;
+    synproxy = bodies.selectSynproxyBody;
+  };
+  selecting = kinds: kinds // builtins.intersectAttrs kinds selectBodies;
 
   # `create` accepts every add-object kind except `rule`. nftables rejects
   # `create rule` explicitly; keeping a separate union prevents raw typed
   # commands from accepting a shape that the DSL already omits.
   createObject = taggedUnion (removeAttrs addObjectBodies [ "rule" ]);
 
-  # parser_json.c:4174-4192 (json_parse_cmd_list dispatch): every add-object
-  # kind plus `metainfo` (read-back-only shape) plus `meter` (singular form;
-  # plural list-multiple forms are intentionally not modelled — see
-  # docs/spec-coverage.md E11).
+  /*
+    Kinds whose delete, destroy, or list nft mishandles, so these command
+    unions reject them as Known differences (ADR 0010). For delete, list,
+    and destroy, the JSON object-command path passes the kernel object
+    number as nft's command object type: a ct expectation (9) becomes a
+    table, so delete and destroy delete the table and list lists it, and a
+    ct timeout (7) becomes a chain, so delete fails and list aborts. nft
+    1.1.7 aborts on delete and destroy of a ct count (1.1.6 has no ct count
+    object).
+  */
+  deleteObject = taggedUnion (
+    selecting (
+      removeAttrs addObjectBodies [
+        "ct count"
+        "ct expectation"
+        "ct timeout"
+      ]
+    )
+  );
+
+  /*
+    A bare listed object, the shape `nft -j list` emits: every add-object
+    kind plus `metainfo`, `meter`, and `tunnel`. A listed rule keeps its
+    `handle`, which nft's JSON parser ignores. A tunnel is Read-back only:
+    nft's JSON parser writes its `dport` into `sport` and leaves a missing
+    port, `ttl`, or `tos` uninitialised, and nft crashes on delete, destroy,
+    and list of one, so no command union accepts it (Known differences,
+    ADR 0010).
+  */
+  readBackObjectBodies = addObjectBodies // {
+    rule = bodies.ruleBody;
+    metainfo = bodies.metainfoBody;
+    meter = bodies.meterObjectBody;
+    tunnel = bodies.tunnelObjectBody;
+  };
+
+  readBackObject = taggedUnion readBackObjectBodies;
+
+  /*
+    The `list` command (parser_json.c, json_parse_cmd_list): the listed
+    kinds (`meter` is singular; the plural list forms are not modelled, see
+    docs/spec-coverage.md) minus the mishandled ct timeout, ct
+    expectation (see `deleteObject`), and tunnel (see `readBackObjectBodies`).
+    nft has no singular `list` of a ct count, element, flowtable, metainfo,
+    rule, or synproxy ("Unknown object passed to list command"), so the
+    union omits them too (ADR 0009).
+  */
   listObject = taggedUnion (
-    addObjectBodies
-    // {
-      metainfo = bodies.metainfoBody;
-      meter = bodies.meterObjectBody;
-    }
+    selecting (
+      removeAttrs readBackObjectBodies [
+        "ct count"
+        "ct expectation"
+        "ct timeout"
+        "element"
+        "flowtable"
+        "metainfo"
+        "rule"
+        "synproxy"
+        "tunnel"
+      ]
+    )
   );
 
   # parser_json.c:4297-4304 (json_parse_cmd_flush dispatch table):
   # table, chain, set, map, meter, ruleset. `flowtable` is intentionally
   # absent — the parser rejects `flush flowtable` ("Unknown object passed
   # to flush command.").
-  flushObject = taggedUnion {
+  flushObject = taggedUnion (selecting {
     table = bodies.tableBody;
     chain = bodies.chainBody;
     set = bodies.setObjectBody;
     map = bodies.mapObjectBody;
     meter = bodies.meterObjectBody;
     ruleset = bodies.rulesetBody;
-  };
+  });
 
-  resetObject = taggedUnion {
+  # `replace` takes only a rule, and requires its `handle`.
+  replaceObject = wrap "rule" bodies.replaceRuleBody;
+
+  # `rename` takes only a chain, and requires its `newname`.
+  renameObject = wrap "chain" bodies.renameChainBody;
+
+  resetObject = taggedUnion (selecting {
     counter = bodies.counterObjectBody;
     quota = bodies.quotaObjectBody;
     rule = bodies.ruleBody;
     set = bodies.setObjectBody;
     map = bodies.mapObjectBody;
     element = bodies.elementBody;
-  };
+  });
 in
 {
   all = bodies // wrappers;
   inherit
     addObject
     createObject
+    deleteObject
     flushObject
     listObject
+    readBackObject
+    renameObject
+    replaceObject
     resetObject
     ;
 }

@@ -8,12 +8,20 @@
 }:
 let
   helpers = import ./helpers { inherit lib; };
-in
-{
-  inherit helpers lib observations;
-  inherit (helpers) nftlib;
-  fixtures = import ./fixtures {
-    inherit (helpers) examples;
-    inherit (helpers.nftlib) dsl;
+  testContext = {
+    inherit helpers lib observations;
+    inherit (helpers) nftlib;
+    fixtures = import ./fixtures {
+      inherit lib;
+      inherit (helpers) exampleChildren examples nftlib;
+      # The parity suites whose expected values the parse check sends to
+      # nft.
+      paritySuites = {
+        dslParity = import ./suites/dsl-parity.nix testContext;
+        textBlockParity = import ./suites/text-block-parity.nix testContext;
+        textParity = import ./suites/text-parity.nix testContext;
+      };
+    };
   };
-}
+in
+testContext

@@ -176,23 +176,23 @@ let
   constructionTests = {
     testStatementOfUnknownKindThrows = {
       expr = types.statementOf [ "no-such-kind" ];
-      expectedError.msg = "statementOf: unknown statement kind.*no-such-kind";
+      expectedError.msg = "nix-nftypes: types\\.statementOf: unknown statement kind.*no-such-kind";
     };
     testStatementOfEmptyListThrows = {
       expr = types.statementOf [ ];
-      expectedError.msg = "statementOf: kinds list must be non-empty";
+      expectedError.msg = "nix-nftypes: types\\.statementOf: kinds list must be non-empty";
     };
     testStatementOfNonListThrows = {
       expr = types.statementOf "match";
-      expectedError.msg = "statementOf: argument must be a list of strings";
+      expectedError.msg = "nix-nftypes: types\\.statementOf: argument must be a list of strings";
     };
     testExpressionOfUnknownKindThrows = {
       expr = types.expressionOf [ "no-such-kind" ];
-      expectedError.msg = "expressionOf: unknown expression kind.*no-such-kind";
+      expectedError.msg = "nix-nftypes: types\\.expressionOf: unknown expression kind.*no-such-kind";
     };
     testExpressionOfEmptyListThrows = {
       expr = types.expressionOf [ ];
-      expectedError.msg = "expressionOf: kinds list must be non-empty";
+      expectedError.msg = "nix-nftypes: types\\.expressionOf: kinds list must be non-empty";
     };
   };
 

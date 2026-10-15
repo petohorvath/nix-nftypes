@@ -94,6 +94,9 @@ let
     natAddr = rulesetWithNatAddr;
   };
 
+  # The UTF-8 encoding of a code point.
+  utf8 = codePoint: builtins.fromJSON ''"\u${codePoint}"'';
+
   badInputs = {
     newline = "x\nadd chain inet fw bypass { type filter hook input priority -10; policy accept; }";
     semicolon = "x; chain bypass { policy accept; }; #";
@@ -105,11 +108,13 @@ let
     hash = "x#bar";
     comma = "x,y";
     empty = "";
+    # nft's lexer reads a byte above 0x7F in a bare token as junk.
+    noBreakSpace = "x${utf8 "00a0"}y";
+    nonAscii = "x${utf8 "00e9"}";
   };
 
   goodInputs = {
     ipv4 = "1.2.3.4";
-    ipv4_prefix = "192.168.0.0/16";
     ipv6 = "2001:db8::1";
     setRef = "@trusted_v4";
     icmpType = "host-unreachable";
@@ -123,7 +128,7 @@ let
         name = "testRendererRejects_${surface}_${badName}";
         value = {
           expr = nftlib.toText (surfaces.${surface} badValue);
-          expectedError.msg = "refusing to render a scalar string";
+          expectedError.msg = helpers.refusals.scalar;
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -134,7 +139,7 @@ let
       name = "testPrettyRendererRejects_matchRhs_${badName}";
       value = {
         expr = nftlib.toTextPretty (rulesetWithMatchRhs badValue);
-        expectedError.msg = "refusing to render a scalar string";
+        expectedError.msg = helpers.refusals.scalar;
       };
     }) badInputs
   );
@@ -167,6 +172,134 @@ let
     };
   };
 
+  /*
+    A bare string containing `/`: nft's JSON parser reads `10.0.0.0/8` as
+    a hostname and rejects it, while text loads it as a prefix, so a typo
+    such as `198.51.100.7/0` would match every address. Text refuses it
+    and points to `exprs.prefix`.
+  */
+  rawRule = expr: {
+    nftables = [
+      {
+        add.rule = {
+          family = "inet";
+          table = "t";
+          chain = "c";
+          inherit expr;
+        };
+      }
+    ];
+  };
+
+  saddr.payload = {
+    protocol = "ip";
+    field = "saddr";
+  };
+
+  matchSaddr =
+    right:
+    rawRule [
+      {
+        match = {
+          left = saddr;
+          op = "==";
+          inherit right;
+        };
+      }
+    ];
+
+  rawObject = kind: body: {
+    nftables = [
+      {
+        add.${kind} = {
+          family = "inet";
+          table = "t";
+          name = "s";
+        }
+        // body;
+      }
+    ];
+  };
+
+  typo = "198.51.100.7/0";
+
+  # Field label → a raw ruleset with `typo` in that position.
+  barePrefixCases = {
+    "match right" = matchSaddr typo;
+    "set element" = rawObject "set" {
+      type = "ipv4_addr";
+      flags = [ "interval" ];
+      elem = [ typo ];
+    };
+    "map element" = rawObject "map" {
+      type = "ipv4_addr";
+      map = "mark";
+      flags = [ "interval" ];
+      elem = [
+        [
+          typo
+          1
+        ]
+      ];
+    };
+    "map element value" = rawObject "map" {
+      type = "mark";
+      map = "ipv4_addr";
+      elem = [
+        [
+          1
+          typo
+        ]
+      ];
+    };
+    "match right set element" = matchSaddr { set = [ typo ]; };
+    "map lookup key" = rawRule [
+      {
+        mangle = {
+          key.meta.key = "mark";
+          value.map = {
+            key = saddr;
+            data.set = [
+              [
+                typo
+                1
+              ]
+            ];
+          };
+        };
+      }
+    ];
+    # Where the renderer knows no slot, the Refusal names the expression.
+    expression = rawRule [
+      {
+        snat.addr = typo;
+      }
+    ];
+  };
+
+  # The elements of a set on the right of a match share its field.
+  fieldOf = name: if name == "match right set element" then "match right" else name;
+
+  barePrefixTests =
+    lib.mapAttrs' (name: ruleset: {
+      name = "testRefusesBarePrefix_${lib.replaceStrings [ " " ] [ "_" ] name}";
+      value = {
+        expr = nftlib.toText ruleset;
+        expectedError.msg = helpers.refusals.barePrefix (fieldOf name);
+      };
+    }) barePrefixCases
+    // {
+      testPrefixExpressionRenders = {
+        expr = nftlib.toText (matchSaddr {
+          prefix = {
+            addr = "198.51.100.0";
+            len = 24;
+          };
+        });
+        expected = "add rule inet t c ip saddr == 198.51.100.0/24";
+      };
+    };
+
   # Predicate-level coverage — pin the byte set directly so a future
   # refactor that loosens it breaks here.
   predicateTests = lib.listToAttrs (
@@ -186,4 +319,9 @@ let
     }) goodInputs)
   );
 in
-rejectionTests // prettyRejectionTests // acceptanceTests // jsonPassthroughTests // predicateTests
+barePrefixTests
+// rejectionTests
+// prettyRejectionTests
+// acceptanceTests
+// jsonPassthroughTests
+// predicateTests

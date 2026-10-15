@@ -6,163 +6,242 @@
   ...
 }:
 
-# Regression coverage for the ifname widening / unsafe-byte class
-# across every surface where an interface name reaches the text
-# renderer. Pre-fix the audit-flagged path was a `type = "ifname"` set
-# whose element contained `,`: rendered as `elements = { eth0,eth1 }`,
-# nft's text parser lexed the comma as the element separator, silently
-# broadening the set to two interfaces the user never declared. The
-# kernel's 15-byte IFNAMSIZ cap rules out fitting a `; chain bypass`
-# injection like the C1 comment case, but silent widening is still a
-# real correctness gap.
-#
-# Common predicate (lib/nft-safe-ifname.nix): rejects `,` `;` `{` `}`
-# `"` `\` `#` and control chars on top of the kernel's `dev_valid_name`
-# rules (no `/` `:` whitespace, not `.` / `..`, ≤15 bytes). Both schema
-# and renderer consult `isSafe` / `findUnsafeOrNull` /
-# `findUnsafeIfnameElementOrNull` so the two layers can't drift.
-#
-# Surfaces fixed:
-#   - set/map elements (the audit-flagged path). DSL emit
-#     (lib/table.nix) cross-field-checks set/map `type`
-#     vs `elem` siblings at evalModules time and throws naming the
-#     user's tree path; the text renderer
-#     (lib/text/objects.nix `renderSetOrMapBody`) repeats the assert
-#     as defence-in-depth for raw-attrset callers.
-#   - chain.dev (netdev-family base chains) and flowtable.dev.
-#     Multi-dev lists render bare comma-joined as `devices = { … }`;
-#     the schema (lib/schema/objects.nix) types both fields as
-#     `listOrSingleton ifname` and the renderer
-#     (lib/text/objects.nix `assertSafeDev`) asserts each dev again.
-#   - `meta iifname` / `oifname` / `sdifname` / `ibrname` / `obrname`
-#     and `fib … oifname` match RHS. Pre-fix bare `meta iifname
-#     eth0,eth1` lexed `,` as a bitmask operator and rejected ifname
-#     as a non-bitmask type — parse error at activation, not silent
-#     widening, but unhelpful UX. `match.right` is the open
-#     `expression` union so the schema can't statically constrain it;
-#     the renderer (lib/text/statements.nix `renderMatch` /
-#     `isIfnameLhs`) is the sole gate, asserting ifname-safety and
-#     emitting the value quoted.
-#
-# Also exposed: `nftlib.types.ifname` — public primitive so downstream
-# consumers can tighten their own interface-name surfaces against the
-# same rule.
+/*
+  Interface names through every surface where one reaches a renderer.
+  Text quotes each value it knows to be an interface name (ADR 0004):
+  set and map elements whose type or typeof key is an interface name,
+  the interface-name parts of concatenations, the right side of a match,
+  vmap, or map lookup on an interface name, chain and flowtable devices,
+  and dup and fwd devices. Bare, `010` loaded as `8`, `a|b` as `c`, and
+  `$lan` took a host `define`; quoted, each loads the JSON string.
 
+  One predicate (lib/nft-safe-ifname.nix) holds the quoted-string rules
+  and the kernel's own name rules. The schema's `types.ifname` (chain and
+  flowtable `dev`) and the renderer's `quoteIfname` both check it, and a
+  value that fails it raises a Refusal naming its field. Where the
+  renderer can't tell that a value is an interface name, such as an
+  `add element` command, it keeps the bare-token check and refuses a
+  string that nft's lexer would read as something else.
+*/
 let
   dsl = nftlib.dsl;
   inherit (nftlib) toJson toText toTextPretty;
 
   inherit (helpers.internals) nftSafeIfname;
-
-  # The audit's PoC payload — silently widens to two interfaces pre-fix.
-  wideningPayload = "eth0,eth1";
-
-  surfaces = {
-    inherit (fixtures.ifnameRulesets)
-      chainDevString
-      flowtableDevString
-      mapKey
-      setElem
-      setElemWithOptions
-      ;
-    chainDevList = v: fixtures.ifnameRulesets.chainDevList [ v ];
-    flowtableDevList = v: fixtures.ifnameRulesets.flowtableDevList [ v ];
-  };
+  inherit (helpers) refusals;
 
   # ----- Bad / good ifname samples ----------------------------------------
 
+  # The UTF-8 encoding of a code point.
+  utf8 = codePoint: builtins.fromJSON ''"\u${codePoint}"'';
+
+  # Names the predicate rejects: the quoted-string rules, then the
+  # kernel's `dev_valid_name` rules.
   badIfnames = {
-    # The audit's comma-widening PoC.
-    comma = "eth0,eth1";
-    # Other nft-text-grammar splitters / corrupters.
-    semicolon = "eth0;chain";
-    openBrace = "eth0{x";
-    closeBrace = "eth0}";
     quote = ''eth0"'';
     backslash = ''eth0\x'';
-    hash = "eth0#c";
-    # Kernel-rejected (`dev_valid_name`) bytes.
+    newline = "eth\n0";
     slash = "eth/0";
     colon = "eth:0";
     space = "eth 0";
     tab = "eth\t0";
-    newline = "eth\n0";
-    # Kernel-rejected reserved names + length boundary.
     dot = ".";
     dotdot = "..";
     empty = "";
     oversize = "abcdefghijklmnop"; # 16 bytes, IFNAMSIZ-1 is 15
+    # The kernel's Latin-1 `isspace` takes byte 0xA0 as a space, so it
+    # refuses every name containing it, here U+00A0 and U+00E0.
+    noBreakSpace = "eth${utf8 "00a0"}0";
+    byteA0 = "eth${utf8 "00e0"}";
   };
 
   goodIfnames = {
     short = "eth0";
     wifi = "wlp3s0";
-    vlan = "vlan100";
     vlanDot = "eth0.100";
     veth = "veth-pod1";
-    tun = "tun0";
-    bridge = "br0";
     single = "a";
     maxLen = "abcdefghijklmno"; # 15 bytes, IFNAMSIZ-1
+    # Other bytes above 0x7F are no kernel space.
+    nonAscii = "eth${utf8 "00e9"}";
+    # Bare, these loaded as something else or failed to parse.
+    octal = "010";
+    hex = "0x10";
+    bitor = "a|b";
+    wildcard = "eth*";
+    variable = "$lan";
+    exponent = "1e5";
+    leadingDash = "-x";
+    # Bare, these split an element list or broke the parser.
+    comma = "eth0,eth1";
+    semicolon = "eth0;x";
+    braces = "{eth0}";
+    hash = "eth0#c";
   };
 
-  # ----- Per-surface × bad-input rejection tests --------------------------
+  # ----- Surfaces ----------------------------------------------------------
 
-  schemaRejectionTests = lib.listToAttrs (
-    lib.concatMap (
-      surface:
-      lib.mapAttrsToList (badName: badValue: {
-        name = "testDslRejects_${surface}_${badName}";
-        value = {
-          expr = nftlib.toJson (surfaces.${surface} badValue);
-          expectedError.msg = "safe interface name";
+  # Raw ruleset builders, which bypass the schema, each taking one name.
+  rawRule = expr: {
+    nftables = [
+      {
+        add.rule = {
+          family = "inet";
+          table = "t";
+          chain = "c";
+          inherit expr;
         };
-      }) badIfnames
-    ) (builtins.attrNames surfaces)
-  );
+      }
+    ];
+  };
 
-  # Per-surface × good-input acceptance tests.
-  schemaAcceptanceTests = lib.listToAttrs (
-    lib.concatMap (
-      surface:
-      lib.mapAttrsToList (goodName: goodValue: {
-        name = "testDslAccepts_${surface}_${goodName}";
-        value = {
-          expr = builtins.isString (nftlib.toJson (surfaces.${surface} goodValue));
-          expected = true;
+  rawMatchRule =
+    metaKey: rightVal:
+    rawRule [
+      {
+        match = {
+          left.meta.key = metaKey;
+          op = "==";
+          right = rightVal;
         };
-      }) goodIfnames
-    ) (builtins.attrNames surfaces)
-  );
+      }
+    ];
 
-  # ----- No-false-positive: a non-ifname set tolerates commas etc. -------
-  #
-  # The check must NOT fire when `type` is anything other than `"ifname"`.
-  # `type = "string"` accepts any string element; the dev / commit-author
-  # name surfaces use it. A comma in such an element should pass through.
+  rawChainDev = dev: {
+    nftables = [
+      {
+        add.chain = {
+          family = "netdev";
+          table = "t";
+          name = "ingress";
+          type = "filter";
+          hook = "ingress";
+          prio = 0;
+          inherit dev;
+        };
+      }
+    ];
+  };
 
-  nonIfnameTolerates = {
-    testDslAcceptsCommaInStringSet = {
-      expr = builtins.isString (
-        nftlib.toJson (
-          dsl.ruleset [
-            (dsl.table "inet" "fw" {
-              sets.tags = {
-                type = "string";
-                elements = [ "a,b" ];
-              };
-            })
-          ]
-        )
-      );
-      expected = true;
+  rawFlowtableDev = dev: {
+    nftables = [
+      {
+        add.flowtable = {
+          family = "inet";
+          table = "t";
+          name = "ft";
+          hook = "ingress";
+          prio = 0;
+          inherit dev;
+        };
+      }
+    ];
+  };
+
+  # A set object with `body`'s type and elements.
+  rawSet = body: {
+    nftables = [
+      {
+        add.set = {
+          family = "inet";
+          table = "t";
+          name = "s";
+        }
+        // body;
+      }
+    ];
+  };
+
+  iifname.meta.key = "iifname";
+  ipSaddr.payload = {
+    protocol = "ip";
+    field = "saddr";
+  };
+
+  # Surfaces the schema types as `ifname`: it rejects a bad name.
+  schemaSurfaces = {
+    inherit (fixtures.ifnameRulesets) chainDevString flowtableDevString;
+    chainDevList = v: fixtures.ifnameRulesets.chainDevList [ v ];
+    flowtableDevList = v: fixtures.ifnameRulesets.flowtableDevList [ v ];
+  };
+
+  # Surfaces text quotes, each with the field its Refusal names.
+  textSurfaces = {
+    setElem = {
+      build = fixtures.ifnameRulesets.setElem;
+      field = "set element";
     };
-  };
+    setElemWithOptions = {
+      build = fixtures.ifnameRulesets.setElemWithOptions;
+      field = "set element";
+    };
+    mapKey = {
+      build = fixtures.ifnameRulesets.mapKey;
+      field = "map element";
+    };
+    chainDev = {
+      build = v: rawChainDev [ v ];
+      field = "chain device";
+    };
+    chainDevString = {
+      build = rawChainDev;
+      field = "chain device";
+    };
+    flowtableDev = {
+      build = v: rawFlowtableDev [ v ];
+      field = "flowtable device";
+    };
+    dupDev = {
+      build =
+        dev:
+        rawRule [
+          {
+            dup = {
+              addr = "192.0.2.1";
+              inherit dev;
+            };
+          }
+        ];
+      field = "dup device";
+    };
+    fwdDev = {
+      build = dev: rawRule [ { fwd.dev = dev; } ];
+      field = "fwd device";
+    };
+    fwdNextHopDev = {
+      build =
+        dev:
+        rawRule [
+          {
+            fwd = {
+              inherit dev;
+              family = "ip";
+              addr = "192.0.2.1";
+            };
+          }
+        ];
+      field = "fwd device";
+    };
+  }
+  // lib.listToAttrs (
+    map
+      (
+        key:
+        lib.nameValuePair "match_${key}" {
+          build = rawMatchRule key;
+          field = "match right";
+        }
+      )
+      [
+        "iifname"
+        "oifname"
+        "sdifname"
+        "ibrname"
+        "obrname"
+      ]
+  );
 
-  # ----- Predicate-level tests --------------------------------------------
-  # The byte-level predicate is shared between the DSL emit check and the
-  # renderer's defence-in-depth assert. Pin its outcome directly so a
-  # future refactor that loosens it breaks here.
+  # ----- Predicate --------------------------------------------------------
 
   predicateTests = lib.listToAttrs (
     (lib.mapAttrsToList (n: v: {
@@ -181,124 +260,59 @@ let
     }) goodIfnames)
   );
 
-  # ----- Renderer-level: raw attrset bypassing the DSL ---------------------
-  # The text renderer's defence-in-depth assert must catch malicious
-  # input that wasn't routed through the DSL emit check. The JSON path
-  # is structurally safe (JSON quotes the literal bytes), so toJson
-  # passes through without throwing.
+  # ----- Schema -----------------------------------------------------------
 
-  rawWideningRuleset =
-    payload: elem:
-    {
-      nftables = [
-        {
-          add.set = {
-            family = "inet";
-            table = "fw";
-            name = "iifs";
-            type = "ifname";
-            elem = [ elem ];
-          };
-        }
-      ];
-    }
-    // payload;
-
-  maliciousRawRuleset = rawWideningRuleset { } wideningPayload;
-  safeRawRuleset = rawWideningRuleset { } "eth0";
-
-  # Raw chain (netdev family) with a malicious dev list. Bypasses the
-  # DSL — the renderer's `assertSafeDev` must catch it.
-  rawChainDevRuleset = {
-    nftables = [
-      {
-        add.chain = {
-          family = "netdev";
-          table = "t";
-          name = "ingress";
-          type = "filter";
-          hook = "ingress";
-          prio = 0;
-          dev = [
-            wideningPayload
-            "eth2"
-          ];
-        };
+  schemaRejectionTests = lib.concatMapAttrs (
+    surface: build:
+    lib.mapAttrs' (
+      badName: badValue:
+      lib.nameValuePair "testSchemaRejects_${surface}_${badName}" {
+        expr = toJson (build badValue);
+        expectedError.msg = "interface name \\(1-15 bytes";
       }
-    ];
-  };
+    ) badIfnames
+  ) schemaSurfaces;
 
-  rawFlowtableDevRuleset = {
-    nftables = [
-      {
-        add.flowtable = {
-          family = "inet";
-          table = "t";
-          name = "ft";
-          hook = "ingress";
-          prio = 0;
-          dev = [
-            wideningPayload
-            "eth2"
-          ];
-        };
+  schemaAcceptanceTests = lib.concatMapAttrs (
+    surface: build:
+    lib.mapAttrs' (
+      goodName: goodValue:
+      lib.nameValuePair "testSchemaAccepts_${surface}_${goodName}" {
+        expr = builtins.isString (toJson (build goodValue));
+        expected = true;
       }
-    ];
-  };
+    ) goodIfnames
+  ) schemaSurfaces;
 
-  # Match RHS goes through the text renderer only — match.right is the
-  # open `expression` union, so the schema can't statically constrain
-  # it. Build raw rule envelopes (skipping the DSL for clarity about
-  # the test shape) and exercise the renderer's `isIfnameLhs` /
-  # ifname-safe assertion.
-  rawMatchRule = metaKey: rightVal: {
-    nftables = [
-      {
-        add.rule = {
-          family = "inet";
-          table = "t";
-          chain = "c";
-          expr = [
-            {
-              match = {
-                left = {
-                  meta = {
-                    key = metaKey;
-                  };
-                };
-                op = "==";
-                right = rightVal;
-              };
-            }
-          ];
-        };
+  # ----- Text: every surface quotes a good name, refuses a bad one ---------
+
+  textQuotingTests = lib.concatMapAttrs (
+    surface:
+    { build, ... }:
+    lib.mapAttrs' (
+      goodName: goodValue:
+      lib.nameValuePair "testTextQuotes_${surface}_${goodName}" {
+        expr = lib.hasInfix ''"${goodValue}"'' (toText (build goodValue));
+        expected = true;
       }
-    ];
-  };
+    ) goodIfnames
+  ) textSurfaces;
 
-  matchRhsTests = {
-    # Each ifname-typed meta key throws on the widening payload.
-    testMatchThrowsOn_iifname = {
-      expr = toText (rawMatchRule "iifname" wideningPayload);
-      expectedError.msg = "ifname-typed match RHS";
-    };
-    testMatchThrowsOn_oifname = {
-      expr = toText (rawMatchRule "oifname" wideningPayload);
-      expectedError.msg = "ifname-typed match RHS";
-    };
-    testMatchThrowsOn_sdifname = {
-      expr = toText (rawMatchRule "sdifname" wideningPayload);
-      expectedError.msg = "ifname-typed match RHS";
-    };
-    testMatchThrowsOn_ibrname = {
-      expr = toText (rawMatchRule "ibrname" wideningPayload);
-      expectedError.msg = "ifname-typed match RHS";
-    };
-    testMatchThrowsOn_obrname = {
-      expr = toText (rawMatchRule "obrname" wideningPayload);
-      expectedError.msg = "ifname-typed match RHS";
-    };
+  textRefusalTests = lib.concatMapAttrs (
+    surface:
+    { build, field }:
+    lib.mapAttrs' (
+      badName: badValue:
+      lib.nameValuePair "testTextRefuses_${surface}_${badName}" {
+        expr = toTextPretty (build badValue);
+        expectedError.msg = refusals.ifname field;
+      }
+    ) badIfnames
+  ) textSurfaces;
 
+  # ----- Text: exact spellings --------------------------------------------
+
+  matchTests = {
     # Non-ifname meta keys are unaffected — `mark` accepts integer
     # comparison and shouldn't see a stricter ifname check applied.
     testMatchAcceptsNonIfnameKey = {
@@ -311,7 +325,7 @@ let
     # here.
     testMatchQuotesSafeIfname = {
       expr = toText (rawMatchRule "iifname" "eth0");
-      expected = "add rule inet t c meta iifname \"eth0\"";
+      expected = "add rule inet t c meta iifname == \"eth0\"";
     };
 
     # `@`-prefixed string is the named-set reference form; must stay
@@ -319,62 +333,362 @@ let
     # literal.
     testMatchPreservesSetRefBare = {
       expr = toText (rawMatchRule "iifname" "@trusted");
-      expected = "add rule inet t c meta iifname @trusted";
+      expected = "add rule inet t c meta iifname == @trusted";
     };
 
-    # Anonymous set RHS goes through renderSet, not the new
-    # single-string path; pin that it's untouched. (The set-element-
-    # widening question for anonymous sets is the same class as the
-    # named-set fix but a separate path — out of scope here.)
-    testMatchAnonymousSetRhsUnchanged = {
+    testMatchQuotesAnonymousSetElements = {
       expr = toText (
         rawMatchRule "iifname" {
           set = [
             "lo"
-            "eth0"
+            "eth*"
           ];
         }
       );
-      expected = "add rule inet t c meta iifname { lo, eth0 }";
+      expected = "add rule inet t c meta iifname == { \"lo\", \"eth*\" }";
+    };
+
+    testMatchQuotesConcatenationComponents = {
+      expr = toText (rawRule [
+        {
+          match = {
+            left.concat = [
+              iifname
+              ipSaddr
+            ];
+            op = "==";
+            right.set = [
+              {
+                concat = [
+                  "010"
+                  "10.0.0.1"
+                ];
+              }
+            ];
+          };
+        }
+      ]);
+      expected = "add rule inet t c meta iifname . ip saddr == { \"010\" . 10.0.0.1 }";
+    };
+
+    testMatchQuotesFibOifname = {
+      expr = toText (rawRule [
+        {
+          match = {
+            left.fib = {
+              flags = [
+                "daddr"
+                "iif"
+              ];
+              result = "oifname";
+            };
+            op = "!=";
+            right = "0x10";
+          };
+        }
+      ]);
+      expected = "add rule inet t c fib daddr . iif oifname != \"0x10\"";
+    };
+
+    testVmapQuotesKeys = {
+      expr = toText (rawRule [
+        {
+          vmap = {
+            key = iifname;
+            data.set = [
+              [
+                "010"
+                { accept = null; }
+              ]
+            ];
+          };
+        }
+      ]);
+      expected = "add rule inet t c meta iifname vmap { \"010\" : accept }";
+    };
+
+    testMapLookupQuotesKeys = {
+      expr = toText (rawRule [
+        {
+          mangle = {
+            key.meta.key = "mark";
+            value.map = {
+              key = iifname;
+              data.set = [
+                [
+                  "$lan"
+                  3
+                ]
+              ];
+            };
+          };
+        }
+      ]);
+      expected = "add rule inet t c meta mark set meta iifname map { \"$lan\" : 3 }";
     };
   };
 
-  rendererTests = {
-    testTextThrowsOnMaliciousRaw = {
-      expr = toText maliciousRawRuleset;
-      expectedError.msg = "ifname-typed set/map element";
+  quotingTests = {
+    # Bare, `010` loads as `8`; quoted, it loads the JSON string.
+    testQuotesTypedSetElements = {
+      expr = toText (rawSet {
+        type = "ifname";
+        elem = [
+          "eth0"
+          "010"
+          "$lan"
+        ];
+      });
+      expected = "add set inet t s { type ifname; elements = { \"eth0\", \"010\", \"$lan\" }; }";
     };
-    testTextPrettyThrowsOnMaliciousRaw = {
-      expr = toTextPretty maliciousRawRuleset;
-      expectedError.msg = "ifname-typed set/map element";
+
+    testQuotesMapKeysAndValues = {
+      expr = toText {
+        nftables = [
+          {
+            add.map = {
+              family = "inet";
+              table = "t";
+              name = "m";
+              type = "ifname";
+              map = "ifname";
+              elem = [
+                [
+                  "010"
+                  "0x10"
+                ]
+              ];
+            };
+          }
+        ];
+      };
+      expected = "add map inet t m { type ifname : ifname; elements = { \"010\" : \"0x10\" }; }";
     };
-    testTextAcceptsSafeRaw = {
-      expr = builtins.isString (toText safeRawRuleset);
+
+    testQuotesElementWithOptions = {
+      expr = toText (rawSet {
+        type = "ifname";
+        elem = [
+          {
+            elem = {
+              val = "a|b";
+              comment = "c";
+            };
+          }
+        ];
+      });
+      expected = "add set inet t s { type ifname; elements = { \"a|b\" comment \"c\" }; }";
+    };
+
+    testQuotesConcatenationComponents = {
+      expr = toText (rawSet {
+        type = [
+          "ipv4_addr"
+          "ifname"
+        ];
+        elem = [
+          {
+            concat = [
+              "10.0.0.1"
+              "1e5"
+            ];
+          }
+        ];
+      });
+      expected = "add set inet t s { type ipv4_addr . ifname; elements = { 10.0.0.1 . \"1e5\" }; }";
+    };
+
+    # The type line belongs to #34; only the elements are pinned here.
+    testQuotesTypeofSetElements = {
+      expr = lib.hasInfix ''elements = { "-x" }'' (
+        toText (rawSet {
+          type.typeof = iifname;
+          elem = [ "-x" ];
+        })
+      );
       expected = true;
     };
-    testTextThrowsOnMaliciousChainDev = {
-      expr = toTextPretty rawChainDevRuleset;
-      expectedError.msg = "chain/flowtable device";
+
+    testQuotesTypeofConcatenationComponents = {
+      expr = lib.hasInfix ''elements = { "-x" . 10.0.0.1 }'' (
+        toText (rawSet {
+          type.typeof.concat = [
+            iifname
+            ipSaddr
+          ];
+          elem = [
+            {
+              concat = [
+                "-x"
+                "10.0.0.1"
+              ];
+            }
+          ];
+        })
+      );
+      expected = true;
     };
-    testTextThrowsOnMaliciousFlowtableDev = {
-      expr = toTextPretty rawFlowtableDevRuleset;
-      expectedError.msg = "chain/flowtable device";
+
+    testQuotesChainDevices = {
+      expr = lib.hasInfix ''devices = { "010", "eth1" }'' (
+        toText (rawChainDev [
+          "010"
+          "eth1"
+        ])
+      );
+      expected = true;
     };
-    # JSON path is intrinsically safe — `builtins.toJSON` quotes the
-    # element bytes so the comma stays inside one JSON string. The
-    # kernel's `dev_valid_name` rejects the resulting ifname at
-    # activation time, which is acceptable: an activation-time error is
-    # not the silent widening that motivated this PR. Pin the encoding
-    # so a future refactor that re-injects bytes breaks here.
+
+    # JSON reads `*` as the catch-all element, which text spells bare.
+    testKeepsCatchAllBare = {
+      expr = toText (rawSet {
+        type = "ifname";
+        elem = [ "*" ];
+      });
+      expected = "add set inet t s { type ifname; elements = { * }; }";
+    };
+  };
+
+  # ----- Values the renderer can't identify --------------------------------
+
+  # An `add element` command doesn't carry its set's type, so its values
+  # keep the bare-token check, and a string must be one nft's lexer reads
+  # as written: bare, `010` loads as `8` into an interface-name set.
+  rawElementCommand = elem: {
+    nftables = [
+      {
+        add.element = {
+          family = "inet";
+          table = "t";
+          name = "s";
+          inherit elem;
+        };
+      }
+    ];
+  };
+
+  # Strings nft's lexer reads as something else: a number (`010` loads as
+  # `8`, `0x10` as `16`), a variable, an expression (`a|b` loads as `c`), a
+  # range, or several tokens.
+  misreadElements = {
+    octal = "010";
+    hex = "0x10";
+    variable = "$lan";
+    bitor = "a|b";
+    range = "1-5";
+    leadingDigit = "0eth";
+    leadingDash = "-x";
+    mapElement = "a:b:c";
+    ip4Tail = "1.2.3.4.5";
+  };
+
+  # Strings it reads as written: a name, an address, a reference.
+  writtenElements = {
+    name = "eth0";
+    dotted = "eth0.100";
+    dashed = "veth-pod1";
+    wildcard = "eth*";
+    ip4 = "192.0.2.1";
+    ip6 = "2001:db8::1";
+    ip6Full = "2001:db8:0:0:0:0:0:1";
+    ip6Ip4 = "::ffff:192.0.2.1";
+    mac = "aa:bb:cc:dd:ee:ff";
+    reference = "@s";
+    catchAll = "*";
+  };
+
+  elementTests =
+    lib.mapAttrs' (
+      name: value:
+      lib.nameValuePair "testElementCommandRefuses_${name}" {
+        expr = toText (rawElementCommand [ value ]);
+        expectedError.msg = refusals.unidentified "element";
+      }
+    ) misreadElements
+    // lib.mapAttrs' (
+      name: value:
+      lib.nameValuePair "testElementCommandRendersBare_${name}" {
+        expr = toText (rawElementCommand [ value ]);
+        expected = "add element inet t s { ${value} }";
+      }
+    ) writtenElements;
+
+  unidentifiedTests = elementTests // {
+    testElementCommandRendersInteger = {
+      expr = toText (rawElementCommand [ 8 ]);
+      expected = "add element inet t s { 8 }";
+    };
+    testElementCommandRefusesConcatPart = {
+      expr = toText (rawElementCommand [
+        {
+          concat = [
+            "eth0"
+            "010"
+          ];
+        }
+      ]);
+      expectedError.msg = refusals.unidentified "element";
+    };
+    testElementCommandRefusesRangeEnd = {
+      expr = toText (rawElementCommand [
+        {
+          range = [
+            "a"
+            "010"
+          ];
+        }
+      ]);
+      expectedError.msg = refusals.unidentified "element";
+    };
+    testElementCommandRefusesElemValue = {
+      expr = toText (rawElementCommand [ { elem.val = "010"; } ]);
+      expectedError.msg = refusals.unidentified "element";
+    };
+    testElementCommandRefusesMapValue = {
+      expr = toText (rawElementCommand [
+        [
+          "eth0"
+          "010"
+        ]
+      ]);
+      expectedError.msg = refusals.unidentified "element value";
+    };
+    testElementCommandRefusesUnsafeToken = {
+      expr = toText (rawElementCommand [ "eth0,eth1" ]);
+      expectedError.msg = refusals.scalar;
+    };
+    # A set whose type isn't an interface name is not quoted either.
+    testStringSetRefusesUnsafeToken = {
+      expr = toText (rawSet {
+        type = "string";
+        elem = [ "a,b" ];
+      });
+      expectedError.msg = refusals.scalar;
+    };
+  };
+
+  jsonTests = {
+    # JSON quotes the bytes, so no name can widen a set there.
     testJsonRoundTripsLiteralBytes = {
-      expr = toJson maliciousRawRuleset;
-      expected = "{\"nftables\":[{\"add\":{\"set\":{\"elem\":[\"eth0,eth1\"],\"family\":\"inet\",\"name\":\"iifs\",\"table\":\"fw\",\"type\":\"ifname\"}}}]}";
+      expr = toJson (rawSet {
+        type = "ifname";
+        elem = [ "eth0,eth1" ];
+      });
+      expected = "{\"nftables\":[{\"add\":{\"set\":{\"elem\":[\"eth0,eth1\"],\"family\":\"inet\",\"name\":\"s\",\"table\":\"t\",\"type\":\"ifname\"}}}]}";
+    };
+    # The table tree no longer checks set elements: text quotes them.
+    testTableTreeAcceptsAnyQuotableElement = {
+      expr = builtins.isString (toJson (fixtures.ifnameRulesets.setElem "eth0,eth1"));
+      expected = true;
     };
   };
 in
-schemaRejectionTests
+predicateTests
+// schemaRejectionTests
 // schemaAcceptanceTests
-// nonIfnameTolerates
-// predicateTests
-// matchRhsTests
-// rendererTests
+// textQuotingTests
+// textRefusalTests
+// matchTests
+// quotingTests
+// unidentifiedTests
+// jsonTests

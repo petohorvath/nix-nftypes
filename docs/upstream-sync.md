@@ -58,9 +58,9 @@ import-from-derivation, but building them runs the target architecture's
 | Group | Tests |
 | --- | --- |
 | Nix/schema/DSL | `unit-tests`: schema, DSL parity, restricted types, DSL validation and its error messages |
-| Renderer behavior | `unit-tests`: text and table-block parity; VM: JSON integration, text integration, table-block integration, selected JSON/text equivalence |
+| Renderer behavior | `unit-tests`: text and table-block parity; VM: JSON integration, table-block integration, Render equivalence |
 | Safety regressions | `unit-tests`: comments, interface names, verdict targets, scalar/token/reference names, datatypes, units, CT timeout keys, priorities; VM: comment and interface-name round trips |
-| Source policy and drift | `unit-tests`: nixpkgs source policy; source checks: provenance, upstream corpus, enum/tag extraction, tooling self-tests; VM: read-back round trip |
+| Source policy and drift | `unit-tests`: nixpkgs source policy; source checks: provenance, upstream corpus, enum/tag extraction, tooling self-tests; VM: Read-back of loaded rulesets (`nftables-roundtrip-tests`), "still misbehaves" cases |
 
 The exact attribute names remain the machine-readable source of truth.
 
@@ -92,8 +92,13 @@ unchanged.
 `nftables-corpus-tests` normalizes `tests/py/**/*.t.json` from the patched source
 and validates each statement against `nftlib.types.statement`.
 
+The normalizer fails on a record that doesn't hold one JSON array below its
+title, so a record can't drop out silently. The suite also requires at least
+1762 records, the count at the locked nixpkgs, which catches records lost before
+parsing, such as a renamed corpus file.
+
 The check fails on any rejection that does not match a named pattern in
-`tests/helpers/corpus-drift.nix`. The current 11 categories are documented in
+`tests/helpers/corpus-drift.nix`. The current 2 categories are documented in
 [`spec-coverage.md`](spec-coverage.md). A pattern that stops matching also
 fails the check, which names it so it can be pruned. Because the corpus only
 changes with `flake.lock`, both failures appear in the lock-update change.
@@ -103,26 +108,35 @@ It does not prove that every parser branch appears in the corpus.
 
 ### Enum and dispatch extraction
 
-`nftables-enum-extraction-tests` extracts selected enum tables and
-statement/expression dispatch tags from the patched C source, then compares
-them with `nftlib.enums` and schema tag registries. Plausibility floors prevent
-an empty or badly parsed source file from passing.
+`nftables-enum-extraction-tests` runs `tooling/extract-upstream-tokens.py`,
+which reads selected enum tables and the statement and expression dispatch
+tables from the patched C source. Each `testEnumDrift_<table>` test compares
+one table with the model's list (`tests/helpers/token-drift.nix`) and fails on
+a token only one side has. The model's extra tokens that the parser accepts
+outside the table, such as the `secpath` meta alias, are listed there with
+their reason.
+
+The extractor reads an entry written positionally, `{ "ip", NFPROTO_IPV4 }`, or
+as a designated initializer, `{ .name = "ip", … }`. Each table has a floor
+equal to its token count at the locked nixpkgs, so a missing table, or one that
+lost an entry or that the extractor no longer reads, fails the extraction.
 
 Conditional string branches and constructs outside the extractor still require
 manual review or corpus/live coverage.
 
 ### Read-back round trip
 
-`nftables-roundtrip-tests`, a VM test, real-loads eleven selected integration
-cases in private network namespaces, captures `nft -j list ruleset`, and
-validates every emitted command with `nftlib.types.ruleset`.
+`nftables-roundtrip-tests`, a VM test, real-loads the Integration cases in
+private network namespaces, captures `nft -j list ruleset`, and validates every
+emitted command with `nftlib.types.ruleset`. It also loads the text Read-back
+states (`textReadbacks` in `tests/fixtures/integration-cases.nix`) through
+text: shapes such as a set comment that nft lists but its JSON parser ignores
+on input, so no JSON-loaded case reads them back.
 
-One case is excluded before execution with its exact reason: flowtable offload
-on dummy devices in an unprivileged namespace.
-
-Every remaining selected case must load. An unexpected load failure now fails
-the check instead of reducing coverage. The minimum-loaded floor remains as an
-additional vacuous-pass guard. The current read-back divergence baseline is
+Every case must load, and its listing must hold an object besides
+`metainfo`. A load failure fails the check instead of reducing coverage. As an
+additional vacuous-pass guard, the listings must hold a minimum number of
+objects besides `metainfo`. The current read-back divergence baseline is
 empty.
 
 This is sampled serializer evidence, not proof that every possible kernel state
@@ -131,7 +145,9 @@ or listed object shape has been observed.
 ### Tooling self-tests
 
 `nftables-tooling-selftests` supplies synthetic source/corpus defects and checks
-that enum extraction and corpus classification turn red. It also runs the
+that enum extraction and corpus classification turn red: a model or source
+missing one token of each table, a renamed or unreadable table, designated
+entries, a corpus record whose title holds brackets, and an unparsable record. It also runs the
 provenance assertions against doctored `pkgs.nftables` copies, one with a
 `postPatch` the source tree lacks and one with a `postUnpack`, and checks that
 each turns red. The schema suite in `unit-tests` checks that read-back
@@ -143,16 +159,34 @@ not nftables semantics themselves.
 These are VM tests. Each runs its probe in a private network namespace inside
 the package set's NixOS VM.
 
-- `integration-tests` sends selected JSON to `nft -c -j -f` and confirms
-  that a raw `create rule` case is rejected by the live parser.
-- `text-integration-tests` sends native text to `nft -c -f` for the cases
-  that render equivalence cannot load. A real load runs every check-mode
-  validation, so render equivalence covers the rest.
+- `integration-tests` sends every Integration case's JSON to `nft -c -j -f`.
+  Its negative cases each carry one wrong value, such as `create rule`, an
+  unknown family, hook, policy, log level, or operator, or a port of 65536;
+  nft must reject each with its diagnostic, and `types.ruleset` must reject
+  it while accepting the corrected value.
 - `text-block-integration-tests` wraps selected block output in a table and
   sends it to the text parser.
-- `render-equivalence-tests` real-loads eight selected cases through JSON and
-  text in separate namespaces and compares `nft list ruleset` output. A load
-  failure or difference fails.
+- `render-equivalence-tests` real-loads every Integration case through JSON
+  and through each text form, compact, pretty, and block, in separate
+  namespaces and compares `nft list ruleset` output. A load failure or
+  difference fails, unless a named exclusion expects it; an exclusion that no
+  longer differs fails too.
+- `nft-misbehaviour-tests` loads each "still misbehaves" case through JSON and
+  asserts that `nft` still loads it as something else. A fixed `nft` fails the
+  test, so the Known difference can be revisited.
+- `parse-check-tests` sends every pinned parity string, every expected DSL
+  parity JSON value, and every Field leaf to `nft -c`, after loading the
+  tables and objects each refers to. An expected rejection names its fix
+  ticket or Known difference and must still fail, on the nft and kernel
+  versions it applies to.
+- `chain-placement-tests` real-loads a base chain at each family, chain type,
+  and hook, 126 placements, and asserts that it loads exactly where
+  `validChainPlacement` allows it.
+- Every `nft` probe records `nft --version` as its `nftVersion` run, so a case
+  can expect rejection on an `nft` older than the one that added its form.
+- Every live suite asserts the exact names of the runs its probe recorded,
+  so a missing or unexpected case fails it. nix-unit counts a suite with no
+  tests as a success.
 
 Named exclusions and text-only limits are documented in
 [`text-coverage.md`](text-coverage.md).
@@ -220,7 +254,7 @@ run every check with the new pins on each pull request.
 | Signal | Meaning | Response |
 | --- | --- | --- |
 | source provenance red | source checks are not tied to the selected package | fix provenance before trusting source-derived results |
-| enum extraction red | extracted parser token/tag drift or extractor failure | inspect the patched source and plausibility output |
+| enum extraction red | extracted parser token/tag drift or extractor failure | inspect the patched source; for a changed table, update the extractor or its floor |
 | corpus red | a packaged upstream statement no longer fits the known schema/baseline | extend the model or justify a named baseline |
 | round trip red | a selected case failed to load or emitted an unmodelled command | inspect load logs and serializer output; do not reduce coverage silently |
 | JSON integration red | selected rendered JSON is rejected by the packaged parser | fix schema/DSL/renderer or narrow the claim with evidence |

@@ -7,6 +7,7 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
+  location = import ../internal/location.nix { inherit lib; };
 in
 {
   /*
@@ -27,7 +28,7 @@ in
     }:
     {
       log = compact (
-        rename.log {
+        rename.log (location.builder [ "log" ]) {
           inherit
             prefix
             group

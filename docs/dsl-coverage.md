@@ -41,8 +41,28 @@ Pre-built leaves cover common payload, metadata, routing, connection-tracking,
 FIB, socket, OS fingerprint, and XFRM fields. `payload`, `payloadRaw`,
 `payloadTunnel`, and raw expression attrsets cover less common parser fields.
 
+Each leaf names a field nft knows, and the `parse-check-tests` check loads
+every leaf through `nft -c`. Where nft's field name differs from a plain word,
+the leaf follows nft:
+
+| Leaf | JSON field | Text |
+| --- | --- | --- |
+| `udplite.csumcov` | `csumcov` | `udplite csumcov` |
+| `arp.saddrEther`, `arp.saddrIp` | `saddr ether`, `saddr ip` | `arp saddr ether`, `arp saddr ip` |
+| `arp.daddrEther`, `arp.daddrIp` | `daddr ether`, `daddr ip` | `arp daddr ether`, `arp daddr ip` |
+| `icmpv6.paramProblem` | `parameter-problem` | `icmpv6 param-problem` |
+
+There is no `icmpv6.packetTooBig` leaf, because nft has no such field;
+`icmpv6.mtu` reads the MTU of a Packet Too Big message. There is no
+`ct.count` leaf either: `ct count` is a statement (`dsl.ctCount`), not a ct
+key.
+
 `expr.set` is the anonymous-set constructor; `expr.setRef` is the named-set
 reference. `expr.map` and `expr.mapRef` make the same distinction for maps.
+Both references return the `"@name"` string. Every builder that names an
+object takes the name with or without its `@`, and emits `"@name"` for a set,
+map, or flowtable and the bare name for a stateful object
+([API reference](api.md#references-to-named-objects)).
 
 ### Statements
 
@@ -72,16 +92,19 @@ Expansion is deterministic:
 
 1. table;
 2. all chains, sorted by name;
-3. object kinds alphabetically, except standalone elements follow their set/map
-   definitions; names remain sorted within each kind;
+3. stateful objects, which set and map elements can name: counters, quotas,
+   limits, ct helpers, ct timeouts, ct expectations, secmarks, synproxies, and
+   ct counts; then the other kinds alphabetically; then standalone elements,
+   after their set/map definitions; names remain sorted within each kind;
 4. rules grouped by sorted chain name and kept in source order within each
    chain.
 
 This covers dependencies expressed by the table tree. Dependencies hidden in
 raw nested bodies remain the caller's responsibility.
 
-Nesting owns scope. A named object's or chain's explicit `family`, `table`, and
-`name` must match the enclosing table and collection key. A rule's explicit
+Nesting owns scope. A `dsl.table` body's explicit `family` and `name` must
+match its positional arguments. A named object's or chain's explicit `family`,
+`table`, and `name` must match the enclosing table and collection key. A rule's explicit
 `family`, `table`, and `chain` must match its parent table and chain. Matching
 fields are accepted for composition; conflicting fields fail with their tree
 path in both command and block output. Use standalone commands for scope that
@@ -97,17 +120,33 @@ and removed during expansion.
 
 The DSL exposes all modelled command verbs:
 
-- `add.<kind>` for the 17 add-object kinds, including `add.rule`;
+- `add.<kind>` for the 16 add-object kinds, including `add.rule`;
 - `replace` and `insert` for rule commands;
 - `create.<kind>`, excluding `rule`;
-- `delete.<kind>` and `destroy.<kind>` for the 17 add-object kinds;
-- `list.<kind>` plus `list.metainfo` and `list.meter`;
-- `reset.<kind>` for counter, quota, rule, set, map, and element;
+- `delete.<kind>` and `destroy.<kind>` for the add-object kinds except
+  `ctCount`, `ctTimeout`, and `ctExpectation`;
+- `list.<kind>` for table, chain, set, map, counter, quota, limit, ctHelper,
+  secmark, and meter;
+- `reset.<kind>` for counter, quota, set, map, and element;
 - `flush.<kind>` for ruleset, table, chain, set, map, and meter;
 - `rename.chain`.
 
-`create.rule` and `flush.flowtable` are absent because the live JSON parser
-rejects those commands.
+`delete`, `destroy`, `list`, `flush`, and `reset` select an object by family,
+table, and name alone, and a rule by its chain and handle
+([API reference](api.md#commands)).
+
+Each namespace offers only the kinds that nft runs as written. `create.rule`,
+`flush.flowtable`, `reset.rule`, and `list` of a rule, element, flowtable,
+synproxy, `metainfo`, or ct count are absent because the live JSON parser
+rejects those commands. Delete, destroy, and list of a ct timeout or ct
+expectation, and delete and destroy of a ct count, are absent because nft
+mishandles them; see
+[`spec-coverage.md`](spec-coverage.md#commands-nft-mishandles).
+
+No command builder and no table-tree kind builds a tunnel object: nft's JSON
+parser loads a tunnel's ports wrongly, and nft aborts on delete, destroy, and
+list of one. The `tunnel.ref` statement, which references a tunnel object,
+remains.
 
 ## Key renaming
 
@@ -119,8 +158,6 @@ nftables uses spaces, hyphens, or underscores. Examples:
 | `ctHelper` | `ct helper` |
 | `queueThreshold` | `queue-threshold` |
 | `gcInterval` | `gc-interval` |
-| `srcIpv4` | `src-ipv4` |
-| `optType` | `opt-type` |
 | `rateUnit` | `rate_unit` |
 | `typeFlags` | `type_flags` |
 
@@ -148,8 +185,6 @@ Use `nftlib.types.ruleset` explicitly for raw user configuration. See
   or DSL.
 - Some command verbs accept slimmer parser selector bodies than the shared
   schema bodies expose.
-- Several null-body statement spellings are known schema gaps, so they have no
-  typed DSL path.
 - Text rendering may impose stricter token and quoting rules than JSON.
 - A raw attrset remains the escape hatch for parser-valid shapes outside the
   model.
@@ -164,8 +199,10 @@ The relevant checks are:
   JSON;
 - the `unit-tests` DSL validation suite for rejected fields, unknown table
   keys, and error messages that name the offending path;
-- `integration-tests` for selected DSL output through `nft -c -j -f` and a
-  raw `create rule` parser-rejection case;
+- `integration-tests` for every Integration case through `nft -c -j -f`, and
+  raw negative cases that nft and the schema must both reject;
+- `parse-check-tests` for every expected DSL parity JSON value and every
+  Field leaf through `nft -c`;
 - focused safety suites for comments, interface names, references, tokens,
   units, priorities, and restricted types.
 
@@ -173,5 +210,6 @@ Each check uses the `lib` and `nft` packages of the nixpkgs it evaluates: the
 locked input or one of the project policy's stable and unstable pins.
 
 When adding a schema tag or object kind, add the constructor/registry entry,
-positive parity coverage, one invalid-body test, and the applicable live-parser
-case in the same change.
+positive parity coverage, one invalid-body test, and an Integration case that
+uses it in the same change. The `unit-tests` reach check fails for a statement
+tag, expression tag, or command/object pair that no Integration case uses.

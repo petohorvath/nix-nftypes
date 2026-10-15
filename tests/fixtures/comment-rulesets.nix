@@ -78,17 +78,4 @@
       })
     ];
 
-  logPrefix =
-    prefix:
-    dsl.ruleset [
-      (dsl.table "inet" "t" {
-        chains.c = {
-          type = "filter";
-          hook = "input";
-          prio = 0;
-          policy = "accept";
-          rules = [ [ (dsl.log { inherit prefix; }) ] ];
-        };
-      })
-    ];
 }

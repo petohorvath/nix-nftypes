@@ -2,12 +2,13 @@
   lib,
   internal,
   primitives,
-  # Lazy reference to the sibling `statements` module. Only `.statement` is
-  # consumed (by `elemBody.stmt`), and the access is deferred until value
-  # validation, breaking what would otherwise be a load-order cycle:
-  # `statements.nix` already imports from this file (statements consume
-  # `expr`), so a direct import in the other direction would deadlock.
-  # `lib/default.nix` ties the knot via mutually-recursive let bindings.
+  # Lazy reference to the sibling `statements` module. Only
+  # `.statementBodies` is consumed (by the statement keys of `elemBody`),
+  # and the access is deferred until value validation, breaking what would
+  # otherwise be a load-order cycle: `statements.nix` already imports from
+  # this file (statements consume `expr`), so a direct import in the other
+  # direction would deadlock. `lib/default.nix` ties the knot via
+  # mutually-recursive let bindings.
   statements,
 }:
 
@@ -17,6 +18,7 @@ let
     discriminatedSubmodule
     listOfLen
     listOfMinLen
+    submodule
     taggedUnion
     ;
   inherit (primitives) listOrSingleton;
@@ -49,7 +51,7 @@ let
     # Anonymous set: expression or list of expressions (mappings are 2-tuples).
     setBody = types.either expression (types.listOf expression);
 
-    mapBody = types.submodule {
+    mapBody = submodule {
       options = {
         key = mkOption {
           type = expression;
@@ -62,7 +64,7 @@ let
       };
     };
 
-    prefixBody = types.submodule {
+    prefixBody = submodule {
       options = {
         addr = mkOption {
           type = expression;
@@ -150,7 +152,7 @@ let
       namedPayloadBody
     ];
 
-    exthdrBody = types.submodule {
+    exthdrBody = submodule {
       options = {
         name = mkOption {
           type = types.str;
@@ -213,7 +215,7 @@ let
     tcpOptionBody = types.either rawTcpOptionBody namedTcpOptionBody;
 
     # IP option (parser_json.c:822): { name, field? }
-    ipOptionBody = types.submodule {
+    ipOptionBody = submodule {
       options = {
         name = mkOption {
           type = types.str;
@@ -227,7 +229,7 @@ let
       };
     };
 
-    sctpChunkBody = types.submodule {
+    sctpChunkBody = submodule {
       options = {
         name = mkOption {
           type = types.str;
@@ -241,21 +243,21 @@ let
       };
     };
 
-    dccpOptionBody = types.submodule {
+    dccpOptionBody = submodule {
       options.type = mkOption {
         type = types.ints.unsigned;
         description = "DCCP option type number";
       };
     };
 
-    metaBody = types.submodule {
+    metaBody = submodule {
       options.key = mkOption {
         type = metaKey;
         description = "meta key";
       };
     };
 
-    rtBody = types.submodule {
+    rtBody = submodule {
       options = {
         key = mkOption {
           type = rtKey;
@@ -269,7 +271,7 @@ let
       };
     };
 
-    ctBody = types.submodule {
+    ctBody = submodule {
       options = {
         key = mkOption {
           type = types.str;
@@ -288,7 +290,7 @@ let
       };
     };
 
-    numgenBody = types.submodule {
+    numgenBody = submodule {
       options = {
         mode = mkOption {
           type = ngMode;
@@ -306,7 +308,7 @@ let
       };
     };
 
-    jhashBody = types.submodule {
+    jhashBody = submodule {
       options = {
         mod = mkOption {
           type = types.ints.positive;
@@ -329,7 +331,7 @@ let
       };
     };
 
-    symhashBody = types.submodule {
+    symhashBody = submodule {
       options = {
         mod = mkOption {
           type = types.ints.positive;
@@ -343,7 +345,7 @@ let
       };
     };
 
-    fibBody = types.submodule {
+    fibBody = submodule {
       options = {
         result = mkOption {
           type = fibResult;
@@ -357,14 +359,14 @@ let
       };
     };
 
-    socketBody = types.submodule {
+    socketBody = submodule {
       options.key = mkOption {
         type = socketKey;
         description = "socket key";
       };
     };
 
-    osfBody = types.submodule {
+    osfBody = submodule {
       options = {
         key = mkOption {
           type = osfKey;
@@ -378,7 +380,7 @@ let
       };
     };
 
-    ipsecBody = types.submodule {
+    ipsecBody = submodule {
       options = {
         key = mkOption {
           type = xfrmKey;
@@ -402,14 +404,14 @@ let
       };
     };
 
-    tunnelExprBody = types.submodule {
+    tunnelExprBody = submodule {
       options.key = mkOption {
         type = tunnelKey;
         description = "tunnel metadata key (path/id)";
       };
     };
 
-    elemBody = types.submodule {
+    elemBody = submodule {
       options = {
         val = mkOption {
           type = expression;
@@ -430,18 +432,22 @@ let
           default = null;
           description = "element comment";
         };
-        # parser_json.c json_parse_set_elem emits a `stmt` array alongside
-        # `val`/`timeout`/`expires` for stateful statements (counter/quota/
-        # limit/…) attached to the element.
-        stmt = mkOption {
-          type = types.nullOr (types.listOf statements.statement);
+      }
+      # nft lists an element's stateful statements as keys beside `val`
+      # (json.c set_elem_expr_json). Its JSON parser ignores them on input
+      # (json_parse_set_elem_expr reads only the options above), so they
+      # are Read-back only, and the text renderer refuses them.
+      // lib.genAttrs [ "counter" "quota" "limit" "last" ] (
+        tag:
+        mkOption {
+          type = types.nullOr statements.statementBodies.${tag};
           default = null;
-          description = "stateful statements attached to the element";
-        };
-      };
+          description = "element ${tag} statement, as nft lists it";
+        }
+      );
     };
 
-    verdictTargetBody = types.submodule {
+    verdictTargetBody = submodule {
       options.target = mkOption {
         type = types.str;
         description = "target chain name";
@@ -501,13 +507,20 @@ let
     # Tagged union of everything represented as `{ <key>: <body> }`.
     taggedExpression = taggedUnion expressionBodies;
 
-    expression = types.oneOf [
-      types.str
-      types.int
-      types.bool
-      (types.listOf expression)
-      taggedExpression
-    ];
+    # The generated description names each branch's description, and
+    # the list branch's names `expression` again, so a type error on a
+    # wrong value recursed without end; this one stops there.
+    expression =
+      types.oneOf [
+        types.str
+        types.int
+        types.bool
+        (types.listOf expression)
+        taggedExpression
+      ]
+      // {
+        description = "nft expression (string, integer, boolean, list of expressions, or tagged expression)";
+      };
 
     /*
       `expressionOf : [ String ] -> Type` — restrict an
@@ -519,7 +532,7 @@ let
 
         types.oneOf [
           types.str
-          (nftypes.types.expressionOf [ "payload" "meta" ])
+          (nftlib.types.expressionOf [ "payload" "meta" ])
         ]
 
       `kinds` is a non-empty list of tag names from the `expression`
@@ -535,12 +548,12 @@ let
         renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
       in
       if !(builtins.isList kinds) then
-        throw "nftypes.types.expressionOf: argument must be a list of strings"
+        throw "nix-nftypes: types.expressionOf: argument must be a list of strings"
       else if kinds == [ ] then
-        throw "nftypes.types.expressionOf: kinds list must be non-empty"
+        throw "nix-nftypes: types.expressionOf: kinds list must be non-empty"
       else if invalid != [ ] then
         throw (
-          "nftypes.types.expressionOf: unknown expression kind(s): "
+          "nix-nftypes: types.expressionOf: unknown expression kind(s): "
           + "${renderList invalid}. Valid kinds: ${renderList valid}."
         )
       else

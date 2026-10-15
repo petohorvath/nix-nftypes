@@ -1,7 +1,8 @@
 {
   lib,
-  nftSafeString,
   nftSafeIfname,
+  nftSafeLogPrefix,
+  nftSafeString,
 }:
 
 let
@@ -19,11 +20,11 @@ let
   prefixLength = types.ints.between 0 128;
 
   # A free-form string safe for rendering into nft's quoted-string syntax
-  # (`comment "…"`, `log prefix "…"`). The safe-character set lives in
-  # lib/nft-safe-string.nix; the text renderer's defense-in-depth
-  # `assertSafeString` asserts the same predicate, so neither path can
-  # drift. 128-byte length cap matches kernel NFTNL_UDATA_COMMENT_MAXLEN;
-  # log-prefix has the same limit.
+  # (`comment "…"`; a log prefix has its own `logPrefix`). The
+  # safe-character set lives in lib/nft-safe-string.nix; the text
+  # renderer's defense-in-depth `assertSafeString` asserts the same
+  # predicate, so neither path can drift. 128-byte length cap matches
+  # kernel NFTNL_UDATA_COMMENT_MAXLEN.
   nftQuotedString = mkOptionType {
     name = "nftQuotedString";
     description = "nft-safe quoted string (no '\"', '\\', or control characters; ≤128 bytes)";
@@ -32,16 +33,37 @@ let
     merge = lib.mergeEqualOption;
   };
 
-  # Interface name safe for both the kernel (`dev_valid_name`) and nft's
-  # unquoted set-element grammar. See lib/nft-safe-ifname.nix for the
-  # rules. Used as the element type for set/map bodies whose `type` is
-  # `"ifname"`; a renderer-level assert in lib/text/objects.nix mirrors
-  # the predicate as defence-in-depth.
+  # A log prefix nft loads as written: 1 to 127 bytes, no `$` (nft's text
+  # expands `$name` there), and the quoted-string rules. See
+  # lib/nft-safe-log-prefix.nix; the text renderer's `quoteLogPrefix`
+  # checks the same predicate.
+  logPrefix = mkOptionType {
+    name = "logPrefix";
+    description = "nft log prefix (1-127 bytes; no '$' '\"' '\\' or control characters)";
+    descriptionClass = "noun";
+    check = nftSafeLogPrefix.isSafe;
+    merge = lib.mergeEqualOption;
+  };
+
+  # Interface name the kernel accepts (`dev_valid_name`) and text can
+  # quote. See lib/nft-safe-ifname.nix for the rules; the text renderer's
+  # `quoteIfname` checks the same predicate.
   ifname = mkOptionType {
     name = "ifname";
-    description = "nft-safe interface name (≤15 bytes; no '/' ':' whitespace ',' ';' '{' '}' '\"' '\\' '#' or control chars; not '.' or '..')";
+    description = "interface name (1-15 bytes; no '/' ':' whitespace (byte 0xA0 included) '\"' '\\' or control chars; not '.' or '..')";
     descriptionClass = "noun";
     check = nftSafeIfname.isSafe;
+    merge = lib.mergeEqualOption;
+  };
+
+  # A named set, map or flowtable reference in a statement: `@` and a
+  # name. nft's JSON parser rejects it without the `@` ("Illegal set
+  # reference"), and the text renderer prints it as stored.
+  namedReference = mkOptionType {
+    name = "namedReference";
+    description = "named reference (\"@\" followed by a name)";
+    descriptionClass = "noun";
+    check = s: builtins.isString s && lib.hasPrefix "@" s && builtins.stringLength s > 1;
     merge = lib.mergeEqualOption;
   };
 
@@ -49,8 +71,9 @@ let
     Source-of-truth value lists for every primitive enum. Consumed
     twice: by the `types.enum` calls below (producing `types.<name>`)
     and re-exported under `nftypes.lib.enums` via `default.nix`. A
-    single binding prevents the two surfaces drifting; a unit test
-    asserts `enums.<x> == types.<x>.functor.payload.values` per entry.
+    single binding prevents the two surfaces drifting. The enum
+    extraction suite compares the table-backed lists with the patched
+    nftables source.
   */
   enumValues = {
     family = [
@@ -254,11 +277,19 @@ let
 
     # `ip`/`ip6` family enum, used wherever the parser restricts a `family`
     # field to IPv4/IPv6 (rt expression, ipsec/xfrm expression, ct
-    # expression's l3-specific keys, NAT statement, and named-object
-    # l3proto fields).
+    # expression's l3-specific keys, NAT statement).
     ipFamily = [
       "ip"
       "ip6"
+    ];
+
+    # `l3proto` of the ct helper, timeout and expectation objects. nft
+    # lists an object in an inet table with `inet` when none was given,
+    # and accepts it on input (parser_json.c parse_family).
+    ctL3Proto = [
+      "ip"
+      "ip6"
+      "inet"
     ];
 
     ctDirection = [
@@ -352,6 +383,8 @@ in
   types = lib.mapAttrs (_: types.enum) enumValues // {
     inherit
       ifname
+      logPrefix
+      namedReference
       nftQuotedString
       nullLiteral
       portNumber

@@ -2,17 +2,18 @@
   Renderer for the top-level command attrTag (lib/schema/commands.nix).
 
   Each command is `{ <verb>: { <kind>: <body> } }`. The verbs:
-    add / create / delete / destroy — body is an addObject (any kind)
-    list / reset / flush             — body is the relevant restricted union
+    add / create / delete / destroy — body is any add-object kind
+    list / reset / flush             — body is any kind of the verb's union
     replace / insert                 — body is a single-tag {rule: ...}
     rename                           — body is a single-tag {chain: ...}
 
   Most verbs are just `<verb> <object-rendering>`. Two exceptions:
     - `rename chain` uses a one-line form with both old and new names
       (no braces), handled by renderRename.
-    - `create` on quota/limit/synproxy uses *positional* values after
-      the name (the text grammar rejects the brace form there), handled
-      by renderCreate + positionalCreate.
+    - `create` on counter/quota/limit/synproxy/secmark uses *positional*
+      values after the name (the text grammar rejects the brace form
+      there), handled by renderCreate + positionalCreate. The positional forms
+      have no comment clause, so a comment there is a Refusal.
 */
 {
   lib,
@@ -35,7 +36,7 @@ let
       names = builtins.attrNames wrapped;
     in
     if builtins.length names != 1 then
-      throw "text.commands: ${verb} expects exactly one inner kind, got [${lib.concatStringsSep ", " names}]"
+      throw "nix-nftypes: text: ${verb} expects exactly one inner kind, got [${lib.concatStringsSep ", " names}]"
     else
       let
         kind = builtins.head names;
@@ -44,52 +45,54 @@ let
       "${verb} ${objectRenderer ctx kind body}";
 
   # rename chain: the text grammar requires both old and new chain names
-  # on the same line, no braces. The schema reuses the chain body and
-  # passes the new name in `newname`.
+  # on the same line, no braces. The schema's rename body carries the new
+  # name in `newname`.
   renderRename =
     _ctx:
     { chain }:
     let
-      prefix = "rename chain ${chain.family} ${primitives.identQuote "table name" chain.table} ${primitives.identQuote "chain name" chain.name}";
+      prefix = "rename chain ${primitives.safeToken "rename family" chain.family} ${primitives.identQuote "table name" chain.table} ${primitives.identQuote "chain name" chain.name}";
       newname =
-        if chain.newname == null then
-          throw "text.commands: rename.chain requires `newname`"
+        if (chain.newname or null) == null then
+          throw "nix-nftypes: text: rename.chain requires `newname`"
         else
           chain.newname;
     in
     "${prefix} ${primitives.identQuote "chain newname" newname}";
 
-  # `create` for quota/limit/synproxy: positional body, no braces.
+  # `create` for counter/quota/limit/synproxy/secmark: positional body, no
+  # braces.
   # `<verb> <kind> <fam> <table> <name> <positional-args>`.
   positionalCreate = {
-    quota =
-      body:
-      let
-        head = lib.optionalString ((body.inv or null) == true) "over ";
-      in
-      "${head}${toString body.bytes} bytes"
-      + lib.optionalString ((body.used or null) != null) " used ${toString body.used} bytes";
+    counter = objects.renderCounterClause;
+
+    quota = objects.renderQuotaClause;
 
     limit = limit.renderCreate;
 
-    synproxy =
+    # The clause ends in `;`: without flags, nft wants a separator after
+    # `wscale N`.
+    synproxy = body: "${objects.renderSynproxyClause body};";
+
+    # nft's text needs the context here, while JSON loads a secmark
+    # without one.
+    secmark =
       body:
-      let
-        flags =
-          if (body.flags or null) == null then "" else " " + primitives.flags { sep = " "; } body.flags;
-      in
-      "mss ${toString body.mss} wscale ${toString body.wscale}${flags}";
+      if (body.context or null) == null then
+        primitives.refuseNoTextSpelling "create secmark context" "nft's text `create secmark` takes its SELinux context positionally and requires one, while JSON's loads a secmark without one. Give a context, or use `add secmark`."
+      else
+        primitives.quoteString "secmark context" body.context;
   };
 
-  # `create` dispatcher: use positional body for quota/limit/synproxy,
-  # full brace body for other kinds.
+  # `create` dispatcher: use positional body for counter/quota/limit/
+  # synproxy/secmark, full brace body for other kinds.
   renderCreate =
     ctx: wrapped:
     let
       names = builtins.attrNames wrapped;
     in
     if builtins.length names != 1 then
-      throw "text.commands: create expects exactly one inner kind, got [${lib.concatStringsSep ", " names}]"
+      throw "nix-nftypes: text: create expects exactly one inner kind, got [${lib.concatStringsSep ", " names}]"
     else
       let
         kind = builtins.head names;
@@ -101,14 +104,32 @@ let
           headerRendering = renderObjectHeader ctx kind body;
           positional = positionalCreate.${kind} body;
         in
-        "create ${headerRendering} ${positional}"
+        if (body.comment or null) != null then
+          primitives.refuseNoTextSpelling "create ${kind} comment" "nft's text `create ${kind}` takes no comment, while JSON's loads one. Use `add ${kind}`, or drop the comment."
+        else
+          "create ${headerRendering}${lib.optionalString (positional != "") " ${positional}"}"
       else
-        # Brace-body kinds (set/map/flowtable/ct-*/secmark/tunnel/...);
+        # Brace-body kinds (set/map/flowtable/ct-*/...);
         # `add`-style rendering works.
         "create ${renderObject ctx kind body}";
 
+  # Text reads a rule's handle as a position. nft's JSON parser ignores a
+  # listed rule's handle, so text leaves it off. On `add rule`, nft 1.1.6's
+  # JSON parser ignores it too, while 1.1.7's reads it as text does, so
+  # text can't load what both versions load.
+  renderListedObject =
+    ctx: kind: body:
+    renderObject ctx kind (if kind == "rule" then removeAttrs body [ "handle" ] else body);
+
+  renderAddedObject =
+    ctx: kind: body:
+    if kind == "rule" && (body.handle or null) != null then
+      primitives.refuseNoTextSpelling "add rule handle" "nftables 1.1.6's JSON parser ignores a handle on `add rule` and appends the rule, while 1.1.7's, like text, adds it after the rule with that handle. Place the rule with `index`, or with `insert`."
+    else
+      renderObject ctx kind body;
+
   verbRenderers = {
-    add = renderVerbCommand renderObject "add";
+    add = renderVerbCommand renderAddedObject "add";
     replace = renderVerbCommand renderObject "replace";
     insert = renderVerbCommand renderObject "insert";
     create = renderCreate;
@@ -126,23 +147,28 @@ let
   renderCommand =
     ctx: cmd:
     if !(builtins.isAttrs cmd) then
-      throw "text.commands: command must be an attrset, got ${builtins.typeOf cmd}"
+      throw "nix-nftypes: text: command must be an attrset, got ${builtins.typeOf cmd}"
     else
       let
         names = builtins.attrNames cmd;
       in
       if builtins.length names != 1 then
-        throw "text.commands: command must have exactly one tag, got [${lib.concatStringsSep ", " names}]"
+        throw "nix-nftypes: text: command must have exactly one tag, got [${lib.concatStringsSep ", " names}]"
       else
         let
           tag = builtins.head names;
         in
         if verbRenderers ? ${tag} then
-          verbRenderers.${tag} ctx cmd.${tag}
+          # A metainfo appears only in a listing: nft's text and JSON
+          # parsers reject every command that names one.
+          if builtins.isAttrs cmd.${tag} && cmd.${tag} ? metainfo then
+            primitives.refuseNoTextSpelling "${tag} metainfo" "A metainfo appears only in a listing, and nft rejects `${tag} metainfo` in text and JSON."
+          else
+            verbRenderers.${tag} ctx cmd.${tag}
         else
           # Bare list-object (no verb). Render as the object itself —
           # body is meaningful here (this is the form `nft -j list` emits).
-          renderObject ctx tag cmd.${tag};
+          renderListedObject ctx tag cmd.${tag};
 in
 {
   inherit renderCommand;

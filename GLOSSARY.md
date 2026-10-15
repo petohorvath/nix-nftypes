@@ -127,7 +127,7 @@ The JSON that `nft` emits when it lists loaded state, which the schema must also
 _Avoid_: round trip
 
 **Render equivalence**:
-The check that a case loaded through JSON and the same case loaded through text list the same ruleset.
+The check that a case loaded through JSON and the same case loaded through each text form, imperative and block, list the same ruleset.
 _Avoid_: JSON/text equivalence
 
 ## Tests

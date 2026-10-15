@@ -19,10 +19,7 @@ let
     inherit (testContext) fixtures nftlib;
   };
   nixUnitCheck = import ./nix-unit-check.nix { inherit pkgs; };
-  summaries = import ./summaries.nix {
-    inherit pkgs;
-    inherit (testContext) fixtures;
-  };
+  summaries = import ./summaries.nix { inherit pkgs; };
 
   vmRun = import ./vm.nix {
     inherit pkgs;
@@ -37,19 +34,22 @@ let
 
     Live parsers run inside a private network namespace: JSON through
     `nft -c -j -f` (plus parser-negative cases), both block forms through
-    `nft -c -f`, JSON vs text real loads whose `nft list ruleset` must
-    agree, `nft -c -f` for the pretty text those real loads cannot cover,
-    real-load read-backs of safe comments and ifname sets, and real-load
-    round trips.
+    `nft -c -f`, real loads of JSON and each text form whose
+    `nft list ruleset` must agree, real-load read-backs of safe comments
+    and ifname sets, real-load round trips, "still misbehaves" cases,
+    `nft -c` of every parity pin and Field leaf, and a base chain at every
+    family × chain type × hook placement.
   */
   liveParserTests = {
     integration-tests.suite = "dslIntegration";
-    text-integration-tests.suite = "textIntegration";
     text-block-integration-tests.suite = "textBlockIntegration";
     render-equivalence-tests.suite = "renderEquivalence";
     comment-safety-integration-tests.suite = "commentSafetyIntegration";
     ifname-safety-integration-tests.suite = "ifnameSafetyIntegration";
     nftables-roundtrip-tests.suite = "nftablesRoundtrip";
+    nft-misbehaviour-tests.suite = "nftMisbehaviour";
+    parse-check-tests.suite = "parseCheck";
+    chain-placement-tests.suite = "chainPlacement";
   };
 
   # Source-side tests use the exact release archive and downstream
