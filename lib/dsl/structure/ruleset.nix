@@ -7,7 +7,7 @@
 {
   expandTable,
   lib,
-  resetsRunAsWritten,
+  resetOrder,
 }:
 
 let
@@ -46,9 +46,9 @@ in
     in
     {
       nftables =
-        if resetsRunAsWritten commands then
+        if resetOrder.isRunAsWritten commands then
           commands
         else
-          throw "nix-nftypes: dsl.ruleset: a reset of a counter, quota, set, map, or rule must be the last command; nft resets nothing for one placed earlier";
+          throw "nix-nftypes: dsl.ruleset: a reset of a ${resetOrder.kindsText} must be the last command; nft resets nothing for one placed earlier";
     };
 }

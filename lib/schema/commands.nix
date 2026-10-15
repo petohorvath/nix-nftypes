@@ -36,11 +36,10 @@ let
     In one batch, nft (1.1.6 and 1.1.7, JSON and text) runs a reset of a
     counter, quota, set, map, or rule only as the batch's last command:
     followed by any other command, it resets nothing and nft still exits
-    0. A reset of an element runs anywhere. Takes a ruleset's command
-    list and returns whether each such reset is its last command.
+    0. A reset of an element runs anywhere. `types.ruleset` and
+    `dsl.ruleset` both apply this rule.
   */
-  resetsRunAsWritten =
-    entries:
+  resetOrder =
     let
       lastOnlyKinds = [
         "counter"
@@ -55,11 +54,16 @@ let
         && builtins.isAttrs (entry.reset or null)
         && lib.any (kind: entry.reset ? ${kind}) lastOnlyKinds;
     in
-    entries == [ ] || !(lib.any isLastOnlyReset (lib.init entries));
+    {
+      # The kinds in prose, "counter, …, or rule", for messages.
+      kindsText = "${lib.concatStringsSep ", " (lib.init lastOnlyKinds)}, or ${lib.last lastOnlyKinds}";
+
+      # Whether each such reset in the command list `entries` is its last.
+      isRunAsWritten = entries: entries == [ ] || !(lib.any isLastOnlyReset (lib.init entries));
+    };
 in
 {
-  # `dsl.ruleset` applies the same order rule to the commands it emits.
-  inherit command resetsRunAsWritten;
+  inherit command resetOrder;
 
   ruleset = discriminatedSubmodule {
     extraCheck =
@@ -67,8 +71,8 @@ in
       let
         entries = value.nftables or [ ];
       in
-      !(builtins.isList entries) || resetsRunAsWritten entries;
-    description = "nft ruleset whose reset of a counter, quota, set, map, or rule is its last command";
+      !(builtins.isList entries) || resetOrder.isRunAsWritten entries;
+    description = "nft ruleset whose reset of a ${resetOrder.kindsText} is its last command";
     # Each entry is a command wrapper or a bare listed object (the shape
     # `nft -j list` emits).
     options.nftables = mkOption {

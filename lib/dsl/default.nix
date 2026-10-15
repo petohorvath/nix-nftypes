@@ -13,7 +13,7 @@
   lib,
   objects,
   expandTable,
-  resetsRunAsWritten,
+  resetOrder,
 }:
 
 let
@@ -25,7 +25,7 @@ let
   exprs = import ./exprs.nix { inherit lib; };
   payload = import ./payload.nix { inherit lib; };
   actions = import ./actions { inherit lib; };
-  ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetsRunAsWritten; };
+  ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetOrder; };
   table = import ./structure/table.nix { inherit lib; };
   commands = import ./structure/commands.nix { inherit lib objects validate; };
   variant = import ./internal/variant.nix { inherit lib; };

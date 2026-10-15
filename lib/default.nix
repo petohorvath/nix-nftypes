@@ -70,7 +70,7 @@ let
   dsl = import ./dsl {
     inherit lib;
     objects = objects.all;
-    inherit (commands) resetsRunAsWritten;
+    inherit (commands) resetOrder;
     inherit (tables) expandTable;
   };
   compatibility = import ./compatibility.nix;

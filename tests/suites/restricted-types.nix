@@ -12,8 +12,8 @@
   Three behavioural axes:
 
     1. Type-check semantics — the helper must accept values whose tag
-       is in the subset and reject any value whose tag is not. Deep-
-       force the evalModules result so lazy type checks actually run.
+       is in the subset and reject any value whose tag is not, checked
+       through `validate` so lazy type checks actually run.
     2. Construction errors — unknown kinds / non-list / empty list
        must throw at type construction time (i.e. when the helper is
        called), not silently produce an unusable type.
@@ -23,28 +23,15 @@
 */
 
 let
-  inherit (nftlib) types;
+  inherit (nftlib) types validate;
 
   /*
-    Strict type-check: build a one-option module whose value is a
-    `listOf t`, plug `v` in, and deep-force the resulting list so the
-    submodule's lazy type machinery actually runs. Returns the list, or
-    throws `evalModules`' type error. Wrapping in `listOf` matches the
-    call-site shape consumers will use
-    (`type = listOf nftypes.types.matchStatement;`).
+    Strict type-check of `v` against `listOf t`, through `validate`, which
+    forces every lazy submodule check. Returns the list, or throws the
+    module system's type error. Wrapping in `listOf` matches the call-site
+    shape consumers use (`type = listOf nftypes.types.matchStatement;`).
   */
-  checked =
-    t: v:
-    let
-      cfg =
-        (lib.evalModules {
-          modules = [
-            { options.x = lib.mkOption { type = lib.types.listOf t; }; }
-            { x = v; }
-          ];
-        }).config.x;
-    in
-    builtins.deepSeq cfg cfg;
+  checked = t: validate (lib.types.listOf t);
 
   # The type accepts every value in `v`.
   accepts = t: v: {
@@ -55,7 +42,7 @@ let
   # The type rejects `v`.
   rejects = t: v: {
     expr = checked t v;
-    expectedError.msg = "x\\..*is not of type";
+    expectedError.msg = "validate\\..*is not of type";
   };
 
   # Representative values for each tested kind. Built once at the top
