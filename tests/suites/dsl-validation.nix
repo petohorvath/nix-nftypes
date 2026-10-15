@@ -361,6 +361,36 @@ let
       expected = false;
     };
   }) droppedInputs;
+
+  # ----- a table tree passed where a ruleset belongs -------------------
+
+  # Each imperative renderer refuses a bare table tree, alone or among a
+  # ruleset's commands, and names the wrapper it needs. Each error starts
+  # with the renderer's own API name.
+  bareTableTests =
+    let
+      tree = dsl.table "inet" "t" { chains.c = { }; };
+      renderers = {
+        toJson = "toJson";
+        toNix = "toNix";
+        toText = "text";
+        toTextPretty = "text";
+      };
+      placements = {
+        alone = tree;
+        inRuleset.nftables = [ tree ];
+      };
+    in
+    lib.concatMapAttrs (
+      renderer: api:
+      lib.mapAttrs' (
+        placement: value:
+        lib.nameValuePair "testBareTableRefused_${renderer}_${placement}" {
+          expr = nftlib.${renderer} value;
+          expectedError.msg = "nix-nftypes: ${api}: got a dsl\\.table node; wrap it in dsl\\.ruleset";
+        }
+      ) placements
+    ) renderers;
 in
 {
   # Building a table or ruleset stays lazy; only rendering validates.
@@ -1004,3 +1034,4 @@ in
 // droppedInputTests
 // malformedRuleEntryTests
 // ruleCommandTests
+// bareTableTests

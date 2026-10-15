@@ -5,7 +5,7 @@
 { lib }:
 
 let
-  markers = import ../internal/markers.nix { };
+  inherit (import ../../table-tree-marker.nix { }) marker;
   requireBody = import ../internal/require-body.nix { inherit lib; };
   location = import ../internal/location.nix { inherit lib; };
 in
@@ -47,7 +47,7 @@ let
 in
 requireBody tree body
 // {
-  "${markers.table}" = true;
+  "${marker}" = true;
   family = scoped "family" family;
   name = scoped "name" name;
 }

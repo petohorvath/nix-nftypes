@@ -7,13 +7,13 @@
 { expandTable, lib }:
 
 let
-  markers = import ../internal/markers.nix { };
+  inherit (import ../../table-tree-marker.nix { }) isTableTree;
 
   # Table preparation belongs to the table module. The ruleset only knows
   # how to combine tables, nested lists, and the raw-command escape hatch.
   flattenChild =
     child:
-    if builtins.isAttrs child && (child.${markers.table} or false) then
+    if isTableTree child then
       expandTable child
     else if builtins.isList child then
       flattenChildren child

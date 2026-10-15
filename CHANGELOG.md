@@ -94,6 +94,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Fixed
 
+- `toJson`, `toNix`, `toText`, and `toTextPretty` refuse a `dsl.table` value passed where a ruleset belongs, alone or among its commands, and ask for `dsl.ruleset`. `toJson` and `toNix` rendered it with its internal marker, as JSON nft rejects, and the text errors didn't say what was wrong.
 - The home-router example loads. Its input chain had a `flow` statement, which the kernel takes only in a forward chain, and its flowtable was named `offload`, which text can't spell; it's now `fastpath`.
 - Text of a listed ruleset leaves out its `metainfo`, which nft's JSON parser ignores. It wrote a `metainfo` line, which nft rejects.
 - Text leaves the `handle` off a listed rule, which nft's JSON parser ignores, so a Read-back with rules loads as text. It wrote `rule … handle 7`, which text reads as a position, so the load failed with "No such file or directory".

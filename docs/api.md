@@ -403,6 +403,10 @@ the kernel then deletes every rule in the chain.
 Returns compact JSON via `builtins.toJSON` after `cleanValue` normalization.
 Use the result with `nft -j -f`.
 
+`toJson`, `toNix`, `toText`, and `toTextPretty` take a ruleset, not a table
+tree. A `dsl.table` value passed alone or among the `nftables` commands throws
+and asks for `dsl.ruleset [ … ]`, which expands it into commands.
+
 ### `toNix value`
 
 Returns a human-readable Nix representation after the same normalization. It is
