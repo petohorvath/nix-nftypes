@@ -5,6 +5,7 @@ The development shell, loaded by `nix develop` or by direnv through `.envrc`, su
 ```sh
 nix fmt                     # fix a failing `formatting` check
 nix-unit --flake .#tests    # evaluation-only suites, for a fast loop
+nix flake check --no-build  # evaluates every check without KVM; run after moving or renaming a file
 nix flake check -L          # every check, VM tests included, with the locked nixpkgs; needs KVM
 nix build -L .#checks.x86_64-linux.<name>  # one check; a live test runs in a NixOS VM and needs KVM
 ```
