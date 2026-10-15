@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -364,9 +365,9 @@ let
 
   # ----- a table tree passed where a ruleset belongs -------------------
 
-  # Each imperative renderer refuses a bare table tree, alone or among a
+  # Each imperative renderer throws for a table tree, alone or among a
   # ruleset's commands, and names the wrapper it needs. Each error starts
-  # with the renderer's own API name.
+  # with the renderer's API name, `text` for the text renderers (ADR 0009).
   bareTableTests =
     let
       tree = dsl.table "inet" "t" { chains.c = { }; };
@@ -385,9 +386,9 @@ let
       renderer: api:
       lib.mapAttrs' (
         placement: value:
-        lib.nameValuePair "testBareTableRefused_${renderer}_${placement}" {
+        lib.nameValuePair "testBareTableThrows_${renderer}_${placement}" {
           expr = nftlib.${renderer} value;
-          expectedError.msg = "nix-nftypes: ${api}: got a dsl\\.table node; wrap it in dsl\\.ruleset";
+          expectedError.msg = "nix-nftypes: ${api}: got a dsl\\.table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
         }
       ) placements
     ) renderers;
@@ -1009,12 +1010,38 @@ in
     };
   };
 
+  # ----- the flat namespace --------------------------------------------
+
+  # The DSL's flat namespace merges its layers; a name two layers define
+  # throws instead of one layer silently shadowing the other.
+  testDslLayerCollisionThrows = {
+    expr = helpers.internals.dslMergeDisjoint {
+      ops.match = 1;
+      verdicts = {
+        accept = 2;
+        match = 3;
+      };
+    };
+    expectedError.msg = "nix-nftypes: dsl: `match' is defined by more than one layer: ops, verdicts";
+  };
+
+  testDslLayersMerge = {
+    expr = helpers.internals.dslMergeDisjoint {
+      ops.eq = 1;
+      verdicts.accept = 2;
+    };
+    expected = {
+      eq = 1;
+      accept = 2;
+    };
+  };
+
   # ----- reset order ---------------------------------------------------
 
   # nft runs a reset of a counter, quota, set, map, or rule only as the
-  # batch's last command, so `dsl.ruleset` refuses one placed earlier,
+  # batch's last command, so `dsl.ruleset` throws for one placed earlier,
   # whether a builder or a raw attrset made it.
-  testRulesetRefusesResetBeforeTable = {
+  testRulesetResetBeforeTableThrows = {
     expr = toJson (
       dsl.ruleset [
         (dsl.reset.counter {
@@ -1028,7 +1055,7 @@ in
     expectedError.msg = "nix-nftypes: dsl\\.ruleset: .*reset.*last command";
   };
 
-  testRulesetRefusesRawResetBeforeCommand = {
+  testRulesetRawResetBeforeCommandThrows = {
     expr = toJson (
       dsl.ruleset [
         {

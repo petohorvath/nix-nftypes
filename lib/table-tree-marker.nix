@@ -28,7 +28,7 @@ in
         if builtins.isAttrs value && builtins.isList (value.nftables or null) then value.nftables else [ ];
     in
     if isTableTree value || builtins.any isTableTree entries then
-      throw "nix-nftypes: ${api}: got a dsl.table node; wrap it in dsl.ruleset [ … ]"
+      throw "nix-nftypes: ${api}: got a dsl.table tree where a ruleset belongs; wrap it in dsl.ruleset [ … ]"
     else
       value;
 }

@@ -46,7 +46,7 @@ in
     in
     {
       nftables =
-        if resetsRunAsWritten { nftables = commands; } then
+        if resetsRunAsWritten commands then
           commands
         else
           throw "nix-nftypes: dsl.ruleset: a reset of a counter, quota, set, map, or rule must be the last command; nft resets nothing for one placed earlier";

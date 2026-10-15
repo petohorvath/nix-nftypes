@@ -344,8 +344,8 @@ covers `dsl` builders: the compatibility helpers `chainTypeFor` and
 Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
 every family, and `flush.ruleset { family = "ip"; }` flushes one.
 
-In one batch, nft runs a `reset` of a counter, quota, set, or map only as the
-last command: followed by any other command, it resets nothing, and nft still
+In one batch, nft runs a `reset` of a counter, quota, set, map, or rule only as
+the last command: followed by any other command, it resets nothing, and nft still
 exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere else,
 and `dsl.ruleset` throws for one, whether a builder or a raw attrset made it.
 Give each one a ruleset of its own, or put it last. `reset.element` runs

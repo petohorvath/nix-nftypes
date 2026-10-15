@@ -31,7 +31,7 @@ in
   setDatatypeSafety = import ./suites/set-datatype-safety.nix testContext;
   textBlockParity = import ./suites/text-block-parity.nix testContext;
   textParity = import ./suites/text-parity.nix testContext;
-  validation = import ./suites/validation.nix testContext;
   unitNameSafety = import ./suites/unit-name-safety.nix testContext;
+  validation = import ./suites/validation.nix testContext;
   verdictTargetSafety = import ./suites/verdict-target-safety.nix testContext;
 }

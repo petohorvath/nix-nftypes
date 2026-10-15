@@ -173,10 +173,12 @@ result is forced.
 
 `dsl.ruleset` also accepts raw command attrsets so callers can use parser forms
 not covered by the convenience API. Those raw children are passed through and
-are not validated automatically. The renderers likewise do not turn arbitrary
-raw input into a typed value.
+are not validated automatically; only their order is checked, so a reset that
+nft would ignore throws. The renderers likewise do not turn arbitrary raw input
+into a typed value.
 
-Use `nftlib.types.ruleset` explicitly for raw user configuration. See
+Validate raw user configuration explicitly with
+`nftlib.validate nftlib.types.ruleset`. See
 [`api.md`](api.md#validation-model).
 
 ## Intentional limits

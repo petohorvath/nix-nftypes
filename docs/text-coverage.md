@@ -256,7 +256,7 @@ per-pin context in `tests/fixtures/parse-check.nix` before checking the pin.
 The text renderer accepts raw attrsets for escape-hatch use, but it is not a
 schema validator. Defensive token and string assertions block known injection
 classes, yet callers should still validate raw configuration with
-`nftlib.types.ruleset`.
+`nftlib.validate nftlib.types.ruleset`.
 
 ### Quoting and safety
 

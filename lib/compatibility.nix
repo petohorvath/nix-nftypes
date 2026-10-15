@@ -185,17 +185,15 @@ let
   # `caller`, the public function the user called.
   priorityTableFor =
     caller: family:
-    if !(builtins.elem family knownFamilies) then
+    if !(builtins.isString family && priorityIntsByFamily ? ${family}) then
       throw (
         "nix-nftypes: ${caller}: unknown family '${toString family}'. "
         + "Valid families: "
         + builtins.concatStringsSep ", " knownFamilies
         + "."
       )
-    else if family == "bridge" then
-      priorityIntsBridge
     else
-      priorityIntsDefault;
+      priorityIntsByFamily.${family};
 
   /*
     priorityIntsByFamily.<family> :: { symbol -> int }
@@ -209,7 +207,7 @@ let
   priorityIntsByFamily = builtins.listToAttrs (
     map (family: {
       name = family;
-      value = priorityTableFor "compatibility.priorityIntsByFamily" family;
+      value = if family == "bridge" then priorityIntsBridge else priorityIntsDefault;
     }) knownFamilies
   );
 
