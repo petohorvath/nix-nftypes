@@ -26,6 +26,10 @@ _Avoid_: subset
 **Placement**:
 The family, chain type, and hook of a base chain taken together, which the static compatibility tables either allow or forbid.
 
+**Validation**:
+Checking a value against a schema type, which fails naming the field that does not fit. It is a step the caller takes explicitly; rendering never does it.
+_Avoid_: type-checking (on its own), verification (that names the test runs)
+
 **Symbolic priority**:
 A named chain priority such as `filter` or `srcnat`, whose integer value depends on the family.
 

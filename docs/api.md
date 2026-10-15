@@ -10,41 +10,36 @@ nftlib = inputs.nix-nftypes.lib;
 
 There are three distinct operations:
 
-1. **Schema validation** through `nftlib.types` and `lib.evalModules`.
+1. **Validation** through `nftlib.validate` and the `nftlib.types` schema.
 2. **DSL construction**, which validates assembled table objects, chains, rules,
    and command-builder bodies when evaluation forces them.
 3. **Rendering**, which cleans and serializes a value but does not perform a
    complete schema validation pass on arbitrary raw attrsets.
 
-Validate hand-written input explicitly:
+Validate hand-written input explicitly with `validate type value`:
 
 ```nix
 let
-  lib = inputs.nixpkgs.lib;
   raw = {
     nftables = [
       { flush = { ruleset = null; }; }
       { add = { table = { family = "inet"; name = "filter"; }; }; }
     ];
   };
-
-  checked = (lib.evalModules {
-    modules = [
-      {
-        options.value = lib.mkOption {
-          type = nftlib.types.ruleset;
-        };
-      }
-      { value = raw; }
-    ];
-  }).config.value;
 in
-nftlib.toJson checked
+nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 ```
+
+`validate` takes any schema type and returns the value with option defaults
+filled in, which rendering cleans away. It forces the whole value, so every
+check runs before it returns, however deep. A mismatch throws the module
+system's error, whose option path starts with `validate`, such as
+`validate.nftables."[definition 1-entry 2]".add.chain.policy`.
 
 `dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
 nodes are expanded and validated; raw command attrsets are deliberately passed
-through as an escape hatch.
+through as an escape hatch. Only the order of the commands is checked: a reset
+that nft would ignore throws (see [Commands](#commands)).
 
 Table trees derive scope from nesting. Explicit `family` and `name` fields in a
 `dsl.table` body must match its positional arguments; `family`, `table`, and
@@ -328,7 +323,9 @@ A builder takes positional arguments only when every argument is required and
 there are at most two, as in `eq left right`, `vmap key data`, `expr.map key
 data`, `payload protocol field`, `prefix addr len`, and `counter.ref name`.
 Every other builder takes one attrset. `dsl.table family name body` is the
-exception; it mirrors nftables' `table inet filter { … }` syntax. See
+exception; it mirrors nftables' `table inet filter { … }` syntax. The rule
+covers `dsl` builders: the compatibility helpers `chainTypeFor` and
+`validChainPlacement` take their three placement keys positionally. See
 [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 
 ### Commands
@@ -347,10 +344,11 @@ exception; it mirrors nftables' `table inet filter { … }` syntax. See
 Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
 every family, and `flush.ruleset { family = "ip"; }` flushes one.
 
-In one batch, nft runs a `reset` of a counter, quota, set, or map only as the
-last command: followed by any other command, it resets nothing, and nft still
-exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere else, so
-give each one a ruleset of its own, or put it last. `reset.element` runs
+In one batch, nft runs a `reset` of a counter, quota, set, map, or rule only as
+the last command: followed by any other command, it resets nothing, and nft still
+exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere else,
+and `dsl.ruleset` throws for one, whether a builder or a raw attrset made it.
+Give each one a ruleset of its own, or put it last. `reset.element` runs
 anywhere.
 
 Each namespace offers only the kinds that nft runs as written, measured on
@@ -409,6 +407,10 @@ the kernel then deletes every rule in the chain.
 Returns compact JSON via `builtins.toJSON` after `cleanValue` normalization.
 Use the result with `nft -j -f`.
 
+`toJson`, `toNix`, `toText`, and `toTextPretty` take a ruleset, not a table
+tree. A `dsl.table` value passed alone or among the `nftables` commands throws
+and asks for `dsl.ruleset [ … ]`, which expands it into commands.
+
 ### `toNix value`
 
 Returns a human-readable Nix representation after the same normalization. It is
@@ -459,7 +461,8 @@ Examples include `family`, `hook`, `operator`, `metaKey`, `rtKey`, `fibResult`,
 - `hooksByFamily`;
 - `familiesByChainType`;
 - `hooksByChainType`;
-- `priorityIntsDefault`, `priorityIntsBridge`, `priorityIntsByFamily`;
+- `priorityIntsByFamily`, the symbolic priority table of each family, indexed
+  like `hooksByFamily`: `priorityIntsByFamily.bridge.filter` is `-200`;
 - `hooksWithOifname`.
 
 Top-level helpers:

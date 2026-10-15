@@ -185,31 +185,31 @@ let
   # `caller`, the public function the user called.
   priorityTableFor =
     caller: family:
-    if !(builtins.elem family knownFamilies) then
+    if !(builtins.isString family && priorityIntsByFamily ? ${family}) then
       throw (
         "nix-nftypes: ${caller}: unknown family '${toString family}'. "
         + "Valid families: "
         + builtins.concatStringsSep ", " knownFamilies
         + "."
       )
-    else if family == "bridge" then
-      priorityIntsBridge
     else
-      priorityIntsDefault;
+      priorityIntsByFamily.${family};
 
   /*
-    priorityIntsByFamily :: family -> { symbol -> int }
+    priorityIntsByFamily.<family> :: { symbol -> int }
 
-    Returns the canonical symbol→int priority table for `family`.
-    `bridge` gets `priorityIntsBridge`; every other known family
-    gets `priorityIntsDefault`. Throws on unknown family.
-
-    The same table backs `resolvePriority` (symbol → int) and the
-    reverse-lookup helpers `priorityNameOf` / `chainTypeFor`. Exposed
-    because consumers occasionally need the raw table to iterate
-    symbols family-aware.
+    The canonical symbol→int priority table of each known family, indexed
+    like `hooksByFamily`: `bridge` has the bridge table, every other
+    family the default one. The same tables back `resolvePriority`
+    (symbol → int) and the reverse lookups `priorityNameOf` and
+    `chainTypeFor`, for consumers that iterate symbols family-aware.
   */
-  priorityIntsByFamily = priorityTableFor "compatibility.priorityIntsByFamily";
+  priorityIntsByFamily = builtins.listToAttrs (
+    map (family: {
+      name = family;
+      value = if family == "bridge" then priorityIntsBridge else priorityIntsDefault;
+    }) knownFamilies
+  );
 
   /*
     resolvePriority :: family -> (int | symbol) -> int

@@ -147,7 +147,7 @@ let
     in
     lib.mapAttrs (_: command: {
       expr = roundtrip nftlib.types.command (lib.setAttrByPath command bodies.${lib.last command});
-      expectedError.msg = "v\\.${builtins.head command}.*is not of type";
+      expectedError.msg = "validate\\.${builtins.head command}.*is not of type";
     }) mishandled
     // {
       # The same objects still add, and still read back as listed objects.
@@ -202,7 +202,7 @@ let
     lib.mapAttrs
       (_: verb: {
         expr = roundtrip nftlib.types.command { ${verb}.tunnel = tunnel; };
-        expectedError.msg = "v\\.${verb}.*is not of type";
+        expectedError.msg = "validate\\.${verb}.*is not of type";
       })
       {
         testAddTunnelRejected = "add";
@@ -227,7 +227,7 @@ let
   # field, and a field nft ignores for the verb isn't demanded.
   commandRequirementTests =
     let
-      missing = field: "v\\.${field}' was accessed but has no value defined";
+      missing = field: "validate\\.${field}' was accessed but has no value defined";
       selector = {
         family = "inet";
         table = "t";
@@ -299,7 +299,7 @@ let
             expr = [ { accept = null; } ];
           };
         };
-        expectedError.msg = "v\\.replace\\.rule\\.handle.*is not of type";
+        expectedError.msg = "validate\\.replace\\.rule\\.handle.*is not of type";
       };
       testAddFlowtableRequiresHook = {
         expr = roundtrip nftlib.types.command {
@@ -1036,7 +1036,7 @@ textDriftTests
         };
       };
     };
-    expectedError.msg = "v\\.flush.*is not of type";
+    expectedError.msg = "validate\\.flush.*is not of type";
   };
 
   # nftables rejects `create rule` explicitly. `create` must not reuse the
@@ -1053,7 +1053,7 @@ textDriftTests
         };
       };
     };
-    expectedError.msg = "v\\.create.*is not of type";
+    expectedError.msg = "validate\\.create.*is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -1087,7 +1087,7 @@ textDriftTests
         unit = "packets";
       };
     };
-    expectedError.msg = "v\\.limit\\.unit.*does not exist";
+    expectedError.msg = "validate\\.limit\\.unit.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -1522,7 +1522,7 @@ textDriftTests
         field = "dport";
       };
     };
-    expectedError.msg = "v\\.payload\\.field.*does not exist";
+    expectedError.msg = "validate\\.payload\\.field.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -1535,7 +1535,7 @@ textDriftTests
         offset = 0;
       };
     };
-    expectedError.msg = "v\\.payload. is not of type";
+    expectedError.msg = "validate\\.payload. is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -1547,7 +1547,7 @@ textDriftTests
         protocol = "tcp";
       };
     };
-    expectedError.msg = "v\\.payload. is not of type";
+    expectedError.msg = "validate\\.payload. is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -1821,7 +1821,7 @@ textDriftTests
         field = "dport";
       };
     };
-    expectedError.msg = "v\\.\"ct count\"\\.payload.*does not exist";
+    expectedError.msg = "validate\\.\"ct count\"\\.payload.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -1945,7 +1945,7 @@ textDriftTests
         rate = 100;
       };
     };
-    expectedError.msg = "v\\.limit\\.per.*was accessed but has no value defined";
+    expectedError.msg = "validate\\.limit\\.per.*was accessed but has no value defined";
   };
 
   # queue without num is valid
@@ -2100,7 +2100,7 @@ textDriftTests
         };
       };
     };
-    expectedError.msg = "v\\.tunnel\\.tunnel\\.gbp.*does not exist";
+    expectedError.msg = "validate\\.tunnel\\.tunnel\\.gbp.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -2515,12 +2515,12 @@ textDriftTests
   };
 
   testCompatPriorityDefaultFilter = {
-    expr = nftlib.compatibility.priorityIntsDefault.filter;
+    expr = nftlib.compatibility.priorityIntsByFamily.ip.filter;
     expected = 0;
   };
 
   testCompatPriorityBridgeFilter = {
-    expr = nftlib.compatibility.priorityIntsBridge.filter;
+    expr = nftlib.compatibility.priorityIntsByFamily.bridge.filter;
     expected = -200;
   };
 
@@ -2618,28 +2618,42 @@ textDriftTests
   };
 
   # ------------------------------------------------------------------
-  # priorityIntsByFamily — family→table accessor. Internal dispatch
-  # shared by resolvePriority / priorityNameOf / chainTypeFor.
+  # priorityIntsByFamily — one symbol→int table per family, indexed
+  # like hooksByFamily. The same tables back resolvePriority,
+  # priorityNameOf, and chainTypeFor.
   # ------------------------------------------------------------------
-  testPriorityIntsByFamilyIp = {
-    expr = nftlib.compatibility.priorityIntsByFamily "ip" == nftlib.compatibility.priorityIntsDefault;
-    expected = true;
+  testPriorityIntsByFamilyCoversEveryFamily = {
+    expr = builtins.attrNames nftlib.compatibility.priorityIntsByFamily;
+    expected = [
+      "arp"
+      "bridge"
+      "inet"
+      "ip"
+      "ip6"
+      "netdev"
+    ];
   };
 
   testPriorityIntsByFamilyInet = {
-    expr = nftlib.compatibility.priorityIntsByFamily "inet" == nftlib.compatibility.priorityIntsDefault;
-    expected = true;
+    expr = nftlib.compatibility.priorityIntsByFamily.inet;
+    expected = {
+      raw = -300;
+      mangle = -150;
+      dstnat = -100;
+      filter = 0;
+      security = 50;
+      srcnat = 100;
+    };
   };
 
   testPriorityIntsByFamilyBridge = {
-    expr =
-      nftlib.compatibility.priorityIntsByFamily "bridge" == nftlib.compatibility.priorityIntsBridge;
-    expected = true;
-  };
-
-  testPriorityIntsByFamilyUnknownThrows = {
-    expr = nftlib.compatibility.priorityIntsByFamily "nope";
-    expectedError.msg = "nix-nftypes: compatibility\\.priorityIntsByFamily: unknown family 'nope'";
+    expr = nftlib.compatibility.priorityIntsByFamily.bridge;
+    expected = {
+      dstnat = -300;
+      filter = -200;
+      out = 100;
+      srcnat = 300;
+    };
   };
 
   # ------------------------------------------------------------------
@@ -2757,11 +2771,11 @@ textDriftTests
   */
   testChainTypeForPassesValidChainPlacement =
     let
-      inherit (nftlib.compatibility) hooksByFamily priorityIntsBridge priorityIntsDefault;
-      tableInts = lib.attrValues priorityIntsDefault ++ lib.attrValues priorityIntsBridge;
+      inherit (nftlib.compatibility) hooksByFamily priorityIntsByFamily;
+      tableInts = lib.concatMap lib.attrValues (lib.attrValues priorityIntsByFamily);
       priorities =
         family:
-        lib.attrNames (nftlib.compatibility.priorityIntsByFamily family)
+        lib.attrNames priorityIntsByFamily.${family}
         ++ lib.unique tableInts
         ++ [
           (-1)
@@ -2835,7 +2849,7 @@ textDriftTests
 
   testRulesetRejectsUnknownTopTag = {
     expr = readBack { gizmo = { }; };
-    expectedError.msg = "v\\.nftables\\..*is not of type";
+    expectedError.msg = "validate\\.nftables\\..*is not of type";
   };
 
   testRulesetRejectsUnknownField = {
@@ -2982,7 +2996,7 @@ textDriftTests
     }) true;
     expectedError = {
       type = "ThrownError";
-      msg = "v\\.match\\.left' is not of type `nft expression";
+      msg = "validate\\.match\\.left' is not of type `nft expression";
     };
   };
 

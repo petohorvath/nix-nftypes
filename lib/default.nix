@@ -1,52 +1,7 @@
-/*
-  nix-nftypes — strict NixOS-style schema for libnftables JSON values,
-  plus matching renderers and an ergonomic DSL.
-
-  Outputs:
-    types                   — every schema type (primitive enums plus
-                              composable submodule types).
-    enums                   — flat lists for every primitive enum, e.g.
-                              `enums.family = [ "ip" "ip6" … ]`. Same
-                              binding as the `types.enum` definitions.
-    compatibility           — kernel/man reference data: family×hook,
-                              chain-type×family, chain-type×hook,
-                              symbolic priorities, hooks-with-oifname,
-                              plus a `priorityIntsByFamily` accessor
-                              for the family-appropriate priority
-                              table.
-    resolvePriority         — symbolic chain priority → int, with
-                              family-aware lookup (bridge family
-                              overrides default values); symbols
-                              only, so add offsets with Nix
-                              arithmetic.
-    priorityNameOf          — int → symbolic chain priority (reverse
-                              of `resolvePriority`); ints with no
-                              canonical symbol pass through unchanged.
-    chainTypeFor            — `(family, hook, priority)` → the project's
-                              conventional `"filter"` / `"nat"` / `"route"`
-                              classification, never a type
-                              `validChainPlacement` rejects; not kernel
-                              introspection.
-    validChainPlacement     — `(family, chainType, hook)` → bool from the
-                              static compatibility tables; runtime/device
-                              requirements are outside its scope.
-    toJson                  — compact libnftables JSON serialization.
-    toNix                   — pretty Nix syntax for inspection.
-    toText / toTextPretty   — render to nftables `.nft` text syntax in
-                              imperative form (`add chain …` / `add rule …`).
-    toTextBlock /
-      toTextBlockPretty     — render a single `dsl.table` value to block
-                              form (the contents of a
-                              `table <fam> <name> { … }` wrapper, suitable
-                              for embedding in a host module like nixpkgs'
-                              `networking.nftables.tables.<n>.content`);
-                              standalone `elements.<name>` commands are
-                              rejected because table-block grammar cannot
-                              represent them.
-    cleanValue              — strip module markers and unset nullable fields.
-    dsl                     — declarative builders plus an explicit raw-command
-                              escape hatch; renderers do not fully validate raw
-                              attrsets.
+/**
+  nix-nftypes: strict Nix types, an ergonomic DSL, and pure renderers for
+  nftables rulesets. `docs/api.md` documents every export, and
+  `tests/suites/public-surface.nix` pins the list.
 */
 { lib }:
 
@@ -115,6 +70,7 @@ let
   dsl = import ./dsl {
     inherit lib;
     objects = objects.all;
+    inherit (commands) resetOrder;
     inherit (tables) expandTable;
   };
   compatibility = import ./compatibility.nix;
@@ -135,10 +91,9 @@ in
       and bare lists are not included).
     */
     inherit (expressions) expression expressionOf;
-    # Tagged-only subset of `expression` (no scalar / bare-list branches).
-    # Exposed primarily so callers and tests can introspect the full set
-    # of tagged expression kinds via `.functor.payload.tags` — used by
-    # the schema↔text drift check in tests/suites/schema.nix.
+    # The tagged forms of `expression`, without its scalar and bare-list
+    # branches: the type `expressionOf` restricts, and whose
+    # `.functor.payload.tags` lists every expression tag.
     inherit (expressions) taggedExpression;
     expressions = expressions.all;
 
@@ -191,9 +146,7 @@ in
       hooksByChainType
       hooksByFamily
       hooksWithOifname
-      priorityIntsBridge
       priorityIntsByFamily
-      priorityIntsDefault
       ;
   };
 
@@ -210,6 +163,9 @@ in
   toJson = json.toJson;
   toNix = json.toNix;
   cleanValue = clean;
+
+  # The explicit Validation step the renderers leave to the caller.
+  validate = import ./validate.nix { inherit lib; };
 
   /*
     Render schema-shaped values to the nftables `.nft` text syntax `nft -f`

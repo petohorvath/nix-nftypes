@@ -19,7 +19,7 @@ let
   location = import ./dsl/internal/location.nix { inherit lib; };
   ruleBody = import ./dsl/internal/rule-body.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
-  markers = import ./dsl/internal/markers.nix { };
+  tableTreeMarker = import ./table-tree-marker.nix { };
   context = import ./text/context.nix { inherit lib; };
   objectKindRegistry = import ./dsl/structure/object-kinds.nix { inherit lib objects; };
   objectKinds = lib.mapAttrs' (
@@ -125,7 +125,7 @@ let
       inherit (node) family name;
       tree = location.tableTree family name;
       body = removeAttrs node [
-        markers.table
+        tableTreeMarker.marker
         "family"
         "name"
       ];
@@ -190,7 +190,7 @@ let
   */
   renderTableBlock =
     pretty: node:
-    if !(builtins.isAttrs node && (node.${markers.table} or false)) then
+    if !(tableTreeMarker.isTableTree node) then
       throw "nix-nftypes: text: block-form text rendering expects one dsl.table node"
     else if
       node ? elements && !(builtins.isAttrs node.elements && sortedNames node.elements == [ ])

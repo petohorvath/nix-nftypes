@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -361,6 +362,36 @@ let
       expected = false;
     };
   }) droppedInputs;
+
+  # ----- a table tree passed where a ruleset belongs -------------------
+
+  # Each imperative renderer throws for a table tree, alone or among a
+  # ruleset's commands, and names the wrapper it needs. Each error starts
+  # with the renderer's API name, `text` for the text renderers (ADR 0009).
+  bareTableTests =
+    let
+      tree = dsl.table "inet" "t" { chains.c = { }; };
+      renderers = {
+        toJson = "toJson";
+        toNix = "toNix";
+        toText = "text";
+        toTextPretty = "text";
+      };
+      placements = {
+        alone = tree;
+        inRuleset.nftables = [ tree ];
+      };
+    in
+    lib.concatMapAttrs (
+      renderer: api:
+      lib.mapAttrs' (
+        placement: value:
+        lib.nameValuePair "testBareTableThrows_${renderer}_${placement}" {
+          expr = nftlib.${renderer} value;
+          expectedError.msg = "nix-nftypes: ${api}: got a dsl\\.table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
+        }
+      ) placements
+    ) renderers;
 in
 {
   # Building a table or ruleset stays lazy; only rendering validates.
@@ -979,6 +1010,81 @@ in
     };
   };
 
+  # ----- the flat namespace --------------------------------------------
+
+  # The DSL's flat namespace merges its layers; a name two layers define
+  # throws instead of one layer silently shadowing the other.
+  testDslLayerCollisionThrows = {
+    expr = helpers.internals.dslMergeDisjoint {
+      ops.match = 1;
+      verdicts = {
+        accept = 2;
+        match = 3;
+      };
+    };
+    expectedError.msg = "nix-nftypes: dsl: `match' is defined by more than one layer: ops, verdicts";
+  };
+
+  testDslLayersMerge = {
+    expr = helpers.internals.dslMergeDisjoint {
+      ops.eq = 1;
+      verdicts.accept = 2;
+    };
+    expected = {
+      eq = 1;
+      accept = 2;
+    };
+  };
+
+  # ----- reset order ---------------------------------------------------
+
+  # nft runs a reset of a counter, quota, set, map, or rule only as the
+  # batch's last command, so `dsl.ruleset` throws for one placed earlier,
+  # whether a builder or a raw attrset made it.
+  testRulesetResetBeforeTableThrows = {
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.reset.counter {
+          family = "inet";
+          table = "t";
+          name = "c";
+        })
+        (dsl.table "inet" "t" { })
+      ]
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.ruleset: .*reset.*last command";
+  };
+
+  testRulesetRawResetBeforeCommandThrows = {
+    expr = toJson (
+      dsl.ruleset [
+        {
+          reset.quota = {
+            family = "inet";
+            table = "t";
+            name = "q";
+          };
+        }
+        { flush.ruleset = null; }
+      ]
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.ruleset: .*reset.*last command";
+  };
+
+  testRulesetAcceptsResetLast = {
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "inet" "t" { counters.c = { }; })
+        (dsl.reset.counter {
+          family = "inet";
+          table = "t";
+          name = "c";
+        })
+      ]
+    );
+    expected = "{\"nftables\":[{\"add\":{\"table\":{\"family\":\"inet\",\"name\":\"t\"}}},{\"add\":{\"counter\":{\"family\":\"inet\",\"name\":\"c\",\"table\":\"t\"}}},{\"reset\":{\"counter\":{\"family\":\"inet\",\"name\":\"c\",\"table\":\"t\"}}}]}";
+  };
+
   # ----- happy path: a complete, valid ruleset still renders -----------
 
   testTreeAcceptedRulesetSucceeds = {
@@ -1004,3 +1110,4 @@ in
 // droppedInputTests
 // malformedRuleEntryTests
 // ruleCommandTests
+// bareTableTests

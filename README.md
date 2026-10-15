@@ -6,7 +6,7 @@ nix-nftypes is a Nix library of strict types, a DSL, and pure renderers for nfta
 
 The library has three layers:
 
-- **Schema** (`nftlib.types`): Nix module types that model libnftables JSON, from primitive enums up to a complete ruleset. They validate hand-written attrsets through `lib.evalModules`.
+- **Schema** (`nftlib.types`): Nix module types that model libnftables JSON, from primitive enums up to a complete ruleset. `nftlib.validate` checks a hand-written attrset against them.
 - **DSL** (`nftlib.dsl`): constructors that build the same schema-shaped values with less repetition. It provides field leaves such as `fields.tcp.dport`, operators such as `eq` and `inSet`, statements such as `counter`, `limit`, and `dnat`, command builders, and a declarative table tree of named objects, chains, and ordered rules.
 - **Renderers** (`toJson`, `toText`, and others): pure functions that turn a value into libnftables JSON or nftables text without calling `nft`.
 
@@ -123,7 +123,13 @@ Block form has no standalone `element` command, so it rejects a table tree with 
 
 The DSL validates every object, chain, and rule it assembles when output is requested. The renderers do not validate: they clean and render whatever they receive. A raw attrset, whether rendered directly or passed among the commands of `dsl.ruleset`, reaches the output unchecked.
 
-Validate raw values that come from users or other modules by declaring an option of type `nftlib.types.ruleset` and evaluating it with `lib.evalModules`. [`docs/api.md`](docs/api.md#validation-model) shows the full pattern.
+Validate raw values that come from users or other modules with `nftlib.validate`, before rendering them:
+
+```nix
+nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
+```
+
+[`docs/api.md`](docs/api.md#validation-model) describes what it returns and how it reports a mismatch.
 
 ## Limitations
 

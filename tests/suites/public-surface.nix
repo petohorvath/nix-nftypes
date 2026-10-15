@@ -29,6 +29,7 @@ in
       "toTextPretty"
       "types"
       "validChainPlacement"
+      "validate"
     ];
   };
 
@@ -278,9 +279,7 @@ in
       "hooksByChainType"
       "hooksByFamily"
       "hooksWithOifname"
-      "priorityIntsBridge"
       "priorityIntsByFamily"
-      "priorityIntsDefault"
     ];
   };
 

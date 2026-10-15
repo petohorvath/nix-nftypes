@@ -21,6 +21,7 @@
 
 let
   context = import ./context.nix { inherit lib; };
+  inherit (import ../table-tree-marker.nix { }) requireNoTableTree;
   primitives = import ./primitives.nix {
     inherit
       lib
@@ -71,7 +72,7 @@ let
   renderRuleset =
     ctx: ruleset:
     let
-      cleaned = clean ruleset;
+      cleaned = clean (requireNoTableTree "text" ruleset);
       rulesetCommands =
         if cleaned ? nftables then
           cleaned.nftables
@@ -90,7 +91,7 @@ in
 
     The argument is a schema-shaped ruleset (`{ nftables = [ … ]; }`). It is
     cleaned first but not fully type-checked; a missing `nftables` key
-    throws.
+    throws, and so does a table tree, alone or among the commands.
 
     Returns the `.nft` text as a string.
   */

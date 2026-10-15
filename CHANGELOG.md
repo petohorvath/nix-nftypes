@@ -10,6 +10,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Added
 
+- `validate type value` checks a value against a schema type and returns it ready to render. It forces the whole value, so every check runs, and replaces the `lib.evalModules` pattern the docs showed.
 - `add.<kind>`, a command builder for each of the 16 add-object kinds, like `create.<kind>`.
 - Sets and maps accept a `comment`, so `types.ruleset` validates the Read-back of a commented set or map. nft's JSON parser ignores it on input.
 - ct helper, timeout, and expectation objects accept `l3proto = "inet"`, which nft lists for one in an inet table. Their `l3proto` has its own type, `types.ctL3Proto`, with values under `enums.ctL3Proto`.
@@ -20,6 +21,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Changed
 
+- `compatibility.priorityIntsByFamily` is an attrset indexed by family, like `hooksByFamily`, instead of a function: write `priorityIntsByFamily.bridge` for `priorityIntsByFamily "bridge"`. An unknown family is a missing attribute.
 - Flush commands are a `flush.<kind>` namespace like the other verbs: `flush.ruleset`, `flush.table`, `flush.chain`, `flush.set`, `flush.map`, and `flush.meter`. Each takes an object body, and `flush.ruleset { }` flushes every family. They replace `flushRuleset`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`, and the bare `flush` value.
 - Every DSL field name is camelCase:
   - `limit` takes `rateUnit` and `burstUnit`, and so do named limits in a table tree and `create.limit`.
@@ -81,6 +83,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Removed
 
+- `compatibility.priorityIntsDefault` and `compatibility.priorityIntsBridge`. Use `compatibility.priorityIntsByFamily.<family>`, which holds the same tables.
 - `dsl.rule`. Use `add.rule`, which takes the same body.
 - The element `stmt` field and the `stmt` argument of `expr.elem`. nft's JSON parser ignores element statements, so seeded element counters loaded as fresh ones, and elements of a set that declares no statement loaded without any. Declare the statement on the set, as in `stmt = [ { counter = null; } ]`, to give each element its own counter.
 - `fields.icmpv6.packetTooBig`, a field nft doesn't have. Use `fields.icmpv6.mtu`.
@@ -93,6 +96,8 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Fixed
 
+- `dsl.ruleset` throws when a reset of a counter, quota, set, map, or rule is not its last command, as `types.ruleset` does, whether a builder or a raw attrset made it. nft resets nothing for one placed earlier and still exits 0.
+- `toJson`, `toNix`, `toText`, and `toTextPretty` throw for a `dsl.table` tree passed where a ruleset belongs, alone or among its commands, and ask for `dsl.ruleset`. `toJson` and `toNix` rendered it with its internal marker, as JSON nft rejects, and the text errors didn't say what was wrong.
 - The home-router example loads. Its input chain had a `flow` statement, which the kernel takes only in a forward chain, and its flowtable was named `offload`, which text can't spell; it's now `fastpath`.
 - Text of a listed ruleset leaves out its `metainfo`, which nft's JSON parser ignores. It wrote a `metainfo` line, which nft rejects.
 - Text leaves the `handle` off a listed rule, which nft's JSON parser ignores, so a Read-back with rules loads as text. It wrote `rule … handle 7`, which text reads as a position, so the load failed with "No such file or directory".
