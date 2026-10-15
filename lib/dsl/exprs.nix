@@ -9,6 +9,7 @@
 
 let
   compact = import ./internal/compact.nix { inherit lib; };
+  reference = import ./internal/reference.nix { inherit lib; };
 in
 {
   # -- Structural -----------------------------------------------------------
@@ -30,7 +31,7 @@ in
     xs:
     if builtins.isString xs then
       throw ''
-        expr.set: a bare string ("${xs}") is not a valid anonymous-set body —
+        nix-nftypes: dsl.expr.set: a bare string ("${xs}") is not a valid anonymous-set body —
         anonymous sets are lists. For a named-set reference, use
         `expr.setRef "${xs}"` (or pass `"@${xs}"` directly to inSet/notInSet).
       ''
@@ -38,38 +39,32 @@ in
       { set = xs; };
 
   /*
-    Reference a named set. `name` is the set name, with or without the
-    leading `@` that libnftables JSON uses for named references. Returns
-    `{ set = "@<name>"; }` and throws when `name` is not a string.
+    Reference a named set, as the right side of a match. `name` is the set
+    name, with or without the leading `@` that libnftables JSON uses for
+    named references. Returns the reference string `"@<name>"`, the shape
+    nft lists, and throws when `name` is not a string.
   */
-  setRef =
-    name:
-    if !(builtins.isString name) then
-      throw "expr.setRef: expected a name string, got ${builtins.typeOf name}"
-    else if lib.hasPrefix "@" name then
-      { set = name; }
-    else
-      { set = "@${name}"; };
+  setRef = reference.atReference "expr.setRef";
 
   /*
     Build a map lookup. `key` is the lookup expression and `data` the
-    anonymous map body or named map reference. Returns a map expression.
+    anonymous map body, or a named map's name with or without its leading
+    `@`. Returns a map expression whose named map is `"@<name>"`.
   */
-  map = key: data: { map = { inherit key data; }; };
+  map = key: data: {
+    map = {
+      inherit key;
+      data = if builtins.isString data then reference.atReference "expr.map" data else data;
+    };
+  };
 
   /*
-    Reference a named map, mirroring `setRef`. `name` is the map name, with
-    or without a leading `@`. Returns `{ map = "@<name>"; }` and throws when
-    `name` is not a string.
+    Reference a named map, for the data of a map lookup (`map`) or a
+    verdict map (`vmap`). `name` is the map name, with or without the
+    leading `@`. Returns the reference string `"@<name>"`, as `setRef`
+    does, and throws when `name` is not a string.
   */
-  mapRef =
-    name:
-    if !(builtins.isString name) then
-      throw "expr.mapRef: expected a name string, got ${builtins.typeOf name}"
-    else if lib.hasPrefix "@" name then
-      { map = name; }
-    else
-      { map = "@${name}"; };
+  mapRef = reference.atReference "expr.mapRef";
 
   /*
     Build an address prefix. `addr` is the network address and `len` the
@@ -90,8 +85,9 @@ in
 
   /*
     Build a set element with per-element options. `val` is the element
-    value; `timeout`, `expires`, `comment`, and `stmt` are optional and
-    omitted when null. Returns an elem expression.
+    value; `timeout`, `expires`, and `comment` are optional and omitted
+    when null. There is no element statement: nft's JSON parser ignores
+    one. Returns an elem expression.
   */
   elem =
     {
@@ -99,7 +95,6 @@ in
       timeout ? null,
       expires ? null,
       comment ? null,
-      stmt ? null,
     }:
     {
       elem = compact {
@@ -108,7 +103,6 @@ in
           timeout
           expires
           comment
-          stmt
           ;
       };
     };

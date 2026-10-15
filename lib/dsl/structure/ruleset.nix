@@ -20,7 +20,7 @@ let
     else if builtins.isAttrs child then
       [ child ]
     else
-      throw "dsl.ruleset: invalid child — expected table node, command attrset, or list";
+      throw "nix-nftypes: dsl.ruleset: invalid child — expected table node, command attrset, or list";
 
   flattenChildren = children: lib.concatMap flattenChild children;
 in

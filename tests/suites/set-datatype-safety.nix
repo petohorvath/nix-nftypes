@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -76,6 +77,11 @@ let
     mapKeyType = rulesetWithMapType;
     mapValueType = rulesetWithMapValueType;
   };
+  fieldOf = {
+    setType = "set type";
+    mapKeyType = "map type";
+    mapValueType = "map value type";
+  };
 
   badInputs = {
     newline = "ipv4_addr\n}\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }";
@@ -105,7 +111,7 @@ let
         name = "testRendererRejects_${surface}_${badName}";
         value = {
           expr = nftlib.toText (surfaces.${surface} badValue);
-          expectedError.msg = "refusing to render a set/map datatype";
+          expectedError.msg = helpers.refusals.datatype fieldOf.${surface};
         };
       }) badInputs
     ) (builtins.attrNames surfaces)
@@ -121,7 +127,7 @@ let
           "ipv4_addr"
           badValue
         ]);
-        expectedError.msg = "refusing to render a set/map datatype";
+        expectedError.msg = helpers.refusals.datatype "set type";
       };
     }) badInputs
   );
@@ -154,7 +160,7 @@ let
   prettyTests = {
     testPrettyRejectsInjection = {
       expr = toTextPretty (rulesetWithSetType badInputs.newline);
-      expectedError.msg = "refusing to render a set/map datatype";
+      expectedError.msg = helpers.refusals.datatype "set type";
     };
     testPrettyAcceptsCleanDatatype = {
       expr = builtins.isString (toTextPretty (rulesetWithSetType "ipv4_addr"));

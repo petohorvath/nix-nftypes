@@ -1,22 +1,25 @@
 /*
-  Counter statement in its three forms (parser_json.c:1914): an inline
-  anonymous counter, a reference to a named counter, and the stateless null
-  form (e.g. `nft -j list --stateless`).
+  Counter statement in its three forms (parser_json.c:1894-1920): an inline
+  anonymous counter, a reference to a named counter, and the null form
+  (e.g. `nft -j list --stateless`).
 */
 { lib }:
 
 let
-  compact = import ../internal/compact.nix { inherit lib; };
   variant = import ../internal/variant.nix { inherit lib; };
+  reference = import ../internal/reference.nix { inherit lib; };
 in
 {
   /*
     Count packets and bytes that reach this statement.
 
-    `counter { packets?; bytes?; }` builds an inline anonymous counter; the
-    optional arguments seed its values. `counter.ref name` references a named
-    counter object. `counter.auto` is the stateless `{ counter = null; }`
-    form. Each returns a counter statement.
+    `counter { packets; bytes; }` builds an inline anonymous counter seeded
+    with both values; nft parses an inline counter only with both, so a
+    missing one throws. `counter.ref ref` references a named counter
+    object: `ref` is its name, with or without a leading `@`, or a map
+    expression that selects one by key. `counter.auto` is the null form
+    `{ counter = null; }`, an unseeded counter. Each returns a counter
+    statement.
   */
   counter =
     variant
@@ -25,14 +28,17 @@ in
           packets ? null,
           bytes ? null,
         }:
-        {
-          counter = compact { inherit packets bytes; };
-        }
+        if packets == null || bytes == null then
+          throw "nix-nftypes: dsl.counter: an inline counter needs both packets and bytes; use counter.auto for an unseeded counter"
+        else
+          {
+            counter = { inherit packets bytes; };
+          }
       )
       {
         auto = {
           counter = null;
         };
-        ref = name: { counter = name; };
+        ref = ref: { counter = reference.objectReference "counter.ref" ref; };
       };
 }

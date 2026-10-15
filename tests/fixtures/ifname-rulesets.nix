@@ -17,7 +17,7 @@ rec {
     ];
 
   # Same set but the element carries options (`{ elem = { val; … }; }`):
-  # the cross-field walker has to dig through the wrapper.
+  # the renderer has to quote the value inside the wrapper.
   setElemWithOptions =
     elem:
     dsl.ruleset [
@@ -36,9 +36,8 @@ rec {
       })
     ];
 
-  # Map keyed on ifname. The key is the typed slot (the map's `type`
-  # describes its key datatype), so `[k, v]` element pairs need their
-  # KEY validated.
+  # Map keyed on ifname. The map's `type` describes its key datatype, so
+  # the KEY of each `[k, v]` element pair is the interface name.
   mapKey =
     key:
     dsl.ruleset [
@@ -72,8 +71,7 @@ rec {
       })
     ];
 
-  # netdev-family base chain bound to a list of ifnames — the path
-  # the audit's widening PoC exercises.
+  # netdev-family base chain bound to a list of ifnames.
   chainDevList =
     devs:
     dsl.ruleset [

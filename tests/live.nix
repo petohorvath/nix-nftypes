@@ -12,15 +12,17 @@ let
   };
 in
 {
+  chainPlacement = import ./suites/chain-placement.nix testContext;
   commentSafetyIntegration = import ./suites/comment-safety-integration.nix testContext;
   dslIntegration = import ./suites/dsl-integration.nix testContext;
   ifnameSafetyIntegration = import ./suites/ifname-safety-integration.nix testContext;
+  nftMisbehaviour = import ./suites/nft-misbehaviour.nix testContext;
   nftablesCorpus = import ./suites/nftables-corpus.nix testContext;
   nftablesEnumExtraction = import ./suites/nftables-enum-extraction.nix testContext;
   nftablesRoundtrip = import ./suites/nftables-roundtrip.nix testContext;
   nftablesSourceProvenance = import ./suites/nftables-source-provenance.nix testContext;
   nftablesToolingSelftest = import ./suites/nftables-tooling-selftest.nix testContext;
+  parseCheck = import ./suites/parse-check.nix testContext;
   renderEquivalence = import ./suites/render-equivalence.nix testContext;
   textBlockIntegration = import ./suites/text-block-integration.nix testContext;
-  textIntegration = import ./suites/text-integration.nix testContext;
 }

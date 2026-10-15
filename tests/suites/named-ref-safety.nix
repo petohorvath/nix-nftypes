@@ -6,22 +6,23 @@
 }:
 
 # Regression coverage for the named-reference injection class.
-# Three statement kinds carry a `types.str` field that names a
-# pre-declared object, rendered bare into the output:
+# Three statement kinds carry an `@<name>` reference to a pre-declared
+# object, rendered bare into the output:
 #
-#   set    statement → `<op> @<set>  { … }`     (renderer prepends `@`)
-#   map    statement → `<op> @<map>  { … }`     (renderer prepends `@`)
-#   flow   statement → `flow <op> <flowtable>`  (`@` carried by the value)
+#   set    statement → `<op> @<set>  { … }`
+#   map    statement → `<op> @<map>  { … }`
+#   flow   statement → `flow <op> @<flowtable>`
 #
 # Pre-fix, an unsafe byte in the name truncated the statement and
 # dropped a fresh `add chain` payload into the rendered text that
 # `nft -f` parsed as a real chain at attacker-chosen priority.
 #
-# Renderer-level fix: each name now flows through `safeToken`
-# (lib/text/expressions.nix) before reaching the output. The shared
-# `nft-safe-scalar` predicate accepts `@` and the identifier-shaped
-# subset of bytes legitimate object names use; it rejects whitespace,
-# nft-grammar metacharacters, and control characters.
+# Renderer-level fix: each reference flows through `namedReference`
+# (lib/text/primitives.nix), which refuses one without its `@` and
+# checks the name with `safeToken`. The shared `nft-safe-scalar`
+# predicate accepts the identifier-shaped subset of bytes legitimate
+# object names use; it rejects whitespace, nft-grammar
+# metacharacters, and control characters.
 
 let
   dsl = nftlib.dsl;
@@ -90,31 +91,23 @@ let
       })
     ];
 
+  # The DSL adds the `@` a name lacks.
   surfaces = {
     setStmt = rulesetSetStmt;
     mapStmt = rulesetMapStmt;
-    # `flowAt` constructs `@${name}` so an empty name yields a bare `@`
-    # — still non-empty per the predicate (it's the `@` byte). The
-    # `flowBare` surface omits the prefix so the empty-string case
-    # exercises the predicate's non-empty assertion.
-    flowAt = name: rulesetFlow "@${name}";
-    flowBare = rulesetFlow;
+    flow = rulesetFlow;
   };
 
   # Field label each surface's renderer names in its refusal.
   fieldOf = {
     setStmt = "set reference";
     mapStmt = "map reference";
-    flowAt = "flowtable reference";
-    flowBare = "flowtable reference";
+    flow = "flowtable reference";
   };
 
   refusal = helpers.refusals.bareToken;
 
-  # `empty` is in the `flowBare`-only set: for `flowAt` it pairs with
-  # the `@` prefix and produces a non-empty (but malformed) value, so
-  # the predicate accepts it and nft itself rejects at parse time.
-  badInputsCommon = {
+  badInputs = {
     newline = "blocked\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }";
     semicolon = "blocked; add chain inet fw pwned;";
     brace = "blocked}";
@@ -124,10 +117,6 @@ let
     hash = "blocked#";
     comma = "blocked,extra";
   };
-  badInputsBare = badInputsCommon // {
-    empty = "";
-  };
-  badInputsForSurface = surface: if surface == "flowAt" then badInputsCommon else badInputsBare;
 
   goodInputs = {
     bareName = "blocked";
@@ -146,13 +135,11 @@ let
           expr = nftlib.toText (surfaces.${surface} badValue);
           expectedError.msg = refusal fieldOf.${surface};
         };
-      }) (badInputsForSurface surface)
+      }) badInputs
     ) (builtins.attrNames surfaces)
   );
 
-  # Pin the safe inputs against compact and pretty renderers. The
-  # `flowAt`/`flowBare` split isolates the `@`-prefix question from
-  # the byte-safety question.
+  # Pin the safe inputs against the compact renderer.
   acceptanceTests = lib.listToAttrs (
     lib.concatMap (
       surface:
@@ -168,17 +155,64 @@ let
 
   prettyTests = {
     testPrettyRejects_setStmt_newline = {
-      expr = toTextPretty (rulesetSetStmt badInputsCommon.newline);
+      expr = toTextPretty (rulesetSetStmt badInputs.newline);
       expectedError.msg = refusal "set reference";
     };
     testPrettyRejects_mapStmt_newline = {
-      expr = toTextPretty (rulesetMapStmt badInputsCommon.newline);
+      expr = toTextPretty (rulesetMapStmt badInputs.newline);
       expectedError.msg = refusal "map reference";
     };
     testPrettyRejects_flow_newline = {
-      expr = toTextPretty (rulesetFlow "@${badInputsCommon.newline}");
+      expr = toTextPretty (rulesetFlow badInputs.newline);
       expectedError.msg = refusal "flowtable reference";
     };
   };
+
+  # Raw statements bypass the DSL and the schema, so the renderer
+  # refuses a reference without its `@`, or with no name after it.
+  rawRule = statement: {
+    nftables = [
+      {
+        add.rule = {
+          family = "inet";
+          table = "fw";
+          chain = "input";
+          expr = [ statement ];
+        };
+      }
+    ];
+  };
+  rawStatements = reference: {
+    setStmt.set = {
+      op = "add";
+      elem = "1.2.3.4";
+      set = reference;
+    };
+    mapStmt.map = {
+      op = "update";
+      elem = "1.2.3.4";
+      data = 1;
+      map = reference;
+    };
+    flow.flow = {
+      op = "add";
+      flowtable = reference;
+    };
+  };
+  rawTests =
+    lib.mapAttrs' (surface: statement: {
+      name = "testRendererRejectsWithoutAt_${surface}";
+      value = {
+        expr = nftlib.toText (rawRule statement);
+        expectedError.msg = helpers.refusals.namedReference fieldOf.${surface};
+      };
+    }) (rawStatements "blocked")
+    // lib.mapAttrs' (surface: statement: {
+      name = "testRendererRejectsEmptyName_${surface}";
+      value = {
+        expr = nftlib.toText (rawRule statement);
+        expectedError.msg = refusal fieldOf.${surface};
+      };
+    }) (rawStatements "@");
 in
-rejectionTests // acceptanceTests // prettyTests
+rejectionTests // acceptanceTests // prettyTests // rawTests

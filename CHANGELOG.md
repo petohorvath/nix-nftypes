@@ -6,11 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-The DSL follows one set of naming and argument conventions ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). These changes break DSL callers; the schema types and renderers are unchanged.
+The schema accepts what nft loads as written and rejects what it loads as something else ([ADR 0010](docs/adr/0010-accept-what-nft-loads-as-written.md)), the text renderer writes text that loads the same ruleset as the JSON form, or raises a Refusal, and the DSL follows one set of naming and argument conventions ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). Many of these changes break callers of the DSL, the schema types, and the text renderer.
 
 ### Added
 
-- `add.<kind>`, a command builder for each of the 17 add-object kinds, like `create.<kind>`.
+- `add.<kind>`, a command builder for each of the 16 add-object kinds, like `create.<kind>`.
+- Sets and maps accept a `comment`, so `types.ruleset` validates the Read-back of a commented set or map. nft's JSON parser ignores it on input.
+- ct helper, timeout, and expectation objects accept `l3proto = "inet"`, which nft lists for one in an inet table. Their `l3proto` has its own type, `types.ctL3Proto`, with values under `enums.ctL3Proto`.
+- `types.deleteObject`, the object union of `delete` and `destroy` commands, and `types.readBackObject`, a bare listed object in a ruleset, as `nft -j list` emits.
+- `types.replaceObject` and `types.renameObject`, the object unions of `replace` and `rename` commands.
+- Set and map elements accept the statement keys nft lists for them, `counter`, `quota`, `limit`, and `last`, beside `val`, so `types.ruleset` validates the Read-back of a set whose elements carry stateful statements. nft's JSON parser ignores them on input.
+- The log, masquerade, redirect, queue, and reject statements accept the `null` body that nft lists for one with no options, so `types.ruleset` validates its Read-back. Text renders it as the bare statement, such as `log`.
 
 ### Changed
 
@@ -19,14 +25,102 @@ The DSL follows one set of naming and argument conventions ([ADR 0009](docs/adr/
   - `limit` takes `rateUnit` and `burstUnit`, and so do named limits in a table tree and `create.limit`.
   - `quota` takes `valUnit` and `usedUnit`.
   - `snat` and `dnat` take `typeFlags`.
-  - `list.metainfo` takes `releaseName` and `jsonSchemaVersion`.
-  - Geneve tunnel options take `optType`.
 - `expr.map key data` and `payload protocol field` take positional arguments, like `vmap key data`.
+- Field leaves use nft's field names. `fields.udplite.cksumcov` is `fields.udplite.csumcov`, and `fields.arp.saddr` and `fields.arp.daddr` are `fields.arp.saddrEther`, `saddrIp`, `daddrEther`, and `daddrIp`, for nft's `saddr ether`, `saddr ip`, `daddr ether`, and `daddr ip`. The old leaves named fields nft rejects.
+- `types.ifname` and the text renderer accept any interface name the kernel accepts and text can quote: 1 to 15 bytes, not `.` or `..`, with no `/`, `:`, whitespace, `"`, `\`, or control characters. They rejected `,`, `;`, `{`, `}`, and `#` too, which only bare text needed.
+- A table tree no longer checks the elements of an `ifname` set or map when it is prepared. The text renderer refuses an element that isn't an interface name, naming its field.
+- `types.command` rejects `delete`, `destroy`, and `list` of a ct timeout or ct expectation, and `delete` and `destroy` of a ct count, because nft mishandles them: deleting a ct expectation deletes its whole table, and nftables 1.1.7 aborts on deleting a ct count. `types.listObject` no longer takes a ct timeout or ct expectation; listed ones in a ruleset still validate, through `types.readBackObject`.
+- `types.command` rejects every tunnel command, and `types.addObject`, `types.createObject`, and `types.listObject` no longer take a tunnel: nft's JSON parser loads a tunnel's `dport` as its `sport`, leaves a missing port, `ttl`, or `tos` uninitialised, and aborts on delete, destroy, and list of one. A listed tunnel in a ruleset still validates, through `types.readBackObject`.
+- Text refuses a tunnel object. Its spellings didn't load, and a text form that did would load different ports from the JSON form.
+- Text refuses a listed `meter` object, naming the field (`meter`). It wrote `meter <family> <table> <name>`, which nft rejects; nft's JSON parser rejects one too, and nft lists a meter's dynamic set as a `set`.
+- Text refuses a `handle` on `add rule`, naming the field (`add rule handle`). It wrote `add rule … handle 7`, which loads the rule after rule 7, as nftables 1.1.7's JSON parser does, while 1.1.6's ignores the handle and appends the rule.
+- Text refuses a command that names a `metainfo`, such as `list metainfo`, naming the field (`list metainfo`). It wrote `list metainfo`, which nft rejects in text and JSON.
+- Text refuses a set or map `comment`. It rendered one, which nft loads, while JSON input drops it, so the two forms loaded different sets.
+- Text refuses an element statement, naming the field (`element counter`). It rendered a `stmt` list, which nft's text loads when the set declares the same statement, while JSON input drops it. Set-level statements, such as `counter;`, render as before.
+- `setStmt`, `mapStmt`, and `flow` take the set, map, or flowtable name with or without its `@` and store it as `"@name"`, as `expr.setRef` does. They passed the name through, so a bare name failed in JSON.
+- The set and map statement `set` and `map` fields and the flow statement `flowtable` field require the `@` reference prefix (`types.namedReference`), because nft's JSON parser rejects a reference without it.
+- Text prints a set, map, or flow statement reference as stored and refuses one without its `@`, naming the field. It added an `@` to set and map references, so `"@blocked"` rendered as `add @@blocked`.
+- `expr.setRef "name"` and `expr.mapRef "name"` return the reference string `"@name"`, the shape nft lists, which a match, a map lookup, and a `vmap` take. `expr.mapRef` returned `{ map = "@name"; }`, which nft parses nowhere, and `expr.setRef` returned `{ set = "@name"; }`.
+- Every builder that references a named object takes the name with or without its `@` and emits the spelling nft's JSON parser looks up there ([API reference](docs/api.md#references-to-named-objects)):
+  - The `.ref` of `counter`, `quota`, `limit`, `synproxy`, and `ctCount` drops a leading `@`. It passed `"@c"` through, which names no object, so the rule failed to load with "No such file or directory".
+  - `vmap` and `expr.map` add the `@` to a bare map name, which nft's JSON parser read as a hostname.
+  - A `.ref` throws on a value that is neither a name nor a map expression, naming the builder.
+- `ctHelper`, `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` reference their object through `.ref`, as `counter.ref` does: `ctHelper.ref "ftp"`. Calling one directly throws and points to its `.ref`.
+- Text refuses a map with a datatype key and a typeof value, which nft's text grammar can't declare.
+- Text refuses a comment on a `create` of a counter, quota, limit, or synproxy, naming the field (`create quota comment`). Those commands take their values positionally, with no comment clause, so text dropped a comment that JSON loads.
+- Text refuses a statement value that nft's text grammar can't spell with its JSON meaning, and names the field: a NAT `netmap` flag with a port or another flag, or on `masquerade` or `redirect`; a NAT `concat` type flag without a family or with a port; an existence check of the `rt0`, `rt2`, or `srh` extension header; a `last used` time below -1; and an unknown log flag. The [text coverage](docs/text-coverage.md#statement-spellings) lists them.
+- Commands require the fields nft's JSON parser requires for them, and `dsl` command builders throw naming a missing one:
+  - `add` and `create` of a flowtable require `hook` and `prio`, including a table tree's `flowtables`.
+  - `replace` requires the `handle` of the rule it replaces, a positive integer: nft takes handle 0 as missing.
+  - `rename` requires `newname`, and a chain body for any other command no longer takes one.
+- `types.ruleset` rejects a ruleset with a `reset` of a counter, quota, set, map, or rule before its last entry. In one batch, nft runs such a reset only as the last command: followed by any other command, it reset nothing, and nft exited 0. Give each such reset a ruleset of its own, or put it last; a `reset` of an element runs anywhere. The [schema coverage](docs/spec-coverage.md#resets-before-another-command) has the measurements.
+- `delete`, `destroy`, `list`, `flush`, and `reset` select an object by `family`, `table`, and `name`, and demand no field nft ignores for the verb: a set's or map's datatypes, a limit's `rate` and `per`, a flowtable's `hook` and `prio`, and a synproxy's `mss` and `wscale` are optional there. `list`, `flush`, and `reset` of a set or map required its datatypes, `list.limit` its `per`, and `delete` and `destroy` of a synproxy its `mss` and `wscale`. The selection bodies are `types.objects.selectSetBody`, `selectMapBody`, `selectLimitBody`, `selectFlowtableBody`, `selectSynproxyBody`, and `selectRuleBody`.
+- `types.command` rejects a `handle` on `add rule`, and `add.rule` and a table tree's rules throw naming the field (`dsl.add.rule.handle`). nftables 1.1.6's JSON parser ignores the handle and appends the rule, while 1.1.7 and text add it after the rule with that handle. Place a rule with `index`, or with `insert`. `types.addObject`'s rule is `types.objects.addRuleBody`; a listed rule in a ruleset keeps its `handle`, through `types.readBackObject`, and `insert` and `replace` keep theirs.
+- `types.listObject` no longer takes a ct count, element, flowtable, `metainfo`, rule, or synproxy, so `types.command` rejects `list` of one. nft has no singular `list` of them and rejects each with "Unknown object passed to list command"; the DSL already had no builder for them.
+- `delete` and `destroy` of a rule, and `types.resetObject`'s rule, require the rule's `handle`, a positive integer. nft takes handle 0 as no handle, and the kernel then deletes every rule in the chain; a delete without one failed in nft.
+- An inline counter needs both `packets` and `bytes`: nft parses any other object as a reference to a named counter, and fails. `types.statement` rejects a counter with one of them, and `counter { }` or `counter` with one of them throws, pointing to `counter.auto` for an unseeded counter.
+- `tproxy`, `snat`, and `dnat` need an `addr` or a `port`. nft refuses an empty tproxy, and the kernel an snat or dnat with neither.
+- Text checks every value it writes bare, enum, closed-set, and integer fields included, and refuses one that isn't an integer or a bare token, naming the field, such as `chain policy`. Raw input reached the text unchecked there, so a chain `policy` of `drop; }` followed by an `add chain` command loaded that extra chain.
+- Text refuses a bare expression string containing `/`, such as `"198.51.100.7/0"`, and points to `exprs.prefix` (`dsl.expr.prefix`). nft's JSON parser rejects one as a hostname, but text loaded it as a prefix, so a typo could match every address.
+- Where text can't tell a value's type, as in an `add element` command, it refuses a string that nft's lexer reads as something other than that string, naming the field. Written bare, `010` added to an `ifname` set loaded as `8`, `0x10` as `16`, `a|b` as `c`, and `$lan` took a host `define`. Names, IPv4, IPv6, and MAC addresses, `@name` references, and `*` render as before.
+- The bare-token check refuses a byte above 0x7F, which nft's lexer reads as junk outside a quoted string. `types.ifname` and the text renderer refuse an interface name containing byte 0xA0, as in U+00A0 or U+00E0, because the kernel takes that byte as whitespace. Quoted strings, such as comments, keep accepting it: nft loads it as written.
+- Log prefixes have their own type, `types.logPrefix`: 1 to 127 bytes with no `$`, besides the quoted-string rules. The schema accepted 0 and 128 bytes, which nft rejects, and `$`, which nft's text expands from a `define` (`"$x"` fails without one) while JSON loads it literally. Text refuses such a prefix in a raw attrset, naming the field; give a literal `$` through raw JSON.
+- The DSL throws, naming the field, instead of dropping or misreading input:
+  - `inSet`, `notInSet`, and `within` with a string without `@`, such as `"blocked"`, which they matched as one value. The error points to `expr.setRef`.
+  - A body that gives a field in both spellings, such as a set with `elements` and `elem`, or a limit with `rateUnit` and `rate_unit`. One of the two values was dropped.
+  - A `dsl.table` body whose `family` or `name` differs from the positional arguments, a scope conflict. The body's values were ignored.
+  - Module keys in a body, such as `imports`, `key`, or `freeformType`, which the module system consumed, and `_module`, which could turn off the unknown-field check.
+  - A body that isn't an attrset, such as `create.counter "c1"`, which was imported as a module file and failed with a path error.
+  - A table-tree rule entry that isn't a non-empty list of statements or a rule body with statements in `expr`, such as a bare `dsl.drop`, `dsl.accept`, `dsl.last`, or `counter.auto`. It expanded to a rule with no statement. The error names the rule, such as `chains.input.rules.0`, and shows the list form, `[ dsl.drop ]`.
+  - `add.rule`, `insert`, or `replace` without statements in `expr`. They rendered a rule with no statement. The error names the command, such as `add.rule`, and shows the list form, `expr = [ dsl.drop ]`.
+- A chain sets `type`, `hook`, and `prio` together, a base chain, or none of them, a regular chain. The schema rejects a chain with only some of them, and `dsl` builders and table trees throw naming the chain, such as `chains.input`. nft loads such a chain as a regular chain whose rules never see packets, and a table tree that left out `type` emitted one.
+- `chainTypeFor` returns `"filter"` whenever the type its priority suggests can't attach at the placement, so it never returns a type `validChainPlacement` rejects. It returned `"nat"` for bridge `srcnat` and `dstnat`, at `forward`, and in the arp and netdev families, and `"route"` for arp `mangle`.
+- Every library error starts `nix-nftypes: <API>: `, naming what the caller called: a builder such as `dsl.create.ctCount`, a table tree as `dsl.table inet.t` followed by the field's path, `text` for the text renderers, `types.statementOf`, or a compatibility helper such as `resolvePriority`. Text Refusals began `nftypes:`, the text renderers' other errors `text.commands:` or `text:`, `statementOf` and `expressionOf` errors `nftypes.types.statementOf:`, compatibility helper errors had no prefix, and `resolvePriority "foo" "filter"` blamed `priorityIntsByFamily`. Command builders dropped the `dsl.` and named the JSON tag, as in `create.ct count`; their module-system option paths now start with the builder too, as in `dsl.create.ctCount.name`, and `replace` and `insert` errors name `dsl.replace` and `dsl.insert`.
+- Every Refusal ends with `Field: <label>.`. The Refusals of a non-integer chain or flowtable priority (`chain prio`, `flowtable prio`), an unsafe set or map datatype (`set type`, `map type`, `map value type`), an unsafe expression string (`expression`), and a `{ set = …; }` body that is neither a list nor a reference (`set expression`) named no field.
+- Schema submodules take only an attrset of fields: they reject a module function, a path, and a `_module` key. A path-like string such as `{ synproxy = "/sp1"; }` is a synproxy name; it was imported as a module file, which aborted evaluation.
 
 ### Removed
 
 - `dsl.rule`. Use `add.rule`, which takes the same body.
+- The element `stmt` field and the `stmt` argument of `expr.elem`. nft's JSON parser ignores element statements, so seeded element counters loaded as fresh ones, and elements of a set that declares no statement loaded without any. Declare the statement on the set, as in `stmt = [ { counter = null; } ]`, to give each element its own counter.
+- `fields.icmpv6.packetTooBig`, a field nft doesn't have. Use `fields.icmpv6.mtu`.
+- `fields.ct.count`. `ct count` is a statement (`ctCount`), not a ct key.
+- `fields.ct.proto-src` and `fields.ct.proto-dst`, which broke the camelCase rule of [ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md). Use `fields.ct.protoSrc` and `fields.ct.protoDst`, which build the same expressions.
 - The `.plain` variants of `log`, `queue`, `reject`, `masquerade`, and `redirect`. Use the empty body, for example `log { }`.
+- Command builders for commands nft rejects: `list.rule`, `list.element`, `list.flowtable`, `list.synproxy`, `list.metainfo`, `list.ctCount`, and `reset.rule`, whose JSON form fails with "Operation not supported".
+- Command builders for commands nft mishandles: `delete.ctExpectation` and `destroy.ctExpectation` (they delete the whole table), `list.ctExpectation` (it lists the table), `delete.ctTimeout`, `destroy.ctTimeout`, and `list.ctTimeout`, and `delete.ctCount` and `destroy.ctCount` (nftables 1.1.7 aborts). The [schema coverage](docs/spec-coverage.md#commands-nft-mishandles) lists each misbehaviour.
+- Tunnel builders: `add.tunnel`, `create.tunnel`, `delete.tunnel`, `destroy.tunnel`, `list.tunnel`, and the table-tree `tunnels` kind. nft mishandles each tunnel command; see the [schema coverage](docs/spec-coverage.md#commands-nft-mishandles).
+
+### Fixed
+
+- The home-router example loads. Its input chain had a `flow` statement, which the kernel takes only in a forward chain, and its flowtable was named `offload`, which text can't spell; it's now `fastpath`.
+- Text of a listed ruleset leaves out its `metainfo`, which nft's JSON parser ignores. It wrote a `metainfo` line, which nft rejects.
+- Text leaves the `handle` off a listed rule, which nft's JSON parser ignores, so a Read-back with rules loads as text. It wrote `rule … handle 7`, which text reads as a position, so the load failed with "No such file or directory".
+- Text writes an explicit `==` for the JSON match op `"=="`, such as `tcp dport == 22`, and keeps the implicit form, such as `tcp flags syn`, for `"in"`. It omitted the `==`, so `eq tcp.flags "syn"` loaded as an any-bit test that also matched SYN-ACK.
+- Text brackets an IPv6 NAT, snat, or tproxy address that a port follows, as in `dnat to [2001:db8::1]:80`, including each end of an address range. It wrote `2001:db8::1:80`, which loaded as a different address with no port. A prefix that a port follows now ends with a space (`10.0.0.0/24 :80`), which nft needs to parse it.
+- Text parenthesises a binary operand after the first when its precedence is equal to the operator's or lower, as in `meta mark << (1 << 2)`. Only lower precedence got parentheses, so this loaded as `meta mark << 1 << 2`, which is `meta mark << 3`.
+- Text renders a ct expectation `timeout` in milliseconds, as JSON does. It rendered seconds, so `timeout = 60` loaded as one minute instead of 60 ms.
+- Block form (`toTextBlock`, `toTextBlockPretty`) keeps the table's `flags` and `comment`. It dropped them, so a `dormant` table loaded active.
+- Text writes the icmpv6 field `parameter-problem` as `param-problem`, the only spelling nft's text parser accepts; `parameter-problem` failed to parse. It renders the arp address fields `saddr ether`, `saddr ip`, `daddr ether`, and `daddr ip`, which it refused as unsafe tokens.
+- Text quotes interface names: set and map elements whose type or typeof key is `ifname`, the interface-name parts of concatenations, the right side of interface-name matches, vmaps, and map lookups, and the devices of chains, flowtables, and `dup` and `fwd` statements. Written bare, `010`, `0x10`, and `a|b` loaded as `8`, `16`, and `c`, `$lan` took a host `define`, and `1e5` and `-x` failed to parse.
+- Text declares a typeof set or map with `typeof`, as in `typeof ip saddr . tcp dport` and `typeof ip saddr : meta mark`. It wrote `type typeof …`, which nft rejects.
+- Text spells limits as JSON loads them. A `packets` rate unit is a packet rate, written without a unit; it wrote `10 packets/second`, which nft rejects. A byte rate's burst defaults to bytes; it wrote `burst 5 packets`, which nft rejects. A burst of 0 is left out, as the default it is; inline `burst 0 packets` failed to load.
+- Text writes a quota's units, which default to bytes, as in `quota 100 bytes`, and a quota object without `bytes` as `0 bytes`. It wrote `quota 100` and an empty quota object, which nft rejects.
+- Text writes a NAT `netmap` flag as `snat ip prefix to …` and a `concat` type flag as `snat ip addr . port to …`. It appended the flags after the address (`snat to 10.0.0.0/24 prefix`), which nft rejects. The `prefix` and `interval` type flags aren't written: the first only changes how nft lists the statement, and nft derives the second from the map.
+- Text writes one `flags` clause per log flag group, as in `log flags tcp sequence,options flags skuid`, and `last used` as a time: `last used 1000ms`, or `last used never` for -1. It wrote `log flags tcp sequence tcp options` and `last used 1000`, which nft rejects.
+- Text writes an extension header existence check as `exthdr frag`. It wrote `frag`, which nft rejects.
+- Text writes `fwd ip to 192.0.2.1 device "eth0"` for a next hop, and `queue to <expression>` for a queue number given by an expression such as `symhash`. It wrote `fwd to 192.0.2.1 family ip via eth0` and `queue num symhash …`, which nft rejects. A queue with flags and no number is `queue bypass`, as `queue flags bypass` needs a number.
+- Text quotes a negative integer, as in `meta mark "-1"`, the symbol JSON loads. Bare, nft read the `-` as a syntax error.
+- Text separates a synproxy object's values with `;`, as in `mss 1460; wscale 7; timestamp sack-perm`, in its body and in `create synproxy`. It wrote `mss 1460 wscale 7`, which nftables 1.1.7 loads with `wscale` 0, or 8 after `timestamp`, and put the flags in a statement of their own, which nft rejects.
+- Text writes an `snat` or `dnat` with a `family` and a `port` but no address without the family, as in `snat to :80`, which loads as JSON loads it. It wrote `snat ip to :80`, which nft rejects. nft's JSON parser loads the table's family there: in an inet table it ignores the NAT family, and in an ip or ip6 table it fails on another one, which text refuses, naming the field (`nat family`).
+- Text writes a counter object's counts as the pair nft's text takes, `packets 5 bytes 0`, when only one is given; JSON loads the missing one as 0. It wrote `packets 5` alone, which nft rejects. `create counter` takes the counts positionally; it wrote them in braces, which nft rejects.
+- Text writes `create secmark` with its context positionally, as in `create secmark inet t s "system_u:object_r:ssh_server_packet_t:s0"`. It wrote a brace body, which nft rejects. A `create secmark` with a comment or without a context is a Refusal, naming the field: the positional form has no comment clause and requires the context.
+- Table-tree expansion adds stateful objects before sets and maps: counters, quotas, limits, ct helpers, ct timeouts, ct expectations, secmarks, synproxies, and ct counts. Objects followed the kinds that sort before them, so a map of quotas, synproxies, secmarks, or ct helpers came before the objects its elements name, and its JSON and imperative text failed to load with "No such file or directory".
+- Text declares a map of ct helpers, ct timeouts, or ct expectations with a typeof key, as in `typeof tcp dport : ct helper`. It refused the value as an unsafe datatype. With a datatype key, which nft lists but can't parse, text refuses the map, naming the field (`map type`).
+- Text writes a tunnel statement as `tunnel name "vxlan0"`. It wrote `meta tunnel set "vxlan0"`, which nft rejects.
+- Text quotes an OS fingerprint on the right side of an `osf name` or `osf version` match and in a typeof set of one, as in `osf version == "Linux:3.0"`. It wrote the string bare, and nft's text failed to parse `Linux:3.0`.
+- `cleanValue`, and so `toJson` and the text renderers, keep a verdict that carries a `_type` marker: `{ accept = null; _type = …; }` cleans to `{ accept = null; }`. It became `{ }`.
+- A wrong value in an expression field, such as a match's `left`, is a type error naming the field. `types.expression` described itself in its own description, so evaluation failed with "infinite recursion encountered" instead.
 
 ## [0.1.0] - 2026-10-13
 

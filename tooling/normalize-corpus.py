@@ -21,9 +21,14 @@ Each `.t.json` file is a sequence of records:
 
 This script walks the corpus, splits each file into records (records start
 at a `# ` line; blank lines inside a JSON array are tolerated), parses the
-JSON array, and emits a single JSON document to stdout:
+JSON array below each title, and emits a single JSON document to stdout:
 
     [ { "file": "...", "title": "...", "expr": [ … ] }, … ]
+
+A title may itself contain brackets (`dnat to [2001:db8::1]:80`,
+`srh sid[1]`), so the array is read from the lines after it. Every record
+must hold one array: a record that doesn't parse fails the run instead of
+silently shrinking the corpus.
 
 The corpus suite (tests/suites/nftables-corpus.nix) reads this and validates
 each `expr` against `nftlib.types.statement`. Keeping the fragile text-splitting
@@ -40,26 +45,31 @@ import re
 import sys
 
 
+class RecordError(ValueError):
+    """A corpus record without exactly one JSON array below its title."""
+
+
 def records(text):
-    """Yield (title, parsed_json_array) for each record in one .t.json file."""
+    """Yield (title, parsed_json_array) for each record in one .t.json file.
+
+    Raises RecordError naming the record's title when a record doesn't
+    hold exactly one JSON array.
+    """
     # Records start at a line beginning with "# ". Split *before* each such
     # line so a JSON array containing a blank line stays in one chunk.
     for chunk in re.split(r"\n(?=# )", text):
         chunk = chunk.strip()
         if not chunk.startswith("#"):
             continue
-        title = chunk.splitlines()[0].lstrip("# ").rstrip()
-        m = re.search(r"(\[.*\])", chunk, re.S)
-        if not m:
-            continue  # a comment-only record (e.g. a section header)
+        title, _, body = chunk.partition("\n")
+        title = title.lstrip("# ").rstrip()
         try:
-            payload = json.loads(m.group(1))
-        except json.JSONDecodeError:
-            # Some corpus payloads use placeholder tokens that aren't valid
-            # JSON on their own; skip rather than abort the whole run.
-            continue
-        if isinstance(payload, list):
-            yield title, payload
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise RecordError(f"{title!r}: {exc}") from None
+        if not isinstance(payload, list):
+            raise RecordError(f"{title!r}: expected a JSON array")
+        yield title, payload
 
 
 def main(argv):
@@ -68,6 +78,7 @@ def main(argv):
         return 2
     root = argv[1]
     out = []
+    errors = []
     for dirpath, _dirs, files in os.walk(root):
         for name in sorted(files):
             if not name.endswith(".t.json"):
@@ -75,8 +86,16 @@ def main(argv):
             path = os.path.join(dirpath, name)
             rel = os.path.relpath(path, root)
             with open(path) as fh:
-                for title, expr in records(fh.read()):
-                    out.append({"file": rel, "title": title, "expr": expr})
+                try:
+                    for title, expr in records(fh.read()):
+                        out.append({"file": rel, "title": title, "expr": expr})
+                except RecordError as exc:
+                    errors.append(f"{rel}: {exc}")
+    if errors:
+        print("UNPARSABLE CORPUS RECORD(S):", file=sys.stderr)
+        for error in errors:
+            print(f"  {error}", file=sys.stderr)
+        return 1
     json.dump(out, sys.stdout, indent=0)
     return 0
 

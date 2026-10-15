@@ -11,12 +11,13 @@ let
     value. Returns `v` with these changes:
       - null-valued attributes of multi-key attrsets dropped (unset option
         defaults);
-      - `_type` attributes of multi-key attrsets dropped. Libraries built on
+      - `_type` attributes dropped. Libraries built on
         nftypes tag values with `_type = "<lib>.<kind>"` for boundary checks
         (matching nix-libnet's convention), and `nft -j -f` rejects unknown
         top-level keys;
-      - `{ k = null; }` preserved where `k` is the only key, because verdicts
-        like accept/drop and `{ ruleset = null; }` rely on that null;
+      - `{ k = null; }` preserved where `k` is the only key besides
+        `_type`, because verdicts like accept/drop and `{ ruleset = null; }`
+        rely on that null;
       - lists cleaned element by element.
   */
   clean =
@@ -25,17 +26,19 @@ let
       null
     else if builtins.isAttrs v then
       let
-        names = builtins.attrNames v;
+        # Strip the marker first, so a marked verdict is still a verdict.
+        unmarked = removeAttrs v [ "_type" ];
+        names = builtins.attrNames unmarked;
         singleKey = builtins.length names == 1;
-        soleValue = v.${builtins.head names};
+        soleValue = unmarked.${builtins.head names};
         keepExplicitNull = singleKey && soleValue == null;
       in
       if keepExplicitNull then
-        v
+        unmarked
       else
-        lib.pipe v [
+        lib.pipe unmarked [
           (lib.mapAttrs (_: clean))
-          (lib.filterAttrs (k: v': v' != null && k != "_type"))
+          (lib.filterAttrs (_: v': v' != null))
         ]
     else if builtins.isList v then
       map clean v

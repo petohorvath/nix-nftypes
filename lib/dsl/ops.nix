@@ -4,18 +4,29 @@
   naturally: `eq tcp.dport 22`.
 
   `inSet` / `notInSet` wrap a list right-hand side as `{ set = [...]; }` and
-  pass a string (typically `"@name"`) through unchanged. For the nftables `in`
-  operator (bitwise flag testing), use `match.in_`.
+  pass a named-set reference (`"@name"`) through unchanged. For the nftables
+  `in` operator (bitwise flag testing), use `match.in_`.
 */
 { lib }:
 
 let
   mkMatch = op: left: right: { match = { inherit op left right; }; };
 
-  # Wrap a right-hand side for set membership: list → anonymous set
-  # expression; anything else ("@name" references, pre-built set expressions,
-  # flag values, …) passes through.
-  wrapSet = rhs: if builtins.isList rhs then { set = rhs; } else rhs;
+  /*
+    Wrap a right-hand side for set membership: list → anonymous set
+    expression; anything else ("@name" references, pre-built set
+    expressions, flag values, …) passes through. A string without `@` would
+    be matched as one value, such as a hostname, so it throws; `caller`
+    names the operator in the error.
+  */
+  wrapSet =
+    caller: rhs:
+    if builtins.isList rhs then
+      { set = rhs; }
+    else if builtins.isString rhs && !(lib.hasPrefix "@" rhs) then
+      throw "nix-nftypes: dsl.${caller}: the right side ${builtins.toJSON rhs} is a bare string, which nft matches as one value, not as a set; reference a named set with `expr.setRef ${builtins.toJSON rhs}` (or \"@${rhs}\")"
+    else
+      rhs;
 
   /*
     Match `left == right`. `left` is the expression under test and `right`
@@ -56,22 +67,23 @@ let
   /*
     Match membership without spelling out the set wrapper. `left` is the
     expression under test; `right` is a list (wrapped as an anonymous set)
-    or any other set expression, such as `"@name"`. Returns a match statement.
+    or any other set expression, such as `"@name"`. Returns a match statement
+    and throws when `right` is a string without `@`.
   */
-  inSet = left: right: mkMatch "==" left (wrapSet right);
+  inSet = left: right: mkMatch "==" left (wrapSet "inSet" right);
 
   /*
     Negated `inSet`. `left` is the expression under test; `right` is a list
     or other set expression, as for `inSet`. Returns a match statement.
   */
-  notInSet = left: right: mkMatch "!=" left (wrapSet right);
+  notInSet = left: right: mkMatch "!=" left (wrapSet "notInSet" right);
 
   /*
     Synonym for `inSet` that reads well with ranges. `left` is the
     expression under test and `right` a list or set expression. Returns a
     match statement.
   */
-  within = left: right: inSet left right;
+  within = left: right: mkMatch "==" left (wrapSet "within" right);
 
   # Namespaced match operators for callers who prefer explicit
   # disambiguation, plus the raw escape hatch and the bitwise `in` operator.

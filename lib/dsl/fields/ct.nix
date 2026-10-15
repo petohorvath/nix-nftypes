@@ -22,23 +22,20 @@ let
     "saddr"
     "daddr"
     "protocol"
-    "proto-src"
-    "proto-dst"
     "bytes"
     "packets"
     "avgpkt"
     "zone"
     "id"
-    "count"
     "l3proto"
     "secmark"
     "event"
   ];
 
-  # camelCase aliases for hyphenated keys.
-  aliases = {
+  # Hyphenated keys, under their camelCase leaf names (ADR 0009).
+  renamedKeys = {
     protoSrc = "proto-src";
     protoDst = "proto-dst";
   };
 in
-(lib.genAttrs keys mkLeaf) // (lib.mapAttrs (_: mkLeaf) aliases)
+(lib.genAttrs keys mkLeaf) // (lib.mapAttrs (_: mkLeaf) renamedKeys)

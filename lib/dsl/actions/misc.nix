@@ -1,13 +1,15 @@
 /*
   Statements that do not fit the variant-namespace pattern: mangle
   (payload-field rewrite), dynamic set/map modification (setStmt, mapStmt),
-  reset/secmark/tunnel (each takes a bare expression), xt (xtables bridge),
+  reset (takes a bare expression), secmark/tunnel (`.ref` to a named
+  object), xt (xtables bridge),
   and last / lastUsed.
 */
 { lib }:
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
+  reference = import ../internal/reference.nix { inherit lib; };
 in
 {
   /*
@@ -19,8 +21,9 @@ in
   /*
     Modify a named set from the packet path. Distinct from the anonymous set
     expression in exprs.nix. `op` is `"add"`, `"update"`, or `"delete"`,
-    `elem` the element expression, `set` the set reference, and `stmt` an
-    optional statement list. Returns a set statement.
+    `elem` the element expression, `set` the set name with or without its
+    leading `@`, and `stmt` an optional statement list. Returns a set
+    statement referencing `"@<name>"`; throws when `set` is not a string.
   */
   setStmt =
     {
@@ -31,20 +34,18 @@ in
     }:
     {
       set = compact {
-        inherit
-          op
-          elem
-          set
-          stmt
-          ;
+        inherit op elem stmt;
+        set = reference.atReference "setStmt" set;
       };
     };
 
   /*
     Modify a named map from the packet path. Distinct from the map lookup
     expression in exprs.nix. `op` is the update operation, `elem` the key
-    expression, `data` the value expression, `map` the map reference, and
-    `stmt` an optional statement list. Returns a map statement.
+    expression, `data` the value expression, `map` the map name with or
+    without its leading `@`, and `stmt` an optional statement list. Returns
+    a map statement referencing `"@<name>"`; throws when `map` is not a
+    string.
   */
   mapStmt =
     {
@@ -60,9 +61,9 @@ in
           op
           elem
           data
-          map
           stmt
           ;
+        map = reference.atReference "mapStmt" map;
       };
     };
 
@@ -73,16 +74,17 @@ in
   reset = e: { reset = e; };
 
   /*
-    Apply a security mark. `e` is the secmark expression, typically a named
-    object reference. Returns a secmark statement.
+    Apply a security mark. `secmark.ref ref` names the secmark object:
+    `ref` is its name, with or without a leading `@`, or a map expression
+    that selects one by key. Returns a secmark statement.
   */
-  secmark = e: { secmark = e; };
+  secmark = reference.referenceOnly "secmark" "secmark";
 
   /*
-    Attach tunnel metadata. `e` is the tunnel expression, typically a named
-    object reference. Returns a tunnel statement.
+    Attach tunnel metadata. `tunnel.ref ref` names the tunnel object, as
+    `secmark.ref` does. Returns a tunnel statement.
   */
-  tunnel = e: { tunnel = e; };
+  tunnel = reference.referenceOnly "tunnel" "tunnel";
 
   /*
     Represent an xtables extension for read-back compatibility; nftables

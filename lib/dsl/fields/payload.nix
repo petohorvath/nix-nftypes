@@ -17,7 +17,7 @@ let
   mkProtocol = protocol: fields: lib.genAttrs fields (mkLeaf protocol);
 
   # As above, plus explicit camelCase → JSON renames for fields whose JSON
-  # name contains hyphens.
+  # name contains hyphens or spaces.
   mkProtocolWithRenames =
     protocol: fields: renames:
     (mkProtocol protocol fields) // lib.mapAttrs (_: mkLeaf protocol) renames;
@@ -47,7 +47,7 @@ in
   udplite = mkProtocol "udplite" [
     "sport"
     "dport"
-    "cksumcov"
+    "csumcov"
     "checksum"
   ];
 
@@ -143,7 +143,6 @@ in
       ]
       {
         paramProblem = "parameter-problem";
-        packetTooBig = "packet-too-big";
         maxDelay = "max-delay";
       };
 
@@ -161,13 +160,20 @@ in
     "type"
   ];
 
-  arp = mkProtocol "arp" [
-    "htype"
-    "ptype"
-    "hlen"
-    "plen"
-    "operation"
-    "saddr"
-    "daddr"
-  ];
+  # nft splits each arp address by its hardware or protocol part.
+  arp =
+    mkProtocolWithRenames "arp"
+      [
+        "htype"
+        "ptype"
+        "hlen"
+        "plen"
+        "operation"
+      ]
+      {
+        saddrEther = "saddr ether";
+        saddrIp = "saddr ip";
+        daddrEther = "daddr ether";
+        daddrIp = "daddr ip";
+      };
 }

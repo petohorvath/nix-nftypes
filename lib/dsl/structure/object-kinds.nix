@@ -19,6 +19,10 @@
       `chains.<name>.rules`, both handled by the tree expander).
     - lib/table.nix keys by plural (`objectKinds.sets`), iterating each
       present plural to prepare named entries for command or block output.
+
+  It has no tunnel: nft's JSON parser loads a tunnel's ports wrongly, and
+  nft crashes on delete, destroy, and list of one (Known differences, see
+  docs/spec-coverage.md).
 */
 { lib, objects }:
 
@@ -47,19 +51,19 @@ in
   flowtable = {
     tag = "flowtable";
     plural = "flowtables";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.flowtableBody;
   };
   counter = {
     tag = "counter";
     plural = "counters";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.counterObjectBody;
   };
   quota = {
     tag = "quota";
     plural = "quotas";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.quotaObjectBody;
   };
   limit = {
@@ -71,45 +75,37 @@ in
   ctHelper = {
     tag = "ct helper";
     plural = "ctHelpers";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.ctHelperObjectBody;
   };
   ctTimeout = {
     tag = "ct timeout";
     plural = "ctTimeouts";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.ctTimeoutObjectBody;
   };
   ctExpectation = {
     tag = "ct expectation";
     plural = "ctExpectations";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.ctExpectationObjectBody;
   };
   ctCount = {
     tag = "ct count";
     plural = "ctCounts";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.ctCountObjectBody;
   };
   secmark = {
     tag = "secmark";
     plural = "secmarks";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.secmarkObjectBody;
   };
   synproxy = {
     tag = "synproxy";
     plural = "synproxies";
-    renameBody = lib.id;
+    renameBody = rename.none;
     body = objects.synproxyObjectBody;
-  };
-  # Tunnel bodies have hyphenated top-level keys (src-ipv4, …) and, for
-  # geneve, a hyphenated `opt-type` in each nested option.
-  tunnel = {
-    tag = "tunnel";
-    plural = "tunnels";
-    renameBody = rename.tunnel;
-    body = objects.tunnelObjectBody;
   };
 }

@@ -6,14 +6,15 @@
   ...
 }:
 
-# Regression coverage for the nft quoted-string injection class (table-
-# comment / log-prefix). Pre-fix: any '"' or control character in user
-# input rendered into text that nft's lexer split into multiple
-# statements — at table scope a malicious comment injected a real
-# `chain bypass { policy accept; }`, a full firewall bypass.
+# Regression coverage for the nft quoted-string injection class
+# (comments; log prefixes are in log-prefix-safety.nix). Pre-fix: any '"'
+# or control character in user input rendered into text that nft's lexer
+# split into multiple statements — at table scope a malicious comment
+# injected a real `chain bypass { policy accept; }`, a full firewall
+# bypass.
 #
 # The fix is layered:
-#   - Schema: commentOption, elemBody.comment, logBody.prefix are now
+#   - Schema: commentOption and elemBody.comment are now
 #     `nftQuotedString` — '"' / '\' / control / >128B rejected at
 #     `evalModules` time.
 #   - Renderer: `primitives.assertSafeString` / `quoteString` assert on the same
@@ -118,6 +119,12 @@ let
     testRendererAcceptsClean = {
       expr = builtins.isString (textPrimitives.quoteString "comment" "clean text 123");
       expected = true;
+    };
+    # nft's lexer takes byte 0xA0 inside a quoted string; the live round
+    # trip loads it as written.
+    testRendererQuotesByteA0 = {
+      expr = textPrimitives.quoteString "comment" fixtures.byteA0Comment;
+      expected = ''"${fixtures.byteA0Comment}"'';
     };
     testEscapeIsIdentityForSafe = {
       expr = textPrimitives.assertSafeString "comment" "abc";

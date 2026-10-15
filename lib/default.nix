@@ -16,13 +16,17 @@
                               table.
     resolvePriority         — symbolic chain priority → int, with
                               family-aware lookup (bridge family
-                              overrides default values).
+                              overrides default values); symbols
+                              only, so add offsets with Nix
+                              arithmetic.
     priorityNameOf          — int → symbolic chain priority (reverse
                               of `resolvePriority`); ints with no
                               canonical symbol pass through unchanged.
     chainTypeFor            — `(family, hook, priority)` → the project's
                               conventional `"filter"` / `"nat"` / `"route"`
-                              classification; not kernel introspection.
+                              classification, never a type
+                              `validChainPlacement` rejects; not kernel
+                              introspection.
     validChainPlacement     — `(family, chainType, hook)` → bool from the
                               static compatibility tables; runtime/device
                               requirements are outside its scope.
@@ -51,12 +55,21 @@ let
   nftSafeString = import ./nft-safe-string.nix { };
   nftSafeIfname = import ./nft-safe-ifname.nix { };
   nftSafeScalar = import ./nft-safe-scalar.nix { };
-  primitives = import ./schema/primitives.nix { inherit lib nftSafeIfname nftSafeString; };
+  nftSafeLogPrefix = import ./nft-safe-log-prefix.nix { inherit nftSafeString; };
+  primitives = import ./schema/primitives.nix {
+    inherit
+      lib
+      nftSafeIfname
+      nftSafeLogPrefix
+      nftSafeString
+      ;
+  };
   # Mutual reference between `expressions` and `statements`: statements
-  # consume `expr`, and elements (defined in expressions) accept a `stmt`
-  # list. Nix's recursive `let` resolves this lazily — both modules are
-  # constructed without forcing the cross-reference, which is only forced
-  # during value validation (by which point both attrsets exist).
+  # consume `expr`, and elements (defined in expressions) accept the
+  # statement keys nft lists for them. Nix's recursive `let` resolves this
+  # lazily — both modules are constructed without forcing the
+  # cross-reference, which is only forced during value validation (by
+  # which point both attrsets exist).
   expressions = import ./schema/expressions.nix {
     inherit
       internal
@@ -90,6 +103,7 @@ let
       clean
       lib
       nftSafeIfname
+      nftSafeLogPrefix
       nftSafeScalar
       nftSafeString
       ;
@@ -144,8 +158,12 @@ in
     inherit (objects)
       addObject
       createObject
+      deleteObject
       flushObject
       listObject
+      readBackObject
+      renameObject
+      replaceObject
       resetObject
       ;
 

@@ -11,10 +11,23 @@
   observations,
   ...
 }:
+let
+  paths = [
+    "corpus"
+    "parser"
+    "serializer"
+  ];
+in
 helpers.sourceProvenanceTests observations.nftablesSourceProvenance
-// lib.genAttrs' [ "parser" "serializer" "corpus" ] (
+// lib.genAttrs' paths (
   path:
   lib.nameValuePair "testSourceTreeHas_${path}" (
     helpers.runSucceeds observations.nftablesSourceTree.${path}
   )
 )
+// {
+  testSourceTreeCaseNames = {
+    expr = builtins.attrNames observations.nftablesSourceTree;
+    expected = paths;
+  };
+}

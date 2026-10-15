@@ -1,23 +1,32 @@
-# Give every DSL builder the same naming and argument conventions
+# Give the public API one set of naming and argument conventions
 
 The 0.1.0 DSL mixed `flush*` builders with `verb.kind` namespaces, `snake_case` with camelCase field names, and positional with attrset arguments for the same fields. 0.2.0 applies one set of rules everywhere, so callers can predict a builder's shape from its kind:
 
-- Each command verb is a `<verb>.<kind>` namespace, and each builder takes one object body. `add`, `create`, `delete`, `destroy`, `flush`, `list`, and `reset` are generated from the object-kind registry; `rename` has only `rename.chain`. `replace` and `insert` stay single functions because their only kind is `rule`.
-- Every DSL field name is camelCase. The DSL renames it to the JSON key, whether that key uses a hyphen (`queue-threshold`) or an underscore (`rate_unit`).
+- Each command verb is a `<verb>.<kind>` namespace, and each builder takes one object body. `add`, `create`, `delete`, `destroy`, `flush`, `list`, and `reset` are generated from the object-kind registry, and each offers only the kinds that nft runs as written for that verb; `rename` has only `rename.chain`. `replace` and `insert` stay single functions because their only kind is `rule`.
+- Every DSL field name is camelCase. The DSL renames it to the JSON key, whether that key uses a hyphen (`queue-threshold`) or an underscore (`rate_unit`). A name that is a Nix keyword takes a trailing underscore, as in `match.in_`.
 - A builder takes positional arguments only when every argument is required and there are at most two, as in `eq left right`, `vmap key data`, and `counter.ref name`. Every other builder takes one attrset. `dsl.table family name body` is the one exception, because it mirrors nftables' `table inet filter { … }`.
-- A statement whose fields are all optional takes `{ }` for its empty form. Named variants cover forms an attrset cannot express: `.ref name` for a named object and `.auto` for the JSON null body.
+- A statement whose fields are all optional takes `{ }` for its empty form. Named variants cover forms an attrset cannot express: `.ref name` for a named object and `.auto` for the JSON null body. `counter` is not such a statement: nft parses an inline counter only with both `packets` and `bytes`, so `counter { }` throws and points to `counter.auto`.
+- Every reference to a named object follows one rule. A builder takes the name with or without its `@` and emits the spelling nft's JSON parser looks up in that position: `"@name"` for a set, map, or flowtable, and the bare name for a stateful object, which nft looks up as written. A bare string where a reference is required either normalises under this rule or throws pointing at the reference builder; it never passes through. Every stateful object reference is a `.ref` variant, `ctHelper.ref "ftp"` as much as `counter.ref "c"`, and a statement with no other form throws when called. `expr.setRef` and `expr.mapRef` both return the `"@name"` string, which nft takes in a match, a map lookup, and a vmap, and lists.
+- `delete`, `destroy`, `list`, `flush`, and `reset` select an object by `family`, `table`, and `name`, plus `handle` where nft takes one, and demand no field nft ignores for the verb. A field nft does require stays required: a rule's chain and positive handle, and an element's value.
+- Every library error starts `nix-nftypes: <API>: `, where `<API>` is what the caller called: a builder's path under `dsl` (`dsl.create.ctCount`), `dsl.table <family>.<name>` for a table tree, followed by the field's path in it, `text` for the text renderers, `types.statementOf`, or a helper such as `resolvePriority`. The module system's own errors name the option path, which for a command builder starts with the builder, as in `dsl.create.ctCount.name`. A text Refusal also ends with its field ([ADR 0004](0004-refuse-unsafe-text.md)).
+- Every `types.*` name is camelCase, capitalised word by word, as in `chainType`, `ctL3Proto`, and `tcpUdpProto`. An enum or primitive type is named for its values, a command's object union for its verb (`deleteObject`), and the body of one command for its verb and then its kind (`renameChainBody`, `replaceRuleBody`, `selectSetBody`), so names that differ by a letter don't name different things. The Read-back object union is `readBackObject`.
 
 ## Considered options
 
 - Deprecated aliases with warnings, removed in a later release. 0.1.0 had been out for a day and had almost no users, so one clean break cost less than a deprecation cycle.
 - Attrset arguments everywhere except operators. It would have changed `vmap`, `mangle`, and `xt`, which read like their nftables syntax when positional.
+- Stateful object references taken directly, as `ctHelper "ftp"`. `counter`, `quota`, `limit`, `synproxy`, and `ctCount` have inline forms that take an attrset, so they can't also take a name, and `.ref` was already the variant for a named object.
+- One reference shape everywhere, `"@name"`. nft looks a stateful object up by the name as written, so `counter "@c"` names no object; the spelling has to follow the position.
 
 ## Consequences
 
 - A bare `flush` value cannot also carry `flush.<kind>` builders, because the value is emitted as JSON. Flushing everything is therefore `flush.ruleset { }`, whose empty body stands for the JSON `null`.
 - Object bodies, in a table tree or a command builder, still accept the JSON spelling of a key (`rate_unit`, `gc-interval`) because the rename passes unknown keys through. Statement builders reject the JSON spelling as an unexpected argument.
+- `inSet`, `notInSet`, and `within` take a set reference only as `"@name"`: their right side need not be a set, so a bare string is ambiguous and throws, pointing to `expr.setRef`.
+- `payloadRaw` and `payloadTunnel` keep their names: `payload` is a plain two-argument function, not a variant namespace that could carry `.raw`.
 
 ## Evidence
 
-- `lib/dsl/structure/commands.nix` builds every registry-backed verb namespace with `mkNamespace`; `lib/dsl/internal/rename.nix` holds every rename.
-- `testNoPlainVariants`, the `flush.<kind>` and `add.<kind>` cases, and the camelCase cases in `tests/suites/dsl-parity.nix`.
+- `lib/dsl/structure/commands.nix` builds every registry-backed verb namespace with `mkNamespace`; `lib/dsl/internal/rename.nix` holds every rename, `lib/dsl/internal/reference.nix` the reference rule, and `lib/dsl/internal/location.nix` the error prefix.
+- `testNoPlainVariants`, the `testCounter*Throws` cases, the `flush.<kind>` and `add.<kind>` cases, the camelCase cases, `testFieldLeavesAreCamelCase`, the `*AtName` reference cases, `testObjectReferenceStatementsUseRef`, and `testSelectingVerbsTakeOnlyTheSelector` in `tests/suites/dsl-parity.nix`.
+- Measured on nftables 1.1.6 and 1.1.7: `"counter": "@c"` and the other stateful references fail with "No such file or directory", a bare set or map name fails as an unresolved hostname, and `"@s"` and `{ "set": "@s" }` load in a match, a map lookup, and a vmap. The `object-references` Integration case loads every reference built from both spellings. nft ran `list`, `flush`, and `reset` of a set or map, `list` of a limit, and `delete` and `destroy` of a synproxy with the name alone, and a rule delete with handle 0 deleted every rule in the chain (`delete-rule-handle-zero-deletes-every-rule` in `tests/fixtures/nft-misbehaviour.nix`).

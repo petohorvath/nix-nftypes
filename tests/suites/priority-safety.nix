@@ -1,4 +1,5 @@
 {
+  helpers,
   lib,
   nftlib,
   ...
@@ -14,8 +15,9 @@
 #
 # Renderer-level fix: `primitives.priority` now refuses anything that
 # isn't an int and throws naming the value. Symbolic priorities
-# (`filter`, `filter + 10`) flow through `nftlib.resolvePriority` to
-# an int before reaching the renderer; the int path stays unchanged.
+# (`filter`) flow through `nftlib.resolvePriority` to an int before
+# reaching the renderer, and offsets are Nix arithmetic on that int;
+# the int path stays unchanged.
 
 let
   inherit (nftlib) toText toTextPretty;
@@ -88,7 +90,7 @@ let
       name = "testRendererRejects_chain_${badName}";
       value = {
         expr = nftlib.toText (rulesetWithChainPrio badValue);
-        expectedError.msg = "refusing to render a non-integer chain/flowtable priority";
+        expectedError.msg = helpers.refusals.priority "chain prio";
       };
     }) badInputs
   );
@@ -98,7 +100,7 @@ let
       name = "testRendererRejects_flowtable_${badName}";
       value = {
         expr = nftlib.toText (rulesetWithFlowtablePrio badValue);
-        expectedError.msg = "refusing to render a non-integer chain/flowtable priority";
+        expectedError.msg = helpers.refusals.priority "flowtable prio";
       };
     }) badInputs
   );
@@ -125,7 +127,7 @@ let
   prettyTests = {
     testPrettyRejects_chain_newline = {
       expr = toTextPretty (rulesetWithChainPrio badInputs.newline);
-      expectedError.msg = "refusing to render a non-integer chain/flowtable priority";
+      expectedError.msg = helpers.refusals.priority "chain prio";
     };
     testPrettyAccepts_chain_int = {
       expr = builtins.isString (toTextPretty (rulesetWithChainPrio 0));

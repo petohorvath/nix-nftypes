@@ -16,7 +16,6 @@
   primitives,
   expressions,
   limit,
-  nftSafeIfname,
 }:
 
 let
@@ -27,6 +26,7 @@ let
     renderExpression
     renderGoto
     renderJump
+    renderRightOf
     renderVerdict
     ;
   inherit (lib) optionalString;
@@ -51,17 +51,53 @@ let
         renderInnerExpression ctx body
     );
 
-  # Render a list of natFlags as a comma-separated suffix. NAT statements
-  # accept a single flag string or a list (listOrSingleton).
-  renderNatFlags =
+  # A listOrSingleton flag value as a list.
+  flagList =
     flags:
     if flags == null then
-      ""
+      [ ]
+    else if builtins.isList flags then
+      flags
     else
-      let
-        items = if builtins.isList flags then flags else [ flags ];
-      in
-      " " + lib.concatStringsSep "," items;
+      [ flags ];
+
+  # NAT flags as a comma-separated suffix. nft's text has no `netmap` flag:
+  # `snat`/`dnat` spell it `prefix to`, so their renderer takes it out
+  # first, and any left here is refused.
+  renderNatFlags =
+    flags:
+    let
+      items = flagList flags;
+    in
+    if builtins.elem "netmap" items then
+      primitives.refuseNoTextSpelling "nat flags" "nft's text spells the netmap flag only as `snat`/`dnat` `prefix to`, which takes no port and no other flag."
+    else
+      lib.optionalString (items != [ ]) " ${lib.concatMapStringsSep "," (safeToken "nat flags") items}";
+
+  /*
+    A NAT address followed by `:<port>`. nft's lexer would read the port
+    into an IPv6 address (`2001:db8::1:80` is one address), so an IPv6
+    address, alone or as a range endpoint, goes in brackets. It would read
+    `/24:80` as one string, so a space ends a prefix.
+  */
+  renderNatAddrBeforePort =
+    ctx: addr:
+    let
+      bracketIp6 =
+        a:
+        if builtins.isString a && lib.hasInfix ":" a then
+          "[${renderInnerExpression ctx a}]"
+        else
+          renderInnerExpression ctx a;
+    in
+    if builtins.isString addr then
+      bracketIp6 addr
+    else if builtins.isAttrs addr && addr ? range then
+      lib.concatMapStringsSep "-" bracketIp6 addr.range
+    else if builtins.isAttrs addr && addr ? prefix then
+      "${renderInnerExpression ctx addr} "
+    else
+      renderInnerExpression ctx addr;
 
   # Render the `to <addr>[:<port>]` or `to :<port>` clause shared by NAT-
   # family statements. addr can be null (port-only translation).
@@ -69,64 +105,19 @@ let
     ctx: addr: port:
     if addr == null && port == null then
       ""
+    else if port == null then
+      " to ${renderInnerExpression ctx addr}"
     else
       " to "
-      + (if addr == null then "" else renderInnerExpression ctx addr)
-      + (if port == null then "" else ":${renderInnerExpression ctx port}");
+      + (if addr == null then "" else renderNatAddrBeforePort ctx addr)
+      + ":${renderInnerExpression ctx port}";
 
   # ---- per-tag renderers ----------------------------------------------
 
-  # Meta keys whose value is an interface-name string (kernel's
-  # `dev_valid_name` rules). Matches against these keys take an ifname
-  # RHS, which nft's grammar wants quoted when the string contains
-  # special characters — bare `meta iifname eth0,eth1` lexes the `,`
-  # as a bitmask operator and rejects ifname as a non-bitmask type
-  # (audit-noted UX issue; not silent widening, but unhelpful).
-  ifnameMetaKeys = [
-    "iifname"
-    "oifname"
-    "sdifname"
-    "ibrname"
-    "obrname"
-  ];
-
-  # True iff the match LHS is a key whose RHS string should be treated
-  # as an ifname (quoted, validated). Currently handles `meta <key>` for
-  # the keys above and `fib … oifname` (whose result token returns the
-  # interface name as a string).
-  isIfnameLhs =
-    lhs:
-    if !(builtins.isAttrs lhs) then
-      false
-    else
-      let
-        names = builtins.attrNames lhs;
-      in
-      if builtins.length names != 1 then
-        false
-      else
-        let
-          tag = builtins.head names;
-          body = lhs.${tag};
-        in
-        if tag == "meta" then
-          builtins.elem (body.key or null) ifnameMetaKeys
-        else if tag == "fib" then
-          (body.result or null) == "oifname"
-        else
-          false;
-
-  # match: `<left> <op> <right>`. `==` and `in` are elided in nft text:
-  # equality is implicit, and set/range membership (op = "in") is
-  # expressed by adjacency with no operator. Other operators always emit.
-  #
-  # When LHS is an ifname-typed key and RHS is a plain string (not an
-  # `@`-prefixed set reference), the string is asserted ifname-safe and
-  # emitted quoted: `meta iifname "eth0"`. This makes character-set
-  # mistakes a render-time error rather than a confusing nft parse
-  # error or kernel activation error. Set / range / setRef / other
-  # tagged RHS shapes are left to renderExpression, which keeps the
-  # existing set-literal-element handling intact.
+  # match: `<left> <op> <right>`. Only `in` is elided: nft's implicit
+  # form is JSON `in` (an any-bit test on a bitmask), so JSON `==` must
+  # write its operator to stay an exact match. Every other op emits too.
+  # Interface names on the right are quoted (`renderRightOf`).
   renderMatch =
     ctx:
     {
@@ -136,17 +127,9 @@ let
     }:
     let
       lhs = renderInnerExpression ctx left;
-      ifnameRhs = isIfnameLhs left && builtins.isString right && !(lib.hasPrefix "@" right);
-      rhs =
-        if ifnameRhs then
-          if nftSafeIfname.isSafe right then
-            primitives.quoteString "interface name" right
-          else
-            throw "nftypes: refusing to render an ifname-typed match RHS ${builtins.toJSON right} that is not a safe interface name (see lib/nft-safe-ifname.nix). The kernel's `dev_valid_name` already rejects '/' ':' whitespace and '.' / '..' / >15-byte names; this assert additionally rejects ',' ';' '{' '}' '\"' '\\' '#' and control characters, because such a value can never resolve to a real interface and nft's text parser may also misread unquoted special characters as operators. Offending value: ${builtins.toJSON right}.\n"
-        else
-          renderInnerExpression ctx right;
+      rhs = renderRightOf "match right" left (resetPrec ctx) right;
     in
-    if op == "==" || op == "in" then "${lhs} ${rhs}" else "${lhs} ${op} ${rhs}";
+    if op == "in" then "${lhs} ${rhs}" else "${lhs} ${safeToken "match op" op} ${rhs}";
 
   # counter: null → bare "counter"; str → named reference;
   # attrset → inline `counter packets P bytes B` (each optional).
@@ -161,8 +144,10 @@ let
         parts = [
           "counter"
         ]
-        ++ lib.optional ((body.packets or null) != null) "packets ${toString body.packets}"
-        ++ lib.optional ((body.bytes or null) != null) "bytes ${toString body.bytes}";
+        ++ lib.optional (
+          (body.packets or null) != null
+        ) "packets ${safeToken "counter packets" body.packets}"
+        ++ lib.optional ((body.bytes or null) != null) "bytes ${safeToken "counter bytes" body.bytes}";
       in
       lib.concatStringsSep " " parts;
 
@@ -173,32 +158,37 @@ let
 
   # quota: str → named ref;
   # attrset → `quota [over] <val> <unit> [used <u> <unit>]`.
-  # `inv = true` flips the implicit "until" to "over". `val_unit` and
-  # `used_unit` are `types.str` in the schema and render bare into the
-  # output, so each flows through `safeToken` to reject parser-meta
-  # bytes that would otherwise terminate the statement.
+  # `inv = true` flips the implicit "until" to "over". Text needs each
+  # unit, and JSON's default to bytes. `val_unit` and `used_unit` are
+  # `types.str` in the schema and render bare into the output, so each
+  # flows through `safeToken` to reject parser-meta bytes that would
+  # otherwise terminate the statement.
   renderQuota =
     ctx: body:
     if isObjectRef body then
       renderObjectRef ctx "quota" body
     else
       let
+        unit = field: value: if value == null then "bytes" else safeToken "quota ${field}" value;
         head = "quota" + optionalString ((body.inv or null) == true) " over";
-        valPart =
-          " ${toString body.val}"
-          + optionalString ((body.val_unit or null) != null) " ${safeToken "quota val_unit" body.val_unit}";
+        valPart = " ${safeToken "quota val" body.val} ${unit "val_unit" (body.val_unit or null)}";
         usedPart =
           if (body.used or null) == null then
             ""
           else
-            " used ${toString body.used}"
-            + optionalString (
-              (body.used_unit or null) != null
-            ) " ${safeToken "quota used_unit" body.used_unit}";
+            " used ${safeToken "quota used" body.used} ${unit "used_unit" (body.used_unit or null)}";
       in
       head + valPart + usedPart;
 
-  # fwd: `fwd to <dev>` or `fwd to <addr> family <fam> via <dev>`.
+  # A device name, quoted (ADR 0004): bare, `010` loads ifindex 8 and
+  # `$lan` takes a host `define`. Any other expression renders as such.
+  renderDevice =
+    field: ctx: dev:
+    if builtins.isString dev then primitives.quoteIfname field dev else renderInnerExpression ctx dev;
+
+  # fwd: `fwd to <dev>` or `fwd <family> to <addr> device <dev>`. JSON
+  # takes a next hop only with both a family and an address, and ignores
+  # either alone (parser_json.c json_parse_fwd_stmt).
   renderFwd =
     ctx:
     {
@@ -206,12 +196,11 @@ let
       family ? null,
       addr ? null,
     }:
-    if addr == null then
-      "fwd to ${renderInnerExpression ctx dev}"
+    if family == null || addr == null then
+      "fwd to ${renderDevice "fwd device" ctx dev}"
     else
-      "fwd to ${renderInnerExpression ctx addr}"
-      + optionalString (family != null) " family ${family}"
-      + " via ${renderInnerExpression ctx dev}";
+      "fwd ${safeToken "fwd family" family} to ${renderInnerExpression ctx addr}"
+      + " device ${renderDevice "fwd device" ctx dev}";
 
   # dup: `dup to <addr> [device <dev>]`.
   renderDup =
@@ -221,11 +210,25 @@ let
       dev ? null,
     }:
     "dup to ${renderInnerExpression ctx addr}"
-    + optionalString (dev != null) " device ${renderInnerExpression ctx dev}";
+    + optionalString (dev != null) " device ${renderDevice "dup device" ctx dev}";
 
-  # NAT — snat/dnat share the same body. `addr` is omitted for port-only
-  # translation; `family` precedes `to`; `port` is appended `:port`. flags
-  # and type_flags are comma-joined and appended after the addr/port.
+  /*
+    NAT: snat/dnat share the same body. `addr` is omitted for port-only
+    translation; `family` precedes `to`; `port` is appended `:port`; flags
+    are comma-joined after the address and port. The address type is a
+    keyword before `to`, as nft's grammar and evaluation read it:
+    - the `netmap` flag is `prefix to`. nft's text sets the flags written
+      after it in place of `netmap`, and takes no port, so it goes alone;
+    - the `concat` type flag is `<family> addr . port to`;
+    - the `prefix` type flag only changes how nft lists the statement, and
+      nft derives `interval` from the map in text as in JSON, so neither
+      is written.
+    Without an address, nft's text takes no family (`snat ip to :80` is a
+    syntax error), and nft's JSON parser loads the table's: it ignores the
+    family in an inet table, and fails on another one in an ip or ip6
+    table. So the family is left out there, and refused where the rule's
+    table can't take it.
+  */
   renderNat =
     name: ctx:
     {
@@ -236,12 +239,38 @@ let
       type_flags ? null,
     }:
     let
-      head = name + optionalString (family != null) " ${family}";
-      to = renderNatTo ctx addr port;
-      flagsClause = renderNatFlags flags;
-      typeFlagsClause = renderNatFlags type_flags;
+      flagItems = flagList flags;
+      hasNetmapFlag = builtins.elem "netmap" flagItems;
+      hasConcatTypeFlag = builtins.elem "concat" (flagList type_flags);
+      refuse = primitives.refuseNoTextSpelling;
+      addressType =
+        if hasConcatTypeFlag && hasNetmapFlag then
+          refuse "nat flags" "nft's text has no spelling for a netmap concatenation."
+        else if hasConcatTypeFlag && family == null then
+          refuse "nat type_flags" "nft's text spells the concat type flag only after a family (`snat ip addr . port to`)."
+        else if hasConcatTypeFlag && port != null then
+          refuse "nat type_flags" "nft's text takes no port after `addr . port to`, and JSON rejects one."
+        else if hasConcatTypeFlag then
+          " addr . port"
+        else if hasNetmapFlag && (port != null || builtins.length flagItems > 1) then
+          refuse "nat flags" "nft's text spells the netmap flag `prefix to`, which takes no port and no other flag."
+        else if hasNetmapFlag then
+          " prefix"
+        else
+          "";
+      tableFamilyOnly = builtins.elem ctx.family [
+        "ip"
+        "ip6"
+      ];
+      head =
+        if addr != null && family != null then
+          "${name} ${safeToken "nat family" family}"
+        else if family != null && tableFamilyOnly && family != ctx.family then
+          refuse "nat family" "Without an address, nft's text has no family, so it loads the ${ctx.family} table's, while nft's JSON parser fails on the family ${builtins.toJSON family} there."
+        else
+          name;
     in
-    head + to + flagsClause + typeFlagsClause;
+    head + addressType + renderNatTo ctx addr port + renderNatFlags (lib.remove "netmap" flagItems);
 
   # masquerade/redirect — port-only NAT-family statements. Same body shape.
   renderMasquerade =
@@ -254,7 +283,8 @@ let
     + (if port == null then "" else " to :${renderInnerExpression ctx port}")
     + renderNatFlags flags;
 
-  # reject: `reject [with <type> [<expr>]]`.
+  # reject: `reject [with <type> [<expr>]]`. `tcp reset` is the one
+  # type of two words.
   renderReject =
     ctx:
     {
@@ -264,14 +294,14 @@ let
     if type == null && expr == null then
       "reject"
     else
-      "reject with ${type}" + optionalString (expr != null) " ${renderInnerExpression ctx expr}";
+      "reject with ${if type == "tcp reset" then type else safeToken "reject type" type}"
+      + optionalString (expr != null) " ${renderInnerExpression ctx expr}";
 
   # set/map dynamic-update statement:
-  # `<op> @<set> { <elem>[ : <data>] [stmt]* }`.
-  # The schema types `set`/`map` as `types.str`; the renderer prepends `@`
-  # and would otherwise emit the rest bare. `safeToken` rejects any byte
-  # outside the bare-token grammar, including a newline + trailing statement
-  # payload that would have parsed as a fresh nft command at rule scope.
+  # `<op> @<set> { <elem>[ : <data>] [stmt]* }`. The reference is stored
+  # with its `@` and printed as is; `namedReference` refuses one without
+  # it, or with a byte outside the bare-token grammar (a newline and a
+  # trailing command would parse as a fresh nft command at rule scope).
   renderSetStatement =
     ctx:
     {
@@ -287,7 +317,7 @@ let
         else
           " " + lib.concatMapStringsSep " " (renderStatement (resetPrec ctx)) stmt;
     in
-    "${op} @${safeToken "set reference" set} { ${renderInnerExpression ctx elem}${stmts} }";
+    "${safeToken "set op" op} ${primitives.namedReference "set reference" set} { ${renderInnerExpression ctx elem}${stmts} }";
 
   renderMapStatement =
     ctx:
@@ -305,7 +335,34 @@ let
         else
           " " + lib.concatMapStringsSep " " (renderStatement (resetPrec ctx)) stmt;
     in
-    "${op} @${safeToken "map reference" map} { ${renderInnerExpression ctx elem} : ${renderInnerExpression ctx data}${stmts} }";
+    "${safeToken "map op" op} ${primitives.namedReference "map reference" map} { ${renderInnerExpression ctx elem} : ${renderInnerExpression ctx data}${stmts} }";
+
+  # nft's text takes one log flag group per `flags` clause, its tcp flags
+  # comma-joined (`flags tcp sequence,options flags skuid`), and ORs the
+  # clauses together as JSON ORs its list.
+  renderLogFlags =
+    flags:
+    let
+      items = flagList flags;
+      tcpFlags = {
+        "tcp sequence" = "sequence";
+        "tcp options" = "options";
+      };
+      otherFlags = [
+        "ip options"
+        "skuid"
+        "ether"
+        "all"
+      ];
+      unknown = builtins.filter (flag: !(tcpFlags ? ${flag} || builtins.elem flag otherFlags)) items;
+      tcpItems = builtins.filter (flag: tcpFlags ? ${flag}) items;
+    in
+    if unknown != [ ] then
+      primitives.refuseNoTextSpelling "log flags" "${builtins.toJSON (builtins.head unknown)} is no log flag."
+    else
+      lib.optional (tcpItems != [ ])
+        "flags tcp ${lib.concatMapStringsSep "," (flag: tcpFlags.${flag}) tcpItems}"
+      ++ map (flag: "flags ${flag}") (builtins.filter (flag: builtins.elem flag otherFlags) items);
 
   # log: `log [prefix "..."] [group N] [snaplen N] [queue-threshold N]
   # [level L] [flags ...]`.
@@ -317,16 +374,14 @@ let
       ]
       ++ lib.optional (
         (body.prefix or null) != null
-      ) "prefix ${primitives.quoteString "log prefix" body.prefix}"
-      ++ lib.optional ((body.group or null) != null) "group ${toString body.group}"
-      ++ lib.optional ((body.snaplen or null) != null) "snaplen ${toString body.snaplen}"
+      ) "prefix ${primitives.quoteLogPrefix "log prefix" body.prefix}"
+      ++ lib.optional ((body.group or null) != null) "group ${safeToken "log group" body.group}"
+      ++ lib.optional ((body.snaplen or null) != null) "snaplen ${safeToken "log snaplen" body.snaplen}"
       ++
         lib.optional ((body."queue-threshold" or null) != null)
-          "queue-threshold ${toString body."queue-threshold"}"
-      ++ lib.optional ((body.level or null) != null) "level ${body.level}"
-      ++
-        lib.optional ((body.flags or null) != null)
-          "flags ${primitives.flags { sep = " "; } body.flags}";
+          "queue-threshold ${safeToken "log queue-threshold" body."queue-threshold"}"
+      ++ lib.optional ((body.level or null) != null) "level ${safeToken "log level" body.level}"
+      ++ renderLogFlags (body.flags or null);
     in
     lib.concatStringsSep " " parts;
 
@@ -341,10 +396,13 @@ let
       size ? null,
     }:
     "meter ${primitives.identQuote "meter name" name}"
-    + optionalString (size != null) " size ${toString size}"
+    + optionalString (size != null) " size ${safeToken "meter size" size}"
     + " { ${renderInnerExpression ctx key} ${renderStatement (resetPrec ctx) stmt} }";
 
-  # queue: `queue` / `queue num <expr>` / `queue flags ... num <expr>`.
+  # queue: `queue [flags <f>] num <n>` for a number or range, and
+  # `queue [flags <f>] to <expr>` for any other expression (symhash,
+  # numgen, a map), which `num` doesn't take. Without a number, flags come
+  # bare (`queue bypass`): `queue flags` needs a number.
   renderQueue =
     ctx:
     {
@@ -352,14 +410,23 @@ let
       flags ? null,
     }:
     let
-      flagsClause = optionalString (flags != null) " flags ${primitives.flags { sep = ","; } flags}";
-      numClause = if num == null then "" else " num ${renderInnerExpression ctx num}";
+      flagsText = primitives.flags {
+        field = "queue flags";
+        sep = ",";
+      } flags;
+      flagsClause = optionalString (flags != null) " flags ${flagsText}";
+      isNumber = builtins.isInt num || builtins.isAttrs num && num ? range;
     in
-    "queue" + flagsClause + numClause;
+    if num == null then
+      "queue" + optionalString (flags != null) " ${flagsText}"
+    else
+      "queue" + flagsClause + (if isNumber then " num " else " to ") + renderInnerExpression ctx num;
 
   # vmap: `<key> vmap <data>` — verdict-map dispatch as a statement.
   renderVmap =
-    ctx: { key, data }: "${renderInnerExpression ctx key} vmap ${renderInnerExpression ctx data}";
+    ctx:
+    { key, data }:
+    "${renderInnerExpression ctx key} vmap ${renderRightOf "vmap key" key (resetPrec ctx) data}";
 
   # ct count: a named-object reference, `ct count <val>`, or
   # `ct count over <val>`.
@@ -368,20 +435,33 @@ let
     if isObjectRef body then
       renderObjectRef ctx "ct count" body
     else
-      "ct count" + optionalString ((body.inv or null) == true) " over" + " ${toString body.val}";
+      "ct count"
+      + optionalString ((body.inv or null) == true) " over"
+      + " ${safeToken "ct count val" body.val}";
 
   # xt: deprecated escape hatch. Render as `xt <type> "<name>"`.
-  renderXt = _ctx: { type, name }: "xt ${type} ${primitives.quoteString "xt name" name}";
+  renderXt =
+    _ctx:
+    { type, name }:
+    "xt ${safeToken "xt type" type} ${primitives.quoteString "xt name" name}";
 
-  # last: `last [used <ms>]`. Body can be null or { used }.
-  renderLast = _ctx: body: if body == null then "last" else "last used ${toString body.used}";
+  # last: `last`, `last used never` (JSON -1), or `last used <ms>ms`.
+  renderLast =
+    _ctx: body:
+    if body == null then
+      "last"
+    else if body.used == -1 then
+      "last used never"
+    else if builtins.isInt body.used && body.used < -1 then
+      primitives.refuseNoTextSpelling "last used" "JSON loads a negative time other than -1 (never) as a huge one."
+    else
+      "last used ${safeToken "last used" body.used}ms";
 
-  # flow <op> <flowtable-ref>. The schema-level convention is that
-  # `flowtable` includes the leading `@`, so the renderer emits the
-  # value as-is. `safeToken` covers both `@name` and bare `name`
-  # (the predicate's safe-byte set includes `@`), so an unsafe byte
-  # in either form throws before reaching the output stream.
-  renderFlow = _ctx: { op, flowtable }: "flow ${op} ${safeToken "flowtable reference" flowtable}";
+  # flow <op> @<flowtable>, the reference printed as stored.
+  renderFlow =
+    _ctx:
+    { op, flowtable }:
+    "flow ${safeToken "flow op" op} ${primitives.namedReference "flowtable reference" flowtable}";
 
   # tproxy: like dnat, but `to` syntax.
   renderTproxy =
@@ -391,7 +471,9 @@ let
       addr ? null,
       port ? null,
     }:
-    "tproxy" + optionalString (family != null) " ${family}" + renderNatTo ctx addr port;
+    "tproxy"
+    + optionalString (family != null) " ${safeToken "tproxy family" family}"
+    + renderNatTo ctx addr port;
 
   # synproxy: bare / inline / named-reference (expr).
   renderSynproxy =
@@ -400,9 +482,16 @@ let
       "synproxy"
     else if builtins.isAttrs body && body ? mss && body ? wscale then
       let
-        head = "synproxy mss ${toString body.mss} wscale ${toString body.wscale}";
+        head = "synproxy mss ${safeToken "synproxy mss" body.mss} wscale ${safeToken "synproxy wscale" body.wscale}";
         flagsClause =
-          if (body.flags or null) == null then "" else " " + primitives.flags { sep = " "; } body.flags;
+          if (body.flags or null) == null then
+            ""
+          else
+            " "
+            + primitives.flags {
+              field = "synproxy flags";
+              sep = " ";
+            } body.flags;
       in
       head + flagsClause
     else
@@ -413,22 +502,31 @@ let
   # reset: `reset <expr>` — typically `reset tcp option <name>`.
   renderReset = ctx: body: "reset ${renderInnerExpression ctx body}";
 
-  # secmark / tunnel / ct helper / ct timeout / ct expectation — all are
-  # `set` assignment shortcuts. Body is an expression that is, in practice,
-  # always a string naming the referenced object. nft text requires the
-  # name to be quoted.
+  /*
+    secmark / tunnel / ct helper / ct timeout / ct expectation: assign a
+    named object, `<keyword> <object>`, such as `ct helper set "ftp"` or
+    `tunnel name "vxlan0"`. The body is an expression that is, in
+    practice, a string naming the object, which nft's text needs quoted.
+  */
   renderAssign =
-    name: ctx: body:
+    { field, keyword }:
+    ctx: body:
     let
       rendered =
         if builtins.isString body then
-          primitives.quoteString "${name} reference" body
+          primitives.quoteString "${field} reference" body
         else
           renderInnerExpression ctx body;
     in
-    "${name} set ${rendered}";
+    "${keyword} ${rendered}";
 
   # ---- dispatch table -------------------------------------------------
+
+  # Renders a null body, which nft lists for a statement with no options,
+  # as the empty body.
+  nullAsEmpty =
+    render: ctx: body:
+    render ctx (if body == null then { } else body);
 
   taggedRenderers = {
     accept = renderVerdict "accept";
@@ -449,14 +547,14 @@ let
     dup = renderDup;
     snat = renderNat "snat";
     dnat = renderNat "dnat";
-    masquerade = renderMasquerade "masquerade";
-    redirect = renderMasquerade "redirect";
-    reject = renderReject;
+    masquerade = nullAsEmpty (renderMasquerade "masquerade");
+    redirect = nullAsEmpty (renderMasquerade "redirect");
+    reject = nullAsEmpty renderReject;
     set = renderSetStatement;
     map = renderMapStatement;
-    log = renderLog;
+    log = nullAsEmpty renderLog;
     meter = renderMeter;
-    queue = renderQueue;
+    queue = nullAsEmpty renderQueue;
     vmap = renderVmap;
     "ct count" = renderCtCount;
     xt = renderXt;
@@ -465,29 +563,44 @@ let
     tproxy = renderTproxy;
     synproxy = renderSynproxy;
     reset = renderReset;
-    secmark = renderAssign "meta secmark";
-    tunnel = renderAssign "meta tunnel";
-    "ct helper" = renderAssign "ct helper";
-    "ct timeout" = renderAssign "ct timeout";
-    "ct expectation" = renderAssign "ct expectation";
+    secmark = renderAssign {
+      field = "meta secmark";
+      keyword = "meta secmark set";
+    };
+    tunnel = renderAssign {
+      field = "tunnel";
+      keyword = "tunnel name";
+    };
+    "ct helper" = renderAssign {
+      field = "ct helper";
+      keyword = "ct helper set";
+    };
+    "ct timeout" = renderAssign {
+      field = "ct timeout";
+      keyword = "ct timeout set";
+    };
+    "ct expectation" = renderAssign {
+      field = "ct expectation";
+      keyword = "ct expectation set";
+    };
   };
 
   renderStatement =
     ctx: v:
     if !(builtins.isAttrs v) then
-      throw "text.statements: statement must be an attrset, got ${builtins.typeOf v}"
+      throw "nix-nftypes: text: statement must be an attrset, got ${builtins.typeOf v}"
     else
       let
         names = builtins.attrNames v;
       in
       if builtins.length names != 1 then
-        throw "text.statements: statement must have exactly one tag, got [${lib.concatStringsSep ", " names}]"
+        throw "nix-nftypes: text: statement must have exactly one tag, got [${lib.concatStringsSep ", " names}]"
       else
         let
           tag = builtins.head names;
         in
         if !(taggedRenderers ? ${tag}) then
-          throw "text.statements: no renderer for tag '${tag}'"
+          throw "nix-nftypes: text: no renderer for tag '${tag}'"
         else
           taggedRenderers.${tag} ctx v.${tag};
 

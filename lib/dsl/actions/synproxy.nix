@@ -4,6 +4,7 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   variant = import ../internal/variant.nix { inherit lib; };
+  reference = import ../internal/reference.nix { inherit lib; };
 in
 {
   /*
@@ -11,8 +12,8 @@ in
 
     `synproxy { mss; wscale; flags?; }` builds an anonymous configuration
     from the maximum segment size, window scale, and optional flags.
-    `synproxy.ref e` references a named synproxy object (string or
-    expression). `synproxy.auto` is the null-body form. Each returns a
+    `synproxy.ref ref` references a named synproxy object, as
+    `counter.ref` does. `synproxy.auto` is the null-body form. Each returns a
     synproxy statement.
   */
   synproxy =
@@ -31,6 +32,6 @@ in
         auto = {
           synproxy = null;
         };
-        ref = e: { synproxy = e; };
+        ref = ref: { synproxy = reference.objectReference "synproxy.ref" ref; };
       };
 }
