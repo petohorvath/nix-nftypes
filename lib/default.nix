@@ -211,6 +211,8 @@ in
   toNix = json.toNix;
   cleanValue = clean;
 
+  validate = import ./validate.nix { inherit lib; };
+
   /*
     Render schema-shaped values to the nftables `.nft` text syntax `nft -f`
     consumes. The imperative entries (`toText` / `toTextPretty`) accept

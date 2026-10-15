@@ -10,37 +10,31 @@ nftlib = inputs.nix-nftypes.lib;
 
 There are three distinct operations:
 
-1. **Schema validation** through `nftlib.types` and `lib.evalModules`.
+1. **Validation** through `nftlib.validate` and the `nftlib.types` schema.
 2. **DSL construction**, which validates assembled table objects, chains, rules,
    and command-builder bodies when evaluation forces them.
 3. **Rendering**, which cleans and serializes a value but does not perform a
    complete schema validation pass on arbitrary raw attrsets.
 
-Validate hand-written input explicitly:
+Validate hand-written input explicitly with `validate type value`:
 
 ```nix
 let
-  lib = inputs.nixpkgs.lib;
   raw = {
     nftables = [
       { flush = { ruleset = null; }; }
       { add = { table = { family = "inet"; name = "filter"; }; }; }
     ];
   };
-
-  checked = (lib.evalModules {
-    modules = [
-      {
-        options.value = lib.mkOption {
-          type = nftlib.types.ruleset;
-        };
-      }
-      { value = raw; }
-    ];
-  }).config.value;
 in
-nftlib.toJson checked
+nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 ```
+
+`validate` takes any schema type and returns the value with option defaults
+filled in, which rendering cleans away. It forces the whole value, so every
+check runs before it returns, however deep. A mismatch throws the module
+system's error, whose option path starts with `validate`, such as
+`validate.nftables."[definition 1-entry 2]".add.chain.policy`.
 
 `dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
 nodes are expanded and validated; raw command attrsets are deliberately passed

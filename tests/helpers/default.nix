@@ -27,19 +27,10 @@ let
 
   evalSucceeds = expr: (builtins.tryEval expr).success;
 
-  # Type-check a value through a one-option module; throws on mismatch.
-  validate =
-    valueType: value:
-    (lib.evalModules {
-      modules = [
-        { options.v = lib.mkOption { type = valueType; }; }
-        { v = value; }
-      ];
-    }).config.v;
+  inherit (nftlib) validate;
 
-  # Deep-forces the validated value so lazy submodule checks run; false
-  # on any type error.
-  validates = valueType: value: evalSucceeds (builtins.deepSeq (validate valueType value) true);
+  # False on any type error; `validate` already forces every check.
+  validates = valueType: value: evalSucceeds (validate valueType value);
 
 in
 {

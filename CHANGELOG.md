@@ -10,6 +10,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Added
 
+- `validate type value` checks a value against a schema type and returns it ready to render. It forces the whole value, so every check runs, and replaces the `lib.evalModules` pattern the docs showed.
 - `add.<kind>`, a command builder for each of the 16 add-object kinds, like `create.<kind>`.
 - Sets and maps accept a `comment`, so `types.ruleset` validates the Read-back of a commented set or map. nft's JSON parser ignores it on input.
 - ct helper, timeout, and expectation objects accept `l3proto = "inet"`, which nft lists for one in an inet table. Their `l3proto` has its own type, `types.ctL3Proto`, with values under `enums.ctL3Proto`.

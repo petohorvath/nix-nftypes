@@ -273,12 +273,13 @@ Text support and exclusions are tracked separately in
 ## Validation boundaries
 
 Nix module validation is strict about declared fields, enum membership, and
-primitive types. It is applied when callers use `nftlib.types` or when the DSL
-expands its own structured nodes.
+primitive types. It is applied when callers run `nftlib.validate` or use
+`nftlib.types` in their own options, and when the DSL expands its own
+structured nodes.
 
 The renderers do not run arbitrary raw values through `types.ruleset`.
 Likewise, raw attrsets inserted into `dsl.ruleset` are escape hatches and are
-passed through. See [`api.md`](api.md) for an explicit `evalModules` example.
+passed through. See [`api.md`](api.md) for an explicit `validate` example.
 
 ## Executable evidence
 

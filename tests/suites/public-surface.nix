@@ -29,6 +29,7 @@ in
       "toTextPretty"
       "types"
       "validChainPlacement"
+      "validate"
     ];
   };
 

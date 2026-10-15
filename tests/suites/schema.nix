@@ -147,7 +147,7 @@ let
     in
     lib.mapAttrs (_: command: {
       expr = roundtrip nftlib.types.command (lib.setAttrByPath command bodies.${lib.last command});
-      expectedError.msg = "v\\.${builtins.head command}.*is not of type";
+      expectedError.msg = "validate\\.${builtins.head command}.*is not of type";
     }) mishandled
     // {
       # The same objects still add, and still read back as listed objects.
@@ -202,7 +202,7 @@ let
     lib.mapAttrs
       (_: verb: {
         expr = roundtrip nftlib.types.command { ${verb}.tunnel = tunnel; };
-        expectedError.msg = "v\\.${verb}.*is not of type";
+        expectedError.msg = "validate\\.${verb}.*is not of type";
       })
       {
         testAddTunnelRejected = "add";
@@ -227,7 +227,7 @@ let
   # field, and a field nft ignores for the verb isn't demanded.
   commandRequirementTests =
     let
-      missing = field: "v\\.${field}' was accessed but has no value defined";
+      missing = field: "validate\\.${field}' was accessed but has no value defined";
       selector = {
         family = "inet";
         table = "t";
@@ -299,7 +299,7 @@ let
             expr = [ { accept = null; } ];
           };
         };
-        expectedError.msg = "v\\.replace\\.rule\\.handle.*is not of type";
+        expectedError.msg = "validate\\.replace\\.rule\\.handle.*is not of type";
       };
       testAddFlowtableRequiresHook = {
         expr = roundtrip nftlib.types.command {
@@ -1036,7 +1036,7 @@ textDriftTests
         };
       };
     };
-    expectedError.msg = "v\\.flush.*is not of type";
+    expectedError.msg = "validate\\.flush.*is not of type";
   };
 
   # nftables rejects `create rule` explicitly. `create` must not reuse the
@@ -1053,7 +1053,7 @@ textDriftTests
         };
       };
     };
-    expectedError.msg = "v\\.create.*is not of type";
+    expectedError.msg = "validate\\.create.*is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -1087,7 +1087,7 @@ textDriftTests
         unit = "packets";
       };
     };
-    expectedError.msg = "v\\.limit\\.unit.*does not exist";
+    expectedError.msg = "validate\\.limit\\.unit.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -1522,7 +1522,7 @@ textDriftTests
         field = "dport";
       };
     };
-    expectedError.msg = "v\\.payload\\.field.*does not exist";
+    expectedError.msg = "validate\\.payload\\.field.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -1535,7 +1535,7 @@ textDriftTests
         offset = 0;
       };
     };
-    expectedError.msg = "v\\.payload. is not of type";
+    expectedError.msg = "validate\\.payload. is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -1547,7 +1547,7 @@ textDriftTests
         protocol = "tcp";
       };
     };
-    expectedError.msg = "v\\.payload. is not of type";
+    expectedError.msg = "validate\\.payload. is not of type";
   };
 
   # ------------------------------------------------------------------
@@ -1821,7 +1821,7 @@ textDriftTests
         field = "dport";
       };
     };
-    expectedError.msg = "v\\.\"ct count\"\\.payload.*does not exist";
+    expectedError.msg = "validate\\.\"ct count\"\\.payload.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -1945,7 +1945,7 @@ textDriftTests
         rate = 100;
       };
     };
-    expectedError.msg = "v\\.limit\\.per.*was accessed but has no value defined";
+    expectedError.msg = "validate\\.limit\\.per.*was accessed but has no value defined";
   };
 
   # queue without num is valid
@@ -2100,7 +2100,7 @@ textDriftTests
         };
       };
     };
-    expectedError.msg = "v\\.tunnel\\.tunnel\\.gbp.*does not exist";
+    expectedError.msg = "validate\\.tunnel\\.tunnel\\.gbp.*does not exist";
   };
 
   # ------------------------------------------------------------------
@@ -2835,7 +2835,7 @@ textDriftTests
 
   testRulesetRejectsUnknownTopTag = {
     expr = readBack { gizmo = { }; };
-    expectedError.msg = "v\\.nftables\\..*is not of type";
+    expectedError.msg = "validate\\.nftables\\..*is not of type";
   };
 
   testRulesetRejectsUnknownField = {
@@ -2982,7 +2982,7 @@ textDriftTests
     }) true;
     expectedError = {
       type = "ThrownError";
-      msg = "v\\.match\\.left' is not of type `nft expression";
+      msg = "validate\\.match\\.left' is not of type `nft expression";
     };
   };
 
