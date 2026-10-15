@@ -4,7 +4,11 @@
   ruleset renderer passes any bare command attrset through unchanged, so
   users can always drop to raw JSON if needed.
 */
-{ expandTable, lib }:
+{
+  expandTable,
+  lib,
+  resetsRunAsWritten,
+}:
 
 let
   inherit (import ../../table-tree-marker.nix { }) isTableTree;
@@ -30,8 +34,21 @@ in
     nodes (expanded into their commands), bare command attrsets (passed
     through unvalidated), or nested lists of either. Returns
     `{ nftables = [ commands ]; }` and throws on any other child.
+
+    It also throws when a reset of a counter, quota, set, map, or rule is
+    not the last command, built or raw: nft runs one only there, and
+    anywhere else resets nothing yet still exits 0.
   */
-  ruleset = children: {
-    nftables = flattenChildren children;
-  };
+  ruleset =
+    children:
+    let
+      commands = flattenChildren children;
+    in
+    {
+      nftables =
+        if resetsRunAsWritten { nftables = commands; } then
+          commands
+        else
+          throw "nix-nftypes: dsl.ruleset: a reset of a counter, quota, set, map, or rule must be the last command; nft resets nothing for one placed earlier";
+    };
 }

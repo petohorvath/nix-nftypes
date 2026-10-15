@@ -58,7 +58,8 @@ let
     !(builtins.isList entries) || entries == [ ] || !(lib.any isLastOnlyReset (lib.init entries));
 in
 {
-  inherit command;
+  # `dsl.ruleset` applies the same order rule to the commands it emits.
+  inherit command resetsRunAsWritten;
 
   ruleset = discriminatedSubmodule {
     extraCheck = resetsRunAsWritten;

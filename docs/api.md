@@ -38,7 +38,8 @@ system's error, whose option path starts with `validate`, such as
 
 `dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
 nodes are expanded and validated; raw command attrsets are deliberately passed
-through as an escape hatch.
+through as an escape hatch. Only the order of the commands is checked: a reset
+that nft would ignore throws (see [Commands](#commands)).
 
 Table trees derive scope from nesting. Explicit `family` and `name` fields in a
 `dsl.table` body must match its positional arguments; `family`, `table`, and
@@ -343,8 +344,9 @@ every family, and `flush.ruleset { family = "ip"; }` flushes one.
 
 In one batch, nft runs a `reset` of a counter, quota, set, or map only as the
 last command: followed by any other command, it resets nothing, and nft still
-exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere else, so
-give each one a ruleset of its own, or put it last. `reset.element` runs
+exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere else,
+and `dsl.ruleset` throws for one, whether a builder or a raw attrset made it.
+Give each one a ruleset of its own, or put it last. `reset.element` runs
 anywhere.
 
 Each namespace offers only the kinds that nft runs as written, measured on

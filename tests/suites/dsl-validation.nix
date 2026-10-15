@@ -1009,6 +1009,55 @@ in
     };
   };
 
+  # ----- reset order ---------------------------------------------------
+
+  # nft runs a reset of a counter, quota, set, map, or rule only as the
+  # batch's last command, so `dsl.ruleset` refuses one placed earlier,
+  # whether a builder or a raw attrset made it.
+  testRulesetRefusesResetBeforeTable = {
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.reset.counter {
+          family = "inet";
+          table = "t";
+          name = "c";
+        })
+        (dsl.table "inet" "t" { })
+      ]
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.ruleset: .*reset.*last command";
+  };
+
+  testRulesetRefusesRawResetBeforeCommand = {
+    expr = toJson (
+      dsl.ruleset [
+        {
+          reset.quota = {
+            family = "inet";
+            table = "t";
+            name = "q";
+          };
+        }
+        { flush.ruleset = null; }
+      ]
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.ruleset: .*reset.*last command";
+  };
+
+  testRulesetAcceptsResetLast = {
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "inet" "t" { counters.c = { }; })
+        (dsl.reset.counter {
+          family = "inet";
+          table = "t";
+          name = "c";
+        })
+      ]
+    );
+    expected = "{\"nftables\":[{\"add\":{\"table\":{\"family\":\"inet\",\"name\":\"t\"}}},{\"add\":{\"counter\":{\"family\":\"inet\",\"name\":\"c\",\"table\":\"t\"}}},{\"reset\":{\"counter\":{\"family\":\"inet\",\"name\":\"c\",\"table\":\"t\"}}}]}";
+  };
+
   # ----- happy path: a complete, valid ruleset still renders -----------
 
   testTreeAcceptedRulesetSucceeds = {

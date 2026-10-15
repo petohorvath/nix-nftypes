@@ -115,6 +115,7 @@ let
   dsl = import ./dsl {
     inherit lib;
     objects = objects.all;
+    inherit (commands) resetsRunAsWritten;
     inherit (tables) expandTable;
   };
   compatibility = import ./compatibility.nix;

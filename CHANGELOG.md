@@ -94,6 +94,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Fixed
 
+- `dsl.ruleset` throws when a reset of a counter, quota, set, map, or rule is not its last command, as `types.ruleset` does, whether a builder or a raw attrset made it. nft resets nothing for one placed earlier and still exits 0.
 - `toJson`, `toNix`, `toText`, and `toTextPretty` refuse a `dsl.table` value passed where a ruleset belongs, alone or among its commands, and ask for `dsl.ruleset`. `toJson` and `toNix` rendered it with its internal marker, as JSON nft rejects, and the text errors didn't say what was wrong.
 - The home-router example loads. Its input chain had a `flow` statement, which the kernel takes only in a forward chain, and its flowtable was named `offload`, which text can't spell; it's now `fastpath`.
 - Text of a listed ruleset leaves out its `metainfo`, which nft's JSON parser ignores. It wrote a `metainfo` line, which nft rejects.
