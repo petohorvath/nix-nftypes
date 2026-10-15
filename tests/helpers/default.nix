@@ -71,6 +71,7 @@ in
   # not import these paths.
   internals = {
     inherit nftSafeIfname nftSafeScalar;
+    dslMergeDisjoint = import ../../lib/dsl/internal/merge-disjoint.nix { inherit lib; };
     textDispatch = text.dispatch;
     textPrimitives = text.primitives;
   };

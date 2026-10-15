@@ -29,6 +29,7 @@ let
   table = import ./structure/table.nix { inherit lib; };
   commands = import ./structure/commands.nix { inherit lib objects validate; };
   variant = import ./internal/variant.nix { inherit lib; };
+  mergeDisjoint = import ./internal/merge-disjoint.nix { inherit lib; };
 
   # `reset` exists as both a rule-body statement (e.g. `reset tcpOption`)
   # and a top-level command (e.g. `reset counters in table t`). Merge both
@@ -36,30 +37,31 @@ let
   # form, sub-attrs expose the per-object-kind command builders.
   reset = variant actions.reset commands.resetCommand;
 
-  # `actions.reset` would otherwise overwrite the merged form in the
-  # `// actions` merge below.
+  # `actions.reset` would otherwise collide with the merged form in the
+  # merge below.
   actionsWithoutReset = removeAttrs actions [ "reset" ];
 in
-# Merge everything onto a single flat namespace plus a few nested ones.
-# `//` lets later layers silently win, so each layer must define disjoint
-# names.
-{
-  inherit fields reset table;
-  inherit (ruleset) ruleset;
-  expr = exprs;
-  inherit (commands)
-    add
-    create
-    delete
-    destroy
-    flush
-    insert
-    list
-    rename
-    replace
-    ;
+# One flat namespace plus a few nested ones. The layers must define
+# disjoint names; the merge throws on any name two of them define.
+mergeDisjoint {
+  structure = {
+    inherit fields reset table;
+    inherit (ruleset) ruleset;
+    expr = exprs;
+    inherit (commands)
+      add
+      create
+      delete
+      destroy
+      flush
+      insert
+      list
+      rename
+      replace
+      ;
+  };
+  inherit payload; # payload, payloadRaw, payloadTunnel
+  inherit ops; # eq, ne, lt, gt, le, ge, inSet, notInSet, within, match
+  inherit verdicts; # accept, drop, continue, return, notrack, jump, goto
+  actions = actionsWithoutReset; # counter, log, limit, snat, … (not reset)
 }
-// payload # payload, payloadRaw, payloadTunnel
-// ops # eq, ne, lt, gt, le, ge, inSet, notInSet, within, match
-// verdicts # accept, drop, continue, return, notrack, jump, goto
-// actionsWithoutReset # counter, log, limit, snat, … (reset handled above)

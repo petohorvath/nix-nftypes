@@ -6,7 +6,7 @@
   follows. The verb namespaces and `dsl.fields` are pinned in dsl-parity
   and parse-check-inputs.
 */
-{ nftlib, ... }:
+{ helpers, nftlib, ... }:
 let
   inherit (nftlib) dsl types;
 in
@@ -283,6 +283,30 @@ in
       "priorityIntsByFamily"
       "priorityIntsDefault"
     ];
+  };
+
+  # The DSL's flat namespace merges its layers; a name two layers define
+  # throws instead of one layer silently shadowing the other.
+  testDslLayerCollisionThrows = {
+    expr = helpers.internals.dslMergeDisjoint {
+      ops.match = 1;
+      verdicts = {
+        accept = 2;
+        match = 3;
+      };
+    };
+    expectedError.msg = "nix-nftypes: dsl: `match' is defined by both ops and verdicts";
+  };
+
+  testDslLayersMerge = {
+    expr = helpers.internals.dslMergeDisjoint {
+      ops.eq = 1;
+      verdicts.accept = 2;
+    };
+    expected = {
+      eq = 1;
+      accept = 2;
+    };
   };
 
   testDslExports = {
