@@ -21,6 +21,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Changed
 
+- `compatibility.priorityIntsByFamily` is an attrset indexed by family, like `hooksByFamily`, instead of a function: write `priorityIntsByFamily.bridge` for `priorityIntsByFamily "bridge"`. An unknown family is a missing attribute.
 - Flush commands are a `flush.<kind>` namespace like the other verbs: `flush.ruleset`, `flush.table`, `flush.chain`, `flush.set`, `flush.map`, and `flush.meter`. Each takes an object body, and `flush.ruleset { }` flushes every family. They replace `flushRuleset`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`, and the bare `flush` value.
 - Every DSL field name is camelCase:
   - `limit` takes `rateUnit` and `burstUnit`, and so do named limits in a table tree and `create.limit`.
@@ -82,6 +83,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Removed
 
+- `compatibility.priorityIntsDefault` and `compatibility.priorityIntsBridge`. Use `compatibility.priorityIntsByFamily.<family>`, which holds the same tables.
 - `dsl.rule`. Use `add.rule`, which takes the same body.
 - The element `stmt` field and the `stmt` argument of `expr.elem`. nft's JSON parser ignores element statements, so seeded element counters loaded as fresh ones, and elements of a set that declares no statement loaded without any. Declare the statement on the set, as in `stmt = [ { counter = null; } ]`, to give each element its own counter.
 - `fields.icmpv6.packetTooBig`, a field nft doesn't have. Use `fields.icmpv6.mtu`.

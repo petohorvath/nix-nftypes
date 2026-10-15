@@ -2515,12 +2515,12 @@ textDriftTests
   };
 
   testCompatPriorityDefaultFilter = {
-    expr = nftlib.compatibility.priorityIntsDefault.filter;
+    expr = nftlib.compatibility.priorityIntsByFamily.ip.filter;
     expected = 0;
   };
 
   testCompatPriorityBridgeFilter = {
-    expr = nftlib.compatibility.priorityIntsBridge.filter;
+    expr = nftlib.compatibility.priorityIntsByFamily.bridge.filter;
     expected = -200;
   };
 
@@ -2618,28 +2618,42 @@ textDriftTests
   };
 
   # ------------------------------------------------------------------
-  # priorityIntsByFamily — family→table accessor. Internal dispatch
-  # shared by resolvePriority / priorityNameOf / chainTypeFor.
+  # priorityIntsByFamily — one symbol→int table per family, indexed
+  # like hooksByFamily. The same tables back resolvePriority,
+  # priorityNameOf, and chainTypeFor.
   # ------------------------------------------------------------------
-  testPriorityIntsByFamilyIp = {
-    expr = nftlib.compatibility.priorityIntsByFamily "ip" == nftlib.compatibility.priorityIntsDefault;
-    expected = true;
+  testPriorityIntsByFamilyCoversEveryFamily = {
+    expr = builtins.attrNames nftlib.compatibility.priorityIntsByFamily;
+    expected = [
+      "arp"
+      "bridge"
+      "inet"
+      "ip"
+      "ip6"
+      "netdev"
+    ];
   };
 
   testPriorityIntsByFamilyInet = {
-    expr = nftlib.compatibility.priorityIntsByFamily "inet" == nftlib.compatibility.priorityIntsDefault;
-    expected = true;
+    expr = nftlib.compatibility.priorityIntsByFamily.inet;
+    expected = {
+      raw = -300;
+      mangle = -150;
+      dstnat = -100;
+      filter = 0;
+      security = 50;
+      srcnat = 100;
+    };
   };
 
   testPriorityIntsByFamilyBridge = {
-    expr =
-      nftlib.compatibility.priorityIntsByFamily "bridge" == nftlib.compatibility.priorityIntsBridge;
-    expected = true;
-  };
-
-  testPriorityIntsByFamilyUnknownThrows = {
-    expr = nftlib.compatibility.priorityIntsByFamily "nope";
-    expectedError.msg = "nix-nftypes: compatibility\\.priorityIntsByFamily: unknown family 'nope'";
+    expr = nftlib.compatibility.priorityIntsByFamily.bridge;
+    expected = {
+      dstnat = -300;
+      filter = -200;
+      out = 100;
+      srcnat = 300;
+    };
   };
 
   # ------------------------------------------------------------------
@@ -2757,11 +2771,11 @@ textDriftTests
   */
   testChainTypeForPassesValidChainPlacement =
     let
-      inherit (nftlib.compatibility) hooksByFamily priorityIntsBridge priorityIntsDefault;
-      tableInts = lib.attrValues priorityIntsDefault ++ lib.attrValues priorityIntsBridge;
+      inherit (nftlib.compatibility) hooksByFamily priorityIntsByFamily;
+      tableInts = lib.concatMap lib.attrValues (lib.attrValues priorityIntsByFamily);
       priorities =
         family:
-        lib.attrNames (nftlib.compatibility.priorityIntsByFamily family)
+        lib.attrNames priorityIntsByFamily.${family}
         ++ lib.unique tableInts
         ++ [
           (-1)

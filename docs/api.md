@@ -459,7 +459,8 @@ Examples include `family`, `hook`, `operator`, `metaKey`, `rtKey`, `fibResult`,
 - `hooksByFamily`;
 - `familiesByChainType`;
 - `hooksByChainType`;
-- `priorityIntsDefault`, `priorityIntsBridge`, `priorityIntsByFamily`;
+- `priorityIntsByFamily`, the symbolic priority table of each family, indexed
+  like `hooksByFamily`: `priorityIntsByFamily.bridge.filter` is `-200`;
 - `hooksWithOifname`.
 
 Top-level helpers:

@@ -279,9 +279,7 @@ in
       "hooksByChainType"
       "hooksByFamily"
       "hooksWithOifname"
-      "priorityIntsBridge"
       "priorityIntsByFamily"
-      "priorityIntsDefault"
     ];
   };
 

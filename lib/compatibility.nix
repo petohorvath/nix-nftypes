@@ -198,18 +198,20 @@ let
       priorityIntsDefault;
 
   /*
-    priorityIntsByFamily :: family -> { symbol -> int }
+    priorityIntsByFamily.<family> :: { symbol -> int }
 
-    Returns the canonical symbol→int priority table for `family`.
-    `bridge` gets `priorityIntsBridge`; every other known family
-    gets `priorityIntsDefault`. Throws on unknown family.
-
-    The same table backs `resolvePriority` (symbol → int) and the
-    reverse-lookup helpers `priorityNameOf` / `chainTypeFor`. Exposed
-    because consumers occasionally need the raw table to iterate
-    symbols family-aware.
+    The canonical symbol→int priority table of each known family, indexed
+    like `hooksByFamily`: `bridge` has the bridge table, every other
+    family the default one. The same tables back `resolvePriority`
+    (symbol → int) and the reverse lookups `priorityNameOf` and
+    `chainTypeFor`, for consumers that iterate symbols family-aware.
   */
-  priorityIntsByFamily = priorityTableFor "compatibility.priorityIntsByFamily";
+  priorityIntsByFamily = builtins.listToAttrs (
+    map (family: {
+      name = family;
+      value = priorityTableFor "compatibility.priorityIntsByFamily" family;
+    }) knownFamilies
+  );
 
   /*
     resolvePriority :: family -> (int | symbol) -> int
