@@ -12,15 +12,13 @@
   nftlib,
 }:
 let
-  markers = import ../../lib/dsl/internal/markers.nix { };
-
-  isTableNode = child: builtins.isAttrs child && (child.${markers.table} or false);
+  inherit (import ../../lib/table-tree-marker.nix { }) isTableTree;
 
   # A table node in block form, wrapped as a host module would wrap it.
   # Any other child stays an imperative command.
   renderBlockChild =
     child:
-    if isTableNode child then
+    if isTableTree child then
       "table ${child.family} ${child.name} {\n${nftlib.toTextBlock child}\n}"
     else
       nftlib.toText { nftables = [ child ]; };
