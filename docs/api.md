@@ -323,7 +323,9 @@ A builder takes positional arguments only when every argument is required and
 there are at most two, as in `eq left right`, `vmap key data`, `expr.map key
 data`, `payload protocol field`, `prefix addr len`, and `counter.ref name`.
 Every other builder takes one attrset. `dsl.table family name body` is the
-exception; it mirrors nftables' `table inet filter { … }` syntax. See
+exception; it mirrors nftables' `table inet filter { … }` syntax. The rule
+covers `dsl` builders: the compatibility helpers `chainTypeFor` and
+`validChainPlacement` take their three placement keys positionally. See
 [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 
 ### Commands
