@@ -1,8 +1,9 @@
 /*
-  Assembles the test entries of the `checks` output for one package set:
-  `unit`, and one `integration-<suite>` entry per integration suite, each
-  reading the probe records of the package set's `nft` binary or of the
-  patched source taken from the exported `nftables-source` package.
+  Assembles the repo-specific `integration-<suite>` entries of the
+  `checks` output for one package set, each reading the probe records of
+  the package set's `nft` binary or of the patched source taken from the
+  exported `nftables-source` package. The unit suites run in the
+  `nix-unit` entry of nix-unit's flake-parts module (dev/default.nix).
 
   The project policy builds the entries again with its stable and
   unstable pins overriding `nixpkgs`, so a newer nftables (or `lib`
@@ -17,23 +18,7 @@
 { inputs, pkgs }:
 let
   inherit (pkgs) lib;
-  repo = "nix-nftypes";
-  srcDir = lib.fileset.toSource {
-    root = ../.;
-    fileset = lib.fileset.unions [
-      ../examples
-      ../lib
-      ./.
-    ];
-  };
-  runNixUnit = import ./runners/nix-unit.nix {
-    inherit
-      inputs
-      pkgs
-      repo
-      srcDir
-      ;
-  };
+  integrationCheck = import ./helpers/integration-check.nix { inherit pkgs; };
 
   testContext = import ./test-context.nix { inherit (inputs) nixpkgs; };
   observationPaths = import ./helpers/probes {
@@ -87,31 +72,18 @@ let
     requiredSystemFeatures: suite: observations:
     let
       suiteObservationPaths = lib.getAttrs observations observationPaths;
-      # Store paths are written as Nix path literals so the sandboxed
-      # evaluator can read them.
-      observationPathsExpr = "{ ${
-        lib.concatStrings (
-          lib.mapAttrsToList (
-            observation: path: "${lib.strings.escapeNixIdentifier observation} = ${path}; "
-          ) suiteObservationPaths
-        )
-      }}";
     in
-    lib.nameValuePair "integration-${suite}" (runNixUnit {
-      kind = "integration";
-      name = "integration-${suite}";
-      suites = [ suite ];
-      extraArgs.observationPaths = observationPathsExpr;
-      inherit requiredSystemFeatures;
+    lib.nameValuePair "integration-${suite}" (integrationCheck {
+      inherit suite requiredSystemFeatures;
+      observationPaths = suiteObservationPaths;
       postCheck = (summaries.${suite} or (_: "")) suiteObservationPaths;
     });
 in
-lib.foldl' lib.attrsets.unionOfDisjoint { } [
-  { unit = runNixUnit { kind = "unit"; }; }
-  (lib.mapAttrs' (integrationEntry [ ]) sourceSuites)
+lib.attrsets.unionOfDisjoint (lib.mapAttrs' (integrationEntry [ ]) sourceSuites)
   # The NixOS VM run of their probes requires these features.
-  (lib.mapAttrs' (integrationEntry [
-    "kvm"
-    "nixos-test"
-  ]) nftSuites)
-]
+  (
+    lib.mapAttrs' (integrationEntry [
+      "kvm"
+      "nixos-test"
+    ]) nftSuites
+  )

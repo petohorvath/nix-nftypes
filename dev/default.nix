@@ -1,8 +1,25 @@
 { inputs, ... }:
 {
+  imports = [ inputs.nix-unit.modules.flake.default ];
+
   perSystem =
-    { config, pkgs, ... }:
     {
+      config,
+      pkgs,
+      system,
+      ...
+    }:
+    {
+      # The integration suites read probe records, which are build outputs,
+      # so they run as the `integration-<suite>` entries of ../tests.
+      nix-unit = {
+        package = pkgs.nix-unit;
+        inputs = removeAttrs inputs [ "self" ];
+        tests.unit = import ../tests/unit {
+          inherit (inputs) nixpkgs;
+          inherit system;
+        };
+      };
       formatter = pkgs.callPackage ./formatter.nix { };
       devShells.default = pkgs.callPackage ./shell.nix {
         inherit (config) formatter;

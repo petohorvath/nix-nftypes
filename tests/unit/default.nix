@@ -3,15 +3,10 @@
   Groups each suite's tests under the suite's file name. The suites that
   assert on probe records are in ../integration.
 
-  Run locally with `nix-unit tests/unit`.
+  nix-unit's flake-parts module runs it as `tests.systems.<system>.unit`
+  (dev/default.nix).
 */
-let
-  rootInputs = (builtins.getFlake (toString ../..)).inputs;
-in
-{
-  nixpkgs ? rootInputs.nixpkgs,
-  system ? builtins.currentSystem,
-}:
+{ nixpkgs, system }:
 let
   testContext = import ../test-context.nix { inherit nixpkgs system; };
 in

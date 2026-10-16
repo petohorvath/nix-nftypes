@@ -4,32 +4,15 @@
   the source tooling. Groups each suite's tests under the suite's file
   name.
 
-  Run locally with `nix-unit tests/integration --attr <suite>`, which
-  builds the probes the suite reads; the `nft` probes run in a NixOS VM,
-  which needs KVM.
+  `observationPaths` maps each observation name to its probe record; only
+  the selected suites' records need to be present. Each suite runs as its
+  own `integration-<suite>` entry (../default.nix), which passes the
+  records it reads.
 */
-let
-  rootInputs = (builtins.getFlake (toString ../..)).inputs;
-in
 {
-  nixpkgs ? rootInputs.nixpkgs,
-  system ? builtins.currentSystem,
-  /*
-    Each observation's probe record, by observation name; only the
-    selected suites' records need to be present. tests/default.nix passes
-    the records of the flake's package set, and a local run builds them
-    here.
-  */
-  observationPaths ?
-    let
-      pkgs = nixpkgs.legacyPackages.${system};
-      probeContext = import ../test-context.nix { inherit nixpkgs system; };
-    in
-    import ../helpers/probes {
-      inherit pkgs;
-      inherit (probeContext) fixtures nftlib;
-      nftablesSource = (import ../../packages { inherit pkgs; }).nftables-source;
-    },
+  nixpkgs,
+  observationPaths,
+  system,
 }:
 let
   testContext = import ../test-context.nix {

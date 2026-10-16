@@ -15,16 +15,11 @@ let
   helpers = import ./helpers { inherit lib nftlib; };
   testContext = {
     inherit helpers lib nftlib;
-    # A record read through a path with context, as a local run's built
-    # records are, carries the store paths it names as context, which
-    # nix-unit refuses in a test's values; the sandbox reads path literals.
     observations =
       if observationPaths == null then
         { }
       else
-        lib.mapAttrs (
-          _: path: builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.readFile path))
-        ) observationPaths;
+        lib.mapAttrs (_: path: builtins.fromJSON (builtins.readFile path)) observationPaths;
     fixtures = import ./fixtures {
       inherit lib nftlib;
       inherit (helpers) exampleChildren examples;
