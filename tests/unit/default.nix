@@ -10,12 +10,10 @@ let
 in
 {
   nixpkgs ? rootInputs.nixpkgs,
-  # The runner passes `system` to every entry point; the unit suites need
-  # no package set.
   system ? builtins.currentSystem,
 }:
 let
-  testContext = import ../test-context.nix { inherit nixpkgs; };
+  testContext = import ../test-context.nix { inherit nixpkgs system; };
 in
 {
   comment-safety = import ./comment-safety.nix testContext;

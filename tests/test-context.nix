@@ -1,9 +1,13 @@
-# Builds `testContext`, the single argument every nix-unit suite receives.
-# `observationPaths` maps each observation name to the probe record that
-# the integration suites assert on; the unit entry point passes none.
+/*
+  Builds `testContext`, the single argument every nix-unit suite receives.
+  `observationPaths` maps each observation name to the probe record that
+  the integration suites assert on; the unit entry point passes none. The
+  entry points also pass `system`, which the suites do not need.
+*/
 {
   nixpkgs,
   observationPaths ? null,
+  ...
 }:
 let
   inherit (nixpkgs) lib;

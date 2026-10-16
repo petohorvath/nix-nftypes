@@ -69,7 +69,15 @@ let
     else
       "{ path = ${builtins.toJSON tree.path}; flake = false; }";
 
-  declaredArgs = builtins.functionArgs (import entryPointPath);
+  # Read from the runner's own tree, beside the entry points: the source
+  # copy in `srcDir` is not in the store under `nix flake check --no-build`.
+  declaredArgs = builtins.functionArgs (import (../. + "/${kind}"));
+
+  # An argument left to its default would reach for the root flake,
+  # which the sandbox cannot evaluate.
+  unsuppliedArgs = builtins.attrNames (
+    removeAttrs declaredArgs ([ "system" ] ++ builtins.attrNames (inputs // extraArgs))
+  );
 
   inputArgs = lib.mapAttrs (
     _: input: "(import ${evaluationInputsPath}) ${treeExpr (inputTree input)}"
@@ -159,6 +167,8 @@ let
 
   jobsShell = if jobs == null then "\"\${NIX_BUILD_CORES:-0}\"" else toString jobs;
 in
+assert lib.assertMsg (unsuppliedArgs == [ ])
+  "${repo}-${name}: the ${kind} entry point takes ${lib.concatStringsSep ", " unsuppliedArgs}, which is neither a flake input nor in extraArgs";
 pkgs.runCommandLocal "${repo}-${name}"
   {
     inherit requiredSystemFeatures;

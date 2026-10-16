@@ -23,7 +23,7 @@ in
   observationPaths ?
     let
       pkgs = nixpkgs.legacyPackages.${system};
-      probeContext = import ../test-context.nix { inherit nixpkgs; };
+      probeContext = import ../test-context.nix { inherit nixpkgs system; };
     in
     import ../helpers/probes {
       inherit pkgs;
@@ -32,7 +32,9 @@ in
     },
 }:
 let
-  testContext = import ../test-context.nix { inherit nixpkgs observationPaths; };
+  testContext = import ../test-context.nix {
+    inherit nixpkgs observationPaths system;
+  };
 in
 {
   chain-placement = import ./chain-placement.nix testContext;
