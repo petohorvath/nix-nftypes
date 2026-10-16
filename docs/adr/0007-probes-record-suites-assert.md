@@ -4,10 +4,10 @@ Every test runs nix-unit; only the `formatting` check, which runs treefmt, and t
 
 ## Consequences
 
-`nix-unit tests/unit` runs the unit suites without building anything. An integration suite asserts on a probe's build output, so `nix-unit tests/integration` reaches the records only through import-from-derivation, which is acceptable for a local run but not for the checks. Each `integration-<suite>` check receives its records as build inputs instead.
+`nix-unit --flake .#tests.systems.<system>.unit` covers only the unit suites: an integration suite asserts on a probe's build output, which nix-unit could reach only through import-from-derivation. Running an integration suite means building its `integration-<suite>` check, which receives the records as build inputs. For the same reason, the integration suites cannot run in the `nix-unit` check of nix-unit's flake-parts module, which evaluates the flake source inside the sandbox.
 
 ## Evidence
 
 - `888bfb8` (#9): "Split each live-parser and source-tooling check into a probe and a nix-unit suite … so checks evaluate with IFD disabled."
 - `1b6b7a4` (#10) documents the fast loop and its limit in `README.md` "Verification".
-- `tests/helpers/probes/`, `tests/integration/default.nix`, and `tests/runners/nix-unit.nix` (`tests/probes/`, `tests/live.nix`, and `tests/nix-unit-check.nix` before the move to the test standard).
+- `tests/helpers/probes/`, `tests/integration/default.nix`, and `tests/helpers/integration-check.nix` (`tests/probes/`, `tests/live.nix`, and `tests/nix-unit-check.nix` before the move to the test standard).

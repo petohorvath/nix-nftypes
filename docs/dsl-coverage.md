@@ -197,9 +197,9 @@ These are model limits, not hidden DSL parity claims.
 
 The relevant checks are:
 
-- the `unit` schema and DSL parity suites for byte-identical raw/DSL
+- the `nix-unit` schema and DSL parity suites for byte-identical raw/DSL
   JSON;
-- the `unit` DSL validation suite for rejected fields, unknown table
+- the `nix-unit` DSL validation suite for rejected fields, unknown table
   keys, and error messages that name the offending path;
 - `integration-dsl` for every Integration case through `nft -c -j -f`, and
   raw negative cases that nft and the schema must both reject;
@@ -213,5 +213,5 @@ locked input or one of the project policy's stable and unstable pins.
 
 When adding a schema tag or object kind, add the constructor/registry entry,
 positive parity coverage, one invalid-body test, and an Integration case that
-uses it in the same change. The `unit` reach check fails for a statement
+uses it in the same change. The `nix-unit` reach check fails for a statement
 tag, expression tag, or command/object pair that no Integration case uses.

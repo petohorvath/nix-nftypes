@@ -80,6 +80,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Every library error starts `nix-nftypes: <API>: `, naming what the caller called: a builder such as `dsl.create.ctCount`, a table tree as `dsl.table inet.t` followed by the field's path, `text` for the text renderers, `types.statementOf`, or a compatibility helper such as `resolvePriority`. Text Refusals began `nftypes:`, the text renderers' other errors `text.commands:` or `text:`, `statementOf` and `expressionOf` errors `nftypes.types.statementOf:`, compatibility helper errors had no prefix, and `resolvePriority "foo" "filter"` blamed `priorityIntsByFamily`. Command builders dropped the `dsl.` and named the JSON tag, as in `create.ct count`; their module-system option paths now start with the builder too, as in `dsl.create.ctCount.name`, and `replace` and `insert` errors name `dsl.replace` and `dsl.insert`.
 - Every Refusal ends with `Field: <label>.`. The Refusals of a non-integer chain or flowtable priority (`chain prio`, `flowtable prio`), an unsafe set or map datatype (`set type`, `map type`, `map value type`), an unsafe expression string (`expression`), and a `{ set = …; }` body that is neither a list nor a reference (`set expression`) named no field.
 - Schema submodules take only an attrset of fields: they reject a module function, a path, and a `_module` key. A path-like string such as `{ synproxy = "/sp1"; }` is a synproxy name; it was imported as a module file, which aborted evaluation.
+- The `tests` flake output comes from nix-unit's flake-parts module: the evaluation-only suites are `tests.systems.<system>.unit`, with kebab-case suite names, instead of top-level suites. Run `nix-unit --flake .#tests.systems.<system>.unit`.
 
 ### Removed
 
@@ -93,7 +94,6 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Command builders for commands nft rejects: `list.rule`, `list.element`, `list.flowtable`, `list.synproxy`, `list.metainfo`, `list.ctCount`, and `reset.rule`, whose JSON form fails with "Operation not supported".
 - Command builders for commands nft mishandles: `delete.ctExpectation` and `destroy.ctExpectation` (they delete the whole table), `list.ctExpectation` (it lists the table), `delete.ctTimeout`, `destroy.ctTimeout`, and `list.ctTimeout`, and `delete.ctCount` and `destroy.ctCount` (nftables 1.1.7 aborts). The [schema coverage](docs/spec-coverage.md#commands-nft-mishandles) lists each misbehaviour.
 - Tunnel builders: `add.tunnel`, `create.tunnel`, `delete.tunnel`, `destroy.tunnel`, `list.tunnel`, and the table-tree `tunnels` kind. nft mishandles each tunnel command; see the [schema coverage](docs/spec-coverage.md#commands-nft-mishandles).
-- The `tests` flake output, which held the evaluation-only nix-unit suites. Run `nix-unit tests/unit` instead.
 
 ### Fixed
 
