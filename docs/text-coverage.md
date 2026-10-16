@@ -32,12 +32,12 @@ initial elements remain supported inside their set/map definitions.
 
 | Check | Current scope | Failure policy |
 | --- | --- | --- |
-| `unit-tests`: text parity suite | expected strings for statements, expressions, objects, and commands | any mismatch fails |
-| `unit-tests`: schema/text drift assertions | every schema statement/expression/object tag has a renderer registration | missing registration fails |
-| `unit-tests`: block parity suite | 38 exact-output, structure, validation, ordering, and rejection assertions through the public table interface | any mismatch fails |
-| `text-block-integration-tests` | 6 table cases in compact and pretty form through `nft -c -f`, including chain/object references and inline/named limits | any parse failure fails, as does a missing or unexpected case |
-| `render-equivalence-tests` | every Integration case loaded through JSON, compact text, pretty text, and, for a case built from a Table tree, block form, each in its own network namespace, then compared using `nft list ruleset` | a load failure or listing difference fails, as do a missing or unexpected case and a named exclusion that no longer differs |
-| `parse-check-tests` | every expected string in the text and block parity suites, and every Field leaf rendered as text, through `nft -c -f` with the state it refers to | a rejection fails unless it's an expected rejection, which must still fail with its error |
+| `unit`: text parity suite | expected strings for statements, expressions, objects, and commands | any mismatch fails |
+| `unit`: schema/text drift assertions | every schema statement/expression/object tag has a renderer registration | missing registration fails |
+| `unit`: block parity suite | 38 exact-output, structure, validation, ordering, and rejection assertions through the public table interface | any mismatch fails |
+| `integration-text-block` | 6 table cases in compact and pretty form through `nft -c -f`, including chain/object references and inline/named limits | any parse failure fails, as does a missing or unexpected case |
+| `integration-render-equivalence` | every Integration case loaded through JSON, compact text, pretty text, and, for a case built from a Table tree, block form, each in its own network namespace, then compared using `nft list ruleset` | a load failure or listing difference fails, as do a missing or unexpected case and a named exclusion that no longer differs |
+| `integration-parse-check` | every expected string in the text and block parity suites, and every Field leaf rendered as text, through `nft -c -f` with the state it refers to | a rejection fails unless it's an expected rejection, which must still fail with its error |
 
 Each check uses the `nft` binary of the nixpkgs it evaluates: the locked input
 or one of the project policy's stable and unstable pins.

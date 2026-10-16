@@ -9,4 +9,4 @@ Live tests create private user and network namespaces so that `nft` can parse an
 ## Evidence
 
 - `5026ae0` (#11), "ci!: Run the live parser tests in a NixOS VM", and the matching `CHANGELOG.md` entry.
-- `tests/vm.nix` and the "Test matrix" section of `docs/upstream-sync.md`.
+- `tests/helpers/probes/vm.nix` and the "Test matrix" section of `docs/upstream-sync.md`.

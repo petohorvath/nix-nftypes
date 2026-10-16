@@ -93,6 +93,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Command builders for commands nft rejects: `list.rule`, `list.element`, `list.flowtable`, `list.synproxy`, `list.metainfo`, `list.ctCount`, and `reset.rule`, whose JSON form fails with "Operation not supported".
 - Command builders for commands nft mishandles: `delete.ctExpectation` and `destroy.ctExpectation` (they delete the whole table), `list.ctExpectation` (it lists the table), `delete.ctTimeout`, `destroy.ctTimeout`, and `list.ctTimeout`, and `delete.ctCount` and `destroy.ctCount` (nftables 1.1.7 aborts). The [schema coverage](docs/spec-coverage.md#commands-nft-mishandles) lists each misbehaviour.
 - Tunnel builders: `add.tunnel`, `create.tunnel`, `delete.tunnel`, `destroy.tunnel`, `list.tunnel`, and the table-tree `tunnels` kind. nft mishandles each tunnel command; see the [schema coverage](docs/spec-coverage.md#commands-nft-mishandles).
+- The `tests` flake output, which held the evaluation-only nix-unit suites. Run `nix-unit tests/unit` instead.
 
 ### Fixed
 

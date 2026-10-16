@@ -125,7 +125,7 @@ count case, which reaches its `BUG()`; text input aborts the same way. The
 tunnel parser assigns `dport` to the tunnel's `sport` and leaves each field
 that the input omits uninitialised.
 
-The cases of `nft-misbehaviour-tests` assert that nft still mishandles each
+The cases of `integration-nft-misbehaviour` assert that nft still mishandles each
 command, so a fixed nft fails them and the command can return. Add, create,
 and Read-back of the ct objects are unaffected. A tunnel validates only as
 Read-back, a bare listed object in `types.ruleset`; the DSL builds no tunnel,
@@ -138,7 +138,7 @@ of them, a regular chain. nft's JSON parser reads the three as one optional
 group, so it loads a chain with only some of them as a regular chain whose
 rules never see packets, in nftables 1.1.6 and 1.1.7. The schema rejects such
 a chain, which is stricter than the parser (ADR 0010). The six `chain-*` cases
-of `nft-misbehaviour-tests`, one for each partial placement, assert that nft
+of `integration-nft-misbehaviour`, one for each partial placement, assert that nft
 still loads a regular chain.
 
 #### Rule handles on `add rule`
@@ -164,7 +164,7 @@ in the schema, and the text renderer leaves it off, so a Read-back with rules
 loads as text what it loads as JSON. The text renderer refuses a handle on `add
 rule`, which no text form loads as both versions' JSON does (see the
 [text coverage](text-coverage.md#fields-json-input-ignores)). The
-`add-rule-handle-ignored-on-json` case of `nft-misbehaviour-tests` asserts
+`add-rule-handle-ignored-on-json` case of `integration-nft-misbehaviour` asserts
 that 1.1.6 still ignores the handle on `add rule`, and that 1.1.7 still adds
 the rule after it.
 
@@ -180,7 +180,7 @@ counter, quota, set, map, or rule before its last entry, which is stricter
 than the parser (ADR 0010). Give each such reset a ruleset of its own, or put
 it last. The `reset-runs-only-the-last` and
 `reset-before-another-command-resets-nothing` cases of
-`nft-misbehaviour-tests` assert that nft still drops such a reset.
+`integration-nft-misbehaviour` assert that nft still drops such a reset.
 
 ### 2. Schema intentionally more permissive
 
@@ -234,7 +234,7 @@ A set or map `comment` is a Read-back shape: nft lists it, but its JSON parser
 ignores it on input, in nftables 1.1.6 and 1.1.7. The schema accepts it, JSON
 input loads the set or map without it, and the text renderer refuses it, because
 text would load it. The `set-comment-ignored-on-json` case of
-`nft-misbehaviour-tests` asserts that nft still ignores it.
+`integration-nft-misbehaviour` asserts that nft still ignores it.
 
 Element statements are a Read-back shape too: nft lists each element's
 stateful statement as a `counter`, `quota`, `limit`, or `last` key beside its
@@ -244,7 +244,7 @@ those keys and a `stmt` list, while text loads them when the set declares the
 same statement. The schema accepts the listed keys and no `stmt` list, and the
 text renderer refuses them. Set-level statements load identically through
 JSON and text, and give each element its own instance. The
-`element-statements-ignored-on-json` case of `nft-misbehaviour-tests` asserts
+`element-statements-ignored-on-json` case of `integration-nft-misbehaviour` asserts
 that nft still ignores them.
 
 A ct expression's `family`, as in `ct original ip saddr`, is a Read-back
@@ -285,16 +285,16 @@ passed through. See [`api.md`](api.md) for an explicit `validate` example.
 
 | Check | What it proves | Important limit |
 | --- | --- | --- |
-| `unit-tests`: schema and focused safety suites | Nix-level accepted/rejected values and renderer regressions | hand-written cases cannot discover unknown upstream syntax |
-| `unit-tests`: reach check | every statement tag, expression tag, and command/object pair the schema accepts appears in an Integration case whose JSON loads | each gap is a pending entry naming its open ticket, or a Named exclusion naming its Known difference, in `tests/fixtures/reach.nix`; an entry that a case reaches fails |
-| `integration-tests` | every Integration case's JSON passes the package set's `nft -c -j -f`; each negative case, one wrong value such as an unknown enum value or a port of 65536, is rejected by both nft and `types.ruleset`, which accepts the corrected value | check mode is not a real load; negative cases are samples, not every field |
-| `parse-check-tests` | every expected JSON value in the DSL parity suite and every Field leaf pass `nft -c -j -f` in a minimal context | expected rejections are listed with their ticket or Known difference and must still fail |
-| `chain-placement-tests` | a base chain loads at exactly the family, chain type, and hook placements `validChainPlacement` accepts, over all 126 | priority 0 only; an ingress or egress chain gets a dummy device, which `validChainPlacement` doesn't model |
-| `nftables-source-provenance-tests` | source analysis uses the selected package source and patches | provenance, not semantic coverage |
-| `nftables-enum-extraction-tests` | each extracted parser token table matches the model's list, and holds at least its count at the lock | extractor covers enumerated patterns, not every conditional branch |
-| `nftables-corpus-tests` | every upstream corpus record parses, and none has an unclassified schema rejection | 2 categories are explicitly baselined |
-| `nftables-roundtrip-tests` | every command emitted by the real-loaded Integration cases validates as `types.ruleset`; each listing holds an object besides `metainfo` | sampled serializer coverage |
-| `nftables-tooling-selftests` | injected source/corpus/token defects make the drift checks fail | tests the tooling's chosen fault classes |
+| `unit`: schema and focused safety suites | Nix-level accepted/rejected values and renderer regressions | hand-written cases cannot discover unknown upstream syntax |
+| `unit`: reach check | every statement tag, expression tag, and command/object pair the schema accepts appears in an Integration case whose JSON loads | each gap is a pending entry naming its open ticket, or a Named exclusion naming its Known difference, in `tests/fixtures/reach.nix`; an entry that a case reaches fails |
+| `integration-dsl` | every Integration case's JSON passes the package set's `nft -c -j -f`; each negative case, one wrong value such as an unknown enum value or a port of 65536, is rejected by both nft and `types.ruleset`, which accepts the corrected value | check mode is not a real load; negative cases are samples, not every field |
+| `integration-parse-check` | every expected JSON value in the DSL parity suite and every Field leaf pass `nft -c -j -f` in a minimal context | expected rejections are listed with their ticket or Known difference and must still fail |
+| `integration-chain-placement` | a base chain loads at exactly the family, chain type, and hook placements `validChainPlacement` accepts, over all 126 | priority 0 only; an ingress or egress chain gets a dummy device, which `validChainPlacement` doesn't model |
+| `integration-nftables-source-provenance` | source analysis uses the selected package source and patches | provenance, not semantic coverage |
+| `integration-nftables-enum-extraction` | each extracted parser token table matches the model's list, and holds at least its count at the lock | extractor covers enumerated patterns, not every conditional branch |
+| `integration-nftables-corpus` | every upstream corpus record parses, and none has an unclassified schema rejection | 2 categories are explicitly baselined |
+| `integration-nftables-roundtrip` | every command emitted by the real-loaded Integration cases validates as `types.ruleset`; each listing holds an object besides `metainfo` | sampled serializer coverage |
+| `integration-nftables-tooling-selftest` | injected source/corpus/token defects make the drift checks fail | tests the tooling's chosen fault classes |
 
 All package-set-dependent checks are instantiated from `nixpkgs` on each Linux
 check system. CI runs the checks, including the VM tests, with the locked

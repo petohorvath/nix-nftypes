@@ -16,5 +16,5 @@ Merges are gated only by deterministic checks, run with the locked `nixpkgs` and
 
 - `9e239ae` introduces the weekly canary and the issue-filing source diff; `b787032` moves both onto nixpkgs branch tips.
 - `bd0a4ea` closes superseded drift issues so each branch keeps at most one; `888bfb8` makes stale corpus baselines fail, noting the corpus only changes when `flake.lock` moves.
-- `.github/workflows/upstream-sync.yml` reads the pins with the policy checker's `validate` command and has no canary job; `tests/suites/nixpkgs-source-policy.nix` fails if it resolves a nixpkgs branch itself or reads a different policy series than `check.yml`.
+- `.github/workflows/upstream-sync.yml` reads the pins with the policy checker's `validate` command and has no canary job; `dev/nixpkgs-source-policy.nix` fails the `lint` check if it resolves a nixpkgs branch itself or reads a different policy series than `check.yml`.
 - The policy's `data/repos.json` lists `petohorvath/nix-nftypes`; `docs/upstream-sync.md` "Daily policy-pin workflow" and "Updating inputs".

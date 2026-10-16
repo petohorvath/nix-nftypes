@@ -28,7 +28,7 @@ x86_64 Linux:
 
 ```sh
 bash tooling/review-env.sh nix build --no-link -L \
-  .#checks.x86_64-linux.text-block-integration-tests
+  .#checks.x86_64-linux.integration-text-block
 ```
 
 For a custom reproduction, pass its command and arguments to the wrapper.
