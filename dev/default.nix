@@ -3,7 +3,12 @@
   imports = [ inputs.nix-unit.modules.flake.default ];
 
   perSystem =
-    { config, pkgs, ... }:
+    {
+      config,
+      inputs',
+      pkgs,
+      ...
+    }:
     {
       # The integration suites read probe records, which are build outputs,
       # so they run as the `integration-<suite>` entries of ../tests.
@@ -20,6 +25,7 @@
       devShells.review = pkgs.callPackage ./review-shell.nix { };
       checks = import ./checks.nix {
         inherit (config) formatter;
+        inherit (inputs'.self) packages;
         inherit pkgs;
         checks = import ../tests { inherit inputs pkgs; };
       };
