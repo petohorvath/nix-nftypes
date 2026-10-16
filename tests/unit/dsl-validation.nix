@@ -1,5 +1,5 @@
 {
-  helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -1015,7 +1015,7 @@ in
   # The DSL's flat namespace merges its layers; a name two layers define
   # throws instead of one layer silently shadowing the other.
   testDslLayerCollisionThrows = {
-    expr = helpers.internals.dslMergeDisjoint {
+    expr = internal.dslMergeDisjoint {
       ops.match = 1;
       verdicts = {
         accept = 2;
@@ -1026,7 +1026,7 @@ in
   };
 
   testDslLayersMerge = {
-    expr = helpers.internals.dslMergeDisjoint {
+    expr = internal.dslMergeDisjoint {
       ops.eq = 1;
       verdicts.accept = 2;
     };

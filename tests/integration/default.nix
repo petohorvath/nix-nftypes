@@ -9,15 +9,9 @@
   own `integration-<suite>` entry (../default.nix), which passes the
   records it reads.
 */
-{
-  nixpkgs,
-  observationPaths,
-  system,
-}:
+{ nixpkgs, observationPaths }:
 let
-  testContext = import ../test-context.nix {
-    inherit nixpkgs observationPaths system;
-  };
+  testContext = import ../test-context.nix { inherit nixpkgs observationPaths; };
 in
 {
   chain-placement = import ./chain-placement.nix testContext;

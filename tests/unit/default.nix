@@ -6,9 +6,9 @@
   nix-unit's flake-parts module runs it as `tests.systems.<system>.unit`
   (dev/default.nix).
 */
-{ nixpkgs, system }:
+{ nixpkgs }:
 let
-  testContext = import ../test-context.nix { inherit nixpkgs system; };
+  testContext = import ../test-context.nix { inherit nixpkgs; };
 in
 {
   comment-safety = import ./comment-safety.nix testContext;

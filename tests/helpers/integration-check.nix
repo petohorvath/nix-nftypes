@@ -47,7 +47,6 @@ let
       suites = import ${src}/tests/integration {
         nixpkgs.lib = import ${pkgs.path}/lib;
         observationPaths = ${observationPathsExpr};
-        system = ${builtins.toJSON pkgs.stdenv.hostPlatform.system};
       };
     in
     { ${suiteName} = suites.${suiteName}; }

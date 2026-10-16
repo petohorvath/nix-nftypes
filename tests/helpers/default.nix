@@ -1,26 +1,7 @@
-# Shared test helpers. Takes the library under test, `nftlib`, loads the
-# internal modules the suites pin directly, and provides the evaluation
-# and assertion helpers the suites share.
+# Shared test helpers. Takes the library under test, `nftlib`, and
+# provides the evaluation and assertion helpers the suites share.
 { lib, nftlib }:
 let
-  nftSafeIfname = import ../../lib/nft-safe-ifname.nix { };
-  nftSafeScalar = import ../../lib/nft-safe-scalar.nix { };
-  nftSafeString = import ../../lib/nft-safe-string.nix { };
-  nftSafeLogPrefix = import ../../lib/nft-safe-log-prefix.nix { inherit nftSafeString; };
-
-  # The text module itself, so drift checks read the exact dispatch tables
-  # the production renderers use.
-  text = import ../../lib/text {
-    inherit
-      lib
-      nftSafeIfname
-      nftSafeLogPrefix
-      nftSafeScalar
-      nftSafeString
-      ;
-    clean = import ../../lib/clean.nix { inherit lib; };
-  };
-
   evalSucceeds = expr: (builtins.tryEval expr).success;
 
   inherit (nftlib) validate;
@@ -31,42 +12,6 @@ let
 in
 {
   inherit validate validates;
-
-  examples = {
-    basicFirewall = import ../../examples/basic-firewall.nix { inherit nftlib; };
-    basicFirewallDsl = import ../../examples/basic-firewall-dsl.nix { inherit nftlib; };
-    homeRouterDsl = import ../../examples/home-router-dsl.nix { inherit nftlib; };
-  };
-
-  # The children each table-tree example passes to `dsl.ruleset`, which an
-  # Integration case needs for its block form: the example gets a
-  # `dsl.ruleset` that returns them as they are.
-  exampleChildren =
-    let
-      childrenOf =
-        path:
-        import path {
-          nftlib = nftlib // {
-            dsl = nftlib.dsl // {
-              ruleset = lib.id;
-            };
-          };
-        };
-    in
-    {
-      basicFirewallDsl = childrenOf ../../examples/basic-firewall-dsl.nix;
-      homeRouterDsl = childrenOf ../../examples/home-router-dsl.nix;
-    };
-
-  # Internal modules, exercised directly so defence-in-depth checks are
-  # pinned independently of the public API. Production callers should
-  # not import these paths.
-  internals = {
-    inherit nftSafeIfname nftSafeScalar;
-    dslMergeDisjoint = import ../../lib/dsl/internal/merge-disjoint.nix { inherit lib; };
-    textDispatch = text.dispatch;
-    textPrimitives = text.primitives;
-  };
 
   /*
     `expectedError.msg` patterns for the text renderer's safety refusals.

@@ -1,5 +1,6 @@
 {
   helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -29,7 +30,7 @@ let
   dsl = nftlib.dsl;
   inherit (nftlib) toJson;
 
-  inherit (helpers.internals) nftSafeScalar;
+  inherit (internal) nftSafeScalar;
 
   # Surface 1: match RHS as a bare scalar string against a non-ifname
   # LHS. ifname LHSs route through `isIfnameLhs` and quote the value;

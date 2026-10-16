@@ -1,6 +1,7 @@
 {
   fixtures,
   helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -27,7 +28,7 @@ let
   dsl = nftlib.dsl;
   inherit (nftlib) toJson toText toTextPretty;
 
-  inherit (helpers.internals) nftSafeIfname;
+  inherit (internal) nftSafeIfname;
   inherit (helpers) refusals;
 
   # ----- Bad / good ifname samples ----------------------------------------

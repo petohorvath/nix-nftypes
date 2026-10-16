@@ -1,5 +1,6 @@
 {
   helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -45,7 +46,7 @@ let
   # where a new schema tag is added without a renderer.
   textDriftTests =
     let
-      inherit (helpers.internals) textDispatch;
+      inherit (internal) textDispatch;
 
       # Tags in `xs` that don't appear in `ys`. A non-empty result lists
       # the offenders verbatim, which makes the failure output

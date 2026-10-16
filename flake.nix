@@ -13,9 +13,11 @@
     };
     nix-unit = {
       url = "github:nix-community/nix-unit";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.treefmt-nix.follows = "";
-      inputs.nix-github-actions.follows = "";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        treefmt-nix.follows = "";
+        nix-github-actions.follows = "";
+      };
     };
   };
 
