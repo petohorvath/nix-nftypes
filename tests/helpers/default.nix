@@ -1,12 +1,8 @@
-/*
-  Shared test helpers. Loads the library under test (and the internal
-  modules the suites pin directly) and provides the evaluation and
-  assertion helpers the suites share.
-*/
-{ lib }:
+# Shared test helpers. Takes the library under test, `nftlib`, loads the
+# internal modules the suites pin directly, and provides the evaluation
+# and assertion helpers the suites share.
+{ lib, nftlib }:
 let
-  nftlib = import ../../lib { inherit lib; };
-
   nftSafeIfname = import ../../lib/nft-safe-ifname.nix { };
   nftSafeScalar = import ../../lib/nft-safe-scalar.nix { };
   nftSafeString = import ../../lib/nft-safe-string.nix { };
@@ -34,11 +30,7 @@ let
 
 in
 {
-  inherit
-    nftlib
-    validate
-    validates
-    ;
+  inherit validate validates;
 
   examples = {
     basicFirewall = import ../../examples/basic-firewall.nix { inherit nftlib; };
@@ -166,7 +158,7 @@ in
   };
 
   # The package set's nft version, such as "1.1.6", from the `nftVersion`
-  # run that every nft probe records (tests/probes/nft.nix). Throws when
+  # run that every nft probe records (tests/helpers/probes/nft.nix). Throws when
   # the run's output is not `nft --version` output.
   nftVersion =
     record:
@@ -212,7 +204,4 @@ in
 
   # The reach check's walk over Integration cases and its verdicts.
   reach = import ./reach.nix { inherit lib; };
-
-  # Reads a project file relative to the repository root.
-  readProjectFile = path: builtins.readFile (../.. + "/${path}");
 }

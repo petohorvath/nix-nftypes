@@ -1,6 +1,6 @@
 /*
   Every Integration case name (./integration-cases.nix `cases`), written
-  out, sorted. The live suites that run each case compare what their
+  out, sorted. The integration suites that run each case compare what their
   probe recorded with this list, so a lost or added case fails them
   instead of passing with nothing checked: nix-unit counts a suite with
   no tests as a success.

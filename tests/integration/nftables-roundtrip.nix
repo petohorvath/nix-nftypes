@@ -18,7 +18,7 @@
   The listing is deterministic for a fixed packaged `nft`: handles are
   assigned sequentially in a fresh netns and the metainfo version string
   is that package's own. The probe's /etc/protocols handling is described
-  in tests/probes/nft.nix and docs/upstream-sync.md.
+  in tests/helpers/probes/nft.nix and docs/upstream-sync.md.
 */
 {
   fixtures,

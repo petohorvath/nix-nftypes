@@ -1,7 +1,7 @@
 /**
   nix-nftypes: strict Nix types, an ergonomic DSL, and pure renderers for
   nftables rulesets. `docs/api.md` documents every export, and
-  `tests/suites/public-surface.nix` pins the list.
+  `tests/unit/public-surface.nix` pins the list.
 */
 { lib }:
 

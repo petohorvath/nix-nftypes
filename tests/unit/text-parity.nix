@@ -8,9 +8,9 @@
 # Schema-level parity tests for the text renderer (lib/text/).
 #
 # Each case renders a hand-built attrset through `toText` (compact form)
-# and asserts the exact resulting string. Mirrors tests/suites/schema.nix's
+# and asserts the exact resulting string. Mirrors tests/unit/schema.nix's
 # round-trip pattern for the JSON renderer: fast, deterministic, no
-# shell-out. Render equivalence (tests/suites/render-equivalence.nix)
+# shell-out. Render equivalence (tests/integration/render-equivalence.nix)
 # loads text through nft.
 
 let

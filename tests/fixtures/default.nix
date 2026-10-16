@@ -1,4 +1,4 @@
-# Fixtures shared by the unit suites and the live probes.
+# Fixtures shared by the nix-unit suites and the probes.
 {
   exampleChildren,
   examples,

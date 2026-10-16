@@ -30,7 +30,7 @@ A title may itself contain brackets (`dnat to [2001:db8::1]:80`,
 must hold one array: a record that doesn't parse fails the run instead of
 silently shrinking the corpus.
 
-The corpus suite (tests/suites/nftables-corpus.nix) reads this and validates
+The corpus suite (tests/integration/nftables-corpus.nix) reads this and validates
 each `expr` against `nftlib.types.statement`. Keeping the fragile text-splitting
 in Python (one place, easy to unit-test) keeps the Nix side a clean
 fromJSON + evalModules loop.

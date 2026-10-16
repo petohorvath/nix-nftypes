@@ -11,9 +11,9 @@
 let
   inherit (pkgs) lib;
 
-  extractTokens = ../../tooling/extract-upstream-tokens.py;
+  extractTokens = ../../../tooling/extract-upstream-tokens.py;
 
-  normalizeCorpusScript = ../../tooling/normalize-corpus.py;
+  normalizeCorpusScript = ../../../tooling/normalize-corpus.py;
 
   # Normalizes `tests/py/**/*.t.json` under `source` to
   # `[ { file, title, expr }, … ]`.

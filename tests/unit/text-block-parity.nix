@@ -10,12 +10,12 @@
 # toTextBlockPretty).
 #
 # Each case asserts the exact emitted string for a `dsl.table` value.
-# Mirrors tests/suites/text-parity.nix's pattern but exercises the block-form
+# Mirrors tests/unit/text-parity.nix's pattern but exercises the block-form
 # path: no `add` keyword, no `<family> <table>` prefix on object
 # headers, rules folded as inline statements inside their parent
 # chain's brace block.
 #
-# The companion live-parser suite (tests/suites/text-block-integration.nix)
+# The companion live-parser suite (tests/integration/text-block.nix)
 # feeds block output for the shared fixture tables to the upstream
 # nftables parser.
 

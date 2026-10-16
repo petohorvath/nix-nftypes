@@ -1,10 +1,10 @@
 /*
   "Still misbehaves" cases: forms nft accepts but loads as something other
   than they say. Each is a Known difference (ADR 0010) that the schema or
-  the text renderer refuses. The probe (../probes/nft.nix) loads each raw
-  `ruleset` through JSON, unvalidated, and runs `inspect`; the suite
-  asserts that the output is still `misbehaviour`, so a fixed nft fails it
-  and the form can return.
+  the text renderer refuses. The probe (../helpers/probes/nft.nix) loads
+  each raw `ruleset` through JSON, unvalidated, and runs `inspect`; the
+  suite asserts that the output is still `misbehaviour`, so a fixed nft
+  fails it and the form can return.
 
   Each case has `name`, `knownDifference` (where it is documented),
   `ruleset`, `inspect` (a shell command), and `misbehaviour`. A case may

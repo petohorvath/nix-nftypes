@@ -8,7 +8,7 @@ docs/upstream-sync.md). Extracts the accepted tokens of the cleanly
 structured C tables in the selected package set's patched nftables source
 tree: the primitive enums the JSON parser reads from a table, and the
 statement and expression dispatch tables. The enum extraction suite
-(tests/suites/nftables-enum-extraction.nix) compares each table with the
+(tests/integration/nftables-enum-extraction.nix) compares each table with the
 model's list; this script only reads the source.
 
 Unstructured `strcmp` ladders (`operator`, `socketKey`, `osfKey`) are out

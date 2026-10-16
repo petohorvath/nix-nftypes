@@ -1,5 +1,5 @@
 /*
-  The reach check's exceptions (../suites/reach.nix). Every statement
+  The reach check's exceptions (../unit/reach.nix). Every statement
   tag, expression tag, and command/object pair (`"<verb> <kind>"`) that
   the schema accepts must appear in an Integration case whose JSON loads,
   or have one entry here:

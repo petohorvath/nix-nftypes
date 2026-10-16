@@ -1,18 +1,23 @@
-{ helpers, lib, ... }:
+/*
+  Static regression guard for the nixpkgs-authority design, part of the
+  `lint` entry. The project must not grow a second nixpkgs input or an
+  independently pinned Netfilter source, or reintroduce a direct upstream
+  Git dependency or its own nixpkgs revision resolution in the scheduled
+  workflow, which reads the policy pins.
 
-# Static regression guard for the nixpkgs-authority design. The project must
-# not grow a second nixpkgs input or an independently pinned Netfilter
-# source, or reintroduce a direct upstream Git dependency or its own nixpkgs
-# revision resolution in the scheduled workflow, which reads the policy pins.
+  Returns the names of the forbidden sources present and of the required
+  sources missing; both are empty when the repo follows the design.
+*/
+{ lib }:
 let
-  # `hasInfix` matches `.*infix.*` against the whole text, which
-  # overflows nix-unit's stack on files this long; splitting does not.
+  # `hasInfix` matches `.*infix.*` against the whole text, which can
+  # overflow the evaluator's stack on files this long; splitting does not.
   hasInfix = infix: text: builtins.length (lib.splitString infix text) > 1;
-  flakeText = helpers.readProjectFile "flake.nix";
-  sourcePackageText = helpers.readProjectFile "packages/nftables-source/package.nix";
-  workflowText = helpers.readProjectFile ".github/workflows/upstream-sync.yml";
-  checkWorkflowText = helpers.readProjectFile ".github/workflows/check.yml";
-  docsText = helpers.readProjectFile "docs/upstream-sync.md";
+  flakeText = builtins.readFile ../flake.nix;
+  sourcePackageText = builtins.readFile ../packages/nftables-source/package.nix;
+  workflowText = builtins.readFile ../.github/workflows/upstream-sync.yml;
+  checkWorkflowText = builtins.readFile ../.github/workflows/check.yml;
+  docsText = builtins.readFile ../docs/upstream-sync.md;
   # The policy series that check.yml calls, such as `v0.6`; the scheduled
   # workflow reads the pins from the same series.
   policySeries = lib.pipe checkWorkflowText [
@@ -137,12 +142,6 @@ let
   namesWhere = predicate: entries: map (entry: entry.name) (builtins.filter predicate entries);
 in
 {
-  testForbiddenSourcesAbsent = {
-    expr = namesWhere (entry: entry.present) forbidden;
-    expected = [ ];
-  };
-  testRequiredSourcesPresent = {
-    expr = namesWhere (entry: !entry.present) required;
-    expected = [ ];
-  };
+  forbiddenPresent = namesWhere (entry: entry.present) forbidden;
+  requiredMissing = namesWhere (entry: !entry.present) required;
 }

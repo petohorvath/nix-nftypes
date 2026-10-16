@@ -4,7 +4,7 @@
   run gets its own netfilter instance. Creating the namespaces needs
   unprivileged user namespaces, which hosted CI runners deny inside the
   build sandbox, so these return runners (./record-runs.nix) that the VM
-  tests (../vm.nix) run inside a NixOS VM.
+  run (./vm.nix) runs inside a NixOS VM.
 */
 {
   fixtures,
@@ -124,7 +124,7 @@ in
 
   /*
     Each Integration case loaded through each of its forms, run
-    `<case>-<form>`, in its own namespace (../fixtures/render-equivalence.nix
+    `<case>-<form>`, in its own namespace (../../fixtures/render-equivalence.nix
     lists the forms). The output is the resulting `nft list ruleset`, or
     the load error.
 
