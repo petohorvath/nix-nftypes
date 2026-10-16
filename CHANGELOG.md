@@ -4,7 +4,7 @@ All notable changes to nix-nftypes will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0]
 
 The schema accepts what nft loads as written and rejects what it loads as something else ([ADR 0010](docs/adr/0010-accept-what-nft-loads-as-written.md)), the text renderer writes text that loads the same ruleset as the JSON form, or raises a Refusal, and the DSL follows one set of naming and argument conventions ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). Many of these changes break callers of the DSL, the schema types, and the text renderer.
 
@@ -81,6 +81,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Every Refusal ends with `Field: <label>.`. The Refusals of a non-integer chain or flowtable priority (`chain prio`, `flowtable prio`), an unsafe set or map datatype (`set type`, `map type`, `map value type`), an unsafe expression string (`expression`), and a `{ set = …; }` body that is neither a list nor a reference (`set expression`) named no field.
 - Schema submodules take only an attrset of fields: they reject a module function, a path, and a `_module` key. A path-like string such as `{ synproxy = "/sp1"; }` is a synproxy name; it was imported as a module file, which aborted evaluation.
 - The `tests` flake output comes from nix-unit's flake-parts module: the evaluation-only suites are `tests.systems.<system>.unit`, with kebab-case suite names, instead of top-level suites. Run `nix-unit --flake .#tests.systems.<system>.unit`.
+- The flake has a `nix-unit` input, which provides that module. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.nix-unit.follows = "";`.
 
 ### Removed
 
@@ -166,5 +167,5 @@ Known limits:
 - Text output cannot represent every value that JSON can; [`docs/text-coverage.md`](docs/text-coverage.md) records the gaps.
 - The compatibility helpers check only the static tables. They do not inspect kernel versions, modules, devices, or runtime state, so an `inet` or `netdev` ingress chain that `validChainPlacement` accepts can still require `dev`.
 
-[Unreleased]: https://github.com/petohorvath/nix-nftypes/compare/v0.1.0...HEAD
+[0.2.0]: https://github.com/petohorvath/nix-nftypes/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/petohorvath/nix-nftypes/releases/tag/v0.1.0

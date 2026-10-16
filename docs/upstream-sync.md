@@ -42,10 +42,12 @@ All tests are entries of `checks.<system>`:
   building them requires KVM.
 
 For a fast loop, run the unit suites with
-`nix-unit --flake .#tests.systems.<system>.unit`, or one suite with
-`.unit.<suite>`; add `--override-input nixpkgs <flake-ref>` to run them against
-another nixpkgs. An integration suite runs only as its entry, which builds the
-probes it reads; the `nft` probes need KVM.
+`nix-unit --flake .#tests.systems.<system>.unit`, one suite with
+`.unit.<suite>`, or one test with
+`nix-unit --flake .#tests.systems.<system>.unit.<suite> --attr <test>`; add
+`--override-input nixpkgs <flake-ref>` to run them against another nixpkgs. An
+integration suite runs only as its entry, which builds the probes it reads;
+the `nft` probes need KVM.
 
 Evaluate the exact current list rather than relying on a copied count:
 
