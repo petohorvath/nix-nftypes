@@ -33,8 +33,8 @@ design.
 
 All tests are entries of `checks.<system>`:
 
-- `nix-unit`, the source-side `integration-<suite>` entries, `lint`, and
-  `formatting` run in the build sandbox.
+- `nix-unit`, the source-side `integration-<suite>` entries, `lint`,
+  `formatting`, and `package-nftables-source` run in the build sandbox.
 - The live parser and renderer entries are VM tests. Their probes create
   private user and network namespaces, which hosted CI runners deny inside
   the build sandbox, so `tests/helpers/probes/vm.nix` runs them in one NixOS
