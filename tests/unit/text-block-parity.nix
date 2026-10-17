@@ -311,9 +311,9 @@ in
   };
 
   # Standalone `element` is an imperative command and has no legal form
-  # inside a `table ... {}` block. Block renderers must reject this DSL tree
+  # inside a `table ... {}` block. Block form must refuse this DSL tree
   # instead of emitting parser-invalid `element name { ... }` text.
-  testStandaloneElementsRejectedCompact = {
+  testStandaloneElementsRefusedCompact = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         sets.blocked = {
@@ -327,7 +327,7 @@ in
     expectedError.msg = helpers.refusals.noTextSpelling "table elements";
   };
 
-  testStandaloneElementsRejectedPretty = {
+  testStandaloneElementsRefusedPretty = {
     expr = toTextBlockPretty (
       dsl.table "inet" "fw" {
         maps.services = {
