@@ -64,7 +64,7 @@ let
       ;
   };
   tables = import ./table.nix {
-    inherit clean lib text;
+    inherit lib text;
     objects = objects.all;
   };
   dsl = import ./dsl {

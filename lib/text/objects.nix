@@ -216,10 +216,6 @@ let
       "comment ${primitives.quoteString "table comment" body.comment}"
     ];
 
-  # Table options as block-form declarations, for a table whose
-  # `table <family> <name> { … }` wrapper the caller supplies.
-  renderTableBlockOptions = ctx: body: map (line: "${line};") (renderTableBody ctx body);
-
   renderChainHeader = ctx: body: renderObjectScope ctx body;
 
   # Shared between renderRuleHeader (imperative `add rule …`) and the
@@ -278,6 +274,75 @@ let
     "chain ${identQuote "chain name" body.name}${
       block ctx (renderChainBody ctx body ++ map (renderBlockRule ctx) rules)
     }";
+
+  /*
+    Render a table tree's contents in block form, for a host that supplies
+    the `table <family> <name> { … }` wrapper. `table` is the table
+    module's cleaned `{ body, chains, objects }`, with each chain's rules
+    beside its body. Returns the table's options, then its chain blocks
+    with their rules, then its objects, joined by newlines. Every block
+    form Refusal is raised here or in the renderers it calls.
+  */
+  renderTableBlock =
+    ctx: table:
+    if builtins.any (object: object.kind == "element") table.objects then
+      primitives.refuseNoTextSpelling "table elements" "nft's block grammar has no standalone `element` command. Put initial elements on the set or map definition, or use `toText`."
+    else
+      lib.concatStringsSep "\n" (
+        map (line: "${line};") (renderTableBody ctx table.body)
+        ++ map (chain: renderChainBlock ctx chain.body chain.rules) table.chains
+        ++ map (object: renderObject ctx object.kind object.body) table.objects
+      );
+
+  /*
+    How `renderTableBlock` treats each field of the table, chain, and rule
+    bodies a table tree prepares: rendered, refused, supplied by the tree's
+    scope (the host's table wrapper or the enclosing chain block), or
+    omitted as `toText` omits it. Objects render as they do in `toText`.
+    The block-form drift test (tests/unit/schema.nix) fails when a schema
+    field is missing here.
+  */
+  blockFields = {
+    table = {
+      rendered = [
+        "comment"
+        "flags"
+      ];
+      scope = [
+        "family"
+        "name"
+      ];
+      omitted = [ "handle" ];
+    };
+    chain = {
+      rendered = [
+        "comment"
+        "dev"
+        "hook"
+        "name"
+        "policy"
+        "prio"
+        "type"
+      ];
+      scope = [
+        "family"
+        "table"
+      ];
+      omitted = [ "handle" ];
+    };
+    rule = {
+      rendered = [
+        "comment"
+        "expr"
+      ];
+      refused = [ "index" ];
+      scope = [
+        "chain"
+        "family"
+        "table"
+      ];
+    };
+  };
 
   # rule: `<family> <table> <chain> <statements> [handle/index] [comment]`.
   # Rules do not use a brace block; statements are inline.
@@ -753,13 +818,13 @@ let
 in
 {
   inherit
-    renderChainBlock
+    blockFields
     renderCounterClause
     renderObject
     renderObjectHeader
     renderQuotaClause
     renderSynproxyClause
-    renderTableBlockOptions
+    renderTableBlock
     ;
   # The kind set this renderer's dispatch table accepts. Read by the
   # schema↔text drift test (tests/unit/schema.nix) to assert every object

@@ -33,6 +33,7 @@ let
     internal = {
       inherit nftSafeIfname nftSafeScalar;
       dslMergeDisjoint = import ../lib/dsl/internal/merge-disjoint.nix { inherit lib; };
+      textBlockFields = text.blockFields;
       textDispatch = text.dispatch;
       textPrimitives = text.primitives;
     };

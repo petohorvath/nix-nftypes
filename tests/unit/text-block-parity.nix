@@ -324,7 +324,7 @@ in
         };
       }
     );
-    expectedError.msg = "nix-nftypes: text: block-form text rendering cannot embed standalone table elements";
+    expectedError.msg = helpers.refusals.noTextSpelling "table elements";
   };
 
   testStandaloneElementsRejectedPretty = {
@@ -344,7 +344,7 @@ in
         };
       }
     );
-    expectedError.msg = "nix-nftypes: text: block-form text rendering cannot embed standalone table elements";
+    expectedError.msg = helpers.refusals.noTextSpelling "table elements";
   };
 
   # ---- chain only (base chain, no rules) -----------------------------

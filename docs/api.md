@@ -431,9 +431,9 @@ so a rule `index` has no block-form spelling either, and is refused
 (`rule index`); order the rules in the list instead. Passing a full ruleset or
 a raw command is an error.
 
-Table-block grammar has no form for a standalone `element` command. A table
-node with a top-level `elements.<name>` entry is therefore rejected. Put initial
-elements directly on the corresponding `sets.<name>` or `maps.<name>`
+Table-block grammar has no form for a standalone `element` command, so a table
+node with a top-level `elements.<name>` entry is refused (`table elements`). Put
+initial elements directly on the corresponding `sets.<name>` or `maps.<name>`
 definition, or use `toText`/`toTextPretty` when a later imperative element
 update is required.
 

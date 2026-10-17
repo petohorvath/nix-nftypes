@@ -7,7 +7,6 @@
   pass rules through the text renderer's formatting context.
 */
 {
-  clean,
   lib,
   objects,
   text,
@@ -20,7 +19,6 @@ let
   ruleBody = import ./dsl/internal/rule-body.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
   tableTreeMarker = import ./table-tree-marker.nix { };
-  context = import ./text/context.nix { inherit lib; };
   objectKindRegistry = import ./dsl/structure/object-kinds.nix { inherit lib objects; };
   objectKinds = lib.mapAttrs' (
     _: cfg: lib.nameValuePair cfg.plural (removeAttrs cfg [ "plural" ])
@@ -185,32 +183,20 @@ let
     multi-line output and `node` is the table node. Returns the table's
     `flags` and `comment`, then the chain and object declarations, joined
     by newlines, without the `table <family> <name> { … }` wrapper. Throws
-    when `node` is not a table node or has standalone `elements` entries,
-    which block grammar cannot represent.
+    when `node` is not a table node; text refuses what block grammar
+    cannot spell, such as standalone `elements` entries.
   */
   renderTableBlock =
     pretty: node:
     if !(tableTreeMarker.isTableTree node) then
       throw "nix-nftypes: text: block-form text rendering expects one dsl.table node"
-    else if
-      node ? elements && !(builtins.isAttrs node.elements && sortedNames node.elements == [ ])
-    then
-      throw "nix-nftypes: text: block-form text rendering cannot embed standalone table elements; put initial elements on the set/map definition or use an imperative renderer"
     else
       let
-        table = clean (prepareTable node);
-        ctx = context.mkCtx {
-          inherit pretty;
-          block = true;
-        };
-        declarations =
-          text.renderTableBlockOptions ctx table.body
-          ++ map (chain: text.renderChainBlock ctx chain.body chain.rules) table.chains
-          ++ map (object: text.renderObject ctx object.kind object.body) table.objects;
+        table = prepareTable node;
       in
       # Validate even an empty table's omitted wrapper fields. Construction
       # stays lazy; validation is forced when the rendered string is needed.
-      builtins.deepSeq table.body (lib.concatStringsSep "\n" declarations);
+      builtins.deepSeq table.body (text.renderTableBlock pretty table);
 in
 {
   inherit expandTable;
