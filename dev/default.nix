@@ -1,6 +1,9 @@
 { inputs, ... }:
 {
-  imports = [ inputs.nix-unit.modules.flake.default ];
+  imports = [
+    inputs.nix-unit.modules.flake.default
+    inputs.treefmt-nix.flakeModule
+  ];
 
   perSystem =
     {
@@ -18,13 +21,12 @@
         enableSystemAgnostic = false;
         tests.unit = import ../tests/unit { inherit (inputs) nixpkgs; };
       };
-      formatter = pkgs.callPackage ./formatter.nix { };
+      treefmt.imports = [ ./treefmt.nix ];
       devShells.default = pkgs.callPackage ./shell.nix {
-        inherit (config) formatter;
+        treefmtShell = config.treefmt.build.devShell;
       };
       devShells.review = pkgs.callPackage ./review-shell.nix { };
       checks = import ./checks.nix {
-        inherit (config) formatter;
         inherit (inputs'.self) packages;
         inherit pkgs;
         checks = import ../tests { inherit inputs pkgs; };
