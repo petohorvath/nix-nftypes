@@ -24,19 +24,25 @@ runtime behavior.
 Imperative output contains commands such as `add table`, `add chain`, and
 `add rule`. Block output accepts one `dsl.table` node, omits the table wrapper,
 keeps the table's `flags` and `comment`, and emits named objects and chains in
-block syntax with rules folded into their parent chains. It rejects top-level `elements.<name>` entries because the
-standalone `element` command has no representation inside table-block grammar;
-initial elements remain supported inside their set/map definitions. It omits
-the table's `handle`. A chain block lists its rules in order and has no rule
-position, so block output refuses a rule's `index` (`rule index`).
+block syntax with rules folded into their parent chains. It refuses top-level
+`elements.<name>` entries (`table elements`), because the standalone `element`
+command has no representation inside table-block grammar; initial elements
+remain supported inside their set/map definitions. It omits the table's and
+each chain's `handle`. A chain block lists its rules in order and has no rule
+position, so block form refuses a rule's `index` (`rule index`).
+
+Text's `renderTableBlock` is the one entry point for block form and raises
+every block-form Refusal. Its `blockFields` classifies each field of the
+table, chain, and rule bodies a table tree prepares as rendered, refused,
+supplied by the tree's scope, or omitted as `toText` omits it.
 
 ## Executable evidence
 
 | Check                                    | Current scope                                                                                                                                                                                         | Failure policy                                                                                                              |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `nix-unit`: text parity suite            | expected strings for statements, expressions, objects, and commands                                                                                                                                   | any mismatch fails                                                                                                          |
-| `nix-unit`: schema/text drift assertions | every schema statement/expression/object tag has a renderer registration                                                                                                                              | missing registration fails                                                                                                  |
-| `nix-unit`: block parity suite           | 44 exact-output, structure, validation, ordering, and rejection assertions through the public table interface                                                                                         | any mismatch fails                                                                                                          |
+| `nix-unit`: schema/text drift assertions | every schema statement/expression/object tag has a renderer registration, and block form classifies every table, chain, and rule body field                                                           | missing registration or classification fails                                                                                |
+| `nix-unit`: block parity suite           | 44 exact-output, structure, validation, ordering, rejection, and Refusal assertions through the public table interface                                                                                | any mismatch fails                                                                                                          |
 | `integration-text-block`                 | 6 table cases in compact and pretty form through `nft -c -f`, including chain/object references and inline/named limits                                                                               | any parse failure fails, as does a missing or unexpected case                                                               |
 | `integration-render-equivalence`         | every Integration case loaded through JSON, compact text, pretty text, and, for a case built from a Table tree, block form, each in its own network namespace, then compared using `nft list ruleset` | a load failure or listing difference fails, as do a missing or unexpected case and a named exclusion that no longer differs |
 | `integration-parse-check`                | every expected string in the text and block parity suites, and every Field leaf rendered as text, through `nft -c -f` with the state it refers to                                                     | a rejection fails unless it's an expected rejection, which must still fail with its error                                   |
@@ -53,8 +59,8 @@ a universal 1:1 guarantee for every schema value.
 asserts each one still holds, so a stale exception fails:
 
 - **Refusals.**
-  - Block form refuses `standalone-elements-after-set`, because block grammar
-    has no standalone `element` command.
+  - Block form refuses `standalone-elements-after-set` (`table elements`),
+    because block grammar has no standalone `element` command.
   - Every text form refuses `commented-set-and-map`, because nft's JSON parser
     ignores a set or map comment (see [Fields JSON input ignores](#fields-json-input-ignores)).
 - **Per-version expectations.** `ct-count-objects` uses the `ct count` object

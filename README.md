@@ -117,7 +117,7 @@ networking.nftables = {
 };
 ```
 
-Block form has no standalone `element` command, so it rejects a table tree with top-level `elements.<name>` entries. Put initial elements on the set or map definition instead.
+Block form has no standalone `element` command, so it refuses a table tree with top-level `elements.<name>` entries. Put initial elements on the set or map definition instead.
 
 ## Validate hand-written rulesets
 

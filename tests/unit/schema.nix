@@ -101,6 +101,45 @@ let
     };
 
   /*
+    Block-form field drift: block form must render, refuse, take from the
+    table tree's scope, or omit (as `toText` does) every field of the
+    bodies a table tree prepares. A field added to one of these bodies
+    fails here until text classifies it, so block form cannot drop it
+    silently, as it once dropped a rule's `index`.
+  */
+  blockFieldDriftTests =
+    let
+      inherit (internal) textBlockFields;
+      bodyTypes = {
+        table = nftlib.types.objects.tableBody;
+        chain = nftlib.types.objects.chainBody;
+        rule = nftlib.types.objects.addRuleBody;
+      };
+      schemaFields = type: builtins.attrNames (removeAttrs (type.getSubOptions [ ]) [ "_module" ]);
+      classified = body: lib.concatLists (builtins.attrValues textBlockFields.${body});
+      perBody = f: lib.mapAttrs (body: type: f (schemaFields type) (classified body)) bodyTypes;
+      none = {
+        table = [ ];
+        chain = [ ];
+        rule = [ ];
+      };
+    in
+    {
+      testBlockFieldDrift_everyFieldClassified = {
+        expr = perBody (fields: known: lib.subtractLists known fields);
+        expected = none;
+      };
+      testBlockFieldDrift_noUnknownField = {
+        expr = perBody (fields: known: lib.subtractLists fields known);
+        expected = none;
+      };
+      testBlockFieldDrift_eachFieldClassifiedOnce = {
+        expr = perBody (_: known: lib.subtractLists (lib.unique known) known);
+        expected = none;
+      };
+    };
+
+  /*
     Commands nft mishandles are Known differences (ADR 0010), each with a
     live "still misbehaves" case in tests/fixtures/nft-misbehaviour.nix:
     delete or destroy of a ct expectation deletes its table, list of one
@@ -514,6 +553,7 @@ let
     };
 in
 textDriftTests
+// blockFieldDriftTests
 // mishandledCommandTests
 // tunnelCommandTests
 // commandRequirementTests

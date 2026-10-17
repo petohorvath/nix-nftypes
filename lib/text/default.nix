@@ -3,8 +3,8 @@
 
   Imperative entries consume a schema-shaped ruleset attrset
   (`{ nftables = [ <command>, ... ]; }`). The table module (../table.nix)
-  owns toTextBlock* and uses the object renderers directly, preserving the
-  tree's chain/rule ownership throughout validation and block emission.
+  owns toTextBlock* and table-tree validation, and renders its prepared
+  table through `renderTableBlock`, which raises every block-form Refusal.
 
   Internally we run `clean` (from lib/clean.nix) once at the entry,
   mirroring `toJson`'s contract: nested renderers trust their input is
@@ -105,12 +105,24 @@ in
   */
   toTextPretty = renderRuleset (context.mkCtx { pretty = true; });
 
-  # Internal spelling helpers for lib/table.nix; not exposed by nftlib.
-  inherit (objects) renderChainBlock renderObject renderTableBlockOptions;
+  /*
+    Render a table tree's contents in block form, for lib/table.nix; not
+    exposed by nftlib. `pretty` selects multi-line output and `table` is
+    the table module's prepared `{ body, chains, objects }`. Returns the
+    block-form text, without the `table <family> <name> { … }` wrapper.
+  */
+  renderTableBlock =
+    pretty: table:
+    objects.renderTableBlock (context.mkCtx {
+      inherit pretty;
+      block = true;
+    }) (clean table);
 
   # Internals for the test suites, not exposed by nftlib: the dispatch
-  # tables read by the schema↔text drift tests, and the primitives the
-  # renderer-level safety tests call directly.
+  # tables and block-form field classification read by the schema↔text
+  # drift tests, and the primitives the renderer-level safety tests call
+  # directly.
+  inherit (objects) blockFields;
   dispatch = {
     expressionTags = expressions.tags;
     objectKinds = objects.renderableKinds;
