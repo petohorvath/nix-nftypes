@@ -25,7 +25,6 @@
   string that nft's lexer would read as something else.
 */
 let
-  dsl = nftlib.dsl;
   inherit (nftlib) toJson toText toTextPretty;
 
   inherit (internal) nftSafeIfname;

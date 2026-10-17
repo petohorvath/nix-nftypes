@@ -45,12 +45,12 @@ Each leaf names a field nft knows, and the `integration-parse-check` check loads
 every leaf through `nft -c`. Where nft's field name differs from a plain word,
 the leaf follows nft:
 
-| Leaf | JSON field | Text |
-| --- | --- | --- |
-| `udplite.csumcov` | `csumcov` | `udplite csumcov` |
+| Leaf                            | JSON field                | Text                              |
+| ------------------------------- | ------------------------- | --------------------------------- |
+| `udplite.csumcov`               | `csumcov`                 | `udplite csumcov`                 |
 | `arp.saddrEther`, `arp.saddrIp` | `saddr ether`, `saddr ip` | `arp saddr ether`, `arp saddr ip` |
 | `arp.daddrEther`, `arp.daddrIp` | `daddr ether`, `daddr ip` | `arp daddr ether`, `arp daddr ip` |
-| `icmpv6.paramProblem` | `parameter-problem` | `icmpv6 param-problem` |
+| `icmpv6.paramProblem`           | `parameter-problem`       | `icmpv6 param-problem`            |
 
 There is no `icmpv6.packetTooBig` leaf, because nft has no such field;
 `icmpv6.mtu` reads the MTU of a Packet Too Big message. There is no
@@ -153,13 +153,13 @@ remains.
 Every DSL field and object-kind name is camel case. The DSL translates it where
 nftables uses spaces, hyphens, or underscores. Examples:
 
-| DSL | JSON |
-| --- | --- |
-| `ctHelper` | `ct helper` |
+| DSL              | JSON              |
+| ---------------- | ----------------- |
+| `ctHelper`       | `ct helper`       |
 | `queueThreshold` | `queue-threshold` |
-| `gcInterval` | `gc-interval` |
-| `rateUnit` | `rate_unit` |
-| `typeFlags` | `type_flags` |
+| `gcInterval`     | `gc-interval`     |
+| `rateUnit`       | `rate_unit`       |
+| `typeFlags`      | `type_flags`      |
 
 The mapping is centralized in
 [`lib/dsl/internal/rename.nix`](../lib/dsl/internal/rename.nix).

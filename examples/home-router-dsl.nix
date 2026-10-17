@@ -39,7 +39,6 @@ let
     ;
   inherit (nftlib.dsl.fields)
     ct
-    icmp
     ip
     meta
     tcp

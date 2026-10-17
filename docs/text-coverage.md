@@ -14,11 +14,11 @@ runtime behavior.
 
 ## Render modes
 
-| Function | Form |
-| --- | --- |
-| `toText` | compact imperative commands |
-| `toTextPretty` | readable imperative commands |
-| `toTextBlock` | compact contents of one table block |
+| Function            | Form                                 |
+| ------------------- | ------------------------------------ |
+| `toText`            | compact imperative commands          |
+| `toTextPretty`      | readable imperative commands         |
+| `toTextBlock`       | compact contents of one table block  |
 | `toTextBlockPretty` | readable contents of one table block |
 
 Imperative output contains commands such as `add table`, `add chain`, and
@@ -30,14 +30,14 @@ initial elements remain supported inside their set/map definitions.
 
 ## Executable evidence
 
-| Check | Current scope | Failure policy |
-| --- | --- | --- |
-| `nix-unit`: text parity suite | expected strings for statements, expressions, objects, and commands | any mismatch fails |
-| `nix-unit`: schema/text drift assertions | every schema statement/expression/object tag has a renderer registration | missing registration fails |
-| `nix-unit`: block parity suite | 38 exact-output, structure, validation, ordering, and rejection assertions through the public table interface | any mismatch fails |
-| `integration-text-block` | 6 table cases in compact and pretty form through `nft -c -f`, including chain/object references and inline/named limits | any parse failure fails, as does a missing or unexpected case |
-| `integration-render-equivalence` | every Integration case loaded through JSON, compact text, pretty text, and, for a case built from a Table tree, block form, each in its own network namespace, then compared using `nft list ruleset` | a load failure or listing difference fails, as do a missing or unexpected case and a named exclusion that no longer differs |
-| `integration-parse-check` | every expected string in the text and block parity suites, and every Field leaf rendered as text, through `nft -c -f` with the state it refers to | a rejection fails unless it's an expected rejection, which must still fail with its error |
+| Check                                    | Current scope                                                                                                                                                                                         | Failure policy                                                                                                              |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `nix-unit`: text parity suite            | expected strings for statements, expressions, objects, and commands                                                                                                                                   | any mismatch fails                                                                                                          |
+| `nix-unit`: schema/text drift assertions | every schema statement/expression/object tag has a renderer registration                                                                                                                              | missing registration fails                                                                                                  |
+| `nix-unit`: block parity suite           | 38 exact-output, structure, validation, ordering, and rejection assertions through the public table interface                                                                                         | any mismatch fails                                                                                                          |
+| `integration-text-block`                 | 6 table cases in compact and pretty form through `nft -c -f`, including chain/object references and inline/named limits                                                                               | any parse failure fails, as does a missing or unexpected case                                                               |
+| `integration-render-equivalence`         | every Integration case loaded through JSON, compact text, pretty text, and, for a case built from a Table tree, block form, each in its own network namespace, then compared using `nft list ruleset` | a load failure or listing difference fails, as do a missing or unexpected case and a named exclusion that no longer differs |
+| `integration-parse-check`                | every expected string in the text and block parity suites, and every Field leaf rendered as text, through `nft -c -f` with the state it refers to                                                     | a rejection fails unless it's an expected rejection, which must still fail with its error                                   |
 
 Each check uses the `nft` binary of the nixpkgs it evaluates: the locked input
 or one of the project policy's stable and unstable pins.
@@ -103,13 +103,13 @@ match. Block form and JSON are unaffected.
 A typeof set renders as `typeof <expression>`. nft's text grammar declares both
 sides of a map with one keyword, so a map renders as follows:
 
-| Key | Value | Text |
-| --- | --- | --- |
-| datatype | datatype | `type ipv4_addr : mark` |
-| typeof | typeof | `typeof ip saddr : meta mark` |
-| typeof | datatype or object kind | `typeof ip saddr : verdict` |
-| datatype | typeof | Refusal |
-| datatype | `ct helper`, `ct timeout`, or `ct expectation` | Refusal |
+| Key      | Value                                          | Text                          |
+| -------- | ---------------------------------------------- | ----------------------------- |
+| datatype | datatype                                       | `type ipv4_addr : mark`       |
+| typeof   | typeof                                         | `typeof ip saddr : meta mark` |
+| typeof   | datatype or object kind                        | `typeof ip saddr : verdict`   |
+| datatype | typeof                                         | Refusal                       |
+| datatype | `ct helper`, `ct timeout`, or `ct expectation` | Refusal                       |
 
 After a typeof key, nft's text grammar takes a value name only for `verdict`
 and object kinds such as `counter` or `ct helper`; another name fails to parse
@@ -162,23 +162,23 @@ JSON form fails with `cannot determine ip protocol version`, in nftables
 Several statements take a text spelling that differs from their JSON fields
 but loads the same rule:
 
-| JSON | Text |
-| --- | --- |
-| limit with no `rate_unit`, or `packets` | `limit rate 10/second`, burst in packets; JSON ignores `burst_unit` |
-| limit with a byte `rate_unit` and no `burst_unit` | `burst 5 bytes` |
-| limit `burst = 0` | no burst: JSON turns a packet burst of 0 into 5, as text does without one |
-| quota with no `val_unit` or `used_unit`, quota object with no `bytes` | `bytes`, and `0 bytes` |
-| log `flags` | one `flags` clause per group, as in `flags tcp sequence,options flags skuid` |
-| last `used = -1`, `used = N` | `last used never`, `last used Nms` |
-| exthdr with no `field` | `exthdr frag` |
-| queue `num` other than a number or range | `queue to symhash mod 2` |
-| queue `flags` with no `num` | `queue bypass` |
-| fwd with `family` and `addr` | `fwd ip to 192.0.2.1 device "eth0"`; JSON ignores either alone |
-| snat or dnat with `family` and `port` but no `addr` | `snat to :80`: nft's text takes no family there, and JSON loads the table's family, in an inet table for either NAT family |
-| NAT `flags` with `netmap` | `snat ip prefix to 10.0.0.0/24` |
-| NAT `type_flags` with `concat` | `snat ip addr . port to …` |
-| NAT `type_flags` `prefix` or `interval` | nothing: `prefix` only changes nft's listing, and nft derives `interval` from the map |
-| a negative integer | quoted, `"-1"`, the symbol JSON loads |
+| JSON                                                                  | Text                                                                                                                       |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| limit with no `rate_unit`, or `packets`                               | `limit rate 10/second`, burst in packets; JSON ignores `burst_unit`                                                        |
+| limit with a byte `rate_unit` and no `burst_unit`                     | `burst 5 bytes`                                                                                                            |
+| limit `burst = 0`                                                     | no burst: JSON turns a packet burst of 0 into 5, as text does without one                                                  |
+| quota with no `val_unit` or `used_unit`, quota object with no `bytes` | `bytes`, and `0 bytes`                                                                                                     |
+| log `flags`                                                           | one `flags` clause per group, as in `flags tcp sequence,options flags skuid`                                               |
+| last `used = -1`, `used = N`                                          | `last used never`, `last used Nms`                                                                                         |
+| exthdr with no `field`                                                | `exthdr frag`                                                                                                              |
+| queue `num` other than a number or range                              | `queue to symhash mod 2`                                                                                                   |
+| queue `flags` with no `num`                                           | `queue bypass`                                                                                                             |
+| fwd with `family` and `addr`                                          | `fwd ip to 192.0.2.1 device "eth0"`; JSON ignores either alone                                                             |
+| snat or dnat with `family` and `port` but no `addr`                   | `snat to :80`: nft's text takes no family there, and JSON loads the table's family, in an inet table for either NAT family |
+| NAT `flags` with `netmap`                                             | `snat ip prefix to 10.0.0.0/24`                                                                                            |
+| NAT `type_flags` with `concat`                                        | `snat ip addr . port to …`                                                                                                 |
+| NAT `type_flags` `prefix` or `interval`                               | nothing: `prefix` only changes nft's listing, and nft derives `interval` from the map                                      |
+| a negative integer                                                    | quoted, `"-1"`, the symbol JSON loads                                                                                      |
 
 The text renderer refuses the values that nft's text grammar can't spell with
 their JSON meaning, and names the field:
@@ -200,12 +200,12 @@ their JSON meaning, and names the field:
 Some objects take a text spelling that differs from their JSON fields but
 loads the same object:
 
-| JSON | Text |
-| --- | --- |
-| counter object with only `packets` or only `bytes` | `packets 5 bytes 0`: nft's text takes the counts only as a pair, and JSON loads a missing one as 0 |
-| synproxy object | `mss 1460; wscale 7; timestamp sack-perm`: nftables 1.1.7 misreads `mss 1460 wscale 7` on one line, loading `wscale` as 0, or as 8 after `timestamp` |
-| `create` of a counter, quota, limit, synproxy, or secmark | positional values, as in `create counter inet t c packets 5 bytes 0`: nft's text takes no braces there |
-| ct expectation `timeout` | milliseconds, `timeout 60ms` |
+| JSON                                                      | Text                                                                                                                                                 |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| counter object with only `packets` or only `bytes`        | `packets 5 bytes 0`: nft's text takes the counts only as a pair, and JSON loads a missing one as 0                                                   |
+| synproxy object                                           | `mss 1460; wscale 7; timestamp sack-perm`: nftables 1.1.7 misreads `mss 1460 wscale 7` on one line, loading `wscale` as 0, or as 8 after `timestamp` |
+| `create` of a counter, quota, limit, synproxy, or secmark | positional values, as in `create counter inet t c packets 5 bytes 0`: nft's text takes no braces there                                               |
+| ct expectation `timeout`                                  | milliseconds, `timeout 60ms`                                                                                                                         |
 
 The positional `create` forms have no comment clause, so the text renderer
 refuses a comment on one and names the field, such as `create quota comment`.

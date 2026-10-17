@@ -4,14 +4,14 @@ Issues and specs live in this repo's GitHub Issues. Use `gh`. It infers the repo
 
 ## Commands
 
-| Action                    | Command                                                                  |
-| ------------------------- | ------------------------------------------------------------------------ |
-| Create (publish a ticket) | `gh issue create --title "..." --body-file - <<'EOF' ... EOF`            |
-| Read (fetch a ticket)     | `gh issue view <n> --comments`                                           |
-| List                      | `gh issue list --state open --label <label> --json number,title,labels`  |
-| Comment                   | `gh issue comment <n> --body "..."`                                      |
-| Label                     | `gh issue edit <n> --add-label "..."` / `--remove-label "..."`           |
-| Close                     | `gh issue close <n> --comment "..."`                                     |
+| Action                    | Command                                                                 |
+| ------------------------- | ----------------------------------------------------------------------- |
+| Create (publish a ticket) | `gh issue create --title "..." --body-file - <<'EOF' ... EOF`           |
+| Read (fetch a ticket)     | `gh issue view <n> --comments`                                          |
+| List                      | `gh issue list --state open --label <label> --json number,title,labels` |
+| Comment                   | `gh issue comment <n> --body "..."`                                     |
+| Label                     | `gh issue edit <n> --add-label "..."` / `--remove-label "..."`          |
+| Close                     | `gh issue close <n> --comment "..."`                                    |
 
 ## Pull requests
 

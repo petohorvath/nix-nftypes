@@ -62,22 +62,22 @@ with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ### Main types
 
-| Type | Shape |
-| --- | --- |
-| `ruleset` | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry |
-| `command` | one command wrapper such as `add`, `delete`, or `flush` |
-| `expression` | scalar, list, or tagged expression |
-| `taggedExpression` | tagged-expression forms only |
-| `statement` | one tagged rule statement |
-| `addObject` | the 16 add-object tags; a rule takes no `handle` |
-| `createObject` | add-object tags except `rule` |
-| `deleteObject` | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy` |
-| `listObject` | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter |
-| `readBackObject` | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; a rule keeps its `handle` |
-| `flushObject` | table, chain, set, map, meter, or ruleset |
-| `resetObject` | counter, quota, rule, set, map, or element |
-| `replaceObject` | a rule with the `handle` of the rule it replaces |
-| `renameObject` | a chain with its `newname` |
+| Type               | Shape                                                                                                                                              |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ruleset`          | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                          |
+| `command`          | one command wrapper such as `add`, `delete`, or `flush`                                                                                            |
+| `expression`       | scalar, list, or tagged expression                                                                                                                 |
+| `taggedExpression` | tagged-expression forms only                                                                                                                       |
+| `statement`        | one tagged rule statement                                                                                                                          |
+| `addObject`        | the 16 add-object tags; a rule takes no `handle`                                                                                                   |
+| `createObject`     | add-object tags except `rule`                                                                                                                      |
+| `deleteObject`     | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                              |
+| `listObject`       | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                        |
+| `readBackObject`   | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; a rule keeps its `handle` |
+| `flushObject`      | table, chain, set, map, meter, or ruleset                                                                                                          |
+| `resetObject`      | counter, quota, rule, set, map, or element                                                                                                         |
+| `replaceObject`    | a rule with the `handle` of the rule it replaces                                                                                                   |
+| `renameObject`     | a chain with its `newname`                                                                                                                         |
 
 Per-variant submodules are grouped under:
 
@@ -176,10 +176,10 @@ expr.map fields.tcp.dport (expr.mapRef "ports")
 Every builder that references a named object takes the name with or without
 its leading `@`, and emits the spelling nft's JSON parser looks up there:
 
-| Position | Builders | Emitted |
-| --- | --- | --- |
-| a set, map, or flowtable | `expr.setRef`, `expr.mapRef`, `expr.map`, `vmap`, `setStmt`, `mapStmt`, `flow` | `"@name"`; nft reads a bare name as a hostname or a symbol |
-| a stateful object | the `.ref` of `counter`, `quota`, `limit`, `synproxy`, `ctCount`, `ctHelper`, `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` | the bare name; nft finds no object named `"@name"` |
+| Position                 | Builders                                                                                                                            | Emitted                                                    |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| a set, map, or flowtable | `expr.setRef`, `expr.mapRef`, `expr.map`, `vmap`, `setStmt`, `mapStmt`, `flow`                                                      | `"@name"`; nft reads a bare name as a hostname or a symbol |
+| a stateful object        | the `.ref` of `counter`, `quota`, `limit`, `synproxy`, `ctCount`, `ctHelper`, `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` | the bare name; nft finds no object named `"@name"`         |
 
 A stateful object's `.ref` also takes a map expression, which selects the
 object by key. `inSet`, `notInSet`, and `within` are the exception: their
@@ -330,16 +330,16 @@ covers `dsl` builders: the compatibility helpers `chainTypeFor` and
 
 ### Commands
 
-| API | Notes |
-| --- | --- |
-| `add.<kind>` | 16 add-object kinds; `add.rule` adds a standalone rule |
-| `create.<kind>` | 15 object kinds; `rule` is excluded |
-| `delete.<kind>`, `destroy.<kind>` | 13 add-object kinds; not `ctCount`, `ctTimeout`, or `ctExpectation` |
-| `flush.<kind>` | table, chain, set, map, meter, or ruleset; nftables has no `flush flowtable` command |
-| `list.<kind>` | table, chain, set, map, counter, quota, limit, ctHelper, secmark, or meter |
-| `reset.<kind>` | counter, quota, set, map, or element |
-| `replace body`, `insert body` | rule-only commands |
-| `rename.chain body` | chain-only rename |
+| API                               | Notes                                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------------ |
+| `add.<kind>`                      | 16 add-object kinds; `add.rule` adds a standalone rule                               |
+| `create.<kind>`                   | 15 object kinds; `rule` is excluded                                                  |
+| `delete.<kind>`, `destroy.<kind>` | 13 add-object kinds; not `ctCount`, `ctTimeout`, or `ctExpectation`                  |
+| `flush.<kind>`                    | table, chain, set, map, meter, or ruleset; nftables has no `flush flowtable` command |
+| `list.<kind>`                     | table, chain, set, map, counter, quota, limit, ctHelper, secmark, or meter           |
+| `reset.<kind>`                    | counter, quota, set, map, or element                                                 |
+| `replace body`, `insert body`     | rule-only commands                                                                   |
+| `rename.chain body`               | chain-only rename                                                                    |
 
 Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
 every family, and `flush.ruleset { family = "ip"; }` flushes one.
