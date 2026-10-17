@@ -3,19 +3,12 @@
     nixfmt.enable = true;
     deadnix = {
       enable = true;
-      # Attrset patterns without `...`, such as the DSL builders' arguments,
-      # declare which arguments a function accepts; `--edit` would drop the
-      # unused names and reject callers that pass them.
+      # The DSL builders rely on argument patterns without `...`, which
+      # reject unnamed arguments; `--edit` would drop the unused names.
       no-lambda-pattern-names = true;
     };
     actionlint.enable = true;
-    prettier = {
-      enable = true;
-      settings = {
-        proseWrap = "preserve";
-        printWidth = 100;
-      };
-    };
+    prettier.enable = true;
     shfmt.enable = true;
     shellcheck.enable = true;
     ruff-format.enable = true;
