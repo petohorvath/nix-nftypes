@@ -27,8 +27,8 @@ keeps the table's `flags` and `comment`, and emits named objects and chains in
 block syntax with rules folded into their parent chains. It rejects top-level `elements.<name>` entries because the
 standalone `element` command has no representation inside table-block grammar;
 initial elements remain supported inside their set/map definitions. It omits
-the table's `handle` and refuses a rule's `index` (`rule index`), because a
-chain block lists its rules in order and has no rule position.
+the table's `handle`. A chain block lists its rules in order and has no rule
+position, so block output refuses a rule's `index` (`rule index`).
 
 ## Executable evidence
 

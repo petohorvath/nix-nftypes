@@ -427,9 +427,9 @@ Render only the contents of one `dsl.table` node. These functions omit the
 outer table declaration, keep the table's `flags` and `comment` as the first
 declarations, and place rules inside their chain blocks. A table `handle` has
 no block-form spelling and is omitted. A chain block lists its rules in order,
-so a rule `index` has no block-form spelling either, and is refused (Field:
-`rule index`); order the rules in the list instead. Passing a full ruleset or a
-raw command is an error.
+so a rule `index` has no block-form spelling either, and is refused
+(`rule index`); order the rules in the list instead. Passing a full ruleset or
+a raw command is an error.
 
 Table-block grammar has no form for a standalone `element` command. A table
 node with a top-level `elements.<name>` entry is therefore rejected. Put initial

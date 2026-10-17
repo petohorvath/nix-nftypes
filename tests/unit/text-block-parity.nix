@@ -256,6 +256,7 @@ in
     expectedError.msg = helpers.refusals.noTextSpelling "rule index";
   };
 
+  # The refusal holds for a rule with a comment, which block form renders.
   testRuleIndexRefusedPretty = {
     expr = toTextBlockPretty (
       dsl.table "inet" "fw" {
