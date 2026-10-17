@@ -203,7 +203,7 @@ let
   renderTableHeader =
     _ctx: body:
     renderTableScope {
-      family = body.family;
+      inherit (body) family;
       table = body.name;
     };
 
@@ -239,7 +239,7 @@ let
     "${stmts}${commentClause}";
 
   renderChainBody =
-    ctx: body:
+    _ctx: body:
     let
       isBase = (body.type or null) != null && (body.hook or null) != null && (body.prio or null) != null;
       baseLine =

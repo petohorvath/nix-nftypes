@@ -112,7 +112,7 @@ let
     logPrefix = "x";
     namedReference = "@x";
     nftQuotedString = "x";
-    null = null;
+    inherit null;
   };
   customWrongValues = {
     ifname = "";
@@ -160,10 +160,8 @@ let
       }
     else if name == "submodule" then
       bodyWithout type null
-    else if customSamples ? ${name} then
-      customSamples.${name}
     else
-      unknownType "sample" type;
+      customSamples.${name} or (unknownType "sample" type);
 
   isOptional = option: option.type.name == "nullOr" || option ? default;
 
@@ -227,10 +225,8 @@ let
       noSuchTag
     else if name == "submodule" then
       "nftypes-not-a-body"
-    else if customWrongValues ? ${name} then
-      customWrongValues.${name}
     else
-      unknownType "wrong value" type;
+      customWrongValues.${name} or (unknownType "wrong value" type);
 
   # The integer type under a field's `nullOr`, or null.
   integerBounds =

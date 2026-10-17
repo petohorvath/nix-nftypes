@@ -74,10 +74,7 @@ let
     let
       cleaned = clean (requireNoTableTree "text" ruleset);
       rulesetCommands =
-        if cleaned ? nftables then
-          cleaned.nftables
-        else
-          throw "nix-nftypes: text: ruleset must have a `nftables` key";
+        cleaned.nftables or (throw "nix-nftypes: text: ruleset must have a `nftables` key");
     in
     lib.concatStringsSep "\n" (
       # A dropped command, such as a listing's metainfo, renders as null.

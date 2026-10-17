@@ -27,14 +27,15 @@ one `integration-<suite>` entry for each suite in
 `tests/integration/default.nix`, from `nixpkgs`. Each runs nix-unit on its
 suite, which asserts on the JSON records of probes (`tests/helpers/probes/`):
 scripts that run the package set's `nft` or the source tooling and record each
-run's exit status and output. The `lint` entry, from
+run's exit status and output. The `lint` entry runs statix and, from
 `dev/nixpkgs-source-policy.nix`, statically guards the single-authority
-design.
+design. The `treefmt` entry runs the formatters and linters of
+`dev/treefmt.nix`.
 
 All tests are entries of `checks.<system>`:
 
 - `nix-unit`, the source-side `integration-<suite>` entries, `lint`,
-  `formatting`, and `package-nftables-source` run in the build sandbox.
+  `treefmt`, and `package-nftables-source` run in the build sandbox.
 - The live parser and renderer entries are VM tests. Their probes create
   private user and network namespaces, which hosted CI runners deny inside
   the build sandbox, so `tests/helpers/probes/vm.nix` runs them in one NixOS
@@ -66,11 +67,11 @@ import-from-derivation, but building them runs the target architecture's
 
 ### Test groups
 
-| Group | Tests |
-| --- | --- |
-| Nix/schema/DSL | `nix-unit`: schema, DSL parity, restricted types, DSL validation and its error messages |
-| Renderer behavior | `nix-unit`: text and table-block parity; VM: JSON integration, table-block integration, Render equivalence |
-| Safety regressions | `nix-unit`: comments, interface names, verdict targets, scalar/token/reference names, datatypes, units, CT timeout keys, priorities; VM: comment and interface-name round trips |
+| Group                   | Tests                                                                                                                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nix/schema/DSL          | `nix-unit`: schema, DSL parity, restricted types, DSL validation and its error messages                                                                                                                           |
+| Renderer behavior       | `nix-unit`: text and table-block parity; VM: JSON integration, table-block integration, Render equivalence                                                                                                        |
+| Safety regressions      | `nix-unit`: comments, interface names, verdict targets, scalar/token/reference names, datatypes, units, CT timeout keys, priorities; VM: comment and interface-name round trips                                   |
 | Source policy and drift | `lint`: nixpkgs source policy; source checks: provenance, upstream corpus, enum/tag extraction, tooling self-tests; VM: Read-back of loaded rulesets (`integration-nftables-roundtrip`), "still misbehaves" cases |
 
 The exact attribute names remain the machine-readable source of truth.
@@ -262,17 +263,17 @@ run every check with the new pins on each pull request.
 
 ## Interpreting failures
 
-| Signal | Meaning | Response |
-| --- | --- | --- |
-| source provenance red | source checks are not tied to the selected package | fix provenance before trusting source-derived results |
-| enum extraction red | extracted parser token/tag drift or extractor failure | inspect the patched source; for a changed table, update the extractor or its floor |
-| corpus red | a packaged upstream statement no longer fits the known schema/baseline | extend the model or justify a named baseline |
-| round trip red | a selected case failed to load or emitted an unmodelled command | inspect load logs and serializer output; do not reduce coverage silently |
-| JSON integration red | selected rendered JSON is rejected by the packaged parser | fix schema/DSL/renderer or narrow the claim with evidence |
-| text/equivalence red | selected native syntax is rejected or differs semantically | fix text rendering or add a narrowly justified named exclusion |
-| unstable-only red | the policy's unstable pin failed while stable passed: likely future stable incompatibility | fix before updating the stable floor |
-| pin-bump red | the policy's Pin-bump tests failed for this repository with a proposed pin | reproduce with the proposed revision, fix here, then re-run the failed policy jobs |
-| drift issue | patched source at a policy pin differs from the lock | review the changed files and the full diff before updating; an unstable issue tracks the next nftables |
+| Signal                | Meaning                                                                                    | Response                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| source provenance red | source checks are not tied to the selected package                                         | fix provenance before trusting source-derived results                                                  |
+| enum extraction red   | extracted parser token/tag drift or extractor failure                                      | inspect the patched source; for a changed table, update the extractor or its floor                     |
+| corpus red            | a packaged upstream statement no longer fits the known schema/baseline                     | extend the model or justify a named baseline                                                           |
+| round trip red        | a selected case failed to load or emitted an unmodelled command                            | inspect load logs and serializer output; do not reduce coverage silently                               |
+| JSON integration red  | selected rendered JSON is rejected by the packaged parser                                  | fix schema/DSL/renderer or narrow the claim with evidence                                              |
+| text/equivalence red  | selected native syntax is rejected or differs semantically                                 | fix text rendering or add a narrowly justified named exclusion                                         |
+| unstable-only red     | the policy's unstable pin failed while stable passed: likely future stable incompatibility | fix before updating the stable floor                                                                   |
+| pin-bump red          | the policy's Pin-bump tests failed for this repository with a proposed pin                 | reproduce with the proposed revision, fix here, then re-run the failed policy jobs                     |
+| drift issue           | patched source at a policy pin differs from the lock                                       | review the changed files and the full diff before updating; an unstable issue tracks the next nftables |
 
 ## Updating inputs
 

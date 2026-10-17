@@ -26,8 +26,7 @@
 # though the cases below only exercise the statement form.
 
 let
-  dsl = nftlib.dsl;
-  inherit (nftlib) toText toTextPretty;
+  inherit (nftlib) dsl toText toTextPretty;
 
   # Payload from the chain-injection audit — `nft -c -f` accepted this
   # pre-fix as a real `add chain` at priority -200 with `policy accept`,

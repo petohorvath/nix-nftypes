@@ -1,6 +1,5 @@
 {
   checks,
-  formatter,
   packages,
   pkgs,
 }:
@@ -23,30 +22,27 @@ lib.foldl' lib.attrsets.unionOfDisjoint { } [
   checks
   packageChecks
   {
-    # The policy only evaluates the formatter, so check the tree here.
-    formatting =
-      pkgs.runCommand "formatting"
+    # statix runs here, as treefmt would run only `statix fix`, which leaves
+    # the findings it cannot fix in place. The rest guards the repo's files.
+    lint =
+      pkgs.runCommand "nix-nftypes-lint"
         {
           src = ../.;
-          nativeBuildInputs = [ formatter ];
+          nativeBuildInputs = [ pkgs.statix ];
         }
-        ''
-          cp -r --no-preserve=mode "$src" source
-          cd source
-          treefmt --ci --tree-root .
-          touch "$out"
-        '';
-
-    # Static guards on the repo's own files.
-    lint = pkgs.runCommand "lint" { } (
-      reportNames "nixpkgs source policy: forbidden sources present:" nixpkgsSourcePolicy.forbiddenPresent
-      + reportNames "nixpkgs source policy: required sources missing:" nixpkgsSourcePolicy.requiredMissing
-      + (
-        if nixpkgsSourcePolicy.forbiddenPresent == [ ] && nixpkgsSourcePolicy.requiredMissing == [ ] then
-          ''touch "$out"''
-        else
-          "exit 1"
-      )
-    );
+        (
+          ''
+            cd "$src"
+            statix check .
+          ''
+          + reportNames "nixpkgs source policy: forbidden sources present:" nixpkgsSourcePolicy.forbiddenPresent
+          + reportNames "nixpkgs source policy: required sources missing:" nixpkgsSourcePolicy.requiredMissing
+          + (
+            if nixpkgsSourcePolicy.forbiddenPresent == [ ] && nixpkgsSourcePolicy.requiredMissing == [ ] then
+              ''touch "$out"''
+            else
+              "exit 1"
+          )
+        );
   }
 ]

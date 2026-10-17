@@ -28,7 +28,6 @@ import json
 import re
 import sys
 
-
 # Registry: table name -> how to extract its tokens from the source. Each
 # entry names the source file (relative to the tree root), the C symbol
 # holding the table, its shape, the struct member holding the token, and
@@ -52,30 +51,47 @@ import sys
 #                   `[ENUM] = { ..., .token = "name" }`. (meta_templates)
 REGISTRY = {
     "family": {
-        "file": "src/parser_json.c", "symbol": "family_tbl",
-        "shape": "pair", "member": "name", "floor": 6,
+        "file": "src/parser_json.c",
+        "symbol": "family_tbl",
+        "shape": "pair",
+        "member": "name",
+        "floor": 6,
     },
     "rtKey": {
-        "file": "src/parser_json.c", "symbol": "rt_key_tbl",
-        "shape": "pair", "member": "name", "floor": 4,
+        "file": "src/parser_json.c",
+        "symbol": "rt_key_tbl",
+        "shape": "pair",
+        "member": "name",
+        "floor": 4,
     },
     "fibResult": {
-        "file": "src/parser_json.c", "symbol": "fib_result_tbl",
-        "shape": "designated", "floor": 4,
+        "file": "src/parser_json.c",
+        "symbol": "fib_result_tbl",
+        "shape": "designated",
+        "floor": 4,
     },
     "metaKey": {
-        "file": "src/meta.c", "symbol": "meta_templates",
-        "shape": "meta_template", "member": "token", "floor": 37,
+        "file": "src/meta.c",
+        "symbol": "meta_templates",
+        "shape": "meta_template",
+        "member": "token",
+        "floor": 37,
     },
     # The two JSON dispatch tables: every statement / expression tag the
     # parser routes.
     "statementTag": {
-        "file": "src/parser_json.c", "symbol": "stmt_parser_tbl",
-        "shape": "pair", "member": "key", "floor": 35,
+        "file": "src/parser_json.c",
+        "symbol": "stmt_parser_tbl",
+        "shape": "pair",
+        "member": "key",
+        "floor": 35,
     },
     "expressionTag": {
-        "file": "src/parser_json.c", "symbol": "cb_tbl",
-        "shape": "pair", "member": "name", "floor": 34,
+        "file": "src/parser_json.c",
+        "symbol": "cb_tbl",
+        "shape": "pair",
+        "member": "name",
+        "floor": 34,
     },
 }
 
@@ -98,7 +114,7 @@ def extract_block(text, symbol):
         elif text[i] == "}":
             depth -= 1
             if depth == 0:
-                return text[start + 1:i]
+                return text[start + 1 : i]
     raise LookupError(f"unbalanced braces in table '{symbol}'")
 
 
@@ -113,7 +129,9 @@ def tokens_from_block(block, spec):
         member = re.compile(designated_member(spec["member"]))
         tokens = []
         for entry in re.finditer(r"\{([^{}]*)\}", block):
-            m = re.match(r'\s*"([^"]*)"', entry.group(1)) or member.search(entry.group(1))
+            m = re.match(r'\s*"([^"]*)"', entry.group(1)) or member.search(
+                entry.group(1)
+            )
             if m:
                 tokens.append(m.group(1))
         return tokens

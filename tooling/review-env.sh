@@ -18,8 +18,8 @@ if [[ $# == 0 ]]; then
   exit 2
 fi
 case "$(uname -s).$(uname -m)" in
-  Linux.x86_64|Linux.aarch64) ;;
-  *) blocked 'the parser environment requires x86_64-linux or aarch64-linux' ;;
+Linux.x86_64 | Linux.aarch64) ;;
+*) blocked 'the parser environment requires x86_64-linux or aarch64-linux' ;;
 esac
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)

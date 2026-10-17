@@ -55,7 +55,7 @@ let
 in
 if isFlatSubmodule then
   let
-    config =
+    inherit
       (lib.evalModules {
         inherit prefix;
         modules = [
@@ -63,7 +63,9 @@ if isFlatSubmodule then
           # `config` keeps module keys such as `imports` plain fields.
           { config = body; }
         ];
-      }).config;
+      })
+      config
+      ;
   in
   if type.check body then
     config

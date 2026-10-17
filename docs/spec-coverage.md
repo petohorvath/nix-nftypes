@@ -20,19 +20,19 @@ reference material but is not complete enough to be the sole authority.
 
 ## Modelled surfaces
 
-| Surface | Current schema |
-| --- | --- |
-| Commands | `add`, `replace`, `create`, `insert`, `delete`, `destroy`, `list`, `reset`, `flush`, `rename` |
-| Add objects | 16 singular object kinds; `tunnel` is excluded because nftables mishandles it |
-| Create objects | 15 kinds; `rule` is excluded because nftables rejects `create rule` |
-| Delete and destroy objects | 13 kinds; `ct count`, `ct timeout`, and `ct expectation` are excluded because nftables mishandles them. A set, map, limit, or flowtable needs only its name |
-| Replace and rename objects | a rule with its `handle`; a chain with its `newname` |
-| List objects | table, chain, set, map, counter, quota, limit, ct helper, secmark, and meter; nftables has no singular `list` of the other kinds, and mishandles a `ct timeout` or `ct expectation` |
-| Listed objects | bare objects in a ruleset, as `nft -j list` emits: 16 add objects plus `metainfo`, `meter`, and `tunnel` |
-| Flush objects | table, chain, set, map, meter, ruleset |
-| Reset objects | counter, quota, rule, set, map, element |
-| Statements | 37 tagged forms |
-| Tagged expressions | 34 tags, plus scalar and bare-list branches in the full `expression` type |
+| Surface                    | Current schema                                                                                                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commands                   | `add`, `replace`, `create`, `insert`, `delete`, `destroy`, `list`, `reset`, `flush`, `rename`                                                                                       |
+| Add objects                | 16 singular object kinds; `tunnel` is excluded because nftables mishandles it                                                                                                       |
+| Create objects             | 15 kinds; `rule` is excluded because nftables rejects `create rule`                                                                                                                 |
+| Delete and destroy objects | 13 kinds; `ct count`, `ct timeout`, and `ct expectation` are excluded because nftables mishandles them. A set, map, limit, or flowtable needs only its name                         |
+| Replace and rename objects | a rule with its `handle`; a chain with its `newname`                                                                                                                                |
+| List objects               | table, chain, set, map, counter, quota, limit, ct helper, secmark, and meter; nftables has no singular `list` of the other kinds, and mishandles a `ct timeout` or `ct expectation` |
+| Listed objects             | bare objects in a ruleset, as `nft -j list` emits: 16 add objects plus `metainfo`, `meter`, and `tunnel`                                                                            |
+| Flush objects              | table, chain, set, map, meter, ruleset                                                                                                                                              |
+| Reset objects              | counter, quota, rule, set, map, element                                                                                                                                             |
+| Statements                 | 37 tagged forms                                                                                                                                                                     |
+| Tagged expressions         | 34 tags, plus scalar and bare-list branches in the full `expression` type                                                                                                           |
 
 The schema also includes parser behavior missing or incomplete in the manual,
 including:
@@ -73,9 +73,9 @@ branch. Differences fall into four groups.
 The packaged nftables statement corpus currently exercises 2 baselined
 categories:
 
-| Category | Schema limitation |
-| --- | --- |
-| unary negation | match operator `!` is not in the operator enum |
+| Category         | Schema limitation                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------- |
+| unary negation   | match operator `!` is not in the operator enum                                                      |
 | partial synproxy | a flags-only synproxy statement is rejected because the schema requires `mss` and `wscale` together |
 
 The executable baseline is `knownDivergences` in
@@ -106,16 +106,16 @@ it with the real packaged parser.
 The schema rejects these commands, which nft accepts but runs as something
 else, measured on nftables 1.1.6 and 1.1.7 (ADR 0010):
 
-| Command | nft result |
-| --- | --- |
-| `delete` or `destroy` of a ct expectation | deletes the whole table and exits 0 |
-| `list` of a ct expectation | lists the whole table |
-| `delete` of a ct timeout | fails with `Invalid argument` |
-| `destroy` of a ct timeout | fails, reported as unsupported |
-| `list` of a ct timeout | aborts on an assertion |
-| `delete` or `destroy` of a ct count | 1.1.7 aborts on an assertion; 1.1.6 has no ct count object |
-| `add` or `create` of a tunnel | loads the `dport` as the tunnel's `sport` and no `dport`; a missing port, `ttl`, or `tos` loads an uninitialised value |
-| `delete`, `destroy`, or `list` of a tunnel | aborts on an assertion |
+| Command                                    | nft result                                                                                                             |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `delete` or `destroy` of a ct expectation  | deletes the whole table and exits 0                                                                                    |
+| `list` of a ct expectation                 | lists the whole table                                                                                                  |
+| `delete` of a ct timeout                   | fails with `Invalid argument`                                                                                          |
+| `destroy` of a ct timeout                  | fails, reported as unsupported                                                                                         |
+| `list` of a ct timeout                     | aborts on an assertion                                                                                                 |
+| `delete` or `destroy` of a ct count        | 1.1.7 aborts on an assertion; 1.1.6 has no ct count object                                                             |
+| `add` or `create` of a tunnel              | loads the `dport` as the tunnel's `sport` and no `dport`; a missing port, `ttl`, or `tos` loads an uninitialised value |
+| `delete`, `destroy`, or `list` of a tunnel | aborts on an assertion                                                                                                 |
 
 For delete, list, and destroy, nft's JSON parser passes the kernel object
 number as its command object type, so a ct expectation is taken for a table, a
@@ -149,13 +149,13 @@ appends the rule, so the schema rejects the field there (ADR 0010), and
 with `insert`. Measured on nftables 1.1.6 and 1.1.7, with rules 2, 3, and 4 in
 a chain:
 
-| Command with `handle = 3` | JSON | Text |
-| --- | --- | --- |
-| `add rule` | 1.1.6 ignores the handle and appends the rule; 1.1.7 adds it after rule 3 | after rule 3 |
-| `insert rule` | before rule 3 | before rule 3 |
-| `replace rule` | replaces rule 3 | replaces rule 3 |
-| `delete rule`, `destroy rule` | deletes rule 3 | deletes rule 3 |
-| a listed `rule` | ignores the handle and appends the rule | no such form: text leaves the handle off |
+| Command with `handle = 3`     | JSON                                                                      | Text                                     |
+| ----------------------------- | ------------------------------------------------------------------------- | ---------------------------------------- |
+| `add rule`                    | 1.1.6 ignores the handle and appends the rule; 1.1.7 adds it after rule 3 | after rule 3                             |
+| `insert rule`                 | before rule 3                                                             | before rule 3                            |
+| `replace rule`                | replaces rule 3                                                           | replaces rule 3                          |
+| `delete rule`, `destroy rule` | deletes rule 3                                                            | deletes rule 3                           |
+| a listed `rule`               | ignores the handle and appends the rule                                   | no such form: text leaves the handle off |
 
 With a handle no rule has, every command but `destroy` fails with `No such
 file or directory`, in JSON and text; `destroy` exits 0, and 1.1.6's JSON
@@ -207,7 +207,7 @@ fields. The schema checks useful local types but leaves the final condition to
   anywhere;
 - a `dccp option` match needs the kernel's DCCP support, which Linux 6.16
   removed, so a newer kernel refuses the rule with `Operation not
-  supported`. The reach check names the `dccp option` expression as a Named
+supported`. The reach check names the `dccp option` expression as a Named
   exclusion, and the parse check expects the refusal from Linux 6.16 on;
 - `resetObject` accepts `rule`, but nft's JSON path fails `reset rule` with
   `Operation not supported`. The DSL has no builder for it, and the reach
@@ -216,7 +216,7 @@ fields. The schema checks useful local types but leaves the final condition to
   nft's object cache, which nftables 1.1.6 and 1.1.7 fill for one of them.
   Depending on the order, a set or map lists without its elements, as after
   `list chain`, or a `list set` before a `list map` fails with `No such file
-  or directory`. Give each `list` whose output matters a ruleset of its own;
+or directory`. Give each `list` whose output matters a ruleset of its own;
 - `delete` and `destroy` of a rule accept a body without `handle`, which nft
   requires to select the rule.
 
@@ -282,18 +282,18 @@ passed through. See [`api.md`](api.md) for an explicit `validate` example.
 
 ## Executable evidence
 
-| Check | What it proves | Important limit |
-| --- | --- | --- |
-| `nix-unit`: schema and focused safety suites | Nix-level accepted/rejected values and renderer regressions | hand-written cases cannot discover unknown upstream syntax |
-| `nix-unit`: reach check | every statement tag, expression tag, and command/object pair the schema accepts appears in an Integration case whose JSON loads | each gap is a pending entry naming its open ticket, or a Named exclusion naming its Known difference, in `tests/fixtures/reach.nix`; an entry that a case reaches fails |
-| `integration-dsl` | every Integration case's JSON passes the package set's `nft -c -j -f`; each negative case, one wrong value such as an unknown enum value or a port of 65536, is rejected by both nft and `types.ruleset`, which accepts the corrected value | check mode is not a real load; negative cases are samples, not every field |
-| `integration-parse-check` | every expected JSON value in the DSL parity suite and every Field leaf pass `nft -c -j -f` in a minimal context | expected rejections are listed with their ticket or Known difference and must still fail |
-| `integration-chain-placement` | a base chain loads at exactly the family, chain type, and hook placements `validChainPlacement` accepts, over all 126 | priority 0 only; an ingress or egress chain gets a dummy device, which `validChainPlacement` doesn't model |
-| `integration-nftables-source-provenance` | source analysis uses the selected package source and patches | provenance, not semantic coverage |
-| `integration-nftables-enum-extraction` | each extracted parser token table matches the model's list, and holds at least its count at the lock | extractor covers enumerated patterns, not every conditional branch |
-| `integration-nftables-corpus` | every upstream corpus record parses, and none has an unclassified schema rejection | 2 categories are explicitly baselined |
-| `integration-nftables-roundtrip` | every command emitted by the real-loaded Integration cases validates as `types.ruleset`; each listing holds an object besides `metainfo` | sampled serializer coverage |
-| `integration-nftables-tooling-selftest` | injected source/corpus/token defects make the drift checks fail | tests the tooling's chosen fault classes |
+| Check                                        | What it proves                                                                                                                                                                                                                              | Important limit                                                                                                                                                         |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nix-unit`: schema and focused safety suites | Nix-level accepted/rejected values and renderer regressions                                                                                                                                                                                 | hand-written cases cannot discover unknown upstream syntax                                                                                                              |
+| `nix-unit`: reach check                      | every statement tag, expression tag, and command/object pair the schema accepts appears in an Integration case whose JSON loads                                                                                                             | each gap is a pending entry naming its open ticket, or a Named exclusion naming its Known difference, in `tests/fixtures/reach.nix`; an entry that a case reaches fails |
+| `integration-dsl`                            | every Integration case's JSON passes the package set's `nft -c -j -f`; each negative case, one wrong value such as an unknown enum value or a port of 65536, is rejected by both nft and `types.ruleset`, which accepts the corrected value | check mode is not a real load; negative cases are samples, not every field                                                                                              |
+| `integration-parse-check`                    | every expected JSON value in the DSL parity suite and every Field leaf pass `nft -c -j -f` in a minimal context                                                                                                                             | expected rejections are listed with their ticket or Known difference and must still fail                                                                                |
+| `integration-chain-placement`                | a base chain loads at exactly the family, chain type, and hook placements `validChainPlacement` accepts, over all 126                                                                                                                       | priority 0 only; an ingress or egress chain gets a dummy device, which `validChainPlacement` doesn't model                                                              |
+| `integration-nftables-source-provenance`     | source analysis uses the selected package source and patches                                                                                                                                                                                | provenance, not semantic coverage                                                                                                                                       |
+| `integration-nftables-enum-extraction`       | each extracted parser token table matches the model's list, and holds at least its count at the lock                                                                                                                                        | extractor covers enumerated patterns, not every conditional branch                                                                                                      |
+| `integration-nftables-corpus`                | every upstream corpus record parses, and none has an unclassified schema rejection                                                                                                                                                          | 2 categories are explicitly baselined                                                                                                                                   |
+| `integration-nftables-roundtrip`             | every command emitted by the real-loaded Integration cases validates as `types.ruleset`; each listing holds an object besides `metainfo`                                                                                                    | sampled serializer coverage                                                                                                                                             |
+| `integration-nftables-tooling-selftest`      | injected source/corpus/token defects make the drift checks fail                                                                                                                                                                             | tests the tooling's chosen fault classes                                                                                                                                |
 
 All package-set-dependent checks are instantiated from `nixpkgs` on each Linux
 check system. CI runs the checks, including the VM tests, with the locked

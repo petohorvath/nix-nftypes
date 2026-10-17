@@ -150,7 +150,7 @@ let
         lshift
         rshift
         ;
-      mark = meta.mark;
+      inherit (meta) mark;
     in
     [
       # A right operand at the parent's precedence, for every operator.

@@ -1,7 +1,4 @@
 {
-  actionlint,
-  deadnix,
-  formatter,
   git,
   jq,
   mkShellNoCC,
@@ -9,25 +6,22 @@
   nil,
   nix,
   nix-unit,
-  nixfmt,
   python3,
   statix,
+  treefmtShell,
   util-linux,
 }:
 mkShellNoCC {
+  inputsFrom = [ treefmtShell ];
   packages = [
     nix
     nix-unit
     git
     nil
-    nixfmt
     statix
-    deadnix
     jq
-    actionlint
     python3
     nftables
     util-linux
-    formatter
   ];
 }

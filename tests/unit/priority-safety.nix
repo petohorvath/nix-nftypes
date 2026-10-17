@@ -44,7 +44,7 @@ let
               name = "input";
               type = "filter";
               hook = "input";
-              prio = prio;
+              inherit prio;
             };
           };
         }
@@ -68,7 +68,7 @@ let
             table = "fw";
             name = "ft";
             hook = "ingress";
-            prio = prio;
+            inherit prio;
             dev = "eth0";
           };
         };

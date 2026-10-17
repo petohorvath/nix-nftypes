@@ -23,8 +23,7 @@
 # literal bytes and rejects unknown datatypes at the syscall layer.
 
 let
-  dsl = nftlib.dsl;
-  inherit (nftlib) toTextPretty;
+  inherit (nftlib) dsl toTextPretty;
 
   rulesetWithSetType =
     type:

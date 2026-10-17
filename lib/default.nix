@@ -160,8 +160,7 @@ in
   # Serialize after cleaning. These functions do not run arbitrary raw input
   # through `types.ruleset`; callers that need schema validation must do that
   # explicitly.
-  toJson = json.toJson;
-  toNix = json.toNix;
+  inherit (json) toJson toNix;
   cleanValue = clean;
 
   # The explicit Validation step the renderers leave to the caller.
@@ -179,8 +178,7 @@ in
     wrapper itself. Rules render as inline statements inside their
     parent chain's brace block (vs separate `add rule …` commands).
   */
-  toText = text.toText;
-  toTextPretty = text.toTextPretty;
+  inherit (text) toText toTextPretty;
   inherit (tables) toTextBlock toTextBlockPretty;
 
   /*

@@ -39,7 +39,6 @@ let
     ;
   inherit (nftlib.dsl.fields)
     ct
-    icmp
     ip
     meta
     tcp
@@ -63,36 +62,38 @@ ruleset [
     # Named sets ------------------------------------------------------------
 
     # Static list of trusted LAN subnets.
-    sets.trusted_lan = {
-      type = "ipv4_addr";
-      flags = [ "interval" ];
-      elements = [
-        (prefix "10.0.0.0" 8)
-        (prefix "192.168.0.0" 16)
-      ];
-    };
+    sets = {
+      trusted_lan = {
+        type = "ipv4_addr";
+        flags = [ "interval" ];
+        elements = [
+          (prefix "10.0.0.0" 8)
+          (prefix "192.168.0.0" 16)
+        ];
+      };
 
-    # Manually-populated blocklist with per-entry TTL.
-    sets.blocked_v4 = {
-      type = "ipv4_addr";
-      flags = [
-        "interval"
-        "timeout"
-      ];
-      timeout = 3600;
-      elements = [ "198.51.100.7" ];
-    };
+      # Manually-populated blocklist with per-entry TTL.
+      blocked_v4 = {
+        type = "ipv4_addr";
+        flags = [
+          "interval"
+          "timeout"
+        ];
+        timeout = 3600;
+        elements = [ "198.51.100.7" ];
+      };
 
-    # Dynamic set populated by a `set` statement on bruteforce hits; entries
-    # expire automatically after 1 minute.
-    sets.ssh_bruteforce = {
-      type = "ipv4_addr";
-      flags = [
-        "dynamic"
-        "timeout"
-      ];
-      timeout = 60;
-      size = 65536;
+      # Dynamic set populated by a `set` statement on bruteforce hits; entries
+      # expire automatically after 1 minute.
+      ssh_bruteforce = {
+        type = "ipv4_addr";
+        flags = [
+          "dynamic"
+          "timeout"
+        ];
+        timeout = 60;
+        size = 65536;
+      };
     };
 
     # Named counters -------------------------------------------------------
@@ -139,132 +140,134 @@ ruleset [
 
     # Chains ---------------------------------------------------------------
 
-    chains.input = {
-      type = "filter";
-      hook = "input";
-      prio = 0;
-      policy = "drop";
-      rules = [
-        # Established/related traffic. The kernel takes a `flow` statement
-        # only in a forward chain.
-        [
-          (inSet ct.state [
-            "established"
-            "related"
-          ])
-          (counter.ref "pkts_accepted")
-          accept
-        ]
+    chains = {
+      input = {
+        type = "filter";
+        hook = "input";
+        prio = 0;
+        policy = "drop";
+        rules = [
+          # Established/related traffic. The kernel takes a `flow` statement
+          # only in a forward chain.
+          [
+            (inSet ct.state [
+              "established"
+              "related"
+            ])
+            (counter.ref "pkts_accepted")
+            accept
+          ]
 
-        # Loopback always allowed
-        [
-          (eq meta.iifname "lo")
-          accept
-        ]
+          # Loopback always allowed
+          [
+            (eq meta.iifname "lo")
+            accept
+          ]
 
-        # Hard-blocked source IPs
-        [
-          (inSet ip.saddr "@blocked_v4")
-          (counter.ref "pkts_dropped")
-          drop
-        ]
+          # Hard-blocked source IPs
+          [
+            (inSet ip.saddr "@blocked_v4")
+            (counter.ref "pkts_dropped")
+            drop
+          ]
 
-        # ICMP: rate-limited
-        [
-          (eq ip.protocol "icmp")
-          (limit.ref "slow")
-          accept
-        ]
+          # ICMP: rate-limited
+          [
+            (eq ip.protocol "icmp")
+            (limit.ref "slow")
+            accept
+          ]
 
-        # Per-interface dispatch
-        [ (vmap meta.iifname "@iif_zone") ]
+          # Per-interface dispatch
+          [ (vmap meta.iifname "@iif_zone") ]
 
-        # Default: log and reject
-        [
-          (log {
-            prefix = "DROP-IN: ";
-            level = "info";
-          })
-          (reject.icmpx "admin-prohibited")
-        ]
-      ];
-    };
+          # Default: log and reject
+          [
+            (log {
+              prefix = "DROP-IN: ";
+              level = "info";
+            })
+            (reject.icmpx "admin-prohibited")
+          ]
+        ];
+      };
 
-    chains.zone_lan = {
-      rules = [
-        # Trusted subnets → accept anything
-        [
-          (inSet ip.saddr "@trusted_lan")
-          accept
-        ]
-        # SSH from LAN
-        [
-          (eq tcp.dport 22)
-          accept
-        ]
-      ];
-    };
+      zone_lan = {
+        rules = [
+          # Trusted subnets → accept anything
+          [
+            (inSet ip.saddr "@trusted_lan")
+            accept
+          ]
+          # SSH from LAN
+          [
+            (eq tcp.dport 22)
+            accept
+          ]
+        ];
+      };
 
-    chains.zone_wan = {
-      rules = [
-        # SSH bruteforce guard: already-flagged source IPs get dropped
-        [
-          (eq tcp.dport 22)
-          (inSet ip.saddr "@ssh_bruteforce")
-          (log {
-            prefix = "SSH-BF: ";
-            level = "warn";
-          })
-          drop
-        ]
+      zone_wan = {
+        rules = [
+          # SSH bruteforce guard: already-flagged source IPs get dropped
+          [
+            (eq tcp.dport 22)
+            (inSet ip.saddr "@ssh_bruteforce")
+            (log {
+              prefix = "SSH-BF: ";
+              level = "warn";
+            })
+            drop
+          ]
 
-        # SSH with a shared rate limit
-        [
-          (eq tcp.dport 22)
-          (limit.ref "slow")
-          accept
-        ]
+          # SSH with a shared rate limit
+          [
+            (eq tcp.dport 22)
+            (limit.ref "slow")
+            accept
+          ]
 
-        # Public web
-        [
-          (inSet tcp.dport [
-            80
-            443
-          ])
-          accept
-        ]
-      ];
-    };
+          # Public web
+          [
+            (inSet tcp.dport [
+              80
+              443
+            ])
+            accept
+          ]
+        ];
+      };
 
-    chains.forward = {
-      type = "filter";
-      hook = "forward";
-      prio = 0;
-      policy = "drop";
-      rules = [
-        # Established flows take the flowtable's fast path
-        [
-          (inSet ct.state [
-            "established"
-            "related"
-          ])
-          (flow { flowtable = "@fastpath"; })
-          accept
-        ]
-        # Outbound from LAN
-        [
-          (eq meta.iifname "eth1")
-          accept
-        ]
-      ];
-    };
+      forward = {
+        type = "filter";
+        hook = "forward";
+        prio = 0;
+        policy = "drop";
+        rules = [
+          # Established flows take the flowtable's fast path
+          [
+            (inSet ct.state [
+              "established"
+              "related"
+            ])
+            (flow { flowtable = "@fastpath"; })
+            accept
+          ]
+          # Outbound from LAN
+          [
+            (eq meta.iifname "eth1")
+            accept
+          ]
+        ];
+      };
 
-    chains.output = {
-      type = "filter";
-      hook = "output";
-      prio = 0;
-      policy = "accept";
-      rules = [ ];
+      output = {
+        type = "filter";
+        hook = "output";
+        prio = 0;
+        policy = "accept";
+        rules = [ ];
+      };
     };
   })
 

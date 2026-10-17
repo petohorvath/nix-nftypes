@@ -1,6 +1,6 @@
 # Split live checks into probes that record and suites that assert
 
-Every test runs nix-unit; only the `formatting` check, which runs treefmt, and the `lint` check, a static guard on the repo's files, do not. A live check is split in two: a probe, a derivation that runs the package set's `nft` or the source tooling and records each run's exit status and output as JSON without judging it, and a nix-unit suite that asserts on that record. Probe outputs are build inputs of the nix-unit run, so the checks evaluate with import-from-derivation disabled.
+Every test runs nix-unit; only the `treefmt` check, which runs the formatters and linters, and the `lint` check, which runs statix and a static guard on the repo's files, do not. A live check is split in two: a probe, a derivation that runs the package set's `nft` or the source tooling and records each run's exit status and output as JSON without judging it, and a nix-unit suite that asserts on that record. Probe outputs are build inputs of the nix-unit run, so the checks evaluate with import-from-derivation disabled.
 
 ## Consequences
 
