@@ -10,8 +10,7 @@
   An entry whose name a case reaches, or that the schema no longer
   accepts, fails the check.
 */
-{ }:
-{
+_: {
   pending = {
     statements = { };
 

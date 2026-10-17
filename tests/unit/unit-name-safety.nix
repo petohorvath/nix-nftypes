@@ -23,8 +23,7 @@
 # the shared `nft-safe-scalar` predicate.
 
 let
-  dsl = nftlib.dsl;
-  inherit (nftlib) toTextPretty;
+  inherit (nftlib) dsl toTextPretty;
 
   rulesetLimitStmt =
     field: value:

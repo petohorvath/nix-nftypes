@@ -25,8 +25,7 @@
 # metacharacters, and control characters.
 
 let
-  dsl = nftlib.dsl;
-  inherit (nftlib) toTextPretty;
+  inherit (nftlib) dsl toTextPretty;
 
   rulesetSetStmt =
     name:

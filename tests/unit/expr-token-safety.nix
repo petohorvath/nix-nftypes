@@ -27,7 +27,7 @@
 # unknown protocol / field / key names at the syscall layer).
 
 let
-  dsl = nftlib.dsl;
+  inherit (nftlib) dsl;
 
   mkMatchRuleset =
     lhs:

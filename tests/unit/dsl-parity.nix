@@ -14,8 +14,7 @@
 
 let
   inherit (helpers) roundtrip;
-  inherit (nftlib) toJson;
-  dsl = nftlib.dsl;
+  inherit (nftlib) dsl toJson;
 
   parity = t: nftValue: handwritten: {
     expr = roundtrip t nftValue;
@@ -2240,60 +2239,58 @@ in
           in
           "${kind} ${command.add.${kind}.name or command.add.${kind}.chain}"
         )
-        (
-          (builtins.fromJSON (
-            toJson (
-              dsl.ruleset [
-                (dsl.table "inet" "t" {
-                  chains.input.rules = [ [ dsl.accept ] ];
-                  counters.c = { };
-                  ctCounts.cc.val = 5;
-                  ctExpectations.ce = {
-                    protocol = "tcp";
-                    l3proto = "ip";
-                    dport = 21;
-                    timeout = 1000;
-                    size = 1;
-                  };
-                  ctHelpers.ch = {
-                    type = "ftp";
-                    protocol = "tcp";
-                  };
-                  ctTimeouts.ct = {
-                    protocol = "tcp";
-                    policy.established = 300;
-                  };
-                  elements.s.elem = [ "192.0.2.2" ];
-                  flowtables.f = {
-                    hook = "ingress";
-                    prio = 0;
-                  };
-                  limits.l = {
-                    rate = 10;
-                    per = "second";
-                  };
-                  maps.m = {
-                    type = "ipv4_addr";
-                    map = "quota";
-                    elements = [
-                      [
-                        "192.0.2.1"
-                        "q"
-                      ]
-                    ];
-                  };
-                  quotas.q.bytes = 1000;
-                  secmarks.sm.context = "u:r:t:s0";
-                  sets.s.type = "ipv4_addr";
-                  synproxies.sp = {
-                    mss = 1460;
-                    wscale = 7;
-                  };
-                })
-              ]
-            )
-          )).nftables
-        );
+        (builtins.fromJSON (
+          toJson (
+            dsl.ruleset [
+              (dsl.table "inet" "t" {
+                chains.input.rules = [ [ dsl.accept ] ];
+                counters.c = { };
+                ctCounts.cc.val = 5;
+                ctExpectations.ce = {
+                  protocol = "tcp";
+                  l3proto = "ip";
+                  dport = 21;
+                  timeout = 1000;
+                  size = 1;
+                };
+                ctHelpers.ch = {
+                  type = "ftp";
+                  protocol = "tcp";
+                };
+                ctTimeouts.ct = {
+                  protocol = "tcp";
+                  policy.established = 300;
+                };
+                elements.s.elem = [ "192.0.2.2" ];
+                flowtables.f = {
+                  hook = "ingress";
+                  prio = 0;
+                };
+                limits.l = {
+                  rate = 10;
+                  per = "second";
+                };
+                maps.m = {
+                  type = "ipv4_addr";
+                  map = "quota";
+                  elements = [
+                    [
+                      "192.0.2.1"
+                      "q"
+                    ]
+                  ];
+                };
+                quotas.q.bytes = 1000;
+                secmarks.sm.context = "u:r:t:s0";
+                sets.s.type = "ipv4_addr";
+                synproxies.sp = {
+                  mss = 1460;
+                  wscale = 7;
+                };
+              })
+            ]
+          )
+        )).nftables;
     expected = [
       "table t"
       "chain input"
@@ -2685,18 +2682,20 @@ in
               ]
             ];
           };
-          chains.wan = {
-            rules = [ [ dsl.accept ] ];
-          };
-          chains.lan = {
-            rules = [ [ dsl.accept ] ];
-          };
-          chains.input = {
-            type = "filter";
-            hook = "input";
-            prio = 0;
-            policy = "drop";
-            rules = [ [ (dsl.vmap dsl.fields.meta.iifname "@iif_dispatch") ] ];
+          chains = {
+            wan = {
+              rules = [ [ dsl.accept ] ];
+            };
+            lan = {
+              rules = [ [ dsl.accept ] ];
+            };
+            input = {
+              type = "filter";
+              hook = "input";
+              prio = 0;
+              policy = "drop";
+              rules = [ [ (dsl.vmap dsl.fields.meta.iifname "@iif_dispatch") ] ];
+            };
           };
         })
       ])
@@ -3168,35 +3167,37 @@ in
     pr
       (dsl.ruleset [
         (dsl.table "inet" "t" {
-          chains.prerouting = {
-            type = "filter";
-            hook = "prerouting";
-            prio = 0;
-            rules = [ [ dsl.accept ] ];
-          };
-          chains.input = {
-            type = "filter";
-            hook = "input";
-            prio = 0;
-            rules = [ [ dsl.accept ] ];
-          };
-          chains.forward = {
-            type = "filter";
-            hook = "forward";
-            prio = 0;
-            rules = [ [ dsl.accept ] ];
-          };
-          chains.output = {
-            type = "filter";
-            hook = "output";
-            prio = 0;
-            rules = [ [ dsl.accept ] ];
-          };
-          chains.postrouting = {
-            type = "filter";
-            hook = "postrouting";
-            prio = 0;
-            rules = [ [ dsl.accept ] ];
+          chains = {
+            prerouting = {
+              type = "filter";
+              hook = "prerouting";
+              prio = 0;
+              rules = [ [ dsl.accept ] ];
+            };
+            input = {
+              type = "filter";
+              hook = "input";
+              prio = 0;
+              rules = [ [ dsl.accept ] ];
+            };
+            forward = {
+              type = "filter";
+              hook = "forward";
+              prio = 0;
+              rules = [ [ dsl.accept ] ];
+            };
+            output = {
+              type = "filter";
+              hook = "output";
+              prio = 0;
+              rules = [ [ dsl.accept ] ];
+            };
+            postrouting = {
+              type = "filter";
+              hook = "postrouting";
+              prio = 0;
+              rules = [ [ dsl.accept ] ];
+            };
           };
         })
       ])

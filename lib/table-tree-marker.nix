@@ -4,7 +4,7 @@
   clear of every JSON field name; table preparation strips it before
   emitting commands.
 */
-{ }:
+_:
 
 let
   marker = "__nftTable";

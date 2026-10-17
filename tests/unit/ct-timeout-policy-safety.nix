@@ -19,8 +19,7 @@
 # identifier-shaped and pass cleanly.
 
 let
-  dsl = nftlib.dsl;
-  inherit (nftlib) toTextPretty;
+  inherit (nftlib) dsl toTextPretty;
 
   rulesetWithPolicyKey =
     key:

@@ -203,7 +203,7 @@ let
   renderTableHeader =
     _ctx: body:
     renderTableScope {
-      family = body.family;
+      inherit (body) family;
       table = body.name;
     };
 

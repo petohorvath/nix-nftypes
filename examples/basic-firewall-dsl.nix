@@ -60,86 +60,88 @@ ruleset [
       ];
     };
 
-    chains.input = {
-      type = "filter";
-      hook = "input";
-      prio = 0;
-      policy = "drop";
-      rules = [
-        # Established connections bypass everything
-        [
-          (inSet ct.state [
-            "established"
-            "related"
-          ])
-          accept
-        ]
+    chains = {
+      input = {
+        type = "filter";
+        hook = "input";
+        prio = 0;
+        policy = "drop";
+        rules = [
+          # Established connections bypass everything
+          [
+            (inSet ct.state [
+              "established"
+              "related"
+            ])
+            accept
+          ]
 
-        # Trusted subnets → accept (with a counter)
-        [
-          (eq ip.saddr "@trusted_v4")
-          (counter {
-            packets = 0;
-            bytes = 0;
-          })
-          accept
-        ]
+          # Trusted subnets → accept (with a counter)
+          [
+            (eq ip.saddr "@trusted_v4")
+            (counter {
+              packets = 0;
+              bytes = 0;
+            })
+            accept
+          ]
 
-        # Rate-limited SSH
-        [
-          (eq tcp.dport 22)
-          (limit {
-            rate = 10;
-            per = "minute";
-            burst = 5;
-          })
-          accept
-        ]
+          # Rate-limited SSH
+          [
+            (eq tcp.dport 22)
+            (limit {
+              rate = 10;
+              per = "minute";
+              burst = 5;
+            })
+            accept
+          ]
 
-        # Log and reject everything else
-        [
-          (log {
-            prefix = "DROPPED: ";
-            level = "info";
-          })
-          (reject.icmpx "admin-prohibited")
-        ]
-      ];
-    };
+          # Log and reject everything else
+          [
+            (log {
+              prefix = "DROPPED: ";
+              level = "info";
+            })
+            (reject.icmpx "admin-prohibited")
+          ]
+        ];
+      };
 
-    chains.prerouting = {
-      type = "nat";
-      hook = "prerouting";
-      prio = -100;
-      policy = "accept";
-      rules = [
-        # DNAT: forward external port → internal port via map lookup
-        [
-          (eq ip.daddr "203.0.113.1")
-          (dnat {
-            family = "ip";
-            addr = "10.0.0.10";
-            port = map tcp.dport "@port_forward";
-          })
-        ]
-      ];
-    };
+      prerouting = {
+        type = "nat";
+        hook = "prerouting";
+        prio = -100;
+        policy = "accept";
+        rules = [
+          # DNAT: forward external port → internal port via map lookup
+          [
+            (eq ip.daddr "203.0.113.1")
+            (dnat {
+              family = "ip";
+              addr = "10.0.0.10";
+              port = map tcp.dport "@port_forward";
+            })
+          ]
+        ];
+      };
 
-    chains.postrouting = {
-      type = "nat";
-      hook = "postrouting";
-      prio = 100;
-      policy = "accept";
-      rules = [
-        # SNAT on egress
-        [
-          (eq meta.oifname "eth0")
-          (snat {
-            family = "ip";
-            addr = "203.0.113.1";
-          })
-        ]
-      ];
+      postrouting = {
+        type = "nat";
+        hook = "postrouting";
+        prio = 100;
+        policy = "accept";
+        rules = [
+          # SNAT on egress
+          [
+            (eq meta.oifname "eth0")
+            (snat {
+              family = "ip";
+              addr = "203.0.113.1";
+            })
+          ]
+        ];
+      };
     };
   })
 ]

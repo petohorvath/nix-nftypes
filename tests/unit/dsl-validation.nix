@@ -16,8 +16,7 @@
 # report that something is wrong.
 
 let
-  dsl = nftlib.dsl;
-  inherit (nftlib) toJson;
+  inherit (nftlib) dsl toJson;
 
   # Ownership is a property of table trees, shared by command and block
   # output. Use valid but conflicting values so schema type errors cannot
@@ -271,12 +270,14 @@ let
     rule's path and showing the list form.
   */
   malformedRuleEntries = {
-    drop = dsl.drop;
-    accept = dsl.accept;
-    return = dsl.return;
-    continue = dsl.continue;
-    notrack = dsl.notrack;
-    last = dsl.last;
+    inherit (dsl)
+      accept
+      continue
+      drop
+      last
+      notrack
+      return
+      ;
     counterAuto = dsl.counter.auto;
     synproxyAuto = dsl.synproxy.auto;
     jump = dsl.jump "other";
@@ -313,7 +314,7 @@ let
   # throw in JSON and text, naming the command and showing the list form.
   ruleCommandBuilders = {
     "add.rule" = dsl.add.rule;
-    insert = dsl.insert;
+    inherit (dsl) insert;
     replace = body: dsl.replace (body // { handle = 1; });
   };
   ruleCommandBodies = {

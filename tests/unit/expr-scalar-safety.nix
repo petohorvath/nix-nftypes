@@ -27,8 +27,7 @@
 # syscall boundary).
 
 let
-  dsl = nftlib.dsl;
-  inherit (nftlib) toJson;
+  inherit (nftlib) dsl toJson;
 
   inherit (internal) nftSafeScalar;
 
