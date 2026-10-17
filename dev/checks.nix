@@ -24,19 +24,25 @@ lib.foldl' lib.attrsets.unionOfDisjoint { } [
   {
     # statix runs here, as treefmt would run only `statix fix`, which leaves
     # the findings it cannot fix in place. The rest guards the repo's files.
-    lint = pkgs.runCommand "nix-nftypes-lint" { nativeBuildInputs = [ pkgs.statix ]; } (
-      ''
-        cd ${../.}
-        statix check .
-      ''
-      + reportNames "nixpkgs source policy: forbidden sources present:" nixpkgsSourcePolicy.forbiddenPresent
-      + reportNames "nixpkgs source policy: required sources missing:" nixpkgsSourcePolicy.requiredMissing
-      + (
-        if nixpkgsSourcePolicy.forbiddenPresent == [ ] && nixpkgsSourcePolicy.requiredMissing == [ ] then
-          ''touch "$out"''
-        else
-          "exit 1"
-      )
-    );
+    lint =
+      pkgs.runCommand "nix-nftypes-lint"
+        {
+          src = ../.;
+          nativeBuildInputs = [ pkgs.statix ];
+        }
+        (
+          ''
+            cd "$src"
+            statix check .
+          ''
+          + reportNames "nixpkgs source policy: forbidden sources present:" nixpkgsSourcePolicy.forbiddenPresent
+          + reportNames "nixpkgs source policy: required sources missing:" nixpkgsSourcePolicy.requiredMissing
+          + (
+            if nixpkgsSourcePolicy.forbiddenPresent == [ ] && nixpkgsSourcePolicy.requiredMissing == [ ] then
+              ''touch "$out"''
+            else
+              "exit 1"
+          )
+        );
   }
 ]
