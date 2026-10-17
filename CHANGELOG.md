@@ -82,6 +82,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Schema submodules take only an attrset of fields: they reject a module function, a path, and a `_module` key. A path-like string such as `{ synproxy = "/sp1"; }` is a synproxy name; it was imported as a module file, which aborted evaluation.
 - The `tests` flake output comes from nix-unit's flake-parts module: the evaluation-only suites are `tests.systems.<system>.unit`, with kebab-case suite names, instead of top-level suites. Run `nix-unit --flake .#tests.systems.<system>.unit`.
 - The flake has a `nix-unit` input, which provides that module. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.nix-unit.follows = "";`.
+- The flake has a `treefmt-nix` input, which formats and lints the repo through `nix fmt` and the `treefmt` check. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.treefmt-nix.follows = "";`.
 
 ### Removed
 

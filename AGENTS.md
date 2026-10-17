@@ -1,9 +1,10 @@
 ## Required checks
 
-The development shell, loaded by `nix develop` or by direnv through `.envrc`, supplies Nix, nix-unit, the linters, and the parser tools.
+The development shell, loaded by `nix develop` or by direnv through `.envrc`, supplies Nix, nix-unit, treefmt with the formatters and linters of `dev/treefmt.nix`, statix, and the parser tools.
 
 ```sh
-nix fmt                     # fix a failing `formatting` check
+nix fmt                     # format and fix the tree, for a failing `treefmt` check; review the diff
+nix build -L .#checks.x86_64-linux.lint  # statix and the nixpkgs-source policy
 nix-unit --flake .#tests.systems.x86_64-linux.unit  # the unit suites, for a fast loop; append .<suite> for one
 nix-unit --flake .#tests.systems.x86_64-linux.unit.<suite> --attr <test>  # one test
 nix build -L .#checks.x86_64-linux.integration-<suite>  # one integration suite with its probes; the nft probes need KVM

@@ -27,14 +27,15 @@ one `integration-<suite>` entry for each suite in
 `tests/integration/default.nix`, from `nixpkgs`. Each runs nix-unit on its
 suite, which asserts on the JSON records of probes (`tests/helpers/probes/`):
 scripts that run the package set's `nft` or the source tooling and record each
-run's exit status and output. The `lint` entry, from
+run's exit status and output. The `lint` entry runs statix and, from
 `dev/nixpkgs-source-policy.nix`, statically guards the single-authority
-design.
+design. The `treefmt` entry runs the formatters and linters of
+`dev/treefmt.nix`.
 
 All tests are entries of `checks.<system>`:
 
 - `nix-unit`, the source-side `integration-<suite>` entries, `lint`,
-  `formatting`, and `package-nftables-source` run in the build sandbox.
+  `treefmt`, and `package-nftables-source` run in the build sandbox.
 - The live parser and renderer entries are VM tests. Their probes create
   private user and network namespaces, which hosted CI runners deny inside
   the build sandbox, so `tests/helpers/probes/vm.nix` runs them in one NixOS
