@@ -28,7 +28,6 @@ import json
 import re
 import sys
 
-
 # Registry: table name -> how to extract its tokens from the source. Each
 # entry names the source file (relative to the tree root), the C symbol
 # holding the table, its shape, the struct member holding the token, and
