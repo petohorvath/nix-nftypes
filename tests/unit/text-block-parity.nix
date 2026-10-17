@@ -238,6 +238,39 @@ in
     expectedError.msg = "chains\\.input\\.rules\\.\"?0\"?\\.handle' does not exist";
   };
 
+  # JSON and imperative text add the rule after the rule at its index,
+  # while a chain block lists its rules in order.
+  testRuleIndexRefusedCompact = {
+    expr = toTextBlock (
+      dsl.table "inet" "fw" {
+        chains.input.rules = [
+          [ dsl.accept ]
+          [ dsl.notrack ]
+          {
+            expr = [ dsl.drop ];
+            index = 0;
+          }
+        ];
+      }
+    );
+    expectedError.msg = helpers.refusals.noTextSpelling "rule index";
+  };
+
+  testRuleIndexRefusedPretty = {
+    expr = toTextBlockPretty (
+      dsl.table "inet" "fw" {
+        chains.input.rules = [
+          {
+            expr = [ dsl.accept ];
+            index = 0;
+            comment = "first";
+          }
+        ];
+      }
+    );
+    expectedError.msg = helpers.refusals.noTextSpelling "rule index";
+  };
+
   testInvalidNamedObjectRejected = {
     expr = toTextBlock (dsl.table "inet" "fw" { counters.hits.packets = "lots"; });
     expectedError.msg = "counters\\.hits\\.packets.*is not of type";
