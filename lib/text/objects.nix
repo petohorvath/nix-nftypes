@@ -261,13 +261,22 @@ let
     in
     baseLine ++ policyLine ++ commentLine;
 
+  # A rule inside a chain block. Block grammar lists a chain's rules in
+  # order and has no rule position, so an `index` is refused.
+  renderBlockRule =
+    ctx: body:
+    if (body.index or null) != null then
+      primitives.refuseNoTextSpelling "rule index" "nft's block grammar lists a chain's rules in order and has no rule position, while JSON adds the rule after the rule at that index. Order the rules in the list, or use `toText`."
+    else
+      renderRuleStmtsAndComment ctx body;
+
   # The table module supplies this chain's rules explicitly. Formatting
   # context contains no table data, and imperative chain declarations keep
   # their usual body without inline rules.
   renderChainBlock =
     ctx: body: rules:
     "chain ${identQuote "chain name" body.name}${
-      block ctx (renderChainBody ctx body ++ map (renderRuleStmtsAndComment ctx) rules)
+      block ctx (renderChainBody ctx body ++ map (renderBlockRule ctx) rules)
     }";
 
   # rule: `<family> <table> <chain> <statements> [handle/index] [comment]`.
