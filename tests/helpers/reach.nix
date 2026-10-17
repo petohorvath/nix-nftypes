@@ -1,5 +1,5 @@
 # The reach check's two halves: what a ruleset reaches, and the verdict on
-# the schema's names. ../suites/reach.nix applies them to the Integration
+# the schema's names. ../unit/reach.nix applies them to the Integration
 # cases, with the exceptions in ../fixtures/reach.nix.
 { lib }:
 let

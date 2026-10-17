@@ -147,10 +147,10 @@ The JSON a Probe writes: each run's exit status and output, which a Suite then a
 _Avoid_: observation
 
 **Suite**:
-A set of nix-unit tests. Evaluation-only suites assert on values; live suites assert on Records.
+A set of nix-unit tests in one file. Unit suites (`tests/unit/`) assert on values; integration suites (`tests/integration/`) assert on Records.
 
 **Integration case**:
-A named ruleset that the Live tests share.
+A named ruleset that the Live tests share. It is unrelated to the integration test kind (`tests/integration/`).
 
 **Named exclusion**:
 An Integration case removed from one Live test before it runs, with the reason written in code.

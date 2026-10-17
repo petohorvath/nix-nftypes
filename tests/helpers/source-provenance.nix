@@ -1,6 +1,6 @@
 /*
   The source-provenance assertions over one provenance record
-  (`nftablesSourceProvenance` in ../probes/source.nix). The provenance
+  (`nftablesSourceProvenance` in ./probes/source.nix). The provenance
   suite runs them on the package set's record; the tooling self-test runs
   them on doctored records to prove that they turn red.
 */

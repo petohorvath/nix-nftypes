@@ -1,6 +1,7 @@
 {
   fixtures,
   helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -28,7 +29,7 @@
 let
   inherit (nftlib) toJson toText toTextPretty;
 
-  inherit (helpers.internals) textPrimitives;
+  inherit (internal) textPrimitives;
 
   # The audit's malicious comment payload — verified end-to-end to inject
   # a chain at priority -10 with `policy accept` pre-fix.

@@ -1739,7 +1739,7 @@ rec {
     }
     # Log flags, `last`, extension header existence, queue numbers, and
     # negative integers. `last used` lists the time since the rule last
-    # matched, so the probe drops its seconds (../probes/nft.nix).
+    # matched, so the probe drops its seconds (../helpers/probes/nft.nix).
     {
       name = "statement-spellings";
       children = [

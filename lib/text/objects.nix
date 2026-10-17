@@ -753,7 +753,7 @@ in
     renderTableBlockOptions
     ;
   # The kind set this renderer's dispatch table accepts. Read by the
-  # schema↔text drift test (tests/suites/schema.nix) to assert every object
+  # schema↔text drift test (tests/unit/schema.nix) to assert every object
   # kind referenced by the object unions (addObject, readBackObject) has a
   # renderer entry.
   renderableKinds = builtins.attrNames kinds;

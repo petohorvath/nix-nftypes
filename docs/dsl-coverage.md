@@ -41,7 +41,7 @@ Pre-built leaves cover common payload, metadata, routing, connection-tracking,
 FIB, socket, OS fingerprint, and XFRM fields. `payload`, `payloadRaw`,
 `payloadTunnel`, and raw expression attrsets cover less common parser fields.
 
-Each leaf names a field nft knows, and the `parse-check-tests` check loads
+Each leaf names a field nft knows, and the `integration-parse-check` check loads
 every leaf through `nft -c`. Where nft's field name differs from a plain word,
 the leaf follows nft:
 
@@ -197,13 +197,13 @@ These are model limits, not hidden DSL parity claims.
 
 The relevant checks are:
 
-- the `unit-tests` schema and DSL parity suites for byte-identical raw/DSL
+- the `nix-unit` schema and DSL parity suites for byte-identical raw/DSL
   JSON;
-- the `unit-tests` DSL validation suite for rejected fields, unknown table
+- the `nix-unit` DSL validation suite for rejected fields, unknown table
   keys, and error messages that name the offending path;
-- `integration-tests` for every Integration case through `nft -c -j -f`, and
+- `integration-dsl` for every Integration case through `nft -c -j -f`, and
   raw negative cases that nft and the schema must both reject;
-- `parse-check-tests` for every expected DSL parity JSON value and every
+- `integration-parse-check` for every expected DSL parity JSON value and every
   Field leaf through `nft -c`;
 - focused safety suites for comments, interface names, references, tokens,
   units, priorities, and restricted types.
@@ -213,5 +213,5 @@ locked input or one of the project policy's stable and unstable pins.
 
 When adding a schema tag or object kind, add the constructor/registry entry,
 positive parity coverage, one invalid-body test, and an Integration case that
-uses it in the same change. The `unit-tests` reach check fails for a statement
+uses it in the same change. The `nix-unit` reach check fails for a statement
 tag, expression tag, or command/object pair that no Integration case uses.

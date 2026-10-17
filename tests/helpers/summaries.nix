@@ -1,8 +1,8 @@
 /*
-  Build-log summaries for live tests, keyed by test name. nix-unit
-  prints only test results, so these restore the informational counts a
-  passing test reports. Each takes the test's observation paths and
-  returns a shell snippet that runs after the suites pass.
+  Build-log summaries for integration entries, keyed by suite name.
+  nix-unit prints only test results, so these restore the informational
+  counts a passing entry reports. Each takes the entry's observation paths
+  and returns a shell snippet that runs after the suite passes.
 */
 { pkgs }:
 let
@@ -16,17 +16,17 @@ let
   provenanceNote = "nftables ${pkgs.nftables.version} source, patches, and patch hooks match pkgs.nftables";
 in
 {
-  nftables-corpus-tests = observationPaths: ''
+  nftables-corpus = observationPaths: ''
     rules=$(jq length ${observationPaths.nftablesCorpus})
     echo "nftables-corpus: $rules corpus rules validated against \`statement\`"
   '';
 
-  nftables-roundtrip-tests = observationPaths: ''
+  nftables-roundtrip = observationPaths: ''
     jq -r ${lib.escapeShellArg roundtripSummaryFilter} \
       ${observationPaths.nftablesRoundtrip}
   '';
 
-  nftables-source-provenance-tests = _: ''
+  nftables-source-provenance = _: ''
     echo ${lib.escapeShellArg provenanceNote}
   '';
 }

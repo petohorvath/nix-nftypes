@@ -1,4 +1,5 @@
 {
+  fixtures,
   helpers,
   lib,
   nftlib,
@@ -3415,7 +3416,7 @@ in
   # different order. Both submissions are semantically identical to nftables.
 
   testDslExampleValidates = {
-    expr = builtins.isString (roundtrip nftlib.types.ruleset helpers.examples.basicFirewallDsl);
+    expr = builtins.isString (roundtrip nftlib.types.ruleset fixtures.examples.basicFirewallDsl);
     expected = true;
   };
 
@@ -3425,7 +3426,7 @@ in
   # five base chains plus two regular sub-chains, concat-key port-forward
   # via map lookup in DNAT, masquerade. Schema-validates.
   testDslHomeRouterValidates = {
-    expr = builtins.isString (roundtrip nftlib.types.ruleset helpers.examples.homeRouterDsl);
+    expr = builtins.isString (roundtrip nftlib.types.ruleset fixtures.examples.homeRouterDsl);
     expected = true;
   };
 
@@ -3434,8 +3435,8 @@ in
   # Boolean: the parse check would send an attrset expectation to nft.)
   testExampleChildrenBuildTheExamples = {
     expr =
-      lib.mapAttrs (_: nftlib.dsl.ruleset) helpers.exampleChildren == {
-        inherit (helpers.examples) basicFirewallDsl homeRouterDsl;
+      lib.mapAttrs (_: nftlib.dsl.ruleset) fixtures.exampleChildren == {
+        inherit (fixtures.examples) basicFirewallDsl homeRouterDsl;
       };
     expected = true;
   };

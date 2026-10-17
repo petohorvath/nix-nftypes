@@ -1,9 +1,9 @@
 /*
   What Render equivalence runs: the forms each Integration case loads
   through, how each form is rendered, and the named exclusions. The probe
-  (../probes/nft.nix) loads each form in its own network namespace and
+  (../helpers/probes/nft.nix) loads each form in its own network namespace and
   records `nft list ruleset`; the suite
-  (../suites/render-equivalence.nix) compares each text listing with the
+  (../integration/render-equivalence.nix) compares each text listing with the
   JSON listing.
 */
 {

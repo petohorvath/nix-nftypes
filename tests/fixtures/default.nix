@@ -1,7 +1,5 @@
-# Fixtures shared by the unit suites and the live probes.
+# Fixtures shared by the nix-unit suites and the probes.
 {
-  exampleChildren,
-  examples,
   lib,
   nftlib,
   paritySuites,
@@ -13,6 +11,8 @@ rec {
   blockTables = import ./block-tables.nix { inherit dsl; };
   chainPlacement = import ./chain-placement.nix { inherit lib nftlib; };
   commentRulesets = import ./comment-rulesets.nix { inherit dsl; };
+  exampleChildren = import ./example-children.nix { inherit lib nftlib; };
+  examples = import ./examples.nix { inherit nftlib; };
   ifnameRulesets = import ./ifname-rulesets.nix { inherit dsl; };
   integrationCaseNames = import ./integration-case-names.nix;
   integrationCases = import ./integration-cases.nix {

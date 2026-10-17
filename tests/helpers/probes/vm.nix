@@ -1,10 +1,12 @@
 /*
-  Runs the live-parser probe runners (./probes/nft.nix) in one NixOS VM
+  Runs the live-parser probe runners (./nft.nix) in one NixOS VM
   built from the package set. Root in the VM can create the private user
   and network namespaces that hosted CI runners deny inside the build
   sandbox.
 
-  Returns the VM test; its output holds `probes/<observation>.json`.
+  Returns the VM run, a NixOS test whose output holds
+  `probes/<observation>.json`. It is a probe, not a VM test of its own:
+  the integration suites assert on its records.
 */
 { pkgs, runners }:
 let

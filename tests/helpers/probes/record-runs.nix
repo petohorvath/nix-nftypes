@@ -2,12 +2,12 @@
   Probe builders. A probe runs each named shell script (under
   `set -euo pipefail`) and records its exit status and combined
   stdout/stderr as JSON, `{ <run> = { status; output; }; }`. A probe never
-  judges its runs; the live nix-unit suites assert on this record (their
+  judges its runs; the integration suites assert on this record (their
   `observations`).
 
   - `writeRunner` returns an executable that runs the scripts in a fresh
     temporary directory and writes the record to the path in its first
-    argument. The VM tests (../vm.nix) run these inside a NixOS VM.
+    argument. The VM run (./vm.nix) runs these inside a NixOS VM.
   - `recordRuns` runs a runner in the build sandbox and returns the record.
 */
 {

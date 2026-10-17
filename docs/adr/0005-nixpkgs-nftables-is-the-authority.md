@@ -11,5 +11,5 @@ Compatibility is judged against the nftables that Nix users install: the package
 
 - `b787032`: "Make each locked Nixpkgs channel's packaged nftables binary and fully patched source tree authoritative … without relying on direct Netfilter Git access."
 - `bd0a4ea` (#13): the policy's pins made the second input duplicate coverage.
-- The header of `tests/default.nix` gives the rationale; `tests/suites/nixpkgs-source-policy.nix` fails if a `nixpkgs-unstable` or `nftables-src` input returns.
+- The header of `tests/default.nix` gives the rationale; `dev/nixpkgs-source-policy.nix` fails the `lint` check if a `nixpkgs-unstable` or `nftables-src` input returns.
 - `docs/upstream-sync.md` "Authorities" and `docs/spec-coverage.md` "Compatibility authority".
