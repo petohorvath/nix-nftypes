@@ -129,8 +129,31 @@ in
     ];
     expected = [ ];
   };
+  # Keys nft loads only with a refinement a leaf can't carry: a fib result
+  # needs `saddr` or `daddr` among its flags, and these ct and ipsec keys
+  # need a `dir`. They are built with `expr.fib`, `expr.ct`, and
+  # `expr.ipsec`.
+  testFieldLeavesNftRejectsBare = {
+    expr = lib.filter (path: lib.hasAttrByPath path dsl.fields) (
+      map (lib.splitString ".") [
+        "ct.daddr"
+        "ct.protoDst"
+        "ct.protoSrc"
+        "ct.saddr"
+        "fib.check"
+        "fib.oif"
+        "fib.oifname"
+        "fib.type"
+        "ipsec.daddr"
+        "ipsec.reqid"
+        "ipsec.saddr"
+        "ipsec.spi"
+      ]
+    );
+    expected = [ ];
+  };
   # Every leaf name is camelCase (ADR 0009), with no JSON spelling beside
-  # it: `ct.protoSrc`, not `ct.proto-src`.
+  # it: `ip.fragOff`, not `ip.frag-off`.
   testFieldLeavesAreCamelCase = {
     expr = lib.concatLists (
       lib.mapAttrsToList (
@@ -155,7 +178,7 @@ in
     };
   };
 
-  # -- Field trees — meta / ct / rt / socket / fib / ipsec / tunnelMeta -----
+  # -- Field trees — meta / ct / rt / socket / osf / tunnelMeta ------------
 
   testFieldMetaMark = pe dsl.fields.meta.mark {
     meta = {
@@ -170,11 +193,6 @@ in
   testFieldCtState = pe dsl.fields.ct.state {
     ct = {
       key = "state";
-    };
-  };
-  testFieldCtProtoSrc = pe dsl.fields.ct.protoSrc {
-    ct = {
-      key = "proto-src";
     };
   };
   testFieldRtMtu = pe dsl.fields.rt.mtu {
@@ -192,16 +210,6 @@ in
       key = "transparent";
     };
   };
-  testFieldFibOif = pe dsl.fields.fib.oif {
-    fib = {
-      result = "oif";
-    };
-  };
-  testFieldFibCheck = pe dsl.fields.fib.check {
-    fib = {
-      result = "check";
-    };
-  };
   testFieldOsfName = pe dsl.fields.osf.name {
     osf = {
       key = "name";
@@ -210,11 +218,6 @@ in
   testFieldOsfVersion = pe dsl.fields.osf.version {
     osf = {
       key = "version";
-    };
-  };
-  testFieldIpsecReqid = pe dsl.fields.ipsec.reqid {
-    ipsec = {
-      key = "reqid";
     };
   };
   testFieldTunnelMetaId = pe dsl.fields.tunnelMeta.id {

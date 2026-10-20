@@ -42,7 +42,7 @@ A documented place where the schema knowingly differs from the Authority: a pars
 The convenience layer that builds the same schema-shaped values with less repetition; it is not a second model.
 
 **Field leaf**:
-A pre-built expression for a common protocol or metadata field, such as the TCP destination port or the conntrack state.
+A pre-built expression for a common protocol or metadata field, such as the TCP destination port or the conntrack state, that nft loads as written.
 _Avoid_: field (on its own), leaf (on its own)
 
 **Variant namespace**:

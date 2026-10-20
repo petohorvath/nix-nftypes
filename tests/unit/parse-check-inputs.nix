@@ -38,6 +38,26 @@ in
     expected = [ ];
   };
 
+  # Each leaf check sends its leaf as written, so a rule context may place
+  # a leaf but not refine it: a leaf nft loads only refined fails here
+  # instead of passing the parse check.
+  testLeafChecksSendTheLeafAsWritten = {
+    expr = lib.concatLists (
+      lib.mapAttrsToList (
+        group: leaves:
+        lib.concatLists (
+          lib.mapAttrsToList (
+            leaf: expression:
+            lib.optional (
+              !lib.hasInfix (builtins.toJSON expression) checks."leaf.json.${group}.${leaf}".subject
+            ) "${group}.${leaf}"
+          ) leaves
+        )
+      ) dsl.fields
+    );
+    expected = [ ];
+  };
+
   # Every Field leaf, pinned. The parse check derives its leaf checks from
   # `dsl.fields`, so a removed, renamed or added leaf only changes which
   # leaves reach nft; this fails until the list changes on purpose.
@@ -70,7 +90,6 @@ in
       ct = [
         "avgpkt"
         "bytes"
-        "daddr"
         "direction"
         "event"
         "expiration"
@@ -80,10 +99,7 @@ in
         "label"
         "mark"
         "packets"
-        "protoDst"
-        "protoSrc"
         "protocol"
-        "saddr"
         "secmark"
         "state"
         "status"
@@ -101,12 +117,6 @@ in
       ether = [
         "daddr"
         "saddr"
-        "type"
-      ];
-      fib = [
-        "check"
-        "oif"
-        "oifname"
         "type"
       ];
       gre = [
@@ -157,12 +167,6 @@ in
         "nexthdr"
         "saddr"
         "version"
-      ];
-      ipsec = [
-        "daddr"
-        "reqid"
-        "saddr"
-        "spi"
       ];
       meta = [
         "broute"

@@ -155,8 +155,17 @@ nftlib.dsl.fields.tcp.dport
 nftlib.dsl.fields.ip.saddr
 nftlib.dsl.fields.ct.state
 nftlib.dsl.fields.meta.iifname
-nftlib.dsl.fields.fib.oif
+nftlib.dsl.fields.rt.mtu
 ```
+
+Each leaf is an expression nft loads as written. A key that nft loads only
+with a refinement has no leaf; its `expr` constructor builds it:
+
+| Key                                                           | Refinement nft requires          | Example                                                   |
+| ------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------- |
+| every FIB result                                              | `saddr` or `daddr` among `flags` | `expr.fib { result = "oif"; flags = [ "saddr" "iif" ]; }` |
+| the conntrack keys `saddr`, `daddr`, `proto-src`, `proto-dst` | `dir`                            | `expr.ct { key = "saddr"; dir = "original"; }`            |
+| every IPsec key                                               | `dir`                            | `expr.ipsec { key = "reqid"; dir = "in"; }`               |
 
 Use `expr.payload protocol field`, `expr.payloadRaw`, and
 `expr.payloadTunnel` when no pre-built leaf exists. The other structural and

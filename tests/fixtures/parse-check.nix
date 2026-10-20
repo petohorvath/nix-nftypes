@@ -55,20 +55,6 @@ let
     };
   };
 
-  # Adds refinements a tagged expression's body doesn't set itself.
-  refine =
-    refinements: expression:
-    let
-      tag = jsonTag expression;
-    in
-    {
-      ${tag} = refinements // expression.${tag};
-    };
-
-  matchRefined =
-    refinements: right: expression:
-    matchWith right (refine refinements expression);
-
   # The commands that hold `statements` in a rule of `ruleContext`.
   ruleCommands =
     ruleContext: statements:
@@ -142,39 +128,28 @@ let
     `<tag>.<key>` (`<key>` is a ct, meta, rt, socket, osf, ipsec or
     tunnel key, or a fib result), or `payload.<protocol>` and
     `payload.<protocol>.<field>`. The more specific shape wins. Field
-    leaves and DSL parity expressions share them.
+    leaves and DSL parity expressions share them. A context places an
+    expression, with the table family and the value it is compared to,
+    but never changes it: a leaf check sends the leaf as written.
   */
   expressionContexts =
     let
       # Keys nft only sets, never matches.
       setOnly = value: expression: dsl.mangle expression value;
       bridge.family = "bridge";
-      # nft's JSON parser ignores a ct expression's `family`, so the
-      # table's family sets the address type.
-      ctAddress = {
-        family = "ip";
-        statement = matchRefined { dir = "original"; } "192.0.2.1";
-      };
-      ctProto.statement = matchRefined { dir = "original"; } 1;
-      ipsecAddress.statement = matchRefined {
-        dir = "in";
-        family = "ip";
-      } "192.0.2.1";
+      ip4Address.statement = matchWith "192.0.2.1";
       ip6Address.statement = matchWith "2001:db8::1";
     in
     {
-      "ct.daddr" = ctAddress;
       "ct.event".statement = setOnly "new";
-      "ct.proto-dst" = ctProto;
-      "ct.proto-src" = ctProto;
-      "ct.saddr" = ctAddress;
+      # nft's JSON parser ignores a ct expression's `family`, so the
+      # table's family sets the address type.
+      "ct.saddr" = ip4Address // {
+        family = "ip";
+      };
       # A secmark is copied between the packet and its connection.
       "ct.secmark".statement = dsl.mangle { meta.key = "secmark"; };
-      fib.statement = matchRefined { flags = [ "daddr" ]; } 1;
-      "fib.check".statement = matchRefined { flags = [ "daddr" ]; } true;
-      ipsec.statement = matchRefined { dir = "in"; } 1;
-      "ipsec.daddr" = ipsecAddress;
-      "ipsec.saddr" = ipsecAddress;
+      "ipsec.saddr" = ip4Address;
       "meta.broute" = bridge // {
         chain = inputChain // {
           hook = "prerouting";
@@ -209,7 +184,10 @@ let
             field = "dport";
           };
         };
-      "rt.nexthop".statement = matchRefined { family = "ip"; } "192.0.2.1";
+      # An inet table leaves the nexthop's address family open.
+      "rt.nexthop" = ip4Address // {
+        family = "ip";
+      };
       # Tunnel metadata exists only on netdev ingress.
       tunnel = netdevIngress;
     };
@@ -392,7 +370,12 @@ let
       statement = dsl.mangle { meta.key = "mark"; };
     };
     "dslParity.testExprRshift".statement = right: matchWith right { meta.key = "length"; };
-    "dslParity.testExprRtRefined".statement = matchWith "2001:db8::1";
+    # Its `family` selects the nexthop's address family, which an ip table
+    # would contradict.
+    "dslParity.testExprRtRefined" = {
+      family = "inet";
+      statement = matchWith "2001:db8::1";
+    };
     "dslParity.testExprSet".statement =
       right:
       matchWith right {

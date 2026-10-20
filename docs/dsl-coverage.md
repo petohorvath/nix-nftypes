@@ -38,13 +38,18 @@ The DSL provides:
 - comparison and membership helpers at the top level.
 
 Pre-built leaves cover common payload, metadata, routing, connection-tracking,
-FIB, socket, OS fingerprint, and XFRM fields. `expr.payload`,
+socket, OS fingerprint, and tunnel metadata fields. `expr.payload`,
 `expr.payloadRaw`, `expr.payloadTunnel`, and raw expression attrsets cover
 less common parser fields.
 
-Each leaf names a field nft knows, and the `integration-parse-check` check loads
-every leaf through `nft -c`. Where nft's field name differs from a plain word,
-the leaf follows nft:
+Each leaf names a field nft knows and loads as written: the
+`integration-parse-check` check sends every leaf, unchanged, through `nft -c`.
+A key that nft loads only with a refinement has no leaf. A FIB result needs
+`saddr` or `daddr` among its flags, and every IPsec key and the conntrack keys
+`saddr`, `daddr`, `proto-src`, and `proto-dst` need a direction, so `expr.fib`,
+`expr.ipsec`, and `expr.ct` build them.
+
+Where nft's field name differs from a plain word, the leaf follows nft:
 
 | Leaf                            | JSON field                | Text                              |
 | ------------------------------- | ------------------------- | --------------------------------- |
