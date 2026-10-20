@@ -158,8 +158,10 @@ nftlib.dsl.fields.meta.iifname
 nftlib.dsl.fields.rt.mtu
 ```
 
-Each leaf is an expression nft loads as written. A key that nft loads only
-with a refinement has no leaf; its `expr` constructor builds it:
+Each leaf is an expression nft loads as written in some rule, though the rule
+can need a particular table family or hook: `fields.rt.nexthop` loads in an
+`ip` or `ip6` table, not in an `inet` one. A key that nft loads only with a
+refinement has no leaf; its `expr` constructor builds it:
 
 | Key                                                           | Refinement nft requires          | Example                                                   |
 | ------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------- |

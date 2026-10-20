@@ -138,15 +138,16 @@ let
       setOnly = value: expression: dsl.mangle expression value;
       bridge.family = "bridge";
       ip4Address.statement = matchWith "192.0.2.1";
+      ip4TableAddress = ip4Address // {
+        family = "ip";
+      };
       ip6Address.statement = matchWith "2001:db8::1";
     in
     {
       "ct.event".statement = setOnly "new";
       # nft's JSON parser ignores a ct expression's `family`, so the
       # table's family sets the address type.
-      "ct.saddr" = ip4Address // {
-        family = "ip";
-      };
+      "ct.saddr" = ip4TableAddress;
       # A secmark is copied between the packet and its connection.
       "ct.secmark".statement = dsl.mangle { meta.key = "secmark"; };
       "ipsec.saddr" = ip4Address;
@@ -185,9 +186,7 @@ let
           };
         };
       # An inet table leaves the nexthop's address family open.
-      "rt.nexthop" = ip4Address // {
-        family = "ip";
-      };
+      "rt.nexthop" = ip4TableAddress;
       # Tunnel metadata exists only on netdev ingress.
       tunnel = netdevIngress;
     };

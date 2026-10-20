@@ -5,10 +5,11 @@
     eq tcp.dport 22
     eq ip.saddr "10.0.0.1"
 
-  A leaf is an expression nft loads as written in some rule. A key nft
-  loads only with a refinement, such as a fib result without flags or an
-  ipsec key without a direction, has no leaf; its `dsl.expr` constructor
-  builds it.
+  A leaf is an expression nft loads as written in some rule, though it can
+  need a table family or hook there. A key nft loads only with a
+  refinement has no leaf, such as a FIB result, which needs `saddr` or
+  `daddr` among its flags, or an IPsec key, which needs a direction; its
+  `dsl.expr` constructor builds it.
 */
 { lib }:
 

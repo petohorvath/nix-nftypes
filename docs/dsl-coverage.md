@@ -42,12 +42,11 @@ socket, OS fingerprint, and tunnel metadata fields. `expr.payload`,
 `expr.payloadRaw`, `expr.payloadTunnel`, and raw expression attrsets cover
 less common parser fields.
 
-Each leaf names a field nft knows and loads as written: the
+Each leaf names a field nft knows and loads as written in some rule: the
 `integration-parse-check` check sends every leaf, unchanged, through `nft -c`.
-A key that nft loads only with a refinement has no leaf. A FIB result needs
-`saddr` or `daddr` among its flags, and every IPsec key and the conntrack keys
-`saddr`, `daddr`, `proto-src`, and `proto-dst` need a direction, so `expr.fib`,
-`expr.ipsec`, and `expr.ct` build them.
+A key that nft loads only with a refinement, such as a FIB result or an IPsec
+key, has no leaf; [`api.md`](api.md#fields-and-expressions) lists these keys and
+the `expr` constructors that build them.
 
 Where nft's field name differs from a plain word, the leaf follows nft:
 

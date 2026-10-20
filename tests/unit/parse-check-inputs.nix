@@ -2,8 +2,9 @@
   The parse check's inputs (fixtures/parse-check.nix), checked without
   nft: every expected rejection names an enumerated check, its error, and
   either the open ticket under #24 that fixes it or the Known difference
-  that explains it, and every per-check context names a check. When a fix
-  removes or renames a leaf or a pin, these fail until its entries follow.
+  that explains it, every per-check context names a check, and every leaf
+  check sends its Field leaf as written. When a fix removes or renames a
+  leaf or a pin, these fail until its entries follow.
 */
 {
   fixtures,
@@ -17,6 +18,19 @@ let
   inherit (nftlib) dsl;
 
   isTicket = ticket: lib.isInt ticket && ticket > 24 && ticket <= 53;
+
+  # The statements of the rules a check's JSON subject adds.
+  ruleStatements =
+    name:
+    lib.concatMap (command: command.add.rule.expr or [ ])
+      (builtins.fromJSON checks.${name}.subject).nftables;
+
+  # Whether `value` holds `expression` unchanged at any depth.
+  holds =
+    expression: value:
+    value == expression
+    || lib.isAttrs value && lib.any (holds expression) (builtins.attrValues value)
+    || lib.isList value && lib.any (holds expression) value;
 in
 {
   testEveryRejectionNamesACheck = {
@@ -38,19 +52,17 @@ in
     expected = [ ];
   };
 
-  # Each leaf check sends its leaf as written, so a rule context may place
-  # a leaf but not refine it: a leaf nft loads only refined fails here
-  # instead of passing the parse check.
-  testLeafChecksSendTheLeafAsWritten = {
+  # Each leaf check sends its Field leaf as written, so a rule context may
+  # place a leaf but not refine it: a leaf nft loads only refined fails
+  # here instead of passing the parse check.
+  testLeafChecksSendTheirFieldLeafAsWritten = {
     expr = lib.concatLists (
       lib.mapAttrsToList (
         group: leaves:
         lib.concatLists (
           lib.mapAttrsToList (
             leaf: expression:
-            lib.optional (
-              !lib.hasInfix (builtins.toJSON expression) checks."leaf.json.${group}.${leaf}".subject
-            ) "${group}.${leaf}"
+            lib.optional (!holds expression (ruleStatements "leaf.json.${group}.${leaf}")) "${group}.${leaf}"
           ) leaves
         )
       ) dsl.fields

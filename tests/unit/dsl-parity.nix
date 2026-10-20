@@ -129,11 +129,11 @@ in
     ];
     expected = [ ];
   };
-  # Keys nft loads only with a refinement a leaf can't carry: a fib result
-  # needs `saddr` or `daddr` among its flags, and these ct and ipsec keys
-  # need a `dir`. They are built with `expr.fib`, `expr.ct`, and
-  # `expr.ipsec`.
-  testFieldLeavesNftRejectsBare = {
+  # Keys nft loads only with a refinement a leaf can't carry: a FIB result
+  # needs `saddr` or `daddr` among its flags, and these conntrack and IPsec
+  # keys need a direction. `expr.fib`, `expr.ct`, and `expr.ipsec` build
+  # them.
+  testNoFieldLeafNeedsARefinement = {
     expr = lib.filter (path: lib.hasAttrByPath path dsl.fields) (
       map (lib.splitString ".") [
         "ct.daddr"

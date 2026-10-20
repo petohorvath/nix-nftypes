@@ -10,7 +10,7 @@ let
   # The schema declares `ct.key` as `types.str`, so this list is the commonly
   # useful subset. Unusual keys are reachable via `dsl.expr.ct { key = …; }`.
   # `saddr`, `daddr`, `proto-src`, and `proto-dst` have no leaf: nft loads
-  # them only with a `dir`, so they are built with `dsl.expr.ct`.
+  # them only with a direction, so `dsl.expr.ct` builds them.
   keys = [
     "state"
     "direction"
