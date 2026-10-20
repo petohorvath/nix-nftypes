@@ -57,24 +57,24 @@ let
       255
     ];
     # Ports are 16 bits.
-    "objects.ctExpectationObjectBody.dport" = [
+    "objects.ctExpectationBody.dport" = [
       0
       65535
     ];
-    "objects.tunnelObjectBody.dport" = [
+    "objects.tunnelBody.dport" = [
       0
       65535
     ];
-    "objects.tunnelObjectBody.sport" = [
+    "objects.tunnelBody.sport" = [
       0
       65535
     ];
     # IP header TOS and TTL: one byte each.
-    "objects.tunnelObjectBody.tos" = [
+    "objects.tunnelBody.tos" = [
       0
       255
     ];
-    "objects.tunnelObjectBody.ttl" = [
+    "objects.tunnelBody.ttl" = [
       0
       255
     ];
@@ -130,10 +130,10 @@ generatedTests
       fields = builtins.length fields;
     };
     expected = {
-      fields = 566;
+      fields = 548;
       body = 81;
-      wrongType = 566;
-      accepted = 189;
+      wrongType = 548;
+      accepted = 171;
       omitted = 197;
       lowest = 99;
       belowLowest = 99;

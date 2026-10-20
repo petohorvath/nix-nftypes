@@ -53,8 +53,9 @@ chosen scope.
 Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
 `dsl.table inet.t` followed by the field's path, `text` for the text renderers,
-`types.statementOf`, or a helper such as `resolvePriority`. A text Refusal ends
-with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
+`types.statementOf`, or a helper such as `compatibility.resolvePriority`. A text
+Refusal ends with `Field: <label>.`
+([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ## Schema types
 
@@ -76,14 +77,24 @@ with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 | `readBackObject`   | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; a rule keeps its `handle` |
 | `flushObject`      | table, chain, set, map, meter, or ruleset                                                                                                          |
 | `resetObject`      | counter, quota, rule, set, map, or element                                                                                                         |
+| `insertObject`     | a rule                                                                                                                                             |
 | `replaceObject`    | a rule with the `handle` of the rule it replaces                                                                                                   |
 | `renameObject`     | a chain with its `newname`                                                                                                                         |
 
-Per-variant submodules are grouped under:
+Per-variant bodies are grouped under:
 
 - `types.expressions`;
 - `types.statements`;
 - `types.objects`.
+
+These namespaces hold bodies only, each named `<kind>Body`, such as
+`types.objects.setBody` and `types.statements.counterBody`. A body several tags
+share is named for what they share (`natBody`), a variant of one tag's body puts
+the variant first (`rawPayloadBody`), and the body of one command puts its verb
+first (`flushRulesetBody`, `selectSetBody`). A statement body includes the
+statement's reference forms. Type a tagged object, such as
+`{ chain = { … }; }`, with its command's union, such as `types.addObject` or
+`types.readBackObject`.
 
 Each submodule takes only an attrset of its fields. Unlike `lib.types.submodule`,
 it rejects a module function, a path, and a `_module` key, so a string in a
@@ -147,18 +158,18 @@ nftlib.dsl.fields.meta.iifname
 nftlib.dsl.fields.fib.oif
 ```
 
-Use `payload protocol field`, `payloadRaw`, and `payloadTunnel` when no
-pre-built leaf exists. Structural and generated expressions live under
-`dsl.expr`, including `concat`, `prefix`, `range`, `set`, `setRef`, `map`,
-`mapRef`, `numgen`, `jhash`, and `symhash`.
+Use `expr.payload protocol field`, `expr.payloadRaw`, and
+`expr.payloadTunnel` when no pre-built leaf exists. The other structural and
+generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
+`range`, `set`, `setRef`, `map`, `mapRef`, `numgen`, `jhash`, and `symhash`.
 
 Top-level match helpers include:
 
 - `eq`, `ne`, `lt`, `gt`, `le`, `ge`;
-- `inSet`, `notInSet`, `within`;
+- `inSet`, `notInSet`;
 - `match.in_` and `match.raw` for less common forms.
 
-`inSet`, `notInSet`, and `within` take a list, a set expression, or a named-set
+`inSet` and `notInSet` take a list, a set expression, or a named-set
 reference such as `"@trusted"`. A string without `@` throws and points to
 `expr.setRef`: nft would match it as one value, such as a hostname.
 
@@ -182,7 +193,7 @@ its leading `@`, and emits the spelling nft's JSON parser looks up there:
 | a stateful object        | the `.ref` of `counter`, `quota`, `limit`, `synproxy`, `ctCount`, `ctHelper`, `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` | the bare name; nft finds no object named `"@name"`         |
 
 A stateful object's `.ref` also takes a map expression, which selects the
-object by key. `inSet`, `notInSet`, and `within` are the exception: their
+object by key. `inSet` and `notInSet` are the exception: their
 right side need not be a set, so they take `"@name"` and throw on a string
 without `@`.
 
@@ -321,12 +332,13 @@ as `imports` are unknown fields, and `_module` throws.
 
 A builder takes positional arguments only when every argument is required and
 there are at most two, as in `eq left right`, `vmap key data`, `expr.map key
-data`, `payload protocol field`, `prefix addr len`, and `counter.ref name`.
-Every other builder takes one attrset. `dsl.table family name body` is the
-exception; it mirrors nftables' `table inet filter { … }` syntax. The rule
-covers `dsl` builders: the compatibility helpers `chainTypeFor` and
-`validChainPlacement` take their three placement keys positionally. See
-[ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
+data`, `expr.payload protocol field`, `expr.prefix addr len`, and
+`counter.ref name`. Every other builder takes one attrset.
+`dsl.table family name body` is the exception; it mirrors nftables'
+`table inet filter { … }` syntax. The rule covers `dsl` builders: the
+compatibility helpers `compatibility.chainTypeFor` and
+`compatibility.validChainPlacement` take their three placement keys
+positionally. See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 
 ### Commands
 
@@ -338,8 +350,8 @@ covers `dsl` builders: the compatibility helpers `chainTypeFor` and
 | `flush.<kind>`                    | table, chain, set, map, meter, or ruleset; nftables has no `flush flowtable` command |
 | `list.<kind>`                     | table, chain, set, map, counter, quota, limit, ctHelper, secmark, or meter           |
 | `reset.<kind>`                    | counter, quota, set, map, or element                                                 |
-| `replace body`, `insert body`     | rule-only commands                                                                   |
-| `rename.chain body`               | chain-only rename                                                                    |
+| `insert.rule`, `replace.rule`     | rule-only commands                                                                   |
+| `rename.chain`                    | chain-only rename                                                                    |
 
 Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
 every family, and `flush.ruleset { family = "ip"; }` flushes one.
@@ -375,16 +387,16 @@ when the body lacks a field nft requires for the verb, naming the field:
   with only some of them as a regular chain whose rules never see packets.
 
 - `add.flowtable` and `create.flowtable` require `hook` and `prio`.
-- `replace` requires the `handle` of the rule it replaces.
+- `replace.rule` requires the `handle` of the rule it replaces.
 - `add.rule` takes no `handle`, and throws naming the field
   (`dsl.add.rule.handle`). nftables 1.1.6's JSON parser ignores one and
   appends the rule, while 1.1.7 and text place the rule after the rule with
-  that handle. Place a rule with `index`, or with `insert`, whose `handle`
+  that handle. Place a rule with `index`, or with `insert.rule`, whose `handle`
   puts it before that rule; see
   [`spec-coverage.md`](spec-coverage.md#rule-handles-on-add-rule).
-- `add.rule`, `insert`, and `replace` require statements, a non-empty `expr`
-  list, as a table tree's rule entries do. Without them, the builder throws,
-  naming the command, such as `add.rule`.
+- `add.rule`, `insert.rule`, and `replace.rule` require statements, a
+  non-empty `expr` list, as a table tree's rule entries do. Without them, the
+  builder throws, naming the command, such as `add.rule`.
 - `rename.chain` requires `newname`.
 
 `delete`, `destroy`, `list`, `flush`, and `reset` select an object by
@@ -458,7 +470,8 @@ Cleaning is not validation.
 Examples include `family`, `hook`, `operator`, `metaKey`, `rtKey`, `fibResult`,
 `setFlag`, and `tunnelType`.
 
-`nftlib.compatibility` exports:
+`nftlib.compatibility` holds the static tables and the helpers that look
+placements and priorities up in them. The tables are:
 
 - `hooksByFamily`;
 - `familiesByChainType`;
@@ -467,7 +480,7 @@ Examples include `family`, `hook`, `operator`, `metaKey`, `rtKey`, `fibResult`,
   like `hooksByFamily`: `priorityIntsByFamily.bridge.filter` is `-200`;
 - `hooksWithOifname`.
 
-Top-level helpers:
+The helpers are:
 
 - `resolvePriority family value` converts a known symbolic priority to an int.
   Ints pass through without consulting `family`; symbolic lookup throws for an

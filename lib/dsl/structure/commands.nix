@@ -1,8 +1,8 @@
 /*
   Namespaced builders for commands that don't fit the declarative table
-  tree: add, create, delete, destroy, flush, list, rename, reset. One
-  namespace per command enumerates the object kinds nft runs as written
-  for it (ADR 0009). That is the kinds its schema union accepts (see
+  tree: add, create, delete, destroy, flush, insert, list, rename, replace,
+  reset. One namespace per command enumerates the object kinds nft runs as
+  written for it (ADR 0009). That is the kinds its schema union accepts (see
   `lib/schema/commands.nix` and `lib/schema/objects.nix`), minus the ones
   nft's JSON parser rejects for the verb.
 
@@ -13,15 +13,14 @@
     dsl.destroy.set { family; table; name; }
     dsl.flush.table { family; name; }
     dsl.flush.ruleset { }                         # every family
+    dsl.insert.rule { family; table; chain; expr; }
     dsl.list.table { family; name; }
     dsl.rename.chain { family; table; name; newname; }
+    dsl.replace.rule { family; table; chain; handle; expr; }
     dsl.reset.counter { family; table; name; }   # command (sub-attr)
     dsl.reset tcpOption                           # statement (__functor)
 
   The statement form of `reset` is wired in default.nix.
-
-  `replace` and `insert` accept only rule bodies per the schema, so they're
-  plain single-argument functions rather than namespaces.
 
   DSL idiomatic renames (elements → elem, gcInterval → gc-interval, …) are
   applied per kind so users never have to write hyphenated keys even in
@@ -127,7 +126,7 @@ let
       meter = {
         tag = "meter";
         renameBody = keyRenames.none;
-        body = objects.meterObjectBody;
+        body = objects.meterBody;
       };
     }
   );
@@ -161,7 +160,7 @@ let
     ruleset = {
       tag = "ruleset";
       renameBody = _location: body: if body == { } then null else body;
-      body = objects.rulesetBody;
+      body = objects.flushRulesetBody;
     };
   };
 
@@ -175,6 +174,18 @@ let
       map
       element
       ;
+  };
+
+  /*
+    The rule kind of a command that adds statements: `add`, `insert`, or
+    `replace`. `body` is the verb's rule body. A rule takes no renames; its
+    body only needs statements, like a table tree's rule entry
+    (../internal/rule-body.nix).
+  */
+  ruleCommandKind = body: {
+    tag = "rule";
+    renameBody = ruleBody.ruleBody;
+    inherit body;
   };
 
   /*
@@ -218,16 +229,7 @@ in
     kinds plus `meter`, `reset` the resettable kinds but `rule`, and
     `flush` the flushable kinds plus `ruleset`.
   */
-  # A rule takes no renames; its body only needs statements, like a table
-  # tree's rule entry (../internal/rule-body.nix).
-  add = mkNamespace "add" (
-    addObjectKinds
-    // {
-      rule = addObjectKinds.rule // {
-        renameBody = ruleBody.ruleBody;
-      };
-    }
-  );
+  add = mkNamespace "add" (addObjectKinds // { rule = ruleCommandKind objects.addRuleBody; });
   create = mkNamespace "create" createObjectKinds;
   delete = mkNamespace "delete" deleteObjectKinds;
   destroy = mkNamespace "destroy" deleteObjectKinds;
@@ -239,69 +241,18 @@ in
   # positions.
   resetCommand = mkNamespace "reset" resetObjectKinds;
 
-  # Rename is chain-only per the schema. Namespaced so the API mirrors
-  # create/delete/… and tab completion surfaces the single valid object kind.
-  rename = {
-    /*
-      Rename a chain. `body` names the chain (`family`, `table`, `name`)
-      and its `newname`. Returns the tagged `{ rename = { chain =
-      validated; }; }` command that the nftables JSON parser expects;
-      throws when `body` fails the schema, including a missing `newname`.
-    */
-    chain = body: {
-      rename = {
-        chain = validate {
-          type = objects.renameChainBody;
-          value = body;
-          location = builder [
-            "rename"
-            "chain"
-          ];
-        };
-      };
+  # A verb with one object kind is a namespace like the others, named for
+  # the kind nft names: `insert rule`, `replace rule`, `rename chain`.
+  # `insert` and `replace` take a rule body like `add.rule`; `replace`
+  # also requires the `handle` of the rule it replaces, and `rename` the
+  # chain's `newname`.
+  insert = mkNamespace "insert" { rule = ruleCommandKind objects.ruleBody; };
+  replace = mkNamespace "replace" { rule = ruleCommandKind objects.replaceRuleBody; };
+  rename = mkNamespace "rename" {
+    chain = {
+      tag = "chain";
+      renameBody = keyRenames.none;
+      body = objects.renameChainBody;
     };
   };
-
-  /*
-    Replace an existing rule; the schema accepts only rule bodies, so the
-    object kind is fixed. `body` is the rule body, including the `handle`
-    of the rule it replaces. Returns the tagged `{ replace = { rule =
-    validated; }; }` command; throws when `body` has no statements or
-    fails the schema, including a missing `handle`.
-  */
-  replace =
-    body:
-    let
-      location = builder [ "replace" ];
-    in
-    {
-      replace = {
-        rule = validate {
-          type = objects.replaceRuleBody;
-          value = ruleBody.ruleBody location body;
-          inherit location;
-        };
-      };
-    };
-
-  /*
-    Insert a rule before existing rules; the schema accepts only rule
-    bodies, so the object kind is fixed. `body` is the rule body. Returns
-    the tagged `{ insert = { rule = validated; }; }` command; throws when
-    `body` has no statements or fails the schema.
-  */
-  insert =
-    body:
-    let
-      location = builder [ "insert" ];
-    in
-    {
-      insert = {
-        rule = validate {
-          type = objects.ruleBody;
-          value = ruleBody.ruleBody location body;
-          inherit location;
-        };
-      };
-    };
 }

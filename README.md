@@ -135,7 +135,7 @@ nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 
 - The schema follows the patched nftables that nixpkgs ships on its stable and unstable branches, not upstream nftables. It has known differences from that parser, such as parser conditions left to `nft` and command selectors it does not model; [`docs/spec-coverage.md`](docs/spec-coverage.md) lists them, and [`docs/dsl-coverage.md`](docs/dsl-coverage.md) lists what the DSL reaches.
 - Text output cannot represent every value that JSON can, and some cases depend on the environment; [`docs/text-coverage.md`](docs/text-coverage.md) records the evidence and gaps.
-- The compatibility helpers, such as `validChainPlacement`, check only static family, chain-type, hook, and priority tables. They do not inspect kernel versions, modules, devices, or runtime state.
+- The compatibility helpers, such as `compatibility.validChainPlacement`, check only static family, chain-type, hook, and priority tables. They do not inspect kernel versions, modules, devices, or runtime state.
 
 ## Contributing
 

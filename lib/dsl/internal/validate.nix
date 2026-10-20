@@ -21,14 +21,14 @@
 
   Two cases:
     - submodule types (every body in lib/schema/objects.nix except
-      `rulesetBody`): extract the inner options via `getSubOptions` and run
+      `flushRulesetBody`): extract the inner options via `getSubOptions` and run
       evalModules directly against them, so errors show the field name
       without indirection. The options alone drop a check on the body as
       a whole (a `discriminatedSubmodule` constraint such as a chain's
       type, hook and prio together), so the type's own check runs too.
-    - other types (only `rulesetBody`, which is `oneOf [ nullLiteral,
+    - other types (only `flushRulesetBody`, which is `oneOf [ nullLiteral,
       submodule { family; } ]`): wrap in a top-level `value` option. Errors
-      look like "<prefix>.value: …"; rulesetBody is shallow enough that the
+      look like "<prefix>.value: …"; flushRulesetBody is shallow enough that the
       indirection isn't burdensome.
 */
 { lib }:

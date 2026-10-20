@@ -1,8 +1,8 @@
 /*
   Public entry point for the `dsl` layer — a declarative DSL emphasizing:
     - Path-based field access (`fields.tcp.dport` instead of
-      `payload "tcp" "dport"`)
-    - Top-level operator functions (`eq`, `ne`, `inSet`, `within`, …)
+      `expr.payload "tcp" "dport"`)
+    - Top-level operator functions (`eq`, `ne`, `inSet`, `notInSet`, …)
     - Variant namespaces via `__functor` (`counter {…}` vs `counter.auto`)
     - Declarative table structure (`chains.<name>.rules = [...]`) in place
       of context-threading builders
@@ -47,7 +47,9 @@ mergeDisjoint {
   structure = {
     inherit fields reset table;
     inherit (ruleset) ruleset;
-    expr = exprs;
+    # The payload escape hatches are expression constructors like the
+    # rest of `expr`.
+    expr = mergeDisjoint { inherit exprs payload; };
     inherit (commands)
       add
       create
@@ -60,8 +62,7 @@ mergeDisjoint {
       replace
       ;
   };
-  inherit payload; # payload, payloadRaw, payloadTunnel
-  inherit ops; # eq, ne, lt, gt, le, ge, inSet, notInSet, within, match
+  inherit ops; # eq, ne, lt, gt, le, ge, inSet, notInSet, match
   inherit verdicts; # accept, drop, continue, return, notrack, jump, goto
   actions = actionsWithoutReset; # counter, log, limit, snat, … (not reset)
 }

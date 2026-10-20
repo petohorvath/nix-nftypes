@@ -14,16 +14,16 @@ let
   # `replace`, `insert`, and `rename` take their object-kind tag inside the
   # command body — `{ replace: { rule: <ruleBody> } }`, not
   # `{ replace: <ruleBody> }`. The nftables JSON parser rejects the direct
-  # form (verified with `nft -c -j -f`), so we use the single-tag wrappers
-  # `objects.all.rule`, `objects.replaceObject`, and `objects.renameObject`
-  # here.
+  # form (verified with `nft -c -j -f`), so we use the single-tag unions
+  # `objects.insertObject`, `objects.replaceObject`, and
+  # `objects.renameObject` here.
   command = taggedUnion {
     add = objects.addObject;
     replace = objects.replaceObject;
     # parser_json.c rejects `create rule`; the object union deliberately
     # excludes that tag instead of reusing the broader `add` union.
     create = objects.createObject;
-    insert = objects.all.rule;
+    insert = objects.insertObject;
     delete = objects.deleteObject;
     destroy = objects.deleteObject;
     list = objects.listObject;

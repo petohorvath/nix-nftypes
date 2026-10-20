@@ -38,8 +38,9 @@ The DSL provides:
 - comparison and membership helpers at the top level.
 
 Pre-built leaves cover common payload, metadata, routing, connection-tracking,
-FIB, socket, OS fingerprint, and XFRM fields. `payload`, `payloadRaw`,
-`payloadTunnel`, and raw expression attrsets cover less common parser fields.
+FIB, socket, OS fingerprint, and XFRM fields. `expr.payload`,
+`expr.payloadRaw`, `expr.payloadTunnel`, and raw expression attrsets cover
+less common parser fields.
 
 Each leaf names a field nft knows, and the `integration-parse-check` check loads
 every leaf through `nft -c`. Where nft's field name differs from a plain word,
@@ -121,7 +122,7 @@ and removed during expansion.
 The DSL exposes all modelled command verbs:
 
 - `add.<kind>` for the 16 add-object kinds, including `add.rule`;
-- `replace` and `insert` for rule commands;
+- `insert.rule` and `replace.rule` for rule commands;
 - `create.<kind>`, excluding `rule`;
 - `delete.<kind>` and `destroy.<kind>` for the add-object kinds except
   `ctCount`, `ctTimeout`, and `ctExpectation`;

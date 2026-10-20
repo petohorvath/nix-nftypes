@@ -106,10 +106,6 @@ let
       value = dsl.notInSet dsl.fields.ip.saddr "blocked";
       msg = "notInSet: .*\"blocked\".*expr\\.setRef";
     };
-    withinBareString = {
-      value = dsl.within dsl.fields.tcp.dport "ports";
-      msg = "within: .*\"ports\".*expr\\.setRef";
-    };
     setElemAndElements = {
       value = dsl.ruleset [
         (dsl.table "inet" "t" {
@@ -314,8 +310,8 @@ let
   # throw in JSON and text, naming the command and showing the list form.
   ruleCommandBuilders = {
     "add.rule" = dsl.add.rule;
-    inherit (dsl) insert;
-    replace = body: dsl.replace (body // { handle = 1; });
+    "insert.rule" = dsl.insert.rule;
+    "replace.rule" = body: dsl.replace.rule (body // { handle = 1; });
   };
   ruleCommandBodies = {
     noExpr = { };
@@ -656,19 +652,19 @@ in
 
   testReplaceRuleMissingHandleRejected = {
     expr = toJson (
-      dsl.replace {
+      dsl.replace.rule {
         family = "ip";
         table = "t";
         chain = "c";
         expr = [ dsl.accept ];
       }
     );
-    expectedError.msg = "dsl\\.replace\\.handle' was accessed but has no value defined";
+    expectedError.msg = "dsl\\.replace\\.rule\\.handle' was accessed but has no value defined";
   };
 
   testReplaceRuleBadHandleRejected = {
     expr = toJson (
-      dsl.replace {
+      dsl.replace.rule {
         family = "ip";
         table = "t";
         chain = "c";
@@ -676,12 +672,12 @@ in
         handle = "abc";
       }
     );
-    expectedError.msg = "dsl\\.replace\\.handle.*is not of type";
+    expectedError.msg = "dsl\\.replace\\.rule\\.handle.*is not of type";
   };
 
   testInsertRuleBadIndexRejected = {
     expr = toJson (
-      dsl.insert {
+      dsl.insert.rule {
         family = "ip";
         table = "t";
         chain = "c";
@@ -689,7 +685,7 @@ in
         index = -1;
       }
     );
-    expectedError.msg = "dsl\\.insert\\.index.*is not of type";
+    expectedError.msg = "dsl\\.insert\\.rule\\.index.*is not of type";
   };
 
   # ----- flush and add namespaces (commands.nix) -------------------------

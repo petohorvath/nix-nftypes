@@ -50,6 +50,40 @@ let
       description = "${name} body with addr or port";
     };
 
+  # The inline forms of the ct count and synproxy statements; their
+  # bodies below add the reference forms.
+  ctCountInline = submodule {
+    options = {
+      val = mkOption {
+        type = types.ints.unsigned;
+        description = "connection count threshold";
+      };
+      inv = mkOption {
+        type = types.nullOr types.bool;
+        default = null;
+        description = "invert match semantics";
+      };
+    };
+  };
+
+  synproxyInline = submodule {
+    options = {
+      mss = mkOption {
+        type = types.ints.unsigned;
+        description = "maximum segment size";
+      };
+      wscale = mkOption {
+        type = types.ints.unsigned;
+        description = "window scale";
+      };
+      flags = mkOption {
+        type = types.nullOr (listOrSingleton synproxyFlag);
+        default = null;
+        description = "synproxy option flags";
+      };
+    };
+  };
+
   bodies = rec {
     matchBody = submodule {
       options = {
@@ -74,7 +108,7 @@ let
       counter. The inline form needs both fields: any other object is
       parsed as a reference and fails.
     */
-    counterRefOrBody = types.oneOf [
+    counterBody = types.oneOf [
       nullLiteral
       (refOrInline (
         internal.discriminatedSubmodule {
@@ -110,7 +144,7 @@ let
       };
     };
 
-    quotaRefOrBody = refOrInline (submodule {
+    quotaBody = refOrInline (submodule {
       options = {
         val = mkOption {
           type = types.ints.unsigned;
@@ -140,7 +174,7 @@ let
     });
 
     # Inline limit: `rate` and `per` are required together (parser_json.c:2084).
-    limitRefOrBody = refOrInline (submodule {
+    limitBody = refOrInline (submodule {
       options = {
         rate = mkOption {
           type = types.ints.positive;
@@ -266,7 +300,7 @@ let
       };
     };
 
-    setStatementBody = submodule {
+    setBody = submodule {
       options = {
         op = mkOption {
           type = setOp;
@@ -289,7 +323,7 @@ let
     };
 
     # `map` statement: dynamic map modification (distinct from vmap).
-    mapStatementBody = submodule {
+    mapBody = submodule {
       options = {
         op = mkOption {
           type = setOp;
@@ -402,21 +436,7 @@ let
 
     # Inline `{ val; inv? }`, or (nftables 1.1.7+) a reference to a named
     # `ct count` object (parser_json.c json_parse_connlimit_stmt).
-    ctCountRefOrBody = refOrInline ctCountBody;
-
-    ctCountBody = submodule {
-      options = {
-        val = mkOption {
-          type = types.ints.unsigned;
-          description = "connection count threshold";
-        };
-        inv = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "invert match semantics";
-        };
-      };
-    };
+    ctCountBody = refOrInline ctCountInline;
 
     xtBody = submodule {
       options = {
@@ -469,30 +489,13 @@ let
       };
     };
 
-    synproxyAnonBody = submodule {
-      options = {
-        mss = mkOption {
-          type = types.ints.unsigned;
-          description = "maximum segment size";
-        };
-        wscale = mkOption {
-          type = types.ints.unsigned;
-          description = "window scale";
-        };
-        flags = mkOption {
-          type = types.nullOr (listOrSingleton synproxyFlag);
-          default = null;
-          description = "synproxy option flags";
-        };
-      };
-    };
-    # synproxy statement: null (empty), anonymous config, or named reference
+    # synproxy statement: null (empty), inline config, or named reference
     # string/expr. The map reference comes before the permissive anonymous
     # submodule, which would otherwise claim it.
-    synproxyStatementBody = types.oneOf [
+    synproxyBody = types.oneOf [
       nullLiteral
       (expressions.expressionOf [ "map" ])
-      synproxyAnonBody
+      synproxyInline
       expr
     ];
 
@@ -517,10 +520,10 @@ let
       goto = verdictTargetBody;
       # Core statements
       match = matchBody;
-      counter = counterRefOrBody;
+      counter = counterBody;
       mangle = mangleBody;
-      quota = quotaRefOrBody;
-      limit = limitRefOrBody;
+      quota = quotaBody;
+      limit = limitBody;
       fwd = fwdBody;
       dup = dupBody;
       snat = natBody;
@@ -528,8 +531,8 @@ let
       masquerade = orNull masqueradeBody;
       redirect = orNull masqueradeBody;
       reject = orNull rejectBody;
-      set = setStatementBody;
-      map = mapStatementBody;
+      set = setBody;
+      map = mapBody;
       log = orNull logBody;
       "ct helper" = expr;
       "ct timeout" = expr;
@@ -537,13 +540,13 @@ let
       meter = meterBody;
       queue = orNull queueBody;
       vmap = vmapBody;
-      "ct count" = ctCountRefOrBody;
+      "ct count" = ctCountBody;
       xt = xtBody;
       # Statements found in parser_json.c but absent from the in-repo adoc:
       last = lastBody;
       flow = flowBody;
       tproxy = tproxyBody;
-      synproxy = synproxyStatementBody;
+      synproxy = synproxyBody;
       reset = resetBody;
       secmark = expr;
       tunnel = expr;

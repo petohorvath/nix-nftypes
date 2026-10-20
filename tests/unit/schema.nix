@@ -748,7 +748,7 @@ textDriftTests
   # Named set using ipv4_addr type
   # ------------------------------------------------------------------
   testNamedSet = {
-    expr = roundtrip nftlib.types.objects.set {
+    expr = roundtrip nftlib.types.readBackObject {
       set = {
         family = "inet";
         table = "filter";
@@ -776,7 +776,7 @@ textDriftTests
   # ("ipv4_addr . inet_service") is rejected at runtime.
   # ------------------------------------------------------------------
   testMapConcatenated = {
-    expr = roundtrip nftlib.types.objects.map {
+    expr = roundtrip nftlib.types.readBackObject {
       map = {
         family = "ip";
         table = "nat";
@@ -1104,7 +1104,7 @@ textDriftTests
   # that a `unit` key is now rejected so future re-additions get caught.
   # ------------------------------------------------------------------
   testLimitObjectMinimal = {
-    expr = roundtrip nftlib.types.objects.limit {
+    expr = roundtrip nftlib.types.readBackObject {
       limit = {
         family = "inet";
         table = "filter";
@@ -1118,7 +1118,7 @@ textDriftTests
   };
 
   testLimitObjectUnitRejected = {
-    expr = roundtrip nftlib.types.objects.limit {
+    expr = roundtrip nftlib.types.readBackObject {
       limit = {
         family = "inet";
         table = "filter";
@@ -1172,7 +1172,7 @@ textDriftTests
   # Table object
   # ------------------------------------------------------------------
   testTable = {
-    expr = roundtrip nftlib.types.objects.table {
+    expr = roundtrip nftlib.types.readBackObject {
       table = {
         family = "inet";
         name = "filter";
@@ -1185,7 +1185,7 @@ textDriftTests
   # Base chain
   # ------------------------------------------------------------------
   testBaseChain = {
-    expr = roundtrip nftlib.types.objects.chain {
+    expr = roundtrip nftlib.types.readBackObject {
       chain = {
         family = "inet";
         table = "filter";
@@ -1279,7 +1279,7 @@ textDriftTests
   # Rule with multiple statements
   # ------------------------------------------------------------------
   testRule = {
-    expr = roundtrip nftlib.types.objects.rule {
+    expr = roundtrip nftlib.types.readBackObject {
       rule = {
         family = "inet";
         table = "filter";
@@ -1365,7 +1365,7 @@ textDriftTests
   # Element object
   # ------------------------------------------------------------------
   testElement = {
-    expr = roundtrip nftlib.types.objects.element {
+    expr = roundtrip nftlib.types.readBackObject {
       element = {
         family = "inet";
         table = "filter";
@@ -1771,7 +1771,7 @@ textDriftTests
   # `secmark` named object
   # ------------------------------------------------------------------
   testSecmarkObject = {
-    expr = roundtrip nftlib.types.objects.secmark {
+    expr = roundtrip nftlib.types.readBackObject {
       secmark = {
         family = "inet";
         table = "filter";
@@ -1786,7 +1786,7 @@ textDriftTests
   # `synproxy` named object
   # ------------------------------------------------------------------
   testSynproxyObject = {
-    expr = roundtrip nftlib.types.objects.synproxy {
+    expr = roundtrip nftlib.types.readBackObject {
       synproxy = {
         family = "inet";
         table = "filter";
@@ -1803,7 +1803,7 @@ textDriftTests
   # `ct count` named object (nftables 1.1.7+)
   # ------------------------------------------------------------------
   testCtCountObject = {
-    expr = roundtrip nftlib.types.objects.ctCount {
+    expr = roundtrip nftlib.types.readBackObject {
       "ct count" = {
         family = "ip";
         table = "t";
@@ -1817,7 +1817,7 @@ textDriftTests
   };
 
   testCtCountObjectRequiresVal = {
-    expr = roundtrip nftlib.types.objects.ctCount {
+    expr = roundtrip nftlib.types.readBackObject {
       "ct count" = {
         family = "ip";
         table = "t";
@@ -1897,7 +1897,7 @@ textDriftTests
   # Tunnel object: VXLAN encapsulation
   # ------------------------------------------------------------------
   testTunnelVxlan = {
-    expr = roundtrip nftlib.types.objects.tunnel {
+    expr = roundtrip nftlib.types.readBackObject {
       tunnel = {
         family = "inet";
         table = "t";
@@ -1918,7 +1918,7 @@ textDriftTests
   # Tunnel object: ERSPAN v1
   # ------------------------------------------------------------------
   testTunnelErspanV1 = {
-    expr = roundtrip nftlib.types.objects.tunnel {
+    expr = roundtrip nftlib.types.readBackObject {
       tunnel = {
         family = "inet";
         table = "t";
@@ -1937,7 +1937,7 @@ textDriftTests
   # Tunnel object: ERSPAN v2
   # ------------------------------------------------------------------
   testTunnelErspanV2 = {
-    expr = roundtrip nftlib.types.objects.tunnel {
+    expr = roundtrip nftlib.types.readBackObject {
       tunnel = {
         family = "inet";
         table = "t";
@@ -1957,7 +1957,7 @@ textDriftTests
   # Tunnel object: GENEVE (list of options)
   # ------------------------------------------------------------------
   testTunnelGeneve = {
-    expr = roundtrip nftlib.types.objects.tunnel {
+    expr = roundtrip nftlib.types.readBackObject {
       tunnel = {
         family = "inet";
         table = "t";
@@ -2084,7 +2084,7 @@ textDriftTests
 
   # Chain dev accepts string list (parser_json.c:3143 via json_parse_devs)
   testChainDevList = {
-    expr = roundtrip nftlib.types.objects.chain {
+    expr = roundtrip nftlib.types.readBackObject {
       chain = {
         family = "netdev";
         table = "filter";
@@ -2103,7 +2103,7 @@ textDriftTests
 
   # secmark object: context is optional (parser_json.c:3769)
   testSecmarkObjectNoContext = {
-    expr = roundtrip nftlib.types.objects.secmark {
+    expr = roundtrip nftlib.types.readBackObject {
       secmark = {
         family = "inet";
         table = "t";
@@ -2115,7 +2115,7 @@ textDriftTests
 
   # ct helper object: protocol/type optional (parser_json.c:3782-3809)
   testCtHelperObjectMinimal = {
-    expr = roundtrip nftlib.types.objects.ctHelper {
+    expr = roundtrip nftlib.types.readBackObject {
       "ct helper" = {
         family = "inet";
         table = "t";
@@ -2129,7 +2129,7 @@ textDriftTests
   # Mixing VXLAN keys into an ERSPAN tunnel nested object must be rejected
   # ------------------------------------------------------------------
   testTunnelNestedDisjoint = {
-    expr = roundtrip nftlib.types.objects.tunnel {
+    expr = roundtrip nftlib.types.readBackObject {
       tunnel = {
         family = "inet";
         table = "t";
@@ -2199,7 +2199,7 @@ textDriftTests
   # ct timeout object: nested `policy` mapping state → seconds
   # ------------------------------------------------------------------
   testCtTimeoutObject = {
-    expr = roundtrip nftlib.types.objects.ctTimeout {
+    expr = roundtrip nftlib.types.readBackObject {
       "ct timeout" = {
         family = "ip";
         table = "filter";
@@ -2298,7 +2298,7 @@ textDriftTests
   # table with comment
   # ------------------------------------------------------------------
   testTableComment = {
-    expr = roundtrip nftlib.types.objects.table {
+    expr = roundtrip nftlib.types.readBackObject {
       table = {
         family = "inet";
         name = "filter";
@@ -2312,7 +2312,7 @@ textDriftTests
   # chain with comment
   # ------------------------------------------------------------------
   testChainComment = {
-    expr = roundtrip nftlib.types.objects.chain {
+    expr = roundtrip nftlib.types.readBackObject {
       chain = {
         family = "inet";
         table = "filter";
@@ -2327,7 +2327,7 @@ textDriftTests
   # Comment on a named object (counter)
   # ------------------------------------------------------------------
   testObjectComment = {
-    expr = roundtrip nftlib.types.objects.counter {
+    expr = roundtrip nftlib.types.readBackObject {
       counter = {
         family = "ip";
         table = "filter";
@@ -2389,12 +2389,12 @@ textDriftTests
   # resolvePriority — int passthrough
   # ------------------------------------------------------------------
   testResolvePriorityIntPassthroughIp = {
-    expr = nftlib.resolvePriority "ip" 42;
+    expr = nftlib.compatibility.resolvePriority "ip" 42;
     expected = 42;
   };
 
   testResolvePriorityIntPassthroughBridge = {
-    expr = nftlib.resolvePriority "bridge" (-100);
+    expr = nftlib.compatibility.resolvePriority "bridge" (-100);
     expected = -100;
   };
 
@@ -2402,22 +2402,22 @@ textDriftTests
   # resolvePriority — default table (ip / ip6 / inet / arp / netdev)
   # ------------------------------------------------------------------
   testResolvePriorityIpFilter = {
-    expr = nftlib.resolvePriority "ip" "filter";
+    expr = nftlib.compatibility.resolvePriority "ip" "filter";
     expected = 0;
   };
 
   testResolvePriorityIp6Raw = {
-    expr = nftlib.resolvePriority "ip6" "raw";
+    expr = nftlib.compatibility.resolvePriority "ip6" "raw";
     expected = -300;
   };
 
   testResolvePriorityInetSrcnat = {
-    expr = nftlib.resolvePriority "inet" "srcnat";
+    expr = nftlib.compatibility.resolvePriority "inet" "srcnat";
     expected = 100;
   };
 
   testResolvePriorityNetdevMangle = {
-    expr = nftlib.resolvePriority "netdev" "mangle";
+    expr = nftlib.compatibility.resolvePriority "netdev" "mangle";
     expected = -150;
   };
 
@@ -2425,17 +2425,17 @@ textDriftTests
   # resolvePriority — bridge table (overrides default values)
   # ------------------------------------------------------------------
   testResolvePriorityBridgeFilter = {
-    expr = nftlib.resolvePriority "bridge" "filter";
+    expr = nftlib.compatibility.resolvePriority "bridge" "filter";
     expected = -200;
   };
 
   testResolvePriorityBridgeOut = {
-    expr = nftlib.resolvePriority "bridge" "out";
+    expr = nftlib.compatibility.resolvePriority "bridge" "out";
     expected = 100;
   };
 
   testResolvePriorityBridgeDstnat = {
-    expr = nftlib.resolvePriority "bridge" "dstnat";
+    expr = nftlib.compatibility.resolvePriority "bridge" "dstnat";
     expected = -300;
   };
 
@@ -2443,16 +2443,16 @@ textDriftTests
   # resolvePriority — unknown family throws
   # ------------------------------------------------------------------
   testResolvePriorityUnknownFamilyThrows = {
-    expr = nftlib.resolvePriority "wat" "filter";
-    expectedError.msg = "nix-nftypes: resolvePriority: unknown family 'wat'";
+    expr = nftlib.compatibility.resolvePriority "wat" "filter";
+    expectedError.msg = "nix-nftypes: compatibility.resolvePriority: unknown family 'wat'";
   };
 
   # ------------------------------------------------------------------
   # resolvePriority — unknown symbol throws (default table)
   # ------------------------------------------------------------------
   testResolvePriorityUnknownSymbolThrowsDefault = {
-    expr = nftlib.resolvePriority "ip" "out";
-    expectedError.msg = "nix-nftypes: resolvePriority: unknown priority symbol 'out' for family 'ip'";
+    expr = nftlib.compatibility.resolvePriority "ip" "out";
+    expectedError.msg = "nix-nftypes: compatibility.resolvePriority: unknown priority symbol 'out' for family 'ip'";
   };
 
   # ------------------------------------------------------------------
@@ -2461,7 +2461,7 @@ textDriftTests
   # are default-only).
   # ------------------------------------------------------------------
   testResolvePriorityUnknownSymbolThrowsBridge = {
-    expr = nftlib.resolvePriority "bridge" "raw";
+    expr = nftlib.compatibility.resolvePriority "bridge" "raw";
     expectedError.msg = "unknown priority symbol 'raw' for family 'bridge'";
   };
 
@@ -2492,7 +2492,9 @@ textDriftTests
       };
     in
     {
-      expr = lib.mapAttrs (family: lib.mapAttrs (symbol: _: nftlib.resolvePriority family symbol)) tables;
+      expr = lib.mapAttrs (
+        family: lib.mapAttrs (symbol: _: nftlib.compatibility.resolvePriority family symbol)
+      ) tables;
       expected = tables;
     };
 
@@ -2594,27 +2596,27 @@ textDriftTests
   # mirror the kernel-probed matrix on Linux 6.8 / nftables 1.0.9.
   # ------------------------------------------------------------------
   testValidChainPlacementIpFilterPrerouting = {
-    expr = nftlib.validChainPlacement "ip" "filter" "prerouting";
+    expr = nftlib.compatibility.validChainPlacement "ip" "filter" "prerouting";
     expected = true;
   };
 
   testValidChainPlacementIpNatPrerouting = {
-    expr = nftlib.validChainPlacement "ip" "nat" "prerouting";
+    expr = nftlib.compatibility.validChainPlacement "ip" "nat" "prerouting";
     expected = true;
   };
 
   testValidChainPlacementIpNatForward = {
-    expr = nftlib.validChainPlacement "ip" "nat" "forward";
+    expr = nftlib.compatibility.validChainPlacement "ip" "nat" "forward";
     expected = false;
   };
 
   testValidChainPlacementIpRouteOutput = {
-    expr = nftlib.validChainPlacement "ip" "route" "output";
+    expr = nftlib.compatibility.validChainPlacement "ip" "route" "output";
     expected = true;
   };
 
   testValidChainPlacementIpRoutePrerouting = {
-    expr = nftlib.validChainPlacement "ip" "route" "prerouting";
+    expr = nftlib.compatibility.validChainPlacement "ip" "route" "prerouting";
     expected = false;
   };
 
@@ -2622,39 +2624,39 @@ textDriftTests
   # output` is accepted (the kernel dispatches inet route via the
   # per-protocol implementations).
   testValidChainPlacementInetRouteOutput = {
-    expr = nftlib.validChainPlacement "inet" "route" "output";
+    expr = nftlib.compatibility.validChainPlacement "inet" "route" "output";
     expected = true;
   };
 
   testValidChainPlacementNetdevFilterIngress = {
-    expr = nftlib.validChainPlacement "netdev" "filter" "ingress";
+    expr = nftlib.compatibility.validChainPlacement "netdev" "filter" "ingress";
     expected = true;
   };
 
   testValidChainPlacementNetdevNatIngress = {
-    expr = nftlib.validChainPlacement "netdev" "nat" "ingress";
+    expr = nftlib.compatibility.validChainPlacement "netdev" "nat" "ingress";
     expected = false;
   };
 
   testValidChainPlacementArpFilterInput = {
-    expr = nftlib.validChainPlacement "arp" "filter" "input";
+    expr = nftlib.compatibility.validChainPlacement "arp" "filter" "input";
     expected = true;
   };
 
   testValidChainPlacementArpFilterForward = {
-    expr = nftlib.validChainPlacement "arp" "filter" "forward";
+    expr = nftlib.compatibility.validChainPlacement "arp" "filter" "forward";
     expected = false;
   };
 
   # Unknown family / chainType / hook strings fall through to false
   # rather than throw — consumers can probe freely without try/catch.
   testValidChainPlacementUnknownFamily = {
-    expr = nftlib.validChainPlacement "wat" "filter" "input";
+    expr = nftlib.compatibility.validChainPlacement "wat" "filter" "input";
     expected = false;
   };
 
   testValidChainPlacementUnknownChainType = {
-    expr = nftlib.validChainPlacement "ip" "wat" "input";
+    expr = nftlib.compatibility.validChainPlacement "ip" "wat" "input";
     expected = false;
   };
 
@@ -2701,106 +2703,106 @@ textDriftTests
   # priorityNameOf — int → symbol reverse of resolvePriority.
   # ------------------------------------------------------------------
   testPriorityNameOfIpZero = {
-    expr = nftlib.priorityNameOf "ip" 0;
+    expr = nftlib.compatibility.priorityNameOf "ip" 0;
     expected = "filter";
   };
 
   testPriorityNameOfIpFilterPassthrough = {
-    expr = nftlib.priorityNameOf "ip" "filter";
+    expr = nftlib.compatibility.priorityNameOf "ip" "filter";
     expected = "filter";
   };
 
   testPriorityNameOfIpSrcnat = {
-    expr = nftlib.priorityNameOf "ip" 100;
+    expr = nftlib.compatibility.priorityNameOf "ip" 100;
     expected = "srcnat";
   };
 
   testPriorityNameOfIpUnknownInt = {
-    expr = nftlib.priorityNameOf "ip" 17;
+    expr = nftlib.compatibility.priorityNameOf "ip" 17;
     expected = 17;
   };
 
   # Bridge-specific: -200 is bridge filter (not 0).
   testPriorityNameOfBridgeFilter = {
-    expr = nftlib.priorityNameOf "bridge" (-200);
+    expr = nftlib.compatibility.priorityNameOf "bridge" (-200);
     expected = "filter";
   };
 
   testPriorityNameOfBridgeSrcnat = {
-    expr = nftlib.priorityNameOf "bridge" 300;
+    expr = nftlib.compatibility.priorityNameOf "bridge" 300;
     expected = "srcnat";
   };
 
   # 0 is `filter` for ip but unknown for bridge — no canonicalization.
   testPriorityNameOfBridgeZero = {
-    expr = nftlib.priorityNameOf "bridge" 0;
+    expr = nftlib.compatibility.priorityNameOf "bridge" 0;
     expected = 0;
   };
 
   testPriorityNameOfUnknownFamilyThrows = {
-    expr = nftlib.priorityNameOf "nope" 0;
-    expectedError.msg = "nix-nftypes: priorityNameOf: unknown family 'nope'";
+    expr = nftlib.compatibility.priorityNameOf "nope" 0;
+    expectedError.msg = "nix-nftypes: compatibility.priorityNameOf: unknown family 'nope'";
   };
 
   # ------------------------------------------------------------------
   # chainTypeFor — derive chain type from (family, hook, priority).
   # ------------------------------------------------------------------
   testChainTypeForIpInputFilter = {
-    expr = nftlib.chainTypeFor "ip" "input" "filter";
+    expr = nftlib.compatibility.chainTypeFor "ip" "input" "filter";
     expected = "filter";
   };
 
   testChainTypeForIpInputZero = {
-    expr = nftlib.chainTypeFor "ip" "input" 0;
+    expr = nftlib.compatibility.chainTypeFor "ip" "input" 0;
     expected = "filter";
   };
 
   testChainTypeForIpPostroutingSrcnat = {
-    expr = nftlib.chainTypeFor "ip" "postrouting" "srcnat";
+    expr = nftlib.compatibility.chainTypeFor "ip" "postrouting" "srcnat";
     expected = "nat";
   };
 
   testChainTypeForIpPreroutingDstnat = {
-    expr = nftlib.chainTypeFor "ip" "prerouting" "dstnat";
+    expr = nftlib.compatibility.chainTypeFor "ip" "prerouting" "dstnat";
     expected = "nat";
   };
 
   testChainTypeForIpOutputMangle = {
-    expr = nftlib.chainTypeFor "ip" "output" "mangle";
+    expr = nftlib.compatibility.chainTypeFor "ip" "output" "mangle";
     expected = "route";
   };
 
   testChainTypeForIpPreroutingMangle = {
-    expr = nftlib.chainTypeFor "ip" "prerouting" "mangle";
+    expr = nftlib.compatibility.chainTypeFor "ip" "prerouting" "mangle";
     expected = "filter";
   };
 
   # The bridge family has no nat chain type, so bridge srcnat (300, not
   # 100) is a filter chain in both symbol and int form.
   testChainTypeForBridgePostroutingSrcnatSymbol = {
-    expr = nftlib.chainTypeFor "bridge" "postrouting" "srcnat";
+    expr = nftlib.compatibility.chainTypeFor "bridge" "postrouting" "srcnat";
     expected = "filter";
   };
 
   testChainTypeForBridgePostroutingSrcnatInt = {
-    expr = nftlib.chainTypeFor "bridge" "postrouting" 300;
+    expr = nftlib.compatibility.chainTypeFor "bridge" "postrouting" 300;
     expected = "filter";
   };
 
   # nat doesn't attach at forward.
   testChainTypeForIpForwardDstnat = {
-    expr = nftlib.chainTypeFor "ip" "forward" "dstnat";
+    expr = nftlib.compatibility.chainTypeFor "ip" "forward" "dstnat";
     expected = "filter";
   };
 
   # arp has neither nat nor route chains.
   testChainTypeForArpOutputMangle = {
-    expr = nftlib.chainTypeFor "arp" "output" "mangle";
+    expr = nftlib.compatibility.chainTypeFor "arp" "output" "mangle";
     expected = "filter";
   };
 
   testChainTypeForNetdevIngressSrcnatInt = {
-    expr = nftlib.chainTypeFor "netdev" "ingress" 100;
+    expr = nftlib.compatibility.chainTypeFor "netdev" "ingress" 100;
     expected = "filter";
   };
 
@@ -2828,7 +2830,7 @@ textDriftTests
           hook:
           map (prio: {
             inherit family hook prio;
-            type = nftlib.chainTypeFor family hook prio;
+            type = nftlib.compatibility.chainTypeFor family hook prio;
           }) (priorities family)
         ) hooksByFamily.${family}
       ) (lib.attrNames hooksByFamily);
@@ -2836,7 +2838,9 @@ textDriftTests
     {
       expr = {
         count = builtins.length placements;
-        rejected = builtins.filter (p: !(nftlib.validChainPlacement p.family p.type p.hook)) placements;
+        rejected = builtins.filter (
+          p: !(nftlib.compatibility.validChainPlacement p.family p.type p.hook)
+        ) placements;
       };
       # 5 + 5 + 6 + 2 + 2 hooks at 6 symbols + 10 ints, and 5 bridge hooks
       # at 4 symbols + 10 ints.
@@ -2847,31 +2851,31 @@ textDriftTests
     };
 
   testChainTypeForBridgeInputFilter = {
-    expr = nftlib.chainTypeFor "bridge" "input" "filter";
+    expr = nftlib.compatibility.chainTypeFor "bridge" "input" "filter";
     expected = "filter";
   };
 
   testChainTypeForBridgeInputFilterInt = {
-    expr = nftlib.chainTypeFor "bridge" "input" (-200);
+    expr = nftlib.compatibility.chainTypeFor "bridge" "input" (-200);
     expected = "filter";
   };
 
   # Bridge `out` is bridge-specific and not a NAT/route signal.
   testChainTypeForBridgeOutputOut = {
-    expr = nftlib.chainTypeFor "bridge" "output" "out";
+    expr = nftlib.compatibility.chainTypeFor "bridge" "output" "out";
     expected = "filter";
   };
 
   # Symbol unknown to the family returns null (not "filter") — the
   # placement is uninterpretable, distinct from a known-filter case.
   testChainTypeForUnknownSymbol = {
-    expr = nftlib.chainTypeFor "ip" "input" "wat";
+    expr = nftlib.compatibility.chainTypeFor "ip" "input" "wat";
     expected = null;
   };
 
   testChainTypeForUnknownFamilyThrows = {
-    expr = nftlib.chainTypeFor "nope" "input" "filter";
-    expectedError.msg = "nix-nftypes: chainTypeFor: unknown family 'nope'";
+    expr = nftlib.compatibility.chainTypeFor "nope" "input" "filter";
+    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: unknown family 'nope'";
   };
 
   # Read-back validation: the source-side checks validate each listed

@@ -5,7 +5,7 @@
   Attribute names use camelCase; the emitted JSON `field` string uses the
   hyphenated form that libnftables expects (e.g. `fragOff` → `"frag-off"`).
   For protocols or fields not covered here, fall back to
-  `dsl.payload protocol field` in lib/dsl/payload.nix.
+  `dsl.expr.payload protocol field` in lib/dsl/payload.nix.
 */
 { lib }:
 

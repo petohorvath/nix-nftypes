@@ -16,19 +16,19 @@
     nftypes.lib.compatibility.hooksByFamily.netdev
     # → [ "ingress" "egress" ]
 
-    nftypes.lib.resolvePriority "bridge" "filter"
+    nftypes.lib.compatibility.resolvePriority "bridge" "filter"
     # → -200
 
-    nftypes.lib.priorityNameOf "bridge" (-200)
+    nftypes.lib.compatibility.priorityNameOf "bridge" (-200)
     # → "filter"
 
-    nftypes.lib.chainTypeFor "ip" "postrouting" "srcnat"
+    nftypes.lib.compatibility.chainTypeFor "ip" "postrouting" "srcnat"
     # → "nat"
 
-    nftypes.lib.chainTypeFor "bridge" "postrouting" 300
+    nftypes.lib.compatibility.chainTypeFor "bridge" "postrouting" 300
     # → "filter"  (bridge has no nat chains)
 
-    nftypes.lib.validChainPlacement "ip" "nat" "forward"
+    nftypes.lib.compatibility.validChainPlacement "ip" "nat" "forward"
     # → false  (nat does not attach at forward)
 */
 
@@ -237,11 +237,11 @@ let
       prio
     else
       let
-        table = priorityTableFor "resolvePriority" family;
+        table = priorityTableFor "compatibility.resolvePriority" family;
         symbols = builtins.attrNames table;
       in
       table.${prio} or (throw (
-        "nix-nftypes: resolvePriority: unknown priority symbol '${toString prio}' "
+        "nix-nftypes: compatibility.resolvePriority: unknown priority symbol '${toString prio}' "
         + "for family '${family}'. Valid symbols: "
         + builtins.concatStringsSep ", " symbols
         + "."
@@ -296,7 +296,7 @@ let
       prio
     else
       let
-        table = priorityTableFor "priorityNameOf" family;
+        table = priorityTableFor "compatibility.priorityNameOf" family;
         symbols = builtins.attrNames table;
         matching = builtins.filter (s: table.${s} == prio) symbols;
       in
@@ -334,7 +334,7 @@ let
   chainTypeFor =
     family: hook: prio:
     let
-      table = priorityTableFor "chainTypeFor" family;
+      table = priorityTableFor "compatibility.chainTypeFor" family;
       priorityInt = if builtins.isInt prio then prio else table.${prio} or null;
       classified =
         if priorityInt == (table.srcnat or null) || priorityInt == (table.dstnat or null) then

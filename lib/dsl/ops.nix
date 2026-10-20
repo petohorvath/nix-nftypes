@@ -78,25 +78,9 @@ let
   */
   notInSet = left: right: mkMatch "!=" left (wrapSet "notInSet" right);
 
-  /*
-    Synonym for `inSet` that reads well with ranges. `left` is the
-    expression under test and `right` a list or set expression. Returns a
-    match statement.
-  */
-  within = left: right: mkMatch "==" left (wrapSet "within" right);
-
-  # Namespaced match operators for callers who prefer explicit
-  # disambiguation, plus the raw escape hatch and the bitwise `in` operator.
+  # The match forms the top-level operators don't cover: the bitwise `in`
+  # operator and the raw escape hatch.
   match = {
-    inherit
-      eq
-      ge
-      gt
-      le
-      lt
-      ne
-      ;
-
     /*
       Test flag bits with the nftables `in` operator. `left` is the
       expression under test and `right` the flag value or list. Returns a
@@ -129,6 +113,5 @@ in
     match
     ne
     notInSet
-    within
     ;
 }

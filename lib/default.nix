@@ -115,6 +115,7 @@ in
       createObject
       deleteObject
       flushObject
+      insertObject
       listObject
       readBackObject
       renameObject
@@ -136,26 +137,24 @@ in
 
   /*
     Kernel/man reference data — family×hook compatibility, chain-type
-    families, symbolic chain priorities, oifname-bearing hooks. See
+    families, symbolic chain priorities, oifname-bearing hooks — and the
+    helpers that look placements and priorities up in it. See
     `lib/compatibility.nix` for source-of-truth comments tying each
     table back to `man nft` Tables 6/7 and the relevant kernel headers.
   */
   compatibility = {
     inherit (compatibility)
+      chainTypeFor
       familiesByChainType
       hooksByChainType
       hooksByFamily
       hooksWithOifname
       priorityIntsByFamily
+      priorityNameOf
+      resolvePriority
+      validChainPlacement
       ;
   };
-
-  inherit (compatibility)
-    chainTypeFor
-    priorityNameOf
-    resolvePriority
-    validChainPlacement
-    ;
 
   # Serialize after cleaning. These functions do not run arbitrary raw input
   # through `types.ruleset`; callers that need schema validation must do that
