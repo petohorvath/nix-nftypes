@@ -53,8 +53,9 @@ chosen scope.
 Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
 `dsl.table inet.t` followed by the field's path, `text` for the text renderers,
-`types.statementOf`, or a helper such as `compatibility.resolvePriority`. A text Refusal ends
-with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
+`types.statementOf`, or a helper such as `compatibility.resolvePriority`. A text
+Refusal ends with `Field: <label>.`
+([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ## Schema types
 
@@ -331,12 +332,13 @@ as `imports` are unknown fields, and `_module` throws.
 
 A builder takes positional arguments only when every argument is required and
 there are at most two, as in `eq left right`, `vmap key data`, `expr.map key
-data`, `expr.payload protocol field`, `expr.prefix addr len`, and `counter.ref name`.
-Every other builder takes one attrset. `dsl.table family name body` is the
-exception; it mirrors nftables' `table inet filter { … }` syntax. The rule
-covers `dsl` builders: the compatibility helpers `compatibility.chainTypeFor`
-and `compatibility.validChainPlacement` take their three placement keys positionally. See
-[ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
+data`, `expr.payload protocol field`, `expr.prefix addr len`, and
+`counter.ref name`. Every other builder takes one attrset.
+`dsl.table family name body` is the exception; it mirrors nftables'
+`table inet filter { … }` syntax. The rule covers `dsl` builders: the
+compatibility helpers `compatibility.chainTypeFor` and
+`compatibility.validChainPlacement` take their three placement keys
+positionally. See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 
 ### Commands
 
@@ -392,9 +394,9 @@ when the body lacks a field nft requires for the verb, naming the field:
   that handle. Place a rule with `index`, or with `insert.rule`, whose `handle`
   puts it before that rule; see
   [`spec-coverage.md`](spec-coverage.md#rule-handles-on-add-rule).
-- `add.rule`, `insert.rule`, and `replace.rule` require statements, a non-empty `expr`
-  list, as a table tree's rule entries do. Without them, the builder throws,
-  naming the command, such as `add.rule`.
+- `add.rule`, `insert.rule`, and `replace.rule` require statements, a
+  non-empty `expr` list, as a table tree's rule entries do. Without them, the
+  builder throws, naming the command, such as `add.rule`.
 - `rename.chain` requires `newname`.
 
 `delete`, `destroy`, `list`, `flush`, and `reset` select an object by
@@ -483,7 +485,7 @@ The helpers are:
 - `resolvePriority family value` converts a known symbolic priority to an int.
   Ints pass through without consulting `family`; symbolic lookup throws for an
   unknown family or symbol. It resolves a bare symbol only, so add an offset
-  with Nix arithmetic: `compatibility.resolvePriority "ip" "filter" + 10`.
+  with Nix arithmetic: `resolvePriority "ip" "filter" + 10`.
 - `priorityNameOf family value` maps a known int to its canonical symbol and
   otherwise returns the original value. Integer lookup throws on an unknown
   family; symbols pass through without consulting `family`.

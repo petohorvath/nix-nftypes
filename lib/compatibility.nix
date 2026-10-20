@@ -16,19 +16,19 @@
     nftypes.lib.compatibility.hooksByFamily.netdev
     # → [ "ingress" "egress" ]
 
-    nftypes.lib.resolvePriority "bridge" "filter"
+    nftypes.lib.compatibility.resolvePriority "bridge" "filter"
     # → -200
 
-    nftypes.lib.priorityNameOf "bridge" (-200)
+    nftypes.lib.compatibility.priorityNameOf "bridge" (-200)
     # → "filter"
 
-    nftypes.lib.chainTypeFor "ip" "postrouting" "srcnat"
+    nftypes.lib.compatibility.chainTypeFor "ip" "postrouting" "srcnat"
     # → "nat"
 
-    nftypes.lib.chainTypeFor "bridge" "postrouting" 300
+    nftypes.lib.compatibility.chainTypeFor "bridge" "postrouting" 300
     # → "filter"  (bridge has no nat chains)
 
-    nftypes.lib.validChainPlacement "ip" "nat" "forward"
+    nftypes.lib.compatibility.validChainPlacement "ip" "nat" "forward"
     # → false  (nat does not attach at forward)
 */
 

@@ -1,8 +1,8 @@
 /*
   Namespaced builders for commands that don't fit the declarative table
   tree: add, create, delete, destroy, flush, insert, list, rename, replace,
-  reset. One namespace per command enumerates the object kinds nft runs as written
-  for it (ADR 0009). That is the kinds its schema union accepts (see
+  reset. One namespace per command enumerates the object kinds nft runs as
+  written for it (ADR 0009). That is the kinds its schema union accepts (see
   `lib/schema/commands.nix` and `lib/schema/objects.nix`), minus the ones
   nft's JSON parser rejects for the verb.
 
@@ -177,6 +177,18 @@ let
   };
 
   /*
+    The rule kind of a command that adds statements: `add`, `insert`, or
+    `replace`. `body` is the verb's rule body. A rule takes no renames; its
+    body only needs statements, like a table tree's rule entry
+    (../internal/rule-body.nix).
+  */
+  ruleCommandKind = body: {
+    tag = "rule";
+    renameBody = ruleBody.ruleBody;
+    inherit body;
+  };
+
+  /*
     Build one command namespace. `command` is the command tag (`"create"`,
     `"delete"`, …) and `kinds` the registry of object kinds it accepts.
 
@@ -217,16 +229,7 @@ in
     kinds plus `meter`, `reset` the resettable kinds but `rule`, and
     `flush` the flushable kinds plus `ruleset`.
   */
-  # A rule takes no renames; its body only needs statements, like a table
-  # tree's rule entry (../internal/rule-body.nix).
-  add = mkNamespace "add" (
-    addObjectKinds
-    // {
-      rule = addObjectKinds.rule // {
-        renameBody = ruleBody.ruleBody;
-      };
-    }
-  );
+  add = mkNamespace "add" (addObjectKinds // { rule = ruleCommandKind objects.addRuleBody; });
   create = mkNamespace "create" createObjectKinds;
   delete = mkNamespace "delete" deleteObjectKinds;
   destroy = mkNamespace "destroy" deleteObjectKinds;
@@ -243,20 +246,8 @@ in
   # `insert` and `replace` take a rule body like `add.rule`; `replace`
   # also requires the `handle` of the rule it replaces, and `rename` the
   # chain's `newname`.
-  insert = mkNamespace "insert" {
-    rule = {
-      tag = "rule";
-      renameBody = ruleBody.ruleBody;
-      body = objects.ruleBody;
-    };
-  };
-  replace = mkNamespace "replace" {
-    rule = {
-      tag = "rule";
-      renameBody = ruleBody.ruleBody;
-      body = objects.replaceRuleBody;
-    };
-  };
+  insert = mkNamespace "insert" { rule = ruleCommandKind objects.ruleBody; };
+  replace = mkNamespace "replace" { rule = ruleCommandKind objects.replaceRuleBody; };
   rename = mkNamespace "rename" {
     chain = {
       tag = "chain";

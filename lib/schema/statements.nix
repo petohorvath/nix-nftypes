@@ -489,7 +489,7 @@ let
       };
     };
 
-    # synproxy statement: null (empty), anonymous config, or named reference
+    # synproxy statement: null (empty), inline config, or named reference
     # string/expr. The map reference comes before the permissive anonymous
     # submodule, which would otherwise claim it.
     synproxyBody = types.oneOf [

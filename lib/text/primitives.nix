@@ -36,8 +36,8 @@
     priority       — render a chain priority value. Schema types prio as
                      `nullOr int`; this helper enforces the same on the
                      render side. Symbolic priorities go through
-                     `nftlib.compatibility.resolvePriority` upstream, and offsets
-                     through Nix arithmetic.
+                     `nftlib.compatibility.resolvePriority` upstream, and
+                     offsets through Nix arithmetic.
 
   The asserting helpers take a `field` label first (e.g. "table comment",
   "payload protocol"). Each refusal keeps its generic wording and ends
