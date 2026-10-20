@@ -36,7 +36,7 @@
     priority       — render a chain priority value. Schema types prio as
                      `nullOr int`; this helper enforces the same on the
                      render side. Symbolic priorities go through
-                     `nftlib.resolvePriority` upstream, and offsets
+                     `nftlib.compatibility.resolvePriority` upstream, and offsets
                      through Nix arithmetic.
 
   The asserting helpers take a `field` label first (e.g. "table comment",
@@ -294,7 +294,7 @@ let
     if builtins.isInt v then
       toString v
     else
-      throw "nix-nftypes: text: refusing to render a non-integer chain/flowtable priority ${builtins.toJSON v}. The schema types `prio` as `nullOr int`; resolve a symbolic priority such as \"filter\" with `nftlib.resolvePriority` and add any offset with Nix arithmetic. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements. Field: ${field}.\n";
+      throw "nix-nftypes: text: refusing to render a non-integer chain/flowtable priority ${builtins.toJSON v}. The schema types `prio` as `nullOr int`; resolve a symbolic priority such as \"filter\" with `nftlib.compatibility.resolvePriority` and add any offset with Nix arithmetic. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements. Field: ${field}.\n";
 in
 {
   inherit

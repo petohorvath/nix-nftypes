@@ -56,7 +56,7 @@ let
 
   # Per-surface × per-bad-input rejection tests. Each emits one test of
   # the form testSchemaRejects_<surface>_<input>.
-  # Note: setObjectBody / mapObjectBody intentionally do not declare a
+  # Note: setBody / mapBody intentionally do not declare a
   # `comment` field (pre-existing schema/renderer mismatch — the renderer
   # reads `body.comment or null` but no validator exposes it). The
   # commentOption is on tableBody / chainBody / ruleBody and every

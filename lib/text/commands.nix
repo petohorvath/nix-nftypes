@@ -124,7 +124,7 @@ let
   renderAddedObject =
     ctx: kind: body:
     if kind == "rule" && (body.handle or null) != null then
-      primitives.refuseNoTextSpelling "add rule handle" "nftables 1.1.6's JSON parser ignores a handle on `add rule` and appends the rule, while 1.1.7's, like text, adds it after the rule with that handle. Place the rule with `index`, or with `insert`."
+      primitives.refuseNoTextSpelling "add rule handle" "nftables 1.1.6's JSON parser ignores a handle on `add rule` and appends the rule, while 1.1.7's, like text, adds it after the rule with that handle. Place the rule with `index`, or with `insert.rule`."
     else
       renderObject ctx kind body;
 

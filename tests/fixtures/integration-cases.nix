@@ -2268,7 +2268,7 @@ rec {
           };
         in
         ruleset [
-          (dsl.insert (
+          (dsl.insert.rule (
             ruleScope
             // {
               expr = [
@@ -2277,7 +2277,7 @@ rec {
               ];
             }
           ))
-          (dsl.insert (
+          (dsl.insert.rule (
             ruleScope
             // {
               handle = 3;
@@ -2287,7 +2287,7 @@ rec {
               ];
             }
           ))
-          (dsl.replace (
+          (dsl.replace.rule (
             ruleScope
             // {
               handle = 2;

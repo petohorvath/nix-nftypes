@@ -388,11 +388,11 @@ let
       };
     };
 
-    setObjectBody = submodule {
+    setBody = submodule {
       options = setMapCommonOptions;
     };
 
-    mapObjectBody = submodule {
+    mapBody = submodule {
       options = mapOptions;
     };
 
@@ -450,7 +450,7 @@ let
       };
     };
 
-    counterObjectBody = submodule {
+    counterBody = submodule {
       options = commonObjectOptions // {
         packets = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -465,7 +465,7 @@ let
       };
     };
 
-    quotaObjectBody = submodule {
+    quotaBody = submodule {
       options = commonObjectOptions // {
         # parser_json.c:3761: bytes is `json_unpack` (optional, defaults to 0).
         bytes = mkOption {
@@ -489,7 +489,7 @@ let
     # Named connection-count limit (nftables 1.1.7+, NFT_OBJECT_CONNLIMIT).
     # parser_json.c json_parse_cmd_add_object: `val` is required, `inv`
     # optional.
-    ctCountObjectBody = submodule {
+    ctCountBody = submodule {
       options = commonObjectOptions // {
         val = mkOption {
           type = types.ints.unsigned;
@@ -503,7 +503,7 @@ let
       };
     };
 
-    ctHelperObjectBody = submodule {
+    ctHelperBody = submodule {
       # All fields optional per parser_json.c:3782-3809 (all json_unpack,
       # no _err).
       options = commonObjectOptions // {
@@ -525,13 +525,13 @@ let
       };
     };
 
-    limitObjectBody = submodule {
+    limitBody = submodule {
       options = limitOptions;
     };
 
     # ct timeout object: parser_json.c:3811-3833 — all fields optional on
     # the JSON path.
-    ctTimeoutObjectBody = submodule {
+    ctTimeoutBody = submodule {
       options = commonObjectOptions // {
         protocol = mkOption {
           type = types.nullOr tcpUdpProto;
@@ -555,7 +555,7 @@ let
 
     # ct expectation object: parser_json.c:3835-3860 — all fields optional
     # on the JSON path.
-    ctExpectationObjectBody = submodule {
+    ctExpectationBody = submodule {
       options = commonObjectOptions // {
         l3proto = mkOption {
           type = types.nullOr ctL3Proto;
@@ -604,7 +604,7 @@ let
       };
     };
 
-    secmarkObjectBody = submodule {
+    secmarkBody = submodule {
       options = commonObjectOptions // {
         # parser_json.c:3769: context is json_unpack (optional).
         context = mkOption {
@@ -615,13 +615,13 @@ let
       };
     };
 
-    synproxyObjectBody = submodule {
+    synproxyBody = submodule {
       options = synproxyOptions;
     };
 
     # --- Tunnel nested encapsulation variants ---
     # VXLAN: { gbp: <uint> }
-    tunnelVxlanNested = discriminatedSubmodule {
+    tunnelVxlanBody = discriminatedSubmodule {
       requireKeys = [ "gbp" ];
       forbidKeys = [ "version" ];
       options.gbp = mkOption {
@@ -631,7 +631,7 @@ let
     };
 
     # ERSPAN v1: { version: 1, index: <uint> }
-    tunnelErspanV1Nested = discriminatedSubmodule {
+    tunnelErspanV1Body = discriminatedSubmodule {
       extraCheck = v: (v.version or null) == 1;
       options = {
         version = mkOption {
@@ -646,7 +646,7 @@ let
     };
 
     # ERSPAN v2: { version: 2, dir: "ingress"|"egress", hwid: <uint> }
-    tunnelErspanV2Nested = discriminatedSubmodule {
+    tunnelErspanV2Body = discriminatedSubmodule {
       extraCheck = v: (v.version or null) == 2;
       options = {
         version = mkOption {
@@ -668,7 +668,7 @@ let
     };
 
     # GENEVE: [ { class, opt-type, data }, … ]
-    tunnelGeneveOpt = submodule {
+    tunnelGeneveOptionBody = submodule {
       options = {
         class = mkOption {
           type = types.ints.unsigned;
@@ -686,13 +686,13 @@ let
     };
 
     tunnelNestedBody = types.oneOf [
-      tunnelVxlanNested
-      tunnelErspanV1Nested
-      tunnelErspanV2Nested
-      (types.listOf tunnelGeneveOpt)
+      tunnelVxlanBody
+      tunnelErspanV1Body
+      tunnelErspanV2Body
+      (types.listOf tunnelGeneveOptionBody)
     ];
 
-    tunnelObjectBody = submodule {
+    tunnelBody = submodule {
       options = commonObjectOptions // {
         id = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -755,7 +755,7 @@ let
     };
 
     # `ruleset` body is `null` (operate on all) OR `{ family = "ip"; }`.
-    rulesetBody = types.oneOf [
+    flushRulesetBody = types.oneOf [
       nullLiteral
       (submodule {
         options.family = mkOption {
@@ -769,51 +769,28 @@ let
     # (parser_json.c routes meter to json_parse_cmd_add_set), so the
     # only fields meaningful for a `flush meter` / `list meter` command
     # are family + table + name (+ handle on listed output).
-    meterObjectBody = submodule {
+    meterBody = submodule {
       options = namedInTableOptions;
     };
-  };
-
-  # Single-tag wrappers for each object kind (convenience).
-  wrappers = {
-    table = wrap "table" bodies.tableBody;
-    chain = wrap "chain" bodies.chainBody;
-    rule = wrap "rule" bodies.ruleBody;
-    set = wrap "set" bodies.setObjectBody;
-    map = wrap "map" bodies.mapObjectBody;
-    element = wrap "element" bodies.elementBody;
-    flowtable = wrap "flowtable" bodies.flowtableBody;
-    counter = wrap "counter" bodies.counterObjectBody;
-    quota = wrap "quota" bodies.quotaObjectBody;
-    ctHelper = wrap "ct helper" bodies.ctHelperObjectBody;
-    limit = wrap "limit" bodies.limitObjectBody;
-    ctTimeout = wrap "ct timeout" bodies.ctTimeoutObjectBody;
-    ctExpectation = wrap "ct expectation" bodies.ctExpectationObjectBody;
-    ctCount = wrap "ct count" bodies.ctCountObjectBody;
-    secmark = wrap "secmark" bodies.secmarkObjectBody;
-    synproxy = wrap "synproxy" bodies.synproxyObjectBody;
-    tunnel = wrap "tunnel" bodies.tunnelObjectBody;
-    metainfo = wrap "metainfo" bodies.metainfoBody;
-    ruleset = wrap "ruleset" bodies.rulesetBody;
   };
 
   addObjectBodies = {
     table = bodies.tableBody;
     chain = bodies.chainBody;
     rule = bodies.addRuleBody;
-    set = bodies.setObjectBody;
-    map = bodies.mapObjectBody;
+    set = bodies.setBody;
+    map = bodies.mapBody;
     element = bodies.elementBody;
     flowtable = bodies.flowtableBody;
-    counter = bodies.counterObjectBody;
-    quota = bodies.quotaObjectBody;
-    "ct helper" = bodies.ctHelperObjectBody;
-    limit = bodies.limitObjectBody;
-    "ct timeout" = bodies.ctTimeoutObjectBody;
-    "ct expectation" = bodies.ctExpectationObjectBody;
-    "ct count" = bodies.ctCountObjectBody;
-    secmark = bodies.secmarkObjectBody;
-    synproxy = bodies.synproxyObjectBody;
+    counter = bodies.counterBody;
+    quota = bodies.quotaBody;
+    "ct helper" = bodies.ctHelperBody;
+    limit = bodies.limitBody;
+    "ct timeout" = bodies.ctTimeoutBody;
+    "ct expectation" = bodies.ctExpectationBody;
+    "ct count" = bodies.ctCountBody;
+    secmark = bodies.secmarkBody;
+    synproxy = bodies.synproxyBody;
   };
 
   addObject = taggedUnion addObjectBodies;
@@ -867,8 +844,8 @@ let
   readBackObjectBodies = addObjectBodies // {
     rule = bodies.ruleBody;
     metainfo = bodies.metainfoBody;
-    meter = bodies.meterObjectBody;
-    tunnel = bodies.tunnelObjectBody;
+    meter = bodies.meterBody;
+    tunnel = bodies.tunnelBody;
   };
 
   readBackObject = taggedUnion readBackObjectBodies;
@@ -905,11 +882,14 @@ let
   flushObject = taggedUnion (selecting {
     table = bodies.tableBody;
     chain = bodies.chainBody;
-    set = bodies.setObjectBody;
-    map = bodies.mapObjectBody;
-    meter = bodies.meterObjectBody;
-    ruleset = bodies.rulesetBody;
+    set = bodies.setBody;
+    map = bodies.mapBody;
+    meter = bodies.meterBody;
+    ruleset = bodies.flushRulesetBody;
   });
+
+  # `insert` takes only a rule.
+  insertObject = wrap "rule" bodies.ruleBody;
 
   # `replace` takes only a rule, and requires its `handle`.
   replaceObject = wrap "rule" bodies.replaceRuleBody;
@@ -918,21 +898,22 @@ let
   renameObject = wrap "chain" bodies.renameChainBody;
 
   resetObject = taggedUnion (selecting {
-    counter = bodies.counterObjectBody;
-    quota = bodies.quotaObjectBody;
+    counter = bodies.counterBody;
+    quota = bodies.quotaBody;
     rule = bodies.ruleBody;
-    set = bodies.setObjectBody;
-    map = bodies.mapObjectBody;
+    set = bodies.setBody;
+    map = bodies.mapBody;
     element = bodies.elementBody;
   });
 in
 {
-  all = bodies // wrappers;
+  all = bodies;
   inherit
     addObject
     createObject
     deleteObject
     flushObject
+    insertObject
     listObject
     readBackObject
     renameObject

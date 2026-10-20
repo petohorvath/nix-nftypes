@@ -404,7 +404,7 @@ let
       };
     };
 
-    tunnelExprBody = submodule {
+    tunnelBody = submodule {
       options.key = mkOption {
         type = tunnelKey;
         description = "tunnel metadata key (path/id)";
@@ -487,7 +487,7 @@ let
       socket = socketBody;
       osf = osfBody;
       ipsec = ipsecBody;
-      tunnel = tunnelExprBody;
+      tunnel = tunnelBody;
       elem = elemBody;
       # Verdicts (valid in vmap data)
       accept = nullLiteral;

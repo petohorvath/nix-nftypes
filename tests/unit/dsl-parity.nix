@@ -227,7 +227,7 @@ in
   # Escape hatches
   # =========================================================================
 
-  testPayloadEscape = pe (dsl.payload "tcp" "dport") {
+  testPayloadEscape = pe (dsl.expr.payload "tcp" "dport") {
     payload = {
       protocol = "tcp";
       field = "dport";
@@ -236,7 +236,7 @@ in
 
   testPayloadRaw =
     pe
-      (dsl.payloadRaw {
+      (dsl.expr.payloadRaw {
         base = "nh";
         offset = 72;
         len = 16;
@@ -251,7 +251,7 @@ in
 
   testPayloadTunnel =
     pe
-      (dsl.payloadTunnel {
+      (dsl.expr.payloadTunnel {
         tunnel = "vxlan";
         protocol = "ip";
         field = "daddr";
@@ -825,31 +825,6 @@ in
         };
       };
 
-  # within synonym
-  testOpWithin =
-    ps
-      (dsl.within dsl.fields.tcp.dport [
-        1024
-        65535
-      ])
-      {
-        match = {
-          left = {
-            payload = {
-              protocol = "tcp";
-              field = "dport";
-            };
-          };
-          right = {
-            set = [
-              1024
-              65535
-            ];
-          };
-          op = "==";
-        };
-      };
-
   # match.in for bitwise flag semantics
   testOpMatchIn = ps (dsl.match.in_ dsl.fields.ct.state (dsl.expr.set [ "established" ])) {
     match = {
@@ -885,75 +860,6 @@ in
           op = ">=";
         };
       };
-
-  # The `match` namespace offers the comparison operators under the same
-  # names as the top level.
-  testOpMatchEq = ps (dsl.match.eq dsl.fields.meta.mark 1) {
-    match = {
-      left = {
-        meta = {
-          key = "mark";
-        };
-      };
-      right = 1;
-      op = "==";
-    };
-  };
-  testOpMatchNe = ps (dsl.match.ne dsl.fields.meta.mark 1) {
-    match = {
-      left = {
-        meta = {
-          key = "mark";
-        };
-      };
-      right = 1;
-      op = "!=";
-    };
-  };
-  testOpMatchLt = ps (dsl.match.lt dsl.fields.meta.mark 1) {
-    match = {
-      left = {
-        meta = {
-          key = "mark";
-        };
-      };
-      right = 1;
-      op = "<";
-    };
-  };
-  testOpMatchGt = ps (dsl.match.gt dsl.fields.meta.mark 1) {
-    match = {
-      left = {
-        meta = {
-          key = "mark";
-        };
-      };
-      right = 1;
-      op = ">";
-    };
-  };
-  testOpMatchLe = ps (dsl.match.le dsl.fields.meta.mark 1) {
-    match = {
-      left = {
-        meta = {
-          key = "mark";
-        };
-      };
-      right = 1;
-      op = "<=";
-    };
-  };
-  testOpMatchGe = ps (dsl.match.ge dsl.fields.meta.mark 1) {
-    match = {
-      left = {
-        meta = {
-          key = "mark";
-        };
-      };
-      right = 1;
-      op = ">=";
-    };
-  };
 
   # =========================================================================
   # Variant namespaces
@@ -3867,6 +3773,21 @@ in
     ];
   };
 
+  # A verb with one object kind is a namespace like every other verb, so
+  # its builder is named for the kind nft names: `insert rule`.
+  testSingleKindVerbNamespaces = {
+    expr = lib.concatMap (verb: map (kind: "${verb}.${kind}") (builtins.attrNames dsl.${verb})) [
+      "insert"
+      "rename"
+      "replace"
+    ];
+    expected = [
+      "insert.rule"
+      "rename.chain"
+      "replace.rule"
+    ];
+  };
+
   /*
     delete, destroy, list, flush, and reset select an object by family,
     table, and name, and demand no field nft ignores for the verb: each
@@ -4078,7 +3999,7 @@ in
 
   testCmdReplace =
     pc
-      (dsl.replace {
+      (dsl.replace.rule {
         family = "ip";
         table = "t";
         chain = "c";
@@ -4098,7 +4019,7 @@ in
       };
   testCmdInsert =
     pc
-      (dsl.insert {
+      (dsl.insert.rule {
         family = "ip";
         table = "t";
         chain = "c";
@@ -4254,7 +4175,7 @@ in
           name = "oldchain";
           newname = "newchain";
         })
-        (dsl.replace {
+        (dsl.replace.rule {
           family = "ip";
           table = "t";
           chain = "c";

@@ -32,7 +32,7 @@ let
     let
       run = record.${placement.name};
     in
-    if nftlib.validChainPlacement placement.family placement.type placement.hook then
+    if nftlib.compatibility.validChainPlacement placement.family placement.type placement.hook then
       lib.nameValuePair "testLoadsAsBaseChain_${placement.name}" (loadsAsBaseChain placement run)
     else
       lib.nameValuePair "testRejected_${placement.name}" (isRejected run);

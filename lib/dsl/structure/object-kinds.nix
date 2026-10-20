@@ -34,13 +34,13 @@ in
     tag = "set";
     plural = "sets";
     renameBody = rename.set;
-    body = objects.setObjectBody;
+    body = objects.setBody;
   };
   map = {
     tag = "map";
     plural = "maps";
     renameBody = rename.set;
-    body = objects.mapObjectBody;
+    body = objects.mapBody;
   };
   element = {
     tag = "element";
@@ -58,54 +58,54 @@ in
     tag = "counter";
     plural = "counters";
     renameBody = rename.none;
-    body = objects.counterObjectBody;
+    body = objects.counterBody;
   };
   quota = {
     tag = "quota";
     plural = "quotas";
     renameBody = rename.none;
-    body = objects.quotaObjectBody;
+    body = objects.quotaBody;
   };
   limit = {
     tag = "limit";
     plural = "limits";
     renameBody = rename.limit;
-    body = objects.limitObjectBody;
+    body = objects.limitBody;
   };
   ctHelper = {
     tag = "ct helper";
     plural = "ctHelpers";
     renameBody = rename.none;
-    body = objects.ctHelperObjectBody;
+    body = objects.ctHelperBody;
   };
   ctTimeout = {
     tag = "ct timeout";
     plural = "ctTimeouts";
     renameBody = rename.none;
-    body = objects.ctTimeoutObjectBody;
+    body = objects.ctTimeoutBody;
   };
   ctExpectation = {
     tag = "ct expectation";
     plural = "ctExpectations";
     renameBody = rename.none;
-    body = objects.ctExpectationObjectBody;
+    body = objects.ctExpectationBody;
   };
   ctCount = {
     tag = "ct count";
     plural = "ctCounts";
     renameBody = rename.none;
-    body = objects.ctCountObjectBody;
+    body = objects.ctCountBody;
   };
   secmark = {
     tag = "secmark";
     plural = "secmarks";
     renameBody = rename.none;
-    body = objects.secmarkObjectBody;
+    body = objects.secmarkBody;
   };
   synproxy = {
     tag = "synproxy";
     plural = "synproxies";
     renameBody = rename.none;
-    body = objects.synproxyObjectBody;
+    body = objects.synproxyBody;
   };
 }
