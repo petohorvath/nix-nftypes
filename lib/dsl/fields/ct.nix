@@ -7,10 +7,10 @@
 { lib }:
 
 let
-  mkLeaf = key: { ct = { inherit key; }; };
-
   # The schema declares `ct.key` as `types.str`, so this list is the commonly
   # useful subset. Unusual keys are reachable via `dsl.expr.ct { key = …; }`.
+  # `saddr`, `daddr`, `proto-src`, and `proto-dst` have no leaf: nft loads
+  # them only with a direction, so `dsl.expr.ct` builds them.
   keys = [
     "state"
     "direction"
@@ -19,8 +19,6 @@ let
     "expiration"
     "helper"
     "label"
-    "saddr"
-    "daddr"
     "protocol"
     "bytes"
     "packets"
@@ -31,11 +29,7 @@ let
     "secmark"
     "event"
   ];
-
-  # Hyphenated keys, under their camelCase leaf names (ADR 0009).
-  renamedKeys = {
-    protoSrc = "proto-src";
-    protoDst = "proto-dst";
-  };
 in
-(lib.genAttrs keys mkLeaf) // (lib.mapAttrs (_: mkLeaf) renamedKeys)
+lib.genAttrs keys (key: {
+  ct = { inherit key; };
+})
