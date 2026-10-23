@@ -1,9 +1,8 @@
 /*
   Statements that do not fit the variant-namespace pattern: mangle
   (payload-field rewrite), dynamic set/map modification (setStmt, mapStmt),
-  reset (takes a bare expression), secmark/tunnel (`.ref` to a named
-  object), xt (xtables bridge),
-  and last / lastUsed.
+  resetStmt (takes a bare expression), secmark/tunnel (`.ref` to a named
+  object), and xt (xtables bridge).
 */
 { lib }:
 
@@ -69,9 +68,10 @@ in
 
   /*
     Reset stateful data referenced by an expression, such as a TCP option.
-    `e` is that expression. Returns a reset statement.
+    `e` is that expression. Named like `setStmt`, since `reset` is the
+    command namespace. Returns a reset statement.
   */
-  reset = e: { reset = e; };
+  resetStmt = e: { reset = e; };
 
   /*
     Apply a security mark. `secmark.ref ref` names the secmark object:
@@ -92,20 +92,4 @@ in
     name. Returns an xt statement.
   */
   xt = type: name: { xt = { inherit type name; }; };
-
-  # `last` is a bare value and `lastUsed` the `{ used = …; }` form. They stay
-  # separate because `{ last = null; }` cannot also expose sub-attributes.
-  last = {
-    last = null;
-  };
-
-  /*
-    Record when the rule last matched, seeded with a previous value. `used`
-    is the last-used time. Returns `{ last = { used; }; }`.
-  */
-  lastUsed = used: {
-    last = {
-      inherit used;
-    };
-  };
 }

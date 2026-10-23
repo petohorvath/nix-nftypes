@@ -56,7 +56,6 @@ in
       "logFlag"
       "logLevel"
       "logPrefix"
-      "matchStatement"
       "metaKey"
       "namedReference"
       "natFlag"
@@ -289,11 +288,11 @@ in
       "ge"
       "goto"
       "gt"
+      "hasAnyFlag"
       "inSet"
       "insert"
       "jump"
       "last"
-      "lastUsed"
       "le"
       "limit"
       "list"
@@ -314,6 +313,7 @@ in
       "rename"
       "replace"
       "reset"
+      "resetStmt"
       "return"
       "ruleset"
       "secmark"
@@ -346,7 +346,6 @@ in
       "lshift"
       "map"
       "mapRef"
-      "meta"
       "numgen"
       "osf"
       "payload"
@@ -359,7 +358,6 @@ in
       "sctpChunk"
       "set"
       "setRef"
-      "socket"
       "symhash"
       "tcpOption"
       "tcpOptionRaw"
@@ -368,10 +366,7 @@ in
 
   testDslMatchExports = {
     expr = builtins.attrNames dsl.match;
-    expected = [
-      "in_"
-      "raw"
-    ];
+    expected = [ "raw" ];
   };
 
   # toNix is a diagnostic formatter: cleaned (no unset nulls, no markers,

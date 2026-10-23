@@ -556,16 +556,16 @@ in
         };
       };
 
-  testExprMeta = pe (dsl.expr.meta "mark") {
-    meta = {
-      key = "mark";
-    };
-  };
-
-  testExprSocket = pe (dsl.expr.socket "mark") {
-    socket = {
-      key = "mark";
-    };
+  # An `expr` constructor builds what a Field leaf can't: a meta, socket,
+  # or tunnel expression takes only a key, and a leaf covers every key the
+  # schema allows, so none of them has one.
+  testExprHasNoKeyOnlyConstructors = {
+    expr = builtins.filter (name: dsl.expr ? ${name}) [
+      "meta"
+      "socket"
+      "tunnel"
+    ];
+    expected = [ ];
   };
 
   testExprRtRefined =
@@ -828,8 +828,30 @@ in
         };
       };
 
-  # match.in for bitwise flag semantics
-  testOpMatchIn = ps (dsl.match.in_ dsl.fields.ct.state (dsl.expr.set [ "established" ])) {
+  # nft's `in` operator: the rule matches when any of the flags is set,
+  # `(left & flags) != 0`.
+  testOpHasAnyFlagList =
+    ps
+      (dsl.hasAnyFlag dsl.fields.tcp.flags [
+        "syn"
+        "ack"
+      ])
+      {
+        match = {
+          left = {
+            payload = {
+              protocol = "tcp";
+              field = "flags";
+            };
+          };
+          right = [
+            "syn"
+            "ack"
+          ];
+          op = "in";
+        };
+      };
+  testOpHasAnyFlagSet = ps (dsl.hasAnyFlag dsl.fields.ct.state (dsl.expr.set [ "established" ])) {
     match = {
       left = {
         ct = {
@@ -1480,11 +1502,17 @@ in
       name = "connlimit";
     };
   };
-  testLast = ps dsl.last { last = null; };
-  testLastUsed = ps (dsl.lastUsed (-1)) {
+  testLastAuto = ps dsl.last.auto { last = null; };
+  testLastUsed = ps (dsl.last { used = -1; }) {
     last = {
       used = -1;
     };
+  };
+  # nft rejects `{ "last": {} }`, so the empty form throws and points to
+  # `last.auto`, as `counter { }` does.
+  testLastEmptyBodyThrows = {
+    expr = dsl.last { };
+    expectedError.msg = "last: .*used.*last\\.auto";
   };
 
   # =========================================================================
@@ -3717,20 +3745,12 @@ in
     tests/fixtures/nft-misbehaviour.nix.
   */
   testVerbNamespaceKinds = {
-    expr =
-      lib.concatMap
-        (
-          verb:
-          map (kind: "${verb}.${kind}") (
-            builtins.filter (name: name != "__functor") (builtins.attrNames dsl.${verb})
-          )
-        )
-        [
-          "delete"
-          "destroy"
-          "list"
-          "reset"
-        ];
+    expr = lib.concatMap (verb: map (kind: "${verb}.${kind}") (builtins.attrNames dsl.${verb})) [
+      "delete"
+      "destroy"
+      "list"
+      "reset"
+    ];
     expected = [
       "delete.chain"
       "delete.counter"
@@ -3832,7 +3852,7 @@ in
           (
             verb:
             map (kind: "${verb}.${kind}") (
-              builtins.filter (kind: kind != "__functor" && !(builds verb kind)) (builtins.attrNames dsl.${verb})
+              builtins.filter (kind: !(builds verb kind)) (builtins.attrNames dsl.${verb})
             )
           )
           [
@@ -3915,14 +3935,18 @@ in
         };
       };
 
-  # reset has two forms under one name: statement (via __functor) and
-  # per-object-kind command sub-attrs.
-  testCmdResetStatement = ps (dsl.reset (dsl.expr.tcpOption { name = "sack-perm"; })) {
+  # The reset statement is `resetStmt`, like `setStmt` and `mapStmt`, so
+  # `reset` is a verb namespace like the others, with no statement form.
+  testResetStmt = ps (dsl.resetStmt (dsl.expr.tcpOption { name = "sack-perm"; })) {
     reset = {
       "tcp option" = {
         name = "sack-perm";
       };
     };
+  };
+  testResetIsOnlyAVerbNamespace = {
+    expr = dsl.reset ? __functor;
+    expected = false;
   };
   testCmdResetCounter =
     pc

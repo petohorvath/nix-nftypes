@@ -129,8 +129,6 @@ terminalVerdict = lib.mkOption {
 };
 ```
 
-`types.matchStatement` is `statementOf [ "match" ]`.
-
 `expressionOf` covers tagged expressions only. Compose it with scalar types if
 the option also accepts scalars:
 
@@ -178,7 +176,9 @@ Top-level match helpers include:
 
 - `eq`, `ne`, `lt`, `gt`, `le`, `ge`;
 - `inSet`, `notInSet`;
-- `match.in_` and `match.raw` for less common forms.
+- `hasAnyFlag`, nft's `in` operator, which matches when any of the given flags
+  is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn,ack`;
+- `match.raw` for any other operator.
 
 `inSet` and `notInSet` take a list, a set expression, or a named-set
 reference such as `"@trusted"`. A string without `@` throws and points to
@@ -239,13 +239,17 @@ limit { rate = 10; per = "minute"; burst = 5; }
 `.ref name` references a named object. `ctHelper`, `ctTimeout`,
 `ctExpectation`, `secmark`, and `tunnel` have no other form, so calling one
 directly throws and points to its `.ref`. `.auto` is the null-body form, such
-as `{ counter = null; }`, that `nft -j list --stateless` prints; `counter` and
-`synproxy` have it. A statement whose fields are all optional takes `{ }` for
+as `{ counter = null; }`, that `nft -j list --stateless` prints; `counter`,
+`synproxy`, and `last` have it. A statement whose fields are all optional takes `{ }` for
 its empty form, for example `log { }` or `masquerade { }`.
 
 `counter` has no `{ }` form. nft parses an inline counter only with both
 `packets` and `bytes`, so `counter { }` and a counter with one of them throw.
 `counter.auto` is the unseeded counter.
+
+`last` has no `{ }` form either: nft rejects an empty body, so `last { }`
+throws. `last { used = …; }` seeds the last-used time, and `last.auto` is the
+unseeded form.
 
 `reject` takes `{ type?; expr?; }`, and its variants `reject.icmp code`,
 `reject.icmpv6 code`, and `reject.icmpx code` answer with an ICMP, ICMPv6, or
@@ -257,17 +261,16 @@ the connection, and `ctCount { val; inv?; }` or `ctCount.ref name`, which
 matches on the number of connections. `secmark.ref` applies a named secmark and
 `tunnel.ref` attaches a named tunnel.
 
-`reset expr` resets the stateful data an expression selects, such as a TCP
-option: `reset (expr.tcpOption { name = "sack"; })`. The same `reset` carries
-the `reset.<kind>` command builders.
-
 Other top-level constructors include `snat`, `dnat`, `masquerade`, `redirect`,
 `queue`, `synproxy`, `flow`, `meter`, `vmap`, `mangle`, `tproxy`, `fwd`, `dup`,
-`last`, and `lastUsed`.
+and `last`.
 
-The statement tags named `set` and `map` would collide with expression
-constructors, so their DSL names are `setStmt` and `mapStmt`. Like `flow`, they
-take the set, map, or flowtable name with or without its leading `@`:
+The statement tags named `set`, `map`, and `reset` would collide with the
+`expr.set` and `expr.map` constructors and the `reset.<kind>` command builders,
+so their DSL names are `setStmt`, `mapStmt`, and `resetStmt`. `resetStmt expr`
+resets the stateful data an expression selects, such as a TCP option:
+`resetStmt (expr.tcpOption { name = "sack"; })`. Like `flow`, `setStmt` and
+`mapStmt` take the set, map, or flowtable name with or without its leading `@`:
 
 ```nix
 setStmt { op = "add"; elem = fields.ip.saddr; set = "blocked"; }
@@ -295,7 +298,7 @@ nftlib.dsl.table "inet" "filter" {
     prio = 0;
     policy = "drop";
     rules = [
-      [ (nftlib.dsl.eq nftlib.dsl.fields.ip.saddr "@trusted") nftlib.dsl.accept ]
+      [ (nftlib.dsl.inSet nftlib.dsl.fields.ip.saddr "@trusted") nftlib.dsl.accept ]
     ];
   };
 }
