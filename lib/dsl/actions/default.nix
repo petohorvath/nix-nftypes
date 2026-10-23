@@ -9,6 +9,7 @@ in
 lib.foldl' (acc: m: acc // m) { } (
   map load [
     ./counter.nix
+    ./last.nix
     ./reject.nix
     ./log.nix
     ./rate.nix

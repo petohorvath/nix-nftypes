@@ -4,8 +4,8 @@
   naturally: `eq tcp.dport 22`.
 
   `inSet` / `notInSet` wrap a list right-hand side as `{ set = [...]; }` and
-  pass a named-set reference (`"@name"`) through unchanged. For the nftables
-  `in` operator (bitwise flag testing), use `match.in_`.
+  pass a named-set reference (`"@name"`) through unchanged. `hasAnyFlag`
+  is the nftables `in` operator, which tests flag bits.
 */
 { lib }:
 
@@ -78,16 +78,17 @@ let
   */
   notInSet = left: right: mkMatch "!=" left (wrapSet "notInSet" right);
 
-  # The match forms the top-level operators don't cover: the bitwise `in`
-  # operator and the raw escape hatch.
-  match = {
-    /*
-      Test flag bits with the nftables `in` operator. `left` is the
-      expression under test and `right` the flag value or list. Returns a
-      match statement.
-    */
-    in_ = left: right: mkMatch "in" left right;
+  /*
+    Match when any of `flags` is set in `left`, with the nftables `in`
+    operator: nft tests `(left & flags) != 0`. `left` is the expression
+    under test, such as `tcp.flags`, and `flags` a flag value or a list of
+    them. Returns a match statement.
+  */
+  hasAnyFlag = left: flags: mkMatch "in" left flags;
 
+  # The match form the top-level operators don't cover: the raw escape
+  # hatch.
+  match = {
     /*
       Build a match with any operator. `op` is the JSON operator string,
       `left` the expression under test, and `right` the compared value.
@@ -107,6 +108,7 @@ in
     eq
     ge
     gt
+    hasAnyFlag
     inSet
     le
     lt

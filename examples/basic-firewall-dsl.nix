@@ -78,7 +78,7 @@ ruleset [
 
           # Trusted subnets → accept (with a counter)
           [
-            (eq ip.saddr "@trusted_v4")
+            (inSet ip.saddr "@trusted_v4")
             (counter {
               packets = 0;
               bytes = 0;

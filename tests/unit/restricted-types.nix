@@ -5,8 +5,8 @@
 }:
 
 /*
-  Tests for `statementOf` / `matchStatement` / `expressionOf` — the
-  subset helpers downstream consumers use to restrict a `statement`- or
+  Tests for `statementOf` / `expressionOf` — the subset helpers
+  downstream consumers use to restrict a `statement`- or
   `expression`-typed field to a chosen set of tags.
 
   Three behavioural axes:
@@ -29,7 +29,8 @@ let
     Strict type-check of `v` against `listOf t`, through `validate`, which
     forces every lazy submodule check. Returns the list, or throws the
     module system's type error. Wrapping in `listOf` matches the call-site
-    shape consumers use (`type = listOf nftypes.types.matchStatement;`).
+    shape consumers use:
+    `type = listOf (nftypes.types.statementOf [ "match" ]);`.
   */
   checked = t: validate (lib.types.listOf t);
 
@@ -94,19 +95,14 @@ let
   # ---------------------------------------------------------------------
 
   semanticsTests = {
-    # `matchStatement` is the pre-applied common case
-    # (`statementOf [ "match" ]`). Accepts a match; rejects every other
-    # kind. Pinned with three negatives so a regression in the body
-    # type wouldn't be masked by a stale "accepts" pass.
-    testMatchStatementAcceptsMatch = accepts types.matchStatement [ matchValue ];
-    testMatchStatementRejectsAccept = rejects types.matchStatement [ acceptValue ];
-    testMatchStatementRejectsJump = rejects types.matchStatement [ jumpValue ];
-    testMatchStatementRejectsCounter = rejects types.matchStatement [ counterValue ];
-
-    # `statementOf [ "match" ]` must behave identically to the
-    # `matchStatement` alias — same value sets pass and fail.
-    testStatementOfMatchMatchesAlias = accepts (types.statementOf [ "match" ]) [ matchValue ];
+    # Match-only subset — the common downstream restriction. Accepts a
+    # match; rejects every other kind. Pinned with three negatives so a
+    # regression in the body type wouldn't be masked by a stale "accepts"
+    # pass.
+    testStatementOfMatchAcceptsMatch = accepts (types.statementOf [ "match" ]) [ matchValue ];
     testStatementOfMatchRejectsAccept = rejects (types.statementOf [ "match" ]) [ acceptValue ];
+    testStatementOfMatchRejectsJump = rejects (types.statementOf [ "match" ]) [ jumpValue ];
+    testStatementOfMatchRejectsCounter = rejects (types.statementOf [ "match" ]) [ counterValue ];
 
     # Verdict-only subset — the other common downstream restriction.
     # Accepts every verdict, rejects match and counter.

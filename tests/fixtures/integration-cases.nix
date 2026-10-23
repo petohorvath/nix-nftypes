@@ -763,7 +763,7 @@ rec {
       children = [
         (dsl.table "inet" "t" {
           chains.c.rules = map (match: [
-            (dsl.match.in_ match.left match.right)
+            (dsl.hasAnyFlag match.left match.right)
             accept
           ]) bitmaskMatches;
         })
@@ -1768,10 +1768,10 @@ rec {
                   "tcp options"
                 ];
               })
-              dsl.last
-              (dsl.lastUsed (-1))
-              (dsl.lastUsed 0)
-              (dsl.lastUsed 86400000)
+              dsl.last.auto
+              (dsl.last { used = -1; })
+              (dsl.last { used = 0; })
+              (dsl.last { used = 86400000; })
               (dsl.eq (dsl.expr.exthdr { name = "frag"; }) true)
               (dsl.ne (dsl.expr.exthdr { name = "hbh"; }) false)
               (dsl.eq (dsl.expr.exthdr { name = "rt"; }) true)
@@ -1979,7 +1979,7 @@ rec {
                     stmt = dsl.counter.auto;
                   })
                 ]
-                (tcpRule (dsl.reset (dsl.expr.tcpOption { name = "sack"; })))
+                (tcpRule (dsl.resetStmt (dsl.expr.tcpOption { name = "sack"; })))
               ];
             };
           };
@@ -2161,9 +2161,9 @@ rec {
               hook = "prerouting";
               prio = 0;
               rules = map (match: [ match ]) [
-                (dsl.eq (dsl.expr.socket "transparent") 1)
-                (dsl.eq (dsl.expr.socket "mark") 5)
-                (dsl.eq (dsl.expr.socket "wildcard") 0)
+                (dsl.eq dsl.fields.socket.transparent 1)
+                (dsl.eq dsl.fields.socket.mark 5)
+                (dsl.eq dsl.fields.socket.wildcard 0)
               ];
             };
             input = {
