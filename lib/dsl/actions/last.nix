@@ -1,6 +1,7 @@
 /*
-  Last statement in its two forms: seeded with the time the rule last
-  matched, and the null form that nft lists for one never seeded.
+  Last statement in its two forms (parser_json.c:1923-1942): seeded with
+  the time the rule last matched, and the null form that nft lists for one
+  never seeded.
 */
 { lib }:
 
