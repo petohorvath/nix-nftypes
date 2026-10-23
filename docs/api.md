@@ -240,8 +240,8 @@ limit { rate = 10; per = "minute"; burst = 5; }
 `ctExpectation`, `secmark`, and `tunnel` have no other form, so calling one
 directly throws and points to its `.ref`. `.auto` is the null-body form, such
 as `{ counter = null; }`, that `nft -j list --stateless` prints; `counter`,
-`synproxy`, and `last` have it. A statement whose fields are all optional takes `{ }` for
-its empty form, for example `log { }` or `masquerade { }`.
+`synproxy`, and `last` have it. A statement whose fields are all optional takes
+`{ }` for its empty form, for example `log { }` or `masquerade { }`.
 
 `counter` has no `{ }` form. nft parses an inline counter only with both
 `packets` and `bytes`, so `counter { }` and a counter with one of them throw.

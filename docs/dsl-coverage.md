@@ -75,12 +75,14 @@ Every schema statement tag has either a named constructor or a raw body path.
 Common constructors are pre-built; less common variants use callable attrsets
 or `.raw`/body forms.
 
-Two names differ deliberately:
+Three names differ deliberately:
 
 - `setStmt` emits the `set` statement;
-- `mapStmt` emits the `map` statement.
+- `mapStmt` emits the `map` statement;
+- `resetStmt` emits the `reset` statement.
 
-The shorter `set` and `map` names are already used by expression constructors.
+The shorter names are already used: `set` and `map` by expression
+constructors, and `reset` by the `reset.<kind>` command builders.
 
 `xt` exists for read-back compatibility even though nftables rejects it as new
 JSON input.

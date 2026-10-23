@@ -5,8 +5,8 @@
 }:
 
 /*
-  Tests for `statementOf` / `expressionOf` — the
-  subset helpers downstream consumers use to restrict a `statement`- or
+  Tests for `statementOf` / `expressionOf` — the subset helpers
+  downstream consumers use to restrict a `statement`- or
   `expression`-typed field to a chosen set of tags.
 
   Three behavioural axes:
@@ -29,7 +29,8 @@ let
     Strict type-check of `v` against `listOf t`, through `validate`, which
     forces every lazy submodule check. Returns the list, or throws the
     module system's type error. Wrapping in `listOf` matches the call-site
-    shape consumers use (`type = listOf (nftypes.types.statementOf [ "match" ]);`).
+    shape consumers use:
+    `type = listOf (nftypes.types.statementOf [ "match" ]);`.
   */
   checked = t: validate (lib.types.listOf t);
 
