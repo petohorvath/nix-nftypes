@@ -45,6 +45,9 @@ The convenience layer that builds the same schema-shaped values with less repeti
 A pre-built expression for a common protocol or metadata field, such as the TCP destination port or the conntrack state, that nft loads as written in some rule.
 _Avoid_: field (on its own), leaf (on its own)
 
+**Refinement**:
+An optional field of an expression that qualifies its key, such as a conntrack direction, an address family, or the flags of a FIB lookup. A key that nft loads only with a refinement has no Field leaf.
+
 **Variant namespace**:
 A statement constructor that is callable for its common form and carries named variants for the others, such as `counter.auto` or `reject.icmpx`.
 _Avoid_: callable attrset
