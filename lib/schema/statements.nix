@@ -596,7 +596,6 @@ let
 in
 {
   inherit (bodies) statement statementBodies statementOf;
-  matchStatement = bodies.statementOf [ "match" ];
   all = removeAttrs bodies [
     "statement"
     "statementOf"

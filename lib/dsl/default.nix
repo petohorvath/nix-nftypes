@@ -28,24 +28,13 @@ let
   ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetOrder; };
   table = import ./structure/table.nix { inherit lib; };
   commands = import ./structure/commands.nix { inherit lib objects validate; };
-  variant = import ./internal/variant.nix { inherit lib; };
   mergeDisjoint = import ./internal/merge-disjoint.nix { inherit lib; };
-
-  # `reset` exists as both a rule-body statement (e.g. `reset tcpOption`)
-  # and a top-level command (e.g. `reset counters in table t`). Merge both
-  # forms behind one name via __functor: bare call stays the statement
-  # form, sub-attrs expose the per-object-kind command builders.
-  reset = variant actions.reset commands.resetCommand;
-
-  # `actions.reset` would otherwise collide with the merged form in the
-  # merge below.
-  actionsWithoutReset = removeAttrs actions [ "reset" ];
 in
 # One flat namespace plus a few nested ones. The layers must define
 # disjoint names; the merge throws on any name two of them define.
 mergeDisjoint {
   structure = {
-    inherit fields reset table;
+    inherit fields table;
     inherit (ruleset) ruleset;
     # The payload escape hatches are expression constructors like the
     # rest of `expr`.
@@ -60,9 +49,10 @@ mergeDisjoint {
       list
       rename
       replace
+      reset
       ;
   };
-  inherit ops; # eq, ne, lt, gt, le, ge, inSet, notInSet, match
+  inherit ops; # eq, ne, lt, gt, le, ge, inSet, notInSet, hasAnyFlag, match
   inherit verdicts; # accept, drop, continue, return, notrack, jump, goto
-  actions = actionsWithoutReset; # counter, log, limit, snat, … (not reset)
+  inherit actions; # counter, log, limit, snat, resetStmt, …
 }

@@ -17,10 +17,9 @@
     dsl.list.table { family; name; }
     dsl.rename.chain { family; table; name; newname; }
     dsl.replace.rule { family; table; chain; handle; expr; }
-    dsl.reset.counter { family; table; name; }   # command (sub-attr)
-    dsl.reset tcpOption                           # statement (__functor)
+    dsl.reset.counter { family; table; name; }
 
-  The statement form of `reset` is wired in default.nix.
+  The reset statement is `dsl.resetStmt`, in ../actions/misc.nix.
 
   DSL idiomatic renames (elements → elem, gcInterval → gc-interval, …) are
   applied per kind so users never have to write hyphenated keys even in
@@ -235,11 +234,7 @@ in
   destroy = mkNamespace "destroy" deleteObjectKinds;
   flush = mkNamespace "flush" flushObjectKinds;
   list = mkNamespace "list" listObjectKinds;
-
-  # Reset-as-command — merged with the reset-as-statement form (in
-  # default.nix) via __functor, so the same `dsl.reset` works in both
-  # positions.
-  resetCommand = mkNamespace "reset" resetObjectKinds;
+  reset = mkNamespace "reset" resetObjectKinds;
 
   # A verb with one object kind is a namespace like the others, named for
   # the kind nft names: `insert rule`, `replace rule`, `rename chain`.

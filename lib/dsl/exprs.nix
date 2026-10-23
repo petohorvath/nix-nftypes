@@ -1,9 +1,10 @@
 /*
   Expression helpers not covered by the pre-built field tree in ./fields/:
   structural and generator expressions (concat, set, map, prefix, range,
-  numgen, …), header-option expressions (tcpOption, ipOption, …), and escape
-  hatches for key-string expressions (meta, ct, rt, …) when the caller needs
-  refinements that the bare field-tree leaves do not support.
+  numgen, …), header-option expressions (tcpOption, ipOption, …), and
+  constructors for key-string expressions (ct, rt, fib, …) that carry the
+  refinements a Field leaf can't. A key-string expression that takes no
+  refinement, such as meta or socket, has its leaves only.
 */
 { lib }:
 
@@ -240,15 +241,9 @@ in
       exthdr = compact { inherit name field offset; };
     };
 
-  # -- Key-string escape hatches --------------------------------------------
+  # -- Refined key-string expressions ---------------------------------------
   # The pre-built field tree covers known keys with bare access; these accept
-  # any key string and optional refinements (`family`, `dir`, …).
-
-  /*
-    Reference any meta key. `key` is the meta key string. Returns a meta
-    expression.
-  */
-  meta = key: { meta = { inherit key; }; };
+  # any key string and its refinements (`family`, `dir`, …).
 
   /*
     Reference a conntrack key with optional refinements. `key` is the
@@ -277,12 +272,6 @@ in
     {
       rt = compact { inherit key family; };
     };
-
-  /*
-    Reference any socket key. `key` is the socket key string. Returns a
-    socket expression.
-  */
-  socket = key: { socket = { inherit key; }; };
 
   /*
     Look up the forwarding information base. `result` is the requested

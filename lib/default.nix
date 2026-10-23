@@ -98,14 +98,13 @@ in
     expressions = expressions.all;
 
     /*
-      Statement union plus per-variant body submodules and subset
-      helpers. `statementOf [ kinds... ]` restricts a `statement`-typed
+      Statement union plus per-variant body submodules and a subset
+      helper. `statementOf [ kinds... ]` restricts a `statement`-typed
       field to a subset of statement tags (e.g. match-only or
       verdict-only) with `evalModules`-time validation, replacing
-      hand-rolled walker checks downstream. `matchStatement` is the
-      pre-applied common case (`statementOf [ "match" ]`).
+      hand-rolled walker checks downstream.
     */
-    inherit (statements) matchStatement statement statementOf;
+    inherit (statements) statement statementOf;
     statements = statements.all;
 
     # Object bodies, single-tag wrappers, combined unions.
