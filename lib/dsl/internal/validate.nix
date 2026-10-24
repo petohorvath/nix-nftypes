@@ -12,12 +12,9 @@
               `dsl.create.chain.prio`), and this module's own errors with
               `nix-nftypes: <api>: `.
 
-  Returns `value` unchanged once the check has run in full. Submodule
-  checks are lazy, so the evaluated configuration is forced before `value`
-  is returned: a body holds only the fields its caller gave, never an
-  unset option's `null` default, and a type error deep inside it still
-  throws. No schema type transforms its value, so the configuration adds
-  nothing but those defaults and an unset rule `expr`'s empty list.
+  Returns `value` unchanged once the check has run in full, as the public
+  `validate` (../../validate.nix) does, for the reasons it gives: a body
+  holds only the fields its caller gave.
 
   `value` is data, never a module (see ./require-body.nix): a string such
   as `"c1"` or `"/sp1"` is not imported as a module file, and module keys

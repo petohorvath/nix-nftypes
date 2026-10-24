@@ -19,6 +19,7 @@ let
   ruleBody = import ./dsl/internal/rule-body.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
   tableTreeMarker = import ./table-tree-marker.nix { };
+  fail = import ./fail.nix { };
   objectKindRegistry = import ./dsl/structure/object-kinds.nix { inherit lib objects; };
   objectKinds = lib.mapAttrs' (
     _: cfg: lib.nameValuePair cfg.plural (removeAttrs cfg [ "plural" ])
@@ -206,16 +207,21 @@ let
     rule `index`.
   */
   renderTableBlock =
-    api: pretty: node:
+    api: pretty:
+    let
+      # Bound before `node`, so each renderer builds its text modules once.
+      render = text.renderTableBlock api pretty;
+    in
+    node:
     if !(tableTreeMarker.isTableTree node) then
-      throw "nix-nftypes: ${api}: block-form text rendering expects one dsl.table node"
+      fail api "block-form text rendering expects one dsl.table node"
     else
       let
         table = prepareTable node;
       in
       # Validate even an empty table's omitted wrapper fields. Construction
       # stays lazy; validation is forced when the rendered string is needed.
-      builtins.deepSeq table.body (text.renderTableBlock api pretty table);
+      builtins.deepSeq table.body (render table);
 in
 {
   inherit expandTable;

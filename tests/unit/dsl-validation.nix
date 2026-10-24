@@ -1,4 +1,5 @@
 {
+  helpers,
   internal,
   lib,
   nftlib,
@@ -16,10 +17,8 @@
 # report that something is wrong.
 
 let
+  inherit (helpers) commandJson;
   inherit (nftlib) dsl toJson;
-
-  # Render one command; `toJson` takes only a ruleset.
-  renderCommand = command: toJson (dsl.ruleset [ command ]);
 
   # Force a DSL value in full, as rendering it would.
   force = value: builtins.deepSeq value value;
@@ -516,8 +515,6 @@ let
     };
   }) droppedInputs;
 
-  # ----- a table tree passed where a ruleset belongs -------------------
-
   # The imperative renderers, each of which names itself in its errors
   # (ADR 0009).
   imperativeRenderers = [
@@ -525,6 +522,58 @@ let
     "toText"
     "toTextPretty"
   ];
+
+  # ----- a rule command without `expr` ---------------------------------
+
+  ruleScope = {
+    family = "inet";
+    table = "t";
+    chain = "c";
+  };
+
+  # nft's JSON parser requires a rule's `expr` even where it ignores it, as
+  # for destroy, so each imperative renderer fills the empty list: a rule
+  # command without `expr` renders as it does with `expr = [ ]`, in a raw
+  # ruleset or through `dsl.ruleset`.
+  rawRuleCommands = {
+    add = body: { add.rule = body; };
+    insert = body: { insert.rule = body; };
+    replace = body: {
+      replace.rule = body // {
+        handle = 4;
+      };
+    };
+    destroy = body: {
+      destroy.rule = body // {
+        handle = 4;
+      };
+    };
+  };
+  rulesets = {
+    raw = command: { nftables = [ command ]; };
+    dsl = command: dsl.ruleset [ command ];
+  };
+  missingRuleExprTests = lib.concatMapAttrs (
+    verb: command:
+    lib.concatMapAttrs (
+      built: ruleset:
+      lib.genAttrs' imperativeRenderers (
+        renderer:
+        lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
+          expr = nftlib.${renderer} (ruleset (command ruleScope));
+          expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
+        }
+      )
+      // {
+        "testRuleWithoutExprHasAnEmptyExprInJson_${verb}_${built}" = {
+          expr = builtins.fromJSON (toJson (ruleset (command ruleScope)));
+          expected.nftables = [ (command (ruleScope // { expr = [ ]; })) ];
+        };
+      }
+    ) rulesets
+  ) rawRuleCommands;
+
+  # ----- a table tree passed where a ruleset belongs -------------------
 
   # Each imperative renderer throws for a table tree, alone or among a
   # ruleset's commands, and names the wrapper it needs.
@@ -536,16 +585,16 @@ let
         inRuleset.nftables = [ tree ];
       };
     in
-    lib.concatMap (
-      renderer:
-      lib.mapAttrsToList (placement: value: {
-        name = "testBareTableThrows_${renderer}_${placement}";
-        value = {
+    lib.concatMapAttrs (
+      placement: value:
+      lib.genAttrs' imperativeRenderers (
+        renderer:
+        lib.nameValuePair "testBareTableThrows_${renderer}_${placement}" {
           expr = nftlib.${renderer} value;
           expectedError.msg = "nix-nftypes: ${renderer}: got a dsl\\.table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
-        };
-      }) placements
-    ) imperativeRenderers;
+        }
+      )
+    ) placements;
 
   # An imperative renderer takes only a ruleset: a lone command, which nft
   # would reject as a bare `{"add":…}`, or any other value throws.
@@ -563,6 +612,7 @@ let
           })
         ];
         string = "add table inet t";
+        emptyAttrset = { };
         extraKey = {
           nftables = [ ];
           add.table = {
@@ -572,16 +622,16 @@ let
         };
       };
     in
-    lib.concatMap (
-      renderer:
-      lib.mapAttrsToList (shape: value: {
-        name = "testNotARulesetThrows_${renderer}_${shape}";
-        value = {
+    lib.concatMapAttrs (
+      shape: value:
+      lib.genAttrs' imperativeRenderers (
+        renderer:
+        lib.nameValuePair "testNotARulesetThrows_${renderer}_${shape}" {
           expr = nftlib.${renderer} value;
           expectedError.msg = "nix-nftypes: ${renderer}: expected a ruleset \\{ nftables = \\[ … \\]; \\}";
-        };
-      }) values
-    ) imperativeRenderers;
+        }
+      )
+    ) values;
 
   # A Refusal names the renderer called, not the text renderers as a
   # whole.
@@ -755,27 +805,38 @@ in
     };
   };
 
-  # nft ignores a selected rule's `expr`, but its JSON parser requires the
-  # key for `destroy`, so the selecting builders send the empty list.
-  testSelectingRuleBuildersSendAnEmptyExpr = {
+  # The selecting rule builders hold no `expr`, and render with the empty
+  # list the renderers fill.
+  testSelectingRuleBuildersRenderAnEmptyExpr = {
     expr = lib.genAttrs [ "delete" "destroy" ] (
       verb:
-      dsl.${verb}.rule {
-        family = "inet";
-        table = "t";
-        chain = "c";
-        handle = 4;
+      let
+        command = dsl.${verb}.rule (ruleScope // { handle = 4; });
+      in
+      {
+        inherit command;
+        json = builtins.fromJSON (commandJson command);
       }
     );
     expected = lib.genAttrs [ "delete" "destroy" ] (verb: {
-      ${verb}.rule = {
-        family = "inet";
-        table = "t";
-        chain = "c";
+      command.${verb}.rule = ruleScope // {
         handle = 4;
-        expr = [ ];
       };
+      json.nftables = [
+        {
+          ${verb}.rule = ruleScope // {
+            handle = 4;
+            expr = [ ];
+          };
+        }
+      ];
     });
+  };
+
+  # `validate` returns `{ }` as given, which is not a ruleset.
+  testEmptyAttrsetIsNotARuleset = {
+    expr = toJson (nftlib.validate nftlib.types.ruleset { });
+    expectedError.msg = "nix-nftypes: toJson: expected a ruleset .*, got an empty attribute set; build one with dsl\\.ruleset";
   };
 
   # Nested bodies, such as a set element's, keep only their given fields
@@ -812,7 +873,7 @@ in
   };
 
   testCreateChainPrioStringRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.create.chain {
         family = "ip";
         table = "t";
@@ -824,7 +885,7 @@ in
   };
 
   testDeleteCounterBadFamilyRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.delete.counter {
         family = "wireguard";
         table = "t";
@@ -835,7 +896,7 @@ in
   };
 
   testListMapBadTypeRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.list.map {
         family = "ip";
         table = "t";
@@ -848,7 +909,7 @@ in
   };
 
   testRenameChainBadNewNameRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.rename.chain {
         family = "ip";
         table = "t";
@@ -860,7 +921,7 @@ in
   };
 
   testAddFlowtableMissingHookRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.add.flowtable {
         family = "inet";
         table = "t";
@@ -872,7 +933,7 @@ in
   };
 
   testCreateFlowtableMissingPrioRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.create.flowtable {
         family = "inet";
         table = "t";
@@ -911,7 +972,7 @@ in
   };
 
   testAddChainWithoutPrioRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.add.chain {
         family = "ip";
         table = "t";
@@ -924,7 +985,7 @@ in
   };
 
   testDestroyCounterByHandleRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.destroy.counter {
         family = "inet";
         table = "t";
@@ -935,7 +996,7 @@ in
   };
 
   testRenameChainMissingNewNameRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.rename.chain {
         family = "ip";
         table = "t";
@@ -946,7 +1007,7 @@ in
   };
 
   testReplaceRuleMissingHandleRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.replace.rule {
         family = "ip";
         table = "t";
@@ -958,7 +1019,7 @@ in
   };
 
   testReplaceRuleBadHandleRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.replace.rule {
         family = "ip";
         table = "t";
@@ -971,7 +1032,7 @@ in
   };
 
   testInsertRuleBadIndexRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.insert.rule {
         family = "ip";
         table = "t";
@@ -986,7 +1047,7 @@ in
   # ----- flush and add namespaces (commands.nix) -------------------------
 
   testFlushTableBadFamilyRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.flush.table {
         family = "wireguard";
         name = "t";
@@ -996,7 +1057,7 @@ in
   };
 
   testFlushChainBadHandleRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.flush.chain {
         family = "ip";
         table = "t";
@@ -1009,7 +1070,7 @@ in
 
   # A flush selects its set or map by name: nft ignores the datatypes.
   testFlushSetMissingNameRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.flush.set {
         family = "ip";
         table = "t";
@@ -1020,7 +1081,7 @@ in
   };
 
   testFlushMapBadTypeRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.flush.map {
         family = "ip";
         table = "t";
@@ -1032,7 +1093,7 @@ in
   };
 
   testFlushMeterBadTableRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.flush.meter {
         family = "ip";
         table = 42;
@@ -1043,7 +1104,7 @@ in
   };
 
   testFlushRulesetBadFamilyRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.flush.ruleset {
         family = "wireguard";
       }
@@ -1054,7 +1115,7 @@ in
   # nft 1.1.6's JSON parser ignores a handle on `add rule`, so the
   # builder refuses one.
   testAddRuleHandleRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.add.rule {
         family = "ip";
         table = "t";
@@ -1131,7 +1192,7 @@ in
   # bare expressions, so we exercise the schema via a different field —
   # `family` is a strict enum, easy to violate cleanly.
   testAddElementBadFamilyRejected = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.add.element {
         family = "wireguard";
         table = "t";
@@ -1400,6 +1461,7 @@ in
 // droppedInputTests
 // malformedRuleEntryTests
 // ruleCommandTests
-// lib.listToAttrs bareTableTests
-// lib.listToAttrs notARulesetTests
+// missingRuleExprTests
+// bareTableTests
+// notARulesetTests
 // refusalNamesTheRendererTests

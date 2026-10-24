@@ -15,15 +15,17 @@ let
   nftSafeString = import ../lib/nft-safe-string.nix { };
   # The text module itself, so drift checks read the exact dispatch tables
   # the production renderers use.
+  clean = import ../lib/clean.nix { inherit lib; };
   text = import ../lib/text {
     inherit
+      clean
       lib
       nftSafeIfname
       nftSafeScalar
       nftSafeString
       ;
     nftSafeLogPrefix = import ../lib/nft-safe-log-prefix.nix { inherit nftSafeString; };
-    clean = import ../lib/clean.nix { inherit lib; };
+    prepareRuleset = import ../lib/prepare-ruleset.nix { inherit clean lib; };
   };
 
   testContext = {

@@ -52,6 +52,10 @@ in
   # and commands, and `toJson` takes only a ruleset.
   roundtrip = valueType: value: builtins.toJSON (clean (validate valueType value));
 
+  # The JSON of a ruleset holding just `command`; `toJson` takes only a
+  # ruleset.
+  commandJson = command: nftlib.toJson (nftlib.dsl.ruleset [ command ]);
+
   # `word` with its first letter upper-cased, to build a camelCase test
   # name from an attribute name.
   capitalise = word: lib.toUpper (builtins.substring 0 1 word) + builtins.substring 1 (-1) word;

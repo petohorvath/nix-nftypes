@@ -52,14 +52,14 @@ in
     expected = ruleset;
   };
 
-  # A selected rule may omit `expr`, which `validate` no longer fills in;
-  # the text renderers still render it.
-  testValidRuleSelectionWithoutExprRendersAsText = {
-    expr = toText (
-      validate types.ruleset {
+  # `validate` leaves a rule's unset `expr` out, and the renderers fill the
+  # empty list nft's JSON parser requires on a destroyed rule.
+  testValidRuleSelectionWithoutExprRenders =
+    let
+      selection = {
         nftables = [
           {
-            delete.rule = {
+            destroy.rule = {
               family = "ip";
               table = "t";
               chain = "c";
@@ -67,10 +67,21 @@ in
             };
           }
         ];
-      }
-    );
-    expected = "delete rule ip t c handle 4";
-  };
+      };
+      validated = validate types.ruleset selection;
+    in
+    {
+      expr = {
+        inherit validated;
+        json = toJson validated;
+        text = toText validated;
+      };
+      expected = {
+        validated = selection;
+        json = "{\"nftables\":[{\"destroy\":{\"rule\":{\"chain\":\"c\",\"expr\":[],\"family\":\"ip\",\"handle\":4,\"table\":\"t\"}}}]}";
+        text = "destroy rule ip t c handle 4";
+      };
+    };
 
   testValidPrimitivePassesThrough = {
     expr = validate types.family "inet";

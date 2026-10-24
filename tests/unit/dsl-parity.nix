@@ -14,15 +14,12 @@
 # collapse to attrsets the schema already accepts.
 
 let
-  inherit (helpers) capitalise roundtrip;
+  inherit (helpers) capitalise commandJson roundtrip;
   inherit (nftlib)
     dsl
     toJson
     toText
     ;
-
-  # Render one command; `toJson` takes only a ruleset.
-  renderCommand = command: toJson (dsl.ruleset [ command ]);
 
   parity = t: nftValue: handwritten: {
     expr = roundtrip t nftValue;
@@ -3896,7 +3893,7 @@ in
   # deletes every rule in the chain, so delete and destroy require a
   # positive handle (measured on nft 1.1.6 and 1.1.7).
   testCmdDeleteRuleRequiresHandle = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.delete.rule {
         family = "inet";
         table = "t";
@@ -3906,7 +3903,7 @@ in
     expectedError.msg = "dsl\\.delete\\.rule\\.handle' was accessed but has no value defined";
   };
   testCmdDestroyRuleRejectsHandleZero = {
-    expr = renderCommand (
+    expr = commandJson (
       dsl.destroy.rule {
         family = "inet";
         table = "t";

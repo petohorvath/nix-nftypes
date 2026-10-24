@@ -19,6 +19,9 @@ _Avoid_: object type
 **Named object**:
 An object kind other than a table, chain, or rule, declared by name inside a table and referenced by that name.
 
+**Ruleset**:
+The ordered commands and listed objects that `nft` loads as one batch. The DSL builds one from commands and table trees.
+
 **Restricted type**:
 A statement or expression type narrowed to a chosen set of tags, so a downstream option can reject every other tag.
 _Avoid_: subset
@@ -75,7 +78,7 @@ A lower-level path to a parser form the convenience API does not cover: a generi
 ## Rendering
 
 **Renderer**:
-A pure function that turns a cleaned value into one output form without validating it or calling `nft`.
+A pure function that cleans a value and turns it into one output form without validating it or calling `nft`. The JSON and imperative-form renderers take only a Ruleset, the block-form renderers a Table tree.
 _Avoid_: serializer (that names nftables' own JSON output)
 
 **Compatibility target**:

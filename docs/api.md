@@ -30,12 +30,10 @@ in
 nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 ```
 
-`validate` takes any schema type and returns the value unchanged. An option
-the value leaves unset stays absent, so a raw `destroy` rule command writes the
-`expr = [ ];` that nft's JSON parser requires there. `validate` forces the
-whole value, so every check runs before it returns, however deep. A mismatch
-throws the module system's error, whose option path starts with `validate`,
-such as
+`validate` takes any schema type and returns the value unchanged: an option the
+value leaves unset stays absent. `validate` forces the whole value, so every
+check runs before it returns, however deep. A mismatch throws the module
+system's error, whose option path starts with `validate`, such as
 `validate.nftables."[definition 1-entry 2]".add.chain.policy`.
 
 `dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
@@ -407,9 +405,8 @@ every family, and `flush.ruleset { family = "ip"; }` flushes one.
 A builder returns one command holding only the fields given, under their JSON
 keys, as a table tree's commands do: `add.limit { family = "inet"; table = "t";
 name = "l"; rate = 10; per = "second"; }` returns those five fields under
-`add.limit`, without a `null` for an unset field. `delete.rule` and
-`destroy.rule` add the `expr = [ ]` that nft requires for `destroy`. Render a
-command inside a ruleset: `toJson (dsl.ruleset [ (dsl.add.limit { … }) ])`.
+`add.limit`, without a `null` for an unset field. Render a command inside a
+ruleset: `toJson (dsl.ruleset [ (dsl.add.limit { … }) ])`.
 
 In one batch, nft runs a `reset` of a counter, quota, set, map, or rule only as
 the last command: followed by any other command, it resets nothing, and nft still
@@ -472,15 +469,19 @@ the kernel then deletes every rule in the chain.
 Every renderer cleans its input before rendering it ([Cleaning](#cleaning)),
 and names itself in its errors, as in `nix-nftypes: toTextBlock: `.
 
+`toJson`, `toText`, and `toTextPretty` take only a ruleset,
+`{ nftables = [ … ]; }`, and throw on anything else. A lone command throws, and
+so does a `dsl.table` value passed alone or among the `nftables` commands; each
+error asks for `dsl.ruleset`. Build a ruleset with `dsl.ruleset [ … ]`, which
+takes commands and table trees and expands each tree into commands.
+
+These three renderers give a rule without `expr` the empty list: nft's JSON
+parser requires the key on a rule even where it ignores it, as for
+`destroy.rule`, so a raw rule command may leave it out.
+
 ### `toJson ruleset`
 
 Returns compact JSON via `builtins.toJSON`. Use the result with `nft -j -f`.
-
-`toJson`, `toText`, and `toTextPretty` take only a ruleset,
-`{ nftables = [ … ]; }`, and throw on anything else. Build one with
-`dsl.ruleset [ … ]`, which also takes a lone command or a table tree: a
-`dsl.table` value passed alone or among the `nftables` commands throws and asks
-for `dsl.ruleset`, which expands it into commands.
 
 ### `toText ruleset` and `toTextPretty ruleset`
 

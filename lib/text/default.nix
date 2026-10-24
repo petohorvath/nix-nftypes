@@ -6,9 +6,10 @@
   owns toTextBlock* and table-tree validation, and renders its prepared
   table through `renderTableBlock`, which raises every block-form Refusal.
 
-  Internally we run `clean` (from lib/clean.nix) once at the entry,
-  mirroring `toJson`'s contract: nested renderers trust their input is
-  already cleaned.
+  Each entry prepares its input once: the imperative entries through
+  `prepareRuleset` (lib/prepare-ruleset.nix), as `toJson` does, and
+  `renderTableBlock` through `clean` (lib/clean.nix). Nested renderers
+  trust their input is already cleaned.
 */
 {
   lib,
@@ -17,20 +18,21 @@
   nftSafeLogPrefix,
   nftSafeScalar,
   nftSafeString,
+  prepareRuleset,
 }:
 
 let
   context = import ./context.nix { inherit lib; };
-  requireRuleset = import ../require-ruleset.nix { inherit lib; };
 
   # The rendering modules of the renderer `api`, which each of their errors
-  # names (ADR 0009).
+  # names (ADR 0009) through `fail`.
   modulesFor =
     api:
     let
+      fail = import ../fail.nix { } api;
       primitives = import ./primitives.nix {
         inherit
-          api
+          fail
           lib
           nftSafeIfname
           nftSafeLogPrefix
@@ -41,8 +43,8 @@ let
       limit = import ./limit.nix { inherit lib primitives; };
       expressions = import ./expressions.nix {
         inherit
-          api
           context
+          fail
           lib
           nftSafeScalar
           primitives
@@ -50,9 +52,9 @@ let
       };
       statements = import ./statements.nix {
         inherit
-          api
           context
           expressions
+          fail
           lib
           limit
           primitives
@@ -60,9 +62,9 @@ let
       };
       objects = import ./objects.nix {
         inherit
-          api
           context
           expressions
+          fail
           lib
           limit
           nftSafeScalar
@@ -72,7 +74,7 @@ let
       };
       commands = import ./commands.nix {
         inherit
-          api
+          fail
           lib
           limit
           objects
@@ -90,19 +92,23 @@ let
         ;
     };
 
+  # Bound before `ruleset`, so each renderer builds its modules once.
   renderRuleset =
-    api: pretty: ruleset:
+    api: pretty:
     let
       inherit (modulesFor api) commands;
       ctx = context.mkCtx { inherit pretty; };
-      cleaned = clean (requireRuleset api ruleset);
     in
+    ruleset:
     lib.concatStringsSep "\n" (
       # A dropped command, such as a listing's metainfo, renders as null.
-      builtins.filter (line: line != null) (map (commands.renderCommand ctx) cleaned.nftables)
+      builtins.filter (line: line != null) (
+        map (commands.renderCommand ctx) (prepareRuleset api ruleset).nftables
+      )
     );
 
-  # The modules the test-suite internals below read; any renderer's serve.
+  # The modules the test-suite internals below read. Every renderer's
+  # modules differ only in the name their errors give, so `toText`'s serve.
   testedModules = modulesFor "toText";
 in
 {
@@ -136,11 +142,15 @@ in
     `table <family> <name> { … }` wrapper.
   */
   renderTableBlock =
-    api: pretty: table:
-    (modulesFor api).objects.renderTableBlock (context.mkCtx {
-      inherit pretty;
-      block = true;
-    }) (clean table);
+    api: pretty:
+    let
+      inherit (modulesFor api) objects;
+      ctx = context.mkCtx {
+        inherit pretty;
+        block = true;
+      };
+    in
+    table: objects.renderTableBlock ctx (clean table);
 
   # Internals for the test suites, not exposed by nftlib: the dispatch
   # tables and block-form field classification read by the schema↔text

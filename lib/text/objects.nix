@@ -14,7 +14,7 @@
   braces are one-per-line indented; for compact mode, separated by `; `.
 */
 {
-  api,
+  fail,
   lib,
   context,
   primitives,
@@ -109,7 +109,7 @@ let
     if !(builtins.isString name) || nftSafeScalar.isSafe name then
       true
     else
-      throw "nix-nftypes: ${api}: refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}. Field: ${field}.\n";
+      fail "refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}. Field: ${field}.\n";
 
   # Render a datatype: string → "ipv4_addr"; list → "ipv4_addr . port".
   renderDatatype =
@@ -119,7 +119,7 @@ let
     else if builtins.isList dt then
       lib.seq (lib.all (assertSafeDatatype field) dt) (lib.concatStringsSep " . " dt)
     else
-      throw "nix-nftypes: ${api}: unrecognized datatype shape";
+      fail "unrecognized datatype shape";
 
   isTypeof = dt: builtins.isAttrs dt && dt ? typeof;
 
@@ -164,8 +164,8 @@ let
     else if isCtObjectKind then
       primitives.refuseNoTextSpelling "map type" "nft's text declares a map of ${body.map} objects only with a typeof key, as in `typeof tcp dport : ${body.map}`."
     else if isTypeof body.map then
-      throw ''
-        nix-nftypes: ${api}: refusing to render a map with a datatype key and a
+      fail ''
+        refusing to render a map with a datatype key and a
         typeof value. nft's text grammar declares both sides with `type` or both
         with `typeof`; give the key as `{ typeof = …; }` too, or the value as a
         datatype.
@@ -226,8 +226,7 @@ let
   renderRuleStmtsAndComment =
     ctx: body:
     let
-      # A selected rule may omit `expr`, which nft ignores there.
-      stmts = renderRuleExpr (withFamily (body.family or null) ctx) (body.expr or [ ]);
+      stmts = renderRuleExpr (withFamily (body.family or null) ctx) body.expr;
       commentClause =
         if (body.comment or null) == null then
           ""
@@ -653,8 +652,8 @@ let
   */
   refuseTunnel =
     _ctx: _body:
-    throw ''
-      nix-nftypes: ${api}: refusing to render a tunnel object. nft's JSON parser
+    fail ''
+      refusing to render a tunnel object. nft's JSON parser
       loads a tunnel's ports wrongly, so text and JSON would load different
       tunnels. Load the tunnel with nft's own text syntax instead.
       Field: tunnel.
@@ -781,7 +780,7 @@ let
   renderObjectGeneric =
     withBody: ctx: kind: body:
     if !(kinds ? ${kind}) then
-      throw "nix-nftypes: ${api}: no renderer for kind '${kind}'"
+      fail "no renderer for kind '${kind}'"
     else if withBody && kinds.${kind} ? object then
       kinds.${kind}.object ctx body
     else

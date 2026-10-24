@@ -52,7 +52,8 @@ let
   };
   commands = import ./schema/commands.nix { inherit internal lib objects; };
   clean = import ./clean.nix { inherit lib; };
-  json = import ./json { inherit clean lib; };
+  prepareRuleset = import ./prepare-ruleset.nix { inherit clean lib; };
+  json = import ./json { inherit prepareRuleset; };
   text = import ./text {
     inherit
       clean
@@ -61,6 +62,7 @@ let
       nftSafeLogPrefix
       nftSafeScalar
       nftSafeString
+      prepareRuleset
       ;
   };
   tables = import ./table.nix {

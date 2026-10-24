@@ -15,8 +15,9 @@
   # Returns
 
   `value` unchanged. An option it leaves unset stays absent rather than
-  taking its `null` default, or the empty list for a rule's `expr`. No
-  schema type transforms its value, so the check adds nothing else.
+  taking its `null` default, or the empty list for a rule's `expr`, which
+  the renderers fill. No schema type transforms its value, so the check
+  adds nothing else.
 
   Submodule checks are lazy, so the checked value is forced in full before
   `value` is returned: every check runs, however deep. A mismatch throws

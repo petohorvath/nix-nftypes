@@ -16,7 +16,7 @@
       have no comment clause, so a comment there is a Refusal.
 */
 {
-  api,
+  fail,
   lib,
   primitives,
   objects,
@@ -37,7 +37,7 @@ let
       names = builtins.attrNames wrapped;
     in
     if builtins.length names != 1 then
-      throw "nix-nftypes: ${api}: ${verb} expects exactly one inner kind, got [${lib.concatStringsSep ", " names}]"
+      fail "${verb} expects exactly one inner kind, got [${lib.concatStringsSep ", " names}]"
     else
       let
         kind = builtins.head names;
@@ -54,10 +54,7 @@ let
     let
       prefix = "rename chain ${primitives.safeToken "rename family" chain.family} ${primitives.identQuote "table name" chain.table} ${primitives.identQuote "chain name" chain.name}";
       newname =
-        if (chain.newname or null) == null then
-          throw "nix-nftypes: ${api}: rename.chain requires `newname`"
-        else
-          chain.newname;
+        if (chain.newname or null) == null then fail "rename.chain requires `newname`" else chain.newname;
     in
     "${prefix} ${primitives.identQuote "chain newname" newname}";
 
@@ -93,7 +90,7 @@ let
       names = builtins.attrNames wrapped;
     in
     if builtins.length names != 1 then
-      throw "nix-nftypes: ${api}: create expects exactly one inner kind, got [${lib.concatStringsSep ", " names}]"
+      fail "create expects exactly one inner kind, got [${lib.concatStringsSep ", " names}]"
     else
       let
         kind = builtins.head names;
@@ -148,13 +145,13 @@ let
   renderCommand =
     ctx: cmd:
     if !(builtins.isAttrs cmd) then
-      throw "nix-nftypes: ${api}: command must be an attrset, got ${builtins.typeOf cmd}"
+      fail "command must be an attrset, got ${builtins.typeOf cmd}"
     else
       let
         names = builtins.attrNames cmd;
       in
       if builtins.length names != 1 then
-        throw "nix-nftypes: ${api}: command must have exactly one tag, got [${lib.concatStringsSep ", " names}]"
+        fail "command must have exactly one tag, got [${lib.concatStringsSep ", " names}]"
       else
         let
           tag = builtins.head names;

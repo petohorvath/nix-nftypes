@@ -80,26 +80,23 @@ let
     delete, destroy, list, flush, and reset select an object by family,
     table, and name (ADR 0009): nft ignores the datatypes, rate, hook, and
     mss that adding a set, map, limit, flowtable, or synproxy requires. A
-    rule is selected by its chain and positive handle. nft ignores the
-    rule's `expr`, but its JSON parser requires the key for `destroy`, so
-    the builder sends the empty list. `selecting kinds` gives each of these
-    kinds in `kinds` its selection body.
+    rule is selected by its chain and positive handle. `selecting kinds`
+    gives each of these kinds in `kinds` its selection body.
   */
-  selectKinds = {
-    flowtable.body = objects.selectFlowtableBody;
-    limit.body = objects.selectLimitBody;
-    map.body = objects.selectMapBody;
-    rule = {
-      body = objects.selectRuleBody;
-      renameBody = _location: body: { expr = [ ]; } // body;
-    };
-    set.body = objects.selectSetBody;
-    synproxy.body = objects.selectSynproxyBody;
+  selectBodies = {
+    flowtable = objects.selectFlowtableBody;
+    limit = objects.selectLimitBody;
+    map = objects.selectMapBody;
+    rule = objects.selectRuleBody;
+    set = objects.selectSetBody;
+    synproxy = objects.selectSynproxyBody;
   };
   selecting =
     kinds:
     kinds
-    // lib.mapAttrs (kind: select: kinds.${kind} // select) (builtins.intersectAttrs kinds selectKinds);
+    // lib.mapAttrs (kind: body: kinds.${kind} // { inherit body; }) (
+      builtins.intersectAttrs kinds selectBodies
+    );
 
   /*
     nft mishandles delete and destroy of a ct timeout or ct expectation
