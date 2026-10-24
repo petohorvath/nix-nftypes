@@ -7,32 +7,6 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
-  location = import ../internal/location.nix { inherit lib; };
-  at = location.builder [ "log" ];
-
-  logInline =
-    {
-      prefix ? null,
-      group ? null,
-      snaplen ? null,
-      queueThreshold ? null,
-      level ? null,
-      flags ? null,
-    }:
-    {
-      log = compact (
-        rename.log at {
-          inherit
-            prefix
-            group
-            snaplen
-            queueThreshold
-            level
-            flags
-            ;
-        }
-      );
-    };
 in
 {
   /*
@@ -43,5 +17,27 @@ in
     is the log statement with every default. Returns a log statement.
     Throws for `queue-threshold`, pointing to `queueThreshold`.
   */
-  log = args: logInline (rename.checkSpelling.log at args);
+  log = rename.statementBuilder "log" (
+    renameBody:
+    {
+      prefix ? null,
+      group ? null,
+      snaplen ? null,
+      queueThreshold ? null,
+      level ? null,
+      flags ? null,
+    }:
+    {
+      log = compact (renameBody {
+        inherit
+          prefix
+          group
+          snaplen
+          queueThreshold
+          level
+          flags
+          ;
+      });
+    }
+  );
 }

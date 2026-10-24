@@ -1,5 +1,6 @@
 /*
-  DSL-key → JSON-key rename maps, per-tag.
+  DSL-key → JSON-key rename maps, per body, and the check that each body
+  takes one spelling of each field (ADR 0009).
 
   User-facing DSL attribute names are translated to the JSON key names that
   nftables expects. Two kinds of rename apply:
@@ -8,31 +9,45 @@
        → `queue-threshold`, `gcInterval` → `gc-interval`, `rateUnit` →
        `rate_unit`, `typeFlags` → `type_flags`, `newName` → `newname`, …).
        Every DSL key is camelCase, whatever separator the JSON key uses.
-    2. DSL-idiom renames where the JSON key is inconsistent with the
-       library's plural-for-lists convention (`elements` → `elem`,
-       `statements` → `expr` or `stmt`) or abbreviates a word
-       (`statement` → `stmt`). These are deliberate divergences from the
-       JSON spec — chosen so that list-valued body keys match the rest of
-       the DSL (`rules`, `flags`, `chains`, `sets`, …), and so that a
-       rule's statements don't read like the `dsl.expr` namespace.
+    2. DSL-idiom renames where the JSON key names a list of elements or
+       statements in the singular (`elements` → `elem`, `statements` →
+       `expr` or `stmt`) or abbreviates a word (`statement` → `stmt`).
+       These are deliberate divergences from the JSON spec — chosen so
+       that list-valued body keys match the rest of the DSL (`rules`,
+       `flags`, `chains`, `sets`, …), and so that a rule's statements
+       don't read like the `dsl.expr` namespace.
 
-  Each DSL body takes one spelling of each field (ADR 0009): a JSON
-  spelling throws, pointing to the DSL name, so the DSL spelling never
-  leaks into evalModules and the JSON spelling never leaks into user code.
+  A JSON spelling throws, pointing to the DSL name, so the DSL spelling
+  never leaks into evalModules and the JSON spelling never leaks into user
+  code.
 
-  Builders and table preparation call the per-tag rename function on the
-  user's arguments before handing them to the schema. Each function takes
-  the body's location (./location.nix), such as a table tree's `sets.s`,
-  for its errors, then the body. A statement builder, whose argument
-  pattern names the DSL spellings, calls `checkSpelling.<tag>` first, so
-  a JSON spelling throws pointing to its DSL name rather than failing the
-  pattern as an unexpected argument.
+  - `<body> location attrs`, for `set`, `element`, `limit`, `rule`, and
+    `renameChain`: check `attrs`, then rename its DSL keys to their JSON
+    keys. `location` is the body's location (./location.nix), such as a
+    table tree's `sets.s`, for its errors. Keys without a rename pass
+    through unchanged.
+  - `none location attrs`: `attrs`, for a body without DSL-only spellings.
+  - `checkSpelling.rule location attrs`: the check alone, for a rule body,
+    which ./rule-body.nix checks further before renaming it.
+  - `statementBuilder name build`: the statement builder `dsl.<name>`.
+    See its comment.
 */
 { lib }:
 
 let
-  inherit (import ./location.nix { inherit lib; }) fail within;
+  inherit (import ./location.nix { inherit lib; }) builder fail within;
 
+  # `snat` and `dnat` take the full NAT body.
+  natRenames = {
+    typeFlags = "type_flags";
+  };
+
+  # `setStmt` and `mapStmt` apply a list of statements to the element.
+  elementStatementRenames = {
+    statements = "stmt";
+  };
+
+  # By body: a statement builder's name, an object kind, or `rule`.
   renames = {
     log = {
       queueThreshold = "queue-threshold";
@@ -49,9 +64,8 @@ let
       usedUnit = "used_unit";
     };
 
-    nat = {
-      typeFlags = "type_flags";
-    };
+    snat = natRenames;
+    dnat = natRenames;
 
     /*
       Shared by named-set and named-map bodies. The JSON schema
@@ -82,10 +96,8 @@ let
       newName = "newname";
     };
 
-    # Shared by the `setStmt` and `mapStmt` statements.
-    setStmt = {
-      statements = "stmt";
-    };
+    setStmt = elementStatementRenames;
+    mapStmt = elementStatementRenames;
 
     # `meter` applies one statement, not a list.
     meter = {
@@ -114,22 +126,46 @@ let
     else
       attrs;
 
-  # Check `attrs`, then rename its DSL keys to their JSON keys. Keys not in
-  # `renames` pass through unchanged.
+  # Rename the DSL keys of the checked `attrs` to their JSON keys. Keys not
+  # in `renames` pass through unchanged.
+  renameChecked = renames: lib.mapAttrs' (k: v: lib.nameValuePair (renames.${k} or k) v);
+
+  # Check `attrs`, then rename it.
   renameKeys =
     renames: location: attrs:
     let
       checked = checkKeys renames location attrs;
     in
-    if builtins.isAttrs checked then
-      lib.mapAttrs' (k: v: lib.nameValuePair (renames.${k} or k) v) checked
-    else
-      checked;
+    if builtins.isAttrs checked then renameChecked renames checked else checked;
+
+  bodyRenames = lib.mapAttrs (_: renameKeys) renames;
 in
-lib.mapAttrs (_: renameKeys) renames
-// {
-  # For a body without DSL-only spellings.
+{
+  inherit (bodyRenames)
+    element
+    limit
+    renameChain
+    rule
+    set
+    ;
+
   none = _location: lib.id;
 
-  checkSpelling = lib.mapAttrs (_: checkKeys) renames;
+  checkSpelling.rule = checkKeys renames.rule;
+
+  /*
+    Make the statement builder `dsl.<name>`, such as `log` or `snat`, from
+    `build`, whose argument pattern names the DSL spellings. The builder
+    checks its arguments before `build` sees them, so a JSON spelling
+    throws pointing to its DSL name rather than failing the pattern as an
+    unexpected argument. `build` takes `renameBody`, which renames the DSL
+    keys of the statement's body to their JSON keys, then the checked
+    arguments, and returns the statement. Returns the builder.
+  */
+  statementBuilder =
+    name: build:
+    let
+      builderRenames = renames.${name};
+    in
+    args: build (renameChecked builderRenames) (checkKeys builderRenames (builder [ name ]) args);
 }

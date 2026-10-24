@@ -159,7 +159,7 @@ remains.
 
 Every DSL field and object-kind name is camel case. The DSL translates it where
 nftables uses spaces, hyphens, or underscores, runs words together, or names a
-list in the singular. Examples:
+list of elements or statements in the singular. Examples:
 
 | DSL              | JSON                                                            |
 | ---------------- | --------------------------------------------------------------- |
@@ -176,7 +176,7 @@ list in the singular. Examples:
 Each field has one spelling: a JSON spelling throws in a statement, a command
 builder, or a table tree, and points to the DSL name.
 
-The mapping is centralized in
+The mapping and the JSON-spelling check are centralized in
 [`lib/dsl/internal/rename.nix`](../lib/dsl/internal/rename.nix).
 
 ## Validation boundaries

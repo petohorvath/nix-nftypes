@@ -10,18 +10,10 @@ let
   compact = import ../internal/compact.nix { inherit lib; };
   variant = import ../internal/variant.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
-  location = import ../internal/location.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
 
-  limitAt = location.builder [ "limit" ];
-  quotaAt = location.builder [ "quota" ];
-
-  # A JSON spelling throws pointing to its DSL name before the pattern
-  # would reject it as an unexpected argument.
-  limitBase = args: limitInline (rename.checkSpelling.limit limitAt args);
-  quotaBase = args: quotaInline (rename.checkSpelling.quota quotaAt args);
-
-  limitInline =
+  limitBase = rename.statementBuilder "limit" (
+    renameBody:
     args@{
       rate,
       per,
@@ -31,10 +23,12 @@ let
       inv ? null,
     }:
     {
-      limit = compact (rename.limit limitAt args);
-    };
+      limit = compact (renameBody args);
+    }
+  );
 
-  quotaInline =
+  quotaBase = rename.statementBuilder "quota" (
+    renameBody:
     args@{
       val,
       valUnit ? null,
@@ -43,8 +37,9 @@ let
       inv ? null,
     }:
     {
-      quota = compact (rename.quota quotaAt args);
-    };
+      quota = compact (renameBody args);
+    }
+  );
 in
 {
   /*

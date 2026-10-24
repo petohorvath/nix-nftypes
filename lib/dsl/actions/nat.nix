@@ -8,24 +8,22 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
-  location = import ../internal/location.nix { inherit lib; };
 
-  # A JSON spelling throws pointing to its DSL name before the pattern
-  # would reject it as an unexpected argument.
-  natBase = tag: args: natInline tag (rename.checkSpelling.nat (location.builder [ tag ]) args);
-
-  natInline =
+  natBase =
     tag:
-    args@{
-      addr ? null,
-      family ? null,
-      port ? null,
-      flags ? null,
-      typeFlags ? null,
-    }:
-    {
-      ${tag} = compact (rename.nat (location.builder [ tag ]) args);
-    };
+    rename.statementBuilder tag (
+      renameBody:
+      args@{
+        addr ? null,
+        family ? null,
+        port ? null,
+        flags ? null,
+        typeFlags ? null,
+      }:
+      {
+        ${tag} = compact (renameBody args);
+      }
+    );
 
   masqueradeBase =
     tag:

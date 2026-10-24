@@ -10,44 +10,6 @@ let
   compact = import ../internal/compact.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
-  location = import ../internal/location.nix { inherit lib; };
-
-  # The pattern names the DSL spellings; `setStmt` and `mapStmt` check for
-  # a JSON spelling first, so it throws pointing to its DSL name.
-  setStmtInline =
-    {
-      op,
-      elem,
-      set,
-      statements ? null,
-    }:
-    {
-      set = compact {
-        inherit op elem;
-        stmt = statements;
-        set = reference.atReference "setStmt" set;
-      };
-    };
-
-  mapStmtInline =
-    {
-      op,
-      elem,
-      data,
-      map,
-      statements ? null,
-    }:
-    {
-      map = compact {
-        inherit
-          op
-          elem
-          data
-          ;
-        stmt = statements;
-        map = reference.atReference "mapStmt" map;
-      };
-    };
 in
 {
   /*
@@ -64,7 +26,21 @@ in
     statement referencing `"@<name>"`; throws when `set` is not a string,
     and for `stmt`, pointing to `statements`.
   */
-  setStmt = args: setStmtInline (rename.checkSpelling.setStmt (location.builder [ "setStmt" ]) args);
+  setStmt = rename.statementBuilder "setStmt" (
+    renameBody:
+    {
+      op,
+      elem,
+      set,
+      statements ? null,
+    }:
+    {
+      set = compact (renameBody {
+        inherit op elem statements;
+        set = reference.atReference "setStmt" set;
+      });
+    }
+  );
 
   /*
     Modify a named map from the packet path. Distinct from the map lookup
@@ -74,7 +50,27 @@ in
     Returns a map statement referencing `"@<name>"`; throws when `map` is
     not a string, and for `stmt`, pointing to `statements`.
   */
-  mapStmt = args: mapStmtInline (rename.checkSpelling.setStmt (location.builder [ "mapStmt" ]) args);
+  mapStmt = rename.statementBuilder "mapStmt" (
+    renameBody:
+    {
+      op,
+      elem,
+      data,
+      map,
+      statements ? null,
+    }:
+    {
+      map = compact (renameBody {
+        inherit
+          op
+          elem
+          data
+          statements
+          ;
+        map = reference.atReference "mapStmt" map;
+      });
+    }
+  );
 
   /*
     Reset stateful data referenced by an expression, such as a TCP option.

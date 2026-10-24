@@ -351,12 +351,13 @@ Every DSL field name is camelCase, and each field has one spelling. The DSL
 renames it where JSON uses hyphens or underscores or runs words together, for
 example `queueThreshold` to `queue-threshold`, `gcInterval` to `gc-interval`,
 `rateUnit` to `rate_unit`, `typeFlags` to `type_flags`, and `newName` to
-`newname`. A list field is plural: named sets and maps take `elements` and
-`statements` for the JSON `elem` and `stmt`, `setStmt` and `mapStmt` take
-`statements`, and a rule takes `statements` for `expr`. `meter` takes one
-`statement` for `stmt`. The same renames apply to statements, table-tree
-objects, and command builders, and in each a JSON spelling throws, pointing to
-the DSL name:
+`newname`. A field that holds elements or statements is plural: named sets and
+maps take `elements` and `statements` for the JSON `elem` and `stmt`, `setStmt`
+and `mapStmt` take `statements`, and a rule takes `statements` for `expr`.
+`meter` takes one `statement` for `stmt`. Other fields keep nft's word: a chain
+or flowtable's `dev` takes one device or a list. The same renames apply to
+statements, table-tree objects, and command builders, and in each a JSON
+spelling throws, pointing to the DSL name:
 
 ```text
 nix-nftypes: dsl.add.limit: rate_unit: is the JSON spelling; write `rateUnit`

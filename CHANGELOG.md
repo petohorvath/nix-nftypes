@@ -36,7 +36,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
   - A rule's statement list is `statements`, in `add.rule`, `insert.rule`, `replace.rule`, and a table-tree rule entry, `{ statements; index?; comment?; }`: write `statements = [ … ]` for `expr = [ … ]`. The bare-list entry, `rules = [ [ accept ] ]`, is unchanged.
   - `setStmt`, `mapStmt`, and a set or map body take `statements` for `stmt`, and `meter` takes `statement`.
   - `rename.chain` takes `newName` for `newname`.
-  - A JSON spelling, such as `rate_unit`, `gc-interval`, `elem`, `expr`, or `newname`, throws in a statement, a command builder, and a table tree alike, and points to the DSL name: ``rate_unit: is the JSON spelling; write `rateUnit` ``. An object body passed it through, so a body with both spellings dropped one value, and a statement rejected it as an unexpected argument.
+  - A JSON spelling, such as `rate_unit`, `gc-interval`, `expr`, `newname`, or `elem` in a set or map body, throws in a statement, a command builder, and a table tree alike, and points to the DSL name: ``rate_unit: is the JSON spelling; write `rateUnit` ``. An object body passed it through, so a body with both spellings dropped one value, and a statement rejected it as an unexpected argument.
 - `expr.map key data` and `expr.payload protocol field` take positional arguments, like `vmap key data`.
 - `payload`, `payloadRaw`, and `payloadTunnel` sit under `expr` with the other expression constructors: write `expr.payload "tcp" "dport"` for `payload "tcp" "dport"`.
 - `insert` and `replace` are `<verb>.<kind>` namespaces like the other verbs, `rename` included: write `insert.rule` and `replace.rule` for `insert` and `replace`. Their errors name `dsl.insert.rule` and `dsl.replace.rule`.
