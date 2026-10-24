@@ -71,14 +71,6 @@ in
   };
 
   /*
-    Reference a named map, for the data of a map lookup (`map`) or a
-    verdict map (`vmap`). `name` is the map name, with or without the
-    leading `@`. Returns the reference string `"@<name>"`, as `setRef`
-    does, and throws when `name` is not a string.
-  */
-  mapRef = reference.atReference "expr.mapRef";
-
-  /*
     Build an address prefix. `addr` is the network address and `len` the
     prefix length. Returns a prefix expression.
   */

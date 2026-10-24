@@ -1,8 +1,8 @@
 { nftlib }:
 
 # Realistic inet-family firewall written against the `dsl` layer.
-# Demonstrates: path-based field access, top-level operators, variant
-# namespaces (counter, log, reject), and the declarative table structure
+# Demonstrates: path-based field access, top-level operators, statement
+# builders (counter, log, reject), and the declarative table structure
 # (no context threading, chains live under `chains.<name>`).
 #
 # Compare with `examples/basic-firewall.nix` for the hand-written raw-attrset
@@ -103,7 +103,10 @@ ruleset [
               prefix = "DROPPED: ";
               level = "info";
             })
-            (reject.icmpx "admin-prohibited")
+            (reject {
+              type = "icmpx";
+              code = "admin-prohibited";
+            })
           ]
         ];
       };

@@ -63,7 +63,6 @@ rec {
   # `<case>.<form>` is a pattern the refusal's message matches. The probe
   # skips these forms and the suite asserts they still refuse.
   refusals = {
-    standalone-elements-after-set.block = "nix-nftypes: text: refusing\\s+to\\s+render\\s+a\\s+value\\s+that\\s+nft's\\s+text\\s+has\\s+no\\s+spelling\\s+for[\\s\\S]*Field: table elements\\.";
     commented-set-and-map =
       let
         jsonIgnored = "nix-nftypes: text: refusing\\s+to\\s+render\\s+a\\s+field\\s+that\\s+nft's\\s+JSON\\s+parser\\s+ignores[\\s\\S]*Field: (set|map) comment\\.";

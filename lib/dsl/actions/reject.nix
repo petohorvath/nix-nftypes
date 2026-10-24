@@ -3,52 +3,28 @@
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
-  variant = import ../internal/variant.nix { inherit lib; };
+  rename = import ../internal/rename.nix { inherit lib; };
 in
 {
   /*
     Reject matching packets.
 
-    `reject { type?; expr?; }` builds an arbitrary reject body;
-    `reject { }` is the empty form. `reject.icmp code`,
-    `reject.icmpv6 code`, and `reject.icmpx code` answer with an ICMP,
-    ICMPv6, or family-independent ICMPX `code`. `reject.tcpReset` answers
-    with a TCP RST. Each returns a reject statement.
+    `reject { type?; code?; }` answers with the reject `type`, such as
+    `"icmpx"` or `"tcp reset"`, and its ICMP `code`; null values are
+    omitted, so `reject { }` is the reject statement with nft's default
+    answer. Returns a reject statement. Throws for `expr`, pointing to
+    `code`.
   */
-  reject =
-    variant
-      (
-        {
-          type ? null,
-          expr ? null,
-        }:
-        {
-          reject = compact { inherit type expr; };
-        }
-      )
-      {
-        icmp = code: {
-          reject = {
-            type = "icmp";
-            expr = code;
-          };
-        };
-        icmpv6 = code: {
-          reject = {
-            type = "icmpv6";
-            expr = code;
-          };
-        };
-        icmpx = code: {
-          reject = {
-            type = "icmpx";
-            expr = code;
-          };
-        };
-        tcpReset = {
-          reject = {
-            type = "tcp reset";
-          };
-        };
-      };
+  reject = rename.statementBuilder "reject" (
+    renameBody:
+    {
+      type ? null,
+      code ? null,
+    }:
+    {
+      reject = compact (renameBody {
+        inherit type code;
+      });
+    }
+  );
 }

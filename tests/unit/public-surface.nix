@@ -1,7 +1,7 @@
 /*
   The public surface docs/api.md documents, pinned as literal name lists:
   the top level, `types` and its per-variant namespaces, `enums`,
-  `compatibility`, and the DSL's top level, `expr` and `match`. Removing,
+  `compatibility`, and the DSL's top level and `expr`. Removing,
   renaming or adding an export fails here until the list (and api.md)
   follows. The verb namespaces and `dsl.fields` are pinned in dsl-parity
   and parse-check-inputs.
@@ -308,7 +308,6 @@ in
       "mangle"
       "mapStmt"
       "masquerade"
-      "match"
       "meter"
       "ne"
       "notInSet"
@@ -331,7 +330,6 @@ in
       "tproxy"
       "tunnel"
       "vmap"
-      "xt"
     ];
   };
 
@@ -351,7 +349,6 @@ in
       "ipsec"
       "jhash"
       "map"
-      "mapRef"
       "numgen"
       "osf"
       "payload"
@@ -369,11 +366,6 @@ in
       "tcpOption"
       "tcpOptionRaw"
     ];
-  };
-
-  testDslMatchExports = {
-    expr = builtins.attrNames dsl.match;
-    expected = [ "raw" ];
   };
 
   # toNix is a diagnostic formatter: cleaned (no unset nulls, no markers,

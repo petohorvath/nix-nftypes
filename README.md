@@ -117,8 +117,6 @@ networking.nftables = {
 };
 ```
 
-Block form has no standalone `element` command, so it refuses a table tree with top-level `elements.<name>` entries. Put initial elements on the set or map definition instead.
-
 ## Validate hand-written rulesets
 
 The DSL validates every object, chain, and rule it assembles when output is requested. The renderers do not validate: they clean and render whatever they receive. A raw attrset, whether rendered directly or passed among the commands of `dsl.ruleset`, reaches the output unchecked.

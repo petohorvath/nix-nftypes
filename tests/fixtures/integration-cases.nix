@@ -586,8 +586,8 @@ rec {
     }
 
     # -- standalone elements after set ----------------------------------
-    # The element command must be emitted after the set it names; nft reports
-    # ENOENT when the commands are reversed.
+    # `add.element` adds to a set the table tree before it defines; nft
+    # reports ENOENT when the commands are reversed.
     {
       name = "standalone-elements-after-set";
       children = [
@@ -595,9 +595,12 @@ rec {
           sets.blocked = {
             type = "ipv4_addr";
           };
-          elements.blocked = {
-            elements = [ "192.0.2.1" ];
-          };
+        })
+        (dsl.add.element {
+          family = "inet";
+          table = "element_order";
+          name = "blocked";
+          elements = [ "192.0.2.1" ];
         })
       ];
     }
@@ -1484,7 +1487,7 @@ rec {
                       map = reference "cache";
                     })
                   ]
-                  [ (dsl.flow { flowtable = reference "ft"; }) ]
+                  [ (dsl.flow (reference "ft")) ]
                 ])
                 [
                   (name: name)

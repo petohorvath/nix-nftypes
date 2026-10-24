@@ -184,7 +184,7 @@ Refinement.
 Use `expr.payload protocol field`, `expr.payloadRaw`, and
 `expr.payloadTunnel` when no pre-built leaf exists. The other structural and
 generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
-`range`, `set`, `setRef`, `map`, `mapRef`, `numgen`, `jhash`, and `symhash`.
+`range`, `set`, `setRef`, `map`, `numgen`, `jhash`, and `symhash`.
 The binary operators sit there too: `expr.bitAnd`, `bitOr`, `bitXor`,
 `shiftLeft`, and `shiftRight`, as in `expr.bitAnd fields.meta.mark 255`.
 
@@ -193,20 +193,23 @@ Top-level match helpers include:
 - `eq`, `ne`, `lt`, `gt`, `le`, `ge`;
 - `inSet`, `notInSet`;
 - `hasAnyFlag`, nft's `in` operator, which matches when any of the given flags
-  is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn,ack`;
-- `match.raw` for any other operator.
+  is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn,ack`.
+
+Together they cover nft's seven match operators. A caller that computes the
+operator writes the raw `{ match = { op; left; right; }; }`, which rule
+validation checks.
 
 `inSet` and `notInSet` take a list, a set expression, or a named-set
 reference such as `"@trusted"`. A string without `@` throws and points to
 `expr.setRef`: nft would match it as one value, such as a hostname.
 
-`expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` and
-`expr.mapRef "name"` return the reference string `"@name"`, the shape nft
-lists, for the right side of a match or the data of a map lookup or `vmap`.
-The map lookup is `expr.map key data`:
+`expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` returns the
+reference string `"@name"`, the shape nft lists, for the right side of a
+match. The map lookup is `expr.map key data`, and its data is an anonymous map
+body or a named map's name, with or without its `@`:
 
 ```nix
-expr.map fields.tcp.dport (expr.mapRef "ports")
+expr.map fields.tcp.dport "ports"
 ```
 
 #### References to named objects
@@ -216,7 +219,7 @@ its leading `@`, and emits the spelling nft's JSON parser looks up there:
 
 | Position                 | Builders                                                                                                                            | Emitted                                                    |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| a set, map, or flowtable | `expr.setRef`, `expr.mapRef`, `expr.map`, `vmap`, `setStmt`, `mapStmt`, `flow`                                                      | `"@name"`; nft reads a bare name as a hostname or a symbol |
+| a set, map, or flowtable | `expr.setRef`, `expr.map`, `vmap`, `setStmt`, `mapStmt`, `flow`                                                                     | `"@name"`; nft reads a bare name as a hostname or a symbol |
 | a stateful object        | the `.ref` of `counter`, `quota`, `limit`, `synproxy`, `ctCount`, `ctHelper`, `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` | the bare name; nft finds no object named `"@name"`         |
 
 A stateful object's `.ref` also takes a map expression, which selects the
@@ -233,10 +236,10 @@ accept
 drop
 continue
 return
-notrack
 ```
 
-`jump target` and `goto target` carry a chain target.
+`jump target` and `goto target` carry a chain target. A verdict is also the
+data of a `vmap`.
 
 Most statement families are callable attrsets with named variants. Examples:
 
@@ -247,7 +250,7 @@ counter.auto
 quota.ref (expr.map fields.tcp.dport "quota_by_port")
 ctHelper.ref "ftp"
 
-reject.icmpx "admin-prohibited"
+reject { type = "icmpx"; code = "admin-prohibited"; }
 log { prefix = "DROP: "; level = "info"; }
 limit { rate = 10; per = "minute"; burst = 5; }
 ```
@@ -267,9 +270,9 @@ as `{ counter = null; }`, that `nft -j list --stateless` prints; `counter`,
 throws. `last { used = …; }` seeds the last-used time, and `last.auto` is the
 unseeded form.
 
-`reject` takes `{ type?; expr?; }`, and its variants `reject.icmp code`,
-`reject.icmpv6 code`, and `reject.icmpx code` answer with an ICMP, ICMPv6, or
-family-independent ICMPX code; `reject.tcpReset` answers with a TCP reset.
+`reject` takes `{ type?; code?; }`: `type` is the answer, such as `"icmp"`,
+`"icmpv6"`, the family-independent `"icmpx"`, or `"tcp reset"`, and `code` the
+ICMP code, which JSON calls `expr`. `reject { }` sends nft's default answer.
 
 The conntrack statements are `ctHelper.ref`, `ctTimeout.ref`, and
 `ctExpectation.ref`, which assign a named ct helper, timeout, or expectation to
@@ -279,22 +282,25 @@ matches on the number of connections. `secmark.ref` applies a named secmark and
 
 Other top-level constructors include `snat`, `dnat`, `masquerade`, `redirect`,
 `queue`, `synproxy`, `flow`, `meter`, `vmap`, `mangle`, `tproxy`, `fwd`, `dup`,
-and `last`.
+`last`, and `notrack`, which exempts the packet from connection tracking.
+`notrack` is a statement, not a verdict: a `vmap` rejects it as data.
 
 The statement tags named `set`, `map`, and `reset` would collide with the
 `expr.set` and `expr.map` constructors and the `reset.<kind>` command builders,
 so their DSL names are `setStmt`, `mapStmt`, and `resetStmt`. `resetStmt expr`
 resets the stateful data an expression selects, such as a TCP option:
 `resetStmt (expr.tcpOption { name = "sack"; })`. Like `flow`, `setStmt` and
-`mapStmt` take the set, map, or flowtable name with or without its leading `@`:
+`mapStmt` take the set, map, or flowtable name with or without its leading `@`.
+`flow` takes the flowtable alone, because nft's only flow operation is `add`:
 
 ```nix
 setStmt { op = "add"; elem = fields.ip.saddr; set = "blocked"; }
-flow { flowtable = "ft"; }
+flow "ft"
 ```
 
-`xt` is exposed for read-back compatibility, but nftables rejects it as JSON
-input. See [`spec-coverage.md`](spec-coverage.md).
+The DSL has no `xt` builder: nftables lists an `xt` statement but rejects it as
+JSON input. `types.statementBodies.xtBody` types the Read-back. See
+[`spec-coverage.md`](spec-coverage.md).
 
 ### Declarative table tree
 
@@ -324,20 +330,22 @@ Recognized table-body keys are:
 
 - table options: `handle`, `flags`, `comment`;
 - `chains`;
-- `sets`, `maps`, `elements`, `flowtables`, `counters`, `quotas`, `limits`,
-  `ctHelpers`, `ctTimeouts`, `ctExpectations`, `ctCounts`, `secmarks`, and
-  `synproxies`.
+- `sets`, `maps`, `flowtables`, `counters`, `quotas`, `limits`, `ctHelpers`,
+  `ctTimeouts`, `ctExpectations`, `ctCounts`, `secmarks`, and `synproxies`.
+
+A set or map takes its elements in its own body, as `sets.<name>.elements`.
+To add elements to a set defined elsewhere, put `add.element` in a
+`dsl.ruleset` after the set.
 
 Unknown keys fail evaluation. The internal `_type` marker remains accepted for
 libraries that layer their own boundary tags on nftypes values; it is not
 emitted. Expansion order is table, chains, named objects, then rules. Among
 named objects, stateful objects come first, so a set or map element can name
 one: counters, quotas, limits, ct helpers, ct timeouts, ct expectations,
-secmarks, synproxies, and ct counts. The other kinds follow alphabetically, and
-standalone element commands come last, after their set/map definitions. Object
-and chain names are emitted in sorted order; rule order remains the source-list
-order. This covers dependencies made explicit by the table tree; dependencies
-hidden in raw nested bodies remain the caller's responsibility.
+secmarks, synproxies, and ct counts. The other kinds follow alphabetically.
+Object and chain names are emitted in sorted order; rule order remains the
+source-list order. This covers dependencies made explicit by the table tree;
+dependencies hidden in raw nested bodies remain the caller's responsibility.
 
 A rule entry is either a non-empty statement list or an attrset with a
 non-empty `statements` list plus optional `index` and `comment`. Any other
@@ -354,8 +362,9 @@ example `queueThreshold` to `queue-threshold`, `gcInterval` to `gc-interval`,
 `newname`. A field that holds elements or statements is plural: named sets and
 maps take `elements` and `statements` for the JSON `elem` and `stmt`, `setStmt`
 and `mapStmt` take `statements`, and a rule takes `statements` for `expr`.
-`meter` takes one `statement` for `stmt`. Other fields keep nft's word: a chain
-or flowtable's `dev` takes one device or a list. The same renames apply to
+`meter` takes one `statement` for `stmt`, and `reject` takes `code` for `expr`,
+which holds the ICMP code. Other fields keep nft's word: a chain or flowtable's
+`dev` takes one device or a list. The same renames apply to
 statements, table-tree objects, and command builders, and in each a JSON
 spelling throws, pointing to the DSL name:
 
@@ -480,12 +489,6 @@ no block-form spelling and is omitted. A chain block lists its rules in order,
 so a rule `index` has no block-form spelling either, and is refused
 (`rule index`); order the rules in the list instead. Passing a full ruleset or
 a raw command is an error.
-
-Table-block grammar has no form for a standalone `element` command, so a table
-node with a top-level `elements.<name>` entry is refused (`table elements`). Put
-initial elements directly on the corresponding `sets.<name>` or `maps.<name>`
-definition, or use `toText`/`toTextPretty` when a later imperative element
-update is required.
 
 The JSON renderer is authoritative when JSON and text grammar capabilities
 differ. See [`text-coverage.md`](text-coverage.md).

@@ -49,7 +49,7 @@ _Avoid_: field (on its own), leaf (on its own)
 A field of an expression that qualifies its key, such as a conntrack direction, an address family, or the flags of a FIB lookup. Most keys take a refinement optionally, but some require one, as every IPsec key requires a direction. A key that nft loads only with a refinement has no Field leaf.
 
 **Variant namespace**:
-A statement constructor that is callable for its common form and carries named variants for the others, such as `counter.auto` or `reject.icmpx`.
+A statement constructor that is callable for its common form and carries named variants for the others, such as `counter.auto` or `counter.ref`.
 _Avoid_: callable attrset
 
 **Table tree**:
@@ -70,7 +70,7 @@ Turning a table tree into an ordered list of commands: the table, its chains, it
 A hand-written value that the DSL did not build and nothing has validated; a raw attrset among a ruleset's commands is a raw command.
 
 **Escape hatch**:
-A lower-level path to a parser form the convenience API does not cover: a generic constructor, a `.raw` variant, or a raw attrset.
+A lower-level path to a parser form the convenience API does not cover: a generic constructor, such as `expr.payloadRaw`, or a raw attrset.
 
 ## Rendering
 

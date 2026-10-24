@@ -9,21 +9,16 @@ in
 {
   /*
     Offload the flow to a flowtable. `flowtable` is the flowtable name, with
-    or without its leading `@`, and `op` the operation, `"add"` by default.
-    Returns a flow statement referencing `"@<name>"`; throws when
-    `flowtable` is not a string.
+    or without its leading `@`. Returns a flow statement that adds the flow
+    to `"@<name>"`, nft's only flow operation; throws when `flowtable` is
+    not a string.
   */
-  flow =
-    {
-      op ? "add",
-      flowtable,
-    }:
-    {
-      flow = {
-        inherit op;
-        flowtable = reference.atReference "flow" flowtable;
-      };
+  flow = flowtable: {
+    flow = {
+      op = "add";
+      flowtable = reference.atReference "flow" flowtable;
     };
+  };
 
   /*
     Apply a statement per key through a meter. `name` is the meter name,

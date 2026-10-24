@@ -80,10 +80,7 @@ let
           prio = 0;
           rules = [
             [
-              (dsl.flow {
-                op = "add";
-                flowtable = name;
-              })
+              (dsl.flow name)
             ]
           ];
         };

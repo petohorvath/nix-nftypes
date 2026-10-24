@@ -45,7 +45,7 @@ let
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
   # body; plural; }`). Drop the `plural` field — irrelevant here — and
-  # add the three command-only kinds (table/chain/rule) that aren't
+  # add the four command-only kinds (table/chain/rule/element) that aren't
   # table-tree containers.
   objectKindRegistry = import ./object-kinds.nix { inherit lib objects; };
   sharedKinds = lib.mapAttrs (_: cfg: removeAttrs cfg [ "plural" ]) objectKindRegistry;
@@ -59,6 +59,12 @@ let
       tag = "chain";
       renameBody = keyRenames.none;
       body = objects.chainBody;
+    };
+    # Adds elements to a set or map, which may be defined elsewhere.
+    element = {
+      tag = "element";
+      renameBody = keyRenames.element;
+      body = objects.elementBody;
     };
     # nft 1.1.6's JSON parser ignores a handle on `add rule`, so the body
     # has none.

@@ -85,23 +85,6 @@ let
     them. Returns a match statement.
   */
   hasAnyFlag = left: flags: mkMatch "in" left flags;
-
-  # The match form the top-level operators don't cover: the raw escape
-  # hatch.
-  match = {
-    /*
-      Build a match with any operator. `op` is the JSON operator string,
-      `left` the expression under test, and `right` the compared value.
-      Returns a match statement.
-    */
-    raw =
-      {
-        op,
-        left,
-        right,
-      }:
-      mkMatch op left right;
-  };
 in
 {
   inherit
@@ -112,7 +95,6 @@ in
     inSet
     le
     lt
-    match
     ne
     notInSet
     ;

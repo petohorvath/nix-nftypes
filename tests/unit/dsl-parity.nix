@@ -376,8 +376,7 @@ in
       };
 
   # Named-set reference: the name with or without its `@` becomes the
-  # reference string `"@<name>"`, the shape `expr.mapRef` returns and nft
-  # lists.
+  # reference string `"@<name>"`, the shape nft lists.
   testExprSetRef = ps (dsl.eq dsl.fields.ip.saddr (dsl.expr.setRef "trusted_v4")) {
     match = {
       op = "==";
@@ -417,19 +416,6 @@ in
     };
   };
 
-  # A named map reference is the `"@<name>"` string a map lookup or a
-  # verdict map takes as its data, with or without the `@` given.
-  testExprMapRef = pe (dsl.expr.map dsl.fields.tcp.dport (dsl.expr.mapRef "pf")) {
-    map = {
-      key = {
-        payload = {
-          protocol = "tcp";
-          field = "dport";
-        };
-      };
-      data = "@pf";
-    };
-  };
   # A map lookup's data names a map: a bare name gets its `@`, which nft's
   # JSON parser needs (it reads `"pf"` as a hostname).
   testExprMapBareName = pe (dsl.expr.map dsl.fields.tcp.dport "pf") {
@@ -443,21 +429,6 @@ in
       data = "@pf";
     };
   };
-  testExprMapRefIdempotent = {
-    expr = map dsl.expr.mapRef [
-      "pf"
-      "@pf"
-    ];
-    expected = [
-      "@pf"
-      "@pf"
-    ];
-  };
-  testExprMapRefRejectsNonString = {
-    expr = dsl.expr.mapRef 42;
-    expectedError.msg = "expr\\.mapRef: expected a name string";
-  };
-
   testExprPrefix = pe (dsl.expr.prefix "10.0.0.0" 8) {
     prefix = {
       addr = "10.0.0.0";
@@ -745,7 +716,6 @@ in
   testVerdictDropStmt = ps dsl.drop { drop = null; };
   testVerdictContinueStmt = ps dsl.continue { continue = null; };
   testVerdictReturnStmt = ps dsl.return { return = null; };
-  testVerdictNotrackStmt = ps dsl.notrack { notrack = null; };
   testVerdictJumpStmt = ps (dsl.jump "inbound") {
     jump = {
       target = "inbound";
@@ -913,27 +883,6 @@ in
     };
   };
 
-  # match.raw escape hatch
-  testOpMatchRaw =
-    ps
-      (dsl.match.raw {
-        op = ">=";
-        left = dsl.fields.tcp.dport;
-        right = 1024;
-      })
-      {
-        match = {
-          left = {
-            payload = {
-              protocol = "tcp";
-              field = "dport";
-            };
-          };
-          right = 1024;
-          op = ">=";
-        };
-      };
-
   # =========================================================================
   # Variant namespaces
   # =========================================================================
@@ -975,18 +924,17 @@ in
       "masquerade"
       "queue"
       "redirect"
-      "reject"
     ];
     expected = [ ];
   };
   testCounterRef = ps (dsl.counter.ref "pkts") { counter = "pkts"; };
 
-  # reject — base, empty body, .icmp, .icmpv6, .icmpx, .tcpReset
-  testRejectBase =
+  # reject — one form, `{ type?; code?; }`, whose `code` is the JSON `expr`
+  testRejectIcmp =
     ps
       (dsl.reject {
         type = "icmp";
-        expr = "host-unreachable";
+        code = "host-unreachable";
       })
       {
         reject = {
@@ -994,29 +942,33 @@ in
           expr = "host-unreachable";
         };
       };
-  testRejectEmptyBody = ps (dsl.reject { }) { reject = { }; };
-  testRejectIcmp = ps (dsl.reject.icmp "net-unreachable") {
-    reject = {
-      type = "icmp";
-      expr = "net-unreachable";
-    };
-  };
-  testRejectIcmpv6 = ps (dsl.reject.icmpv6 "no-route") {
-    reject = {
-      type = "icmpv6";
-      expr = "no-route";
-    };
-  };
-  testRejectIcmpx = ps (dsl.reject.icmpx "admin-prohibited") {
-    reject = {
-      type = "icmpx";
-      expr = "admin-prohibited";
-    };
-  };
-  testRejectTcpReset = ps dsl.reject.tcpReset {
+  testRejectIcmpx =
+    ps
+      (dsl.reject {
+        type = "icmpx";
+        code = "admin-prohibited";
+      })
+      {
+        reject = {
+          type = "icmpx";
+          expr = "admin-prohibited";
+        };
+      };
+  testRejectTcpReset = ps (dsl.reject { type = "tcp reset"; }) {
     reject = {
       type = "tcp reset";
     };
+  };
+  testRejectEmptyBody = ps (dsl.reject { }) { reject = { }; };
+  # The attrset form covers each answer, so `reject` has no named variant.
+  testRejectHasNoVariants = {
+    expr = builtins.filter (name: dsl.reject ? ${name}) [
+      "icmp"
+      "icmpv6"
+      "icmpx"
+      "tcpReset"
+    ];
+    expected = [ ];
   };
 
   # log — base, empty body, camelCase rename
@@ -1355,7 +1307,7 @@ in
   };
 
   # flow / meter / vmap
-  testFlow = ps (dsl.flow { flowtable = "@ft"; }) {
+  testFlow = ps (dsl.flow "@ft") {
     flow = {
       op = "add";
       flowtable = "@ft";
@@ -1363,11 +1315,16 @@ in
   };
   # A set, map or flow statement takes its reference with or without
   # the `@`, like `expr.setRef`.
-  testFlowBareName = ps (dsl.flow { flowtable = "ft"; }) {
+  testFlowBareName = ps (dsl.flow "ft") {
     flow = {
       op = "add";
       flowtable = "@ft";
     };
+  };
+  # `flow` takes the flowtable name; nft's only flow operation is `add`.
+  testFlowAttrsetThrows = {
+    expr = dsl.flow { flowtable = "ft"; };
+    expectedError.msg = "nix-nftypes: dsl\\.flow: expected a name string, got set";
   };
   testMeter =
     ps
@@ -1544,12 +1501,7 @@ in
   };
   testSecmark = ps (dsl.secmark.ref "my_secmark") { secmark = "my_secmark"; };
   testTunnelStmt = ps (dsl.tunnel.ref "my_tunnel") { tunnel = "my_tunnel"; };
-  testXt = ps (dsl.xt "match" "connlimit") {
-    xt = {
-      type = "match";
-      name = "connlimit";
-    };
-  };
+  testNotrack = ps dsl.notrack { notrack = null; };
   testLastAuto = ps dsl.last.auto { last = null; };
   testLastUsed = ps (dsl.last { used = -1; }) {
     last = {
@@ -1736,51 +1688,11 @@ in
         ];
       };
 
-  # Same rename applies to the standalone `element` object kind (used to
-  # add elements to an existing set/map).
-  testRenderElementObjectRename =
-    pr
-      (dsl.ruleset [
-        (dsl.table "inet" "t" {
-          elements.blocked = {
-            elements = [
-              "10.0.0.1"
-              "10.0.0.2"
-            ];
-          };
-        })
-      ])
-      {
-        nftables = [
-          {
-            add = {
-              table = {
-                family = "inet";
-                name = "t";
-              };
-            };
-          }
-          {
-            add = {
-              element = {
-                family = "inet";
-                table = "t";
-                name = "blocked";
-                elem = [
-                  "10.0.0.1"
-                  "10.0.0.2"
-                ];
-              };
-            };
-          }
-        ];
-      };
-
-  # A standalone element command depends on its set. The tree expander must
-  # emit the set before the element even though `elements` sorts before `sets`.
-  testRenderStandaloneElementsAfterSet =
-    pr
-      (dsl.ruleset [
+  # A table tree gives a set its elements on the set; it has no top-level
+  # `elements` key, which would name each set twice.
+  testTableTreeElementsKeyThrows = {
+    expr = toJson (
+      dsl.ruleset [
         (dsl.table "inet" "t" {
           sets.blocked = {
             type = "ipv4_addr";
@@ -1789,39 +1701,10 @@ in
             elements = [ "192.0.2.1" ];
           };
         })
-      ])
-      {
-        nftables = [
-          {
-            add = {
-              table = {
-                family = "inet";
-                name = "t";
-              };
-            };
-          }
-          {
-            add = {
-              set = {
-                family = "inet";
-                table = "t";
-                name = "blocked";
-                type = "ipv4_addr";
-              };
-            };
-          }
-          {
-            add = {
-              element = {
-                family = "inet";
-                table = "t";
-                name = "blocked";
-                elem = [ "192.0.2.1" ];
-              };
-            };
-          }
-        ];
-      };
+      ]
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.table inet\\.t: unsupported key\\(s\\): elements";
+  };
 
   # Set with camelCase-aliased autoMerge (→ "auto-merge").
   testRenderSetAutoMerge =
@@ -2248,8 +2131,8 @@ in
       };
 
   # Expansion adds stateful objects before sets and maps, whose elements
-  # can name them (an object map), and standalone elements last. A map of
-  # quotas added before its quotas fails to load as JSON or imperative text.
+  # can name them (an object map). A map of quotas added before its quotas
+  # fails to load as JSON or imperative text.
   testExpansionOrdersObjectKinds = {
     expr =
       map
@@ -2282,7 +2165,6 @@ in
                   protocol = "tcp";
                   policy.established = 300;
                 };
-                elements.s.elements = [ "192.0.2.2" ];
                 flowtables.f = {
                   hook = "ingress";
                   prio = 0;
@@ -2327,7 +2209,6 @@ in
       "flowtable f"
       "map m"
       "set s"
-      "element s"
       "rule input"
     ];
   };
@@ -2861,7 +2742,7 @@ in
                   "established"
                   "related"
                 ])
-                (dsl.flow { flowtable = "@ft"; })
+                (dsl.flow "@ft")
               ]
             ];
           };
@@ -3367,7 +3248,10 @@ in
                   per = "second";
                   burst = 10;
                 })
-                (dsl.reject.icmpx "admin-prohibited")
+                (dsl.reject {
+                  type = "icmpx";
+                  code = "admin-prohibited";
+                })
               ]
             ];
           };
@@ -3467,6 +3351,33 @@ in
   # Non-add commands: create / delete / destroy / list / rename / reset,
   # plus replace / insert (rule-only) and the flush variants.
   # =========================================================================
+
+  # The set and map `elements` rename applies to the standalone `element`
+  # object kind, which adds elements to a set or map defined elsewhere.
+  testCmdAddElementRename =
+    pc
+      (dsl.add.element {
+        family = "inet";
+        table = "t";
+        name = "blocked";
+        elements = [
+          "10.0.0.1"
+          "10.0.0.2"
+        ];
+      })
+      {
+        add = {
+          element = {
+            family = "inet";
+            table = "t";
+            name = "blocked";
+            elem = [
+              "10.0.0.1"
+              "10.0.0.2"
+            ];
+          };
+        };
+      };
 
   # `add.<kind>` covers every add-object kind; `add.rule` is the standalone
   # rule outside a table tree, typically with an explicit index.

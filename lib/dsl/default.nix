@@ -6,7 +6,7 @@
     - Variant namespaces via `__functor` (`counter {…}` vs `counter.auto`)
     - Declarative table structure (`chains.<name>.rules = [...]`) in place
       of context-threading builders
-    - CamelCase aliases for hyphenated JSON keys (handled by
+    - One camelCase spelling for each JSON key (handled by
       internal/rename.nix)
 */
 {
@@ -52,7 +52,7 @@ mergeDisjoint {
       reset
       ;
   };
-  inherit ops; # eq, ne, lt, gt, le, ge, inSet, notInSet, hasAnyFlag, match
-  inherit verdicts; # accept, drop, continue, return, notrack, jump, goto
-  inherit actions; # counter, log, limit, snat, resetStmt, …
+  inherit ops; # eq, ne, lt, gt, le, ge, inSet, notInSet, hasAnyFlag
+  inherit verdicts; # accept, drop, continue, return, jump, goto
+  inherit actions; # counter, log, limit, snat, resetStmt, notrack, …
 }
