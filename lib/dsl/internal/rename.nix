@@ -30,13 +30,14 @@
   - `none location attrs`: `attrs`, for a body without DSL-only spellings.
   - `checkSpelling.rule location attrs`: the check alone, for a rule body,
     which ./rule-body.nix checks further before renaming it.
-  - `statementBuilder name build`: the statement builder `dsl.<name>`.
-    See its comment.
+  - `statement name location attrs`: check and rename the body of the
+    statement builder `dsl.<name>`, such as `log` or `snat`
+    (./statement.nix). A builder without renames takes `attrs` unchanged.
 */
 { lib }:
 
 let
-  inherit (import ./location.nix { inherit lib; }) builder fail within;
+  inherit (import ./location.nix { inherit lib; }) fail within;
 
   # `snat` and `dnat` take the full NAT body.
   natRenames = {
@@ -159,19 +160,5 @@ in
 
   checkSpelling.rule = checkKeys renames.rule;
 
-  /*
-    Make the statement builder `dsl.<name>`, such as `log` or `snat`, from
-    `build`, whose argument pattern names the DSL spellings. The builder
-    checks its arguments before `build` sees them, so a JSON spelling
-    throws pointing to its DSL name rather than failing the pattern as an
-    unexpected argument. `build` takes `renameBody`, which renames the DSL
-    keys of the statement's body to their JSON keys, then the checked
-    arguments, and returns the statement. Returns the builder.
-  */
-  statementBuilder =
-    name: build:
-    let
-      builderRenames = renames.${name};
-    in
-    args: build (renameChecked builderRenames) (checkKeys builderRenames (builder [ name ]) args);
+  statement = name: renameKeys (renames.${name} or { });
 }

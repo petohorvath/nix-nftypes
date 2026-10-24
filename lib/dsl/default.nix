@@ -14,17 +14,23 @@
   objects,
   expandTable,
   resetOrder,
+  statementBodiesByTag,
 }:
 
 let
   validate = import ./internal/validate.nix { inherit lib; };
+  # Statement builders validate each statement against its tag's body.
+  statement = import ./internal/statement.nix {
+    inherit lib;
+    bodiesByTag = statementBodiesByTag;
+  };
 
   fields = import ./fields { inherit lib; };
   ops = import ./ops.nix { inherit lib; };
-  verdicts = import ./verdicts.nix { inherit lib; };
+  verdicts = import ./verdicts.nix { inherit statement; };
   exprs = import ./exprs.nix { inherit lib; };
   payload = import ./payload.nix { inherit lib; };
-  actions = import ./actions { inherit lib; };
+  actions = import ./actions { inherit lib statement; };
   ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetOrder; };
   table = import ./structure/table.nix { inherit lib; };
   commands = import ./structure/commands.nix { inherit lib objects validate; };

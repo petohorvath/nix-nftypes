@@ -72,6 +72,7 @@ let
   dsl = import ./dsl {
     inherit lib;
     objects = objects.all;
+    statementBodiesByTag = statements.bodiesByTag;
     inherit (commands) resetOrder;
     inherit (tables) expandTable;
   };
@@ -182,9 +183,9 @@ in
 
   /*
     DSL — path-based field access, top-level operators, variant namespaces,
-    and declarative table structure. Structured builders validate assembled
-    bodies; `dsl.ruleset` also preserves raw command attrsets as an escape
-    hatch.
+    and declarative table structure. Statement, command, and table
+    builders validate assembled bodies; `dsl.ruleset` also preserves raw
+    command attrsets as an escape hatch.
   */
   inherit dsl;
 }

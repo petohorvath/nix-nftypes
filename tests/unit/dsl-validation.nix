@@ -504,6 +504,264 @@ let
     ) ruleCommandBodies
   ) ruleCommandBuilders;
 
+  /*
+    Every statement builder validates its body when called, outside any
+    rule, against the body `types.statement` takes for its tag. The module
+    system's error names the builder and the field, as a command builder's
+    does (`dsl.create.counter.bogus`). `unknown` is the builder called with
+    an argument its body lacks, `bogus`, and `wrong` with a value of the
+    wrong type in `field`. A builder that takes positional arguments has no
+    unknown argument.
+  */
+  statementBuilderCases =
+    let
+      expression = dsl.fields.ip.saddr;
+      # An attrset that is no expression.
+      notAnExpression.bogus = 1;
+      withBogus = body: body // { bogus = 1; };
+    in
+    {
+      counter = {
+        unknown = dsl.counter (withBogus {
+          packets = 0;
+          bytes = 0;
+        });
+        wrong = dsl.counter {
+          packets = "many";
+          bytes = 0;
+        };
+        field = "packets";
+      };
+      last = {
+        unknown = dsl.last (withBogus {
+          used = 0;
+        });
+        wrong = dsl.last { used = "never"; };
+        field = "used";
+      };
+      log = {
+        unknown = dsl.log (withBogus { });
+        wrong = dsl.log { level = "bogus"; };
+        field = "level";
+      };
+      limit = {
+        unknown = dsl.limit (withBogus {
+          rate = 10;
+          per = "second";
+        });
+        wrong = dsl.limit {
+          rate = 10;
+          per = "fortnight";
+        };
+        field = "per";
+      };
+      quota = {
+        unknown = dsl.quota (withBogus {
+          val = 1;
+        });
+        wrong = dsl.quota { val = "lots"; };
+        field = "val";
+      };
+      snat = {
+        unknown = dsl.snat (withBogus {
+          addr = "192.0.2.1";
+        });
+        wrong = dsl.snat { addr = notAnExpression; };
+        field = "addr";
+      };
+      dnat = {
+        unknown = dsl.dnat (withBogus {
+          addr = "192.0.2.1";
+        });
+        wrong = dsl.dnat {
+          addr = "192.0.2.1";
+          family = "inet";
+        };
+        field = "family";
+      };
+      masquerade = {
+        unknown = dsl.masquerade { addr = "192.0.2.1"; };
+        wrong = dsl.masquerade { flags = [ "bogus" ]; };
+        field = "flags";
+        bogus = "addr";
+      };
+      redirect = {
+        unknown = dsl.redirect { addr = "192.0.2.1"; };
+        wrong = dsl.redirect { port = notAnExpression; };
+        field = "port";
+        bogus = "addr";
+      };
+      fwd = {
+        unknown = dsl.fwd (withBogus {
+          dev = "eth0";
+        });
+        wrong = dsl.fwd {
+          dev = "eth0";
+          family = "inet";
+        };
+        field = "family";
+      };
+      dup = {
+        unknown = dsl.dup (withBogus {
+          addr = "192.0.2.1";
+        });
+        wrong = dsl.dup { addr = notAnExpression; };
+        field = "addr";
+      };
+      tproxy = {
+        unknown = dsl.tproxy (withBogus {
+          port = 1;
+        });
+        wrong = dsl.tproxy {
+          port = 1;
+          family = "inet";
+        };
+        field = "family";
+      };
+      queue = {
+        unknown = dsl.queue (withBogus { });
+        wrong = dsl.queue { flags = [ "bogus" ]; };
+        field = "flags";
+      };
+      reject = {
+        unknown = dsl.reject (withBogus { });
+        wrong = dsl.reject { type = "bogus"; };
+        field = "type";
+      };
+      synproxy = {
+        unknown = dsl.synproxy (withBogus {
+          mss = 1460;
+          wscale = 7;
+        });
+        wrong = dsl.synproxy {
+          mss = "large";
+          wscale = 7;
+        };
+        field = "mss";
+      };
+      ctCount = {
+        unknown = dsl.ctCount (withBogus {
+          val = 1;
+        });
+        wrong = dsl.ctCount { val = -1; };
+        field = "val";
+      };
+      meter = {
+        unknown = dsl.meter (withBogus {
+          name = "m";
+          key = expression;
+          statement = dsl.counter.auto;
+        });
+        wrong = dsl.meter {
+          name = 1;
+          key = expression;
+          statement = dsl.counter.auto;
+        };
+        field = "name";
+      };
+      setStmt = {
+        unknown = dsl.setStmt (withBogus {
+          op = "add";
+          elem = expression;
+          set = "s";
+        });
+        wrong = dsl.setStmt {
+          op = "bogus";
+          elem = expression;
+          set = "s";
+        };
+        field = "op";
+      };
+      mapStmt = {
+        unknown = dsl.mapStmt (withBogus {
+          op = "add";
+          elem = expression;
+          data = 1;
+          map = "m";
+        });
+        wrong = dsl.mapStmt {
+          op = "bogus";
+          elem = expression;
+          data = 1;
+          map = "m";
+        };
+        field = "op";
+      };
+      mangle = {
+        wrong = dsl.mangle notAnExpression 1;
+        field = "key";
+      };
+      vmap = {
+        wrong = dsl.vmap notAnExpression { };
+        field = "key";
+      };
+      jump = {
+        wrong = dsl.jump 1;
+        field = "target";
+      };
+      goto = {
+        wrong = dsl.goto 1;
+        field = "target";
+      };
+      # A body that is no submodule, such as an expression, is checked as
+      # the option `value`.
+      resetStmt = {
+        wrong = dsl.resetStmt notAnExpression;
+        field = "value";
+      };
+    }
+    // lib.listToAttrs (
+      map (
+        name:
+        lib.nameValuePair "${name}.ref" {
+          wrong = dsl.${name}.ref (dsl.expr.map notAnExpression "m");
+          field = "value.map.key";
+        }
+      ) referencingStatements
+    );
+  # The statements with a `.ref` variant.
+  referencingStatements = [
+    "counter"
+    "ctCount"
+    "ctExpectation"
+    "ctHelper"
+    "ctTimeout"
+    "limit"
+    "quota"
+    "secmark"
+    "synproxy"
+    "tunnel"
+  ];
+  # A `.ref` takes a name or a map expression, never an inline body.
+  referenceBodyTests = lib.listToAttrs (
+    map (
+      name:
+      lib.nameValuePair "testReferenceTakesNoInlineBody_${name}" {
+        expr = force (dsl.${name}.ref { val = 1; });
+        expectedError.msg = "nix-nftypes: dsl\\.${name}\\.ref: expected an object name or a map expression, got an attribute set without the one key `map`";
+      }
+    ) referencingStatements
+  );
+  statementBuilderTests = lib.concatMapAttrs (
+    name: case:
+    let
+      # The field, or a path inside it such as a list entry's.
+      option = field: "`${lib.escapeRegex "dsl.${name}.${field}"}(\\.[^']*)?'";
+    in
+    {
+      "testStatementBuilderWrongValueThrows_${name}" = {
+        expr = force case.wrong;
+        expectedError.msg = "${option case.field} is not of type";
+      };
+    }
+    // lib.optionalAttrs (case ? unknown) {
+      "testStatementBuilderUnknownArgumentThrows_${name}" = {
+        expr = force case.unknown;
+        expectedError.msg = "${option (case.bogus or "bogus")} does not exist";
+      };
+    }
+  ) statementBuilderCases;
+
   droppedInputTests = lib.concatMapAttrs (name: case: {
     "testDroppedInputThrows_${name}" = {
       expr = force case.value;
@@ -1436,6 +1694,88 @@ in
     expected = "{\"nftables\":[{\"add\":{\"table\":{\"family\":\"inet\",\"name\":\"t\"}}},{\"add\":{\"counter\":{\"family\":\"inet\",\"name\":\"c\",\"table\":\"t\"}}},{\"reset\":{\"counter\":{\"family\":\"inet\",\"name\":\"c\",\"table\":\"t\"}}}]}";
   };
 
+  # nft refuses an empty tproxy, and the kernel an snat or dnat with
+  # neither an address nor a port, so the builders need one of them.
+  testSnatWithoutAddrOrPortThrows = {
+    expr = force (dsl.snat { family = "ip"; });
+    expectedError.msg = "nix-nftypes: dsl\\.snat: not of type `snat/dnat body with addr or port'";
+  };
+
+  testDnatWithoutAddrOrPortThrows = {
+    expr = force (dsl.dnat { });
+    expectedError.msg = "nix-nftypes: dsl\\.dnat: not of type `snat/dnat body with addr or port'";
+  };
+
+  testTproxyWithoutAddrOrPortThrows = {
+    expr = force (dsl.tproxy { });
+    expectedError.msg = "nix-nftypes: dsl\\.tproxy: not of type `tproxy body with addr or port'";
+  };
+
+  testStatementBuilderBodyNotAnAttrsetThrows = {
+    expr = force (dsl.log "DROP: ");
+    expectedError.msg = "nix-nftypes: dsl\\.log: expected an attribute set of fields, got a string";
+  };
+
+  testStatementBuilderMissingFieldThrows = {
+    expr = force (dsl.limit { rate = 10; });
+    expectedError.msg = "`dsl\\.limit\\.per' was accessed but has no value defined";
+  };
+
+  # A raw command, which `dsl.ruleset` passes through unvalidated, holds
+  # a statement its builder validated.
+  testRawCommandBadStatementThrows = {
+    expr = toJson (
+      dsl.ruleset [
+        {
+          add.rule = {
+            family = "inet";
+            table = "t";
+            chain = "c";
+            expr = [ (dsl.log { level = "bogus"; }) ];
+          };
+        }
+      ]
+    );
+    expectedError.msg = "`dsl\\.log\\.level' is not of type";
+  };
+
+  # A valid statement is the body its builder was given, with the null
+  # fields left out and its keys renamed to their JSON spellings.
+  testStatementBuilderReturnsTheGivenFields = {
+    expr = force [
+      (dsl.log {
+        prefix = "DROP: ";
+        queueThreshold = 2;
+        group = null;
+      })
+      (dsl.snat { port = 80; })
+      (dsl.setStmt {
+        op = "add";
+        elem = dsl.fields.ip.saddr;
+        set = "s";
+      })
+    ];
+    expected = [
+      {
+        log = {
+          prefix = "DROP: ";
+          queue-threshold = 2;
+        };
+      }
+      { snat.port = 80; }
+      {
+        set = {
+          op = "add";
+          elem.payload = {
+            protocol = "ip";
+            field = "saddr";
+          };
+          set = "@s";
+        };
+      }
+    ];
+  };
+
   # ----- happy path: a complete, valid ruleset still renders -----------
 
   testTreeAcceptedRulesetSucceeds = {
@@ -1461,6 +1801,8 @@ in
 // droppedInputTests
 // malformedRuleEntryTests
 // ruleCommandTests
+// statementBuilderTests
+// referenceBodyTests
 // missingRuleExprTests
 // bareTableTests
 // notARulesetTests

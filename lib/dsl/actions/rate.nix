@@ -4,42 +4,10 @@
   camelCase unit keys (`rateUnit`, `valUnit`, …) are translated to the
   underscored JSON keys by internal/rename.nix.
 */
-{ lib }:
+{ lib, statement }:
 
 let
-  compact = import ../internal/compact.nix { inherit lib; };
   variant = import ../internal/variant.nix { inherit lib; };
-  rename = import ../internal/rename.nix { inherit lib; };
-  reference = import ../internal/reference.nix { inherit lib; };
-
-  limitBase = rename.statementBuilder "limit" (
-    renameBody:
-    args@{
-      rate,
-      per,
-      rateUnit ? null,
-      burst ? null,
-      burstUnit ? null,
-      inv ? null,
-    }:
-    {
-      limit = compact (renameBody args);
-    }
-  );
-
-  quotaBase = rename.statementBuilder "quota" (
-    renameBody:
-    args@{
-      val,
-      valUnit ? null,
-      used ? null,
-      usedUnit ? null,
-      inv ? null,
-    }:
-    {
-      quota = compact (renameBody args);
-    }
-  );
 in
 {
   /*
@@ -48,11 +16,11 @@ in
     `limit { rate; per; rateUnit?; burst?; burstUnit?; inv?; }` builds an
     inline limit: `rate` per time unit `per`, with an optional unit, burst,
     and inversion. `limit.ref ref` references a named limit object, as
-    `counter.ref` does. Each
-    returns a limit statement.
+    `counter.ref` does. Each returns a limit statement, and throws when its
+    body doesn't validate.
   */
-  limit = variant limitBase {
-    ref = ref: { limit = reference.objectReference "limit.ref" ref; };
+  limit = variant (statement.fromFields { name = "limit"; }) {
+    ref = statement.ref "limit" "limit";
   };
 
   /*
@@ -61,10 +29,10 @@ in
     `quota { val; valUnit?; used?; usedUnit?; inv?; }` builds an inline
     quota of `val`, optionally seeded with a `used` amount and inverted.
     `quota.ref ref` references a named quota object, as `counter.ref`
-    does. Each returns a quota
-    statement.
+    does. Each returns a quota statement, and throws when its body doesn't
+    validate.
   */
-  quota = variant quotaBase {
-    ref = ref: { quota = reference.objectReference "quota.ref" ref; };
+  quota = variant (statement.fromFields { name = "quota"; }) {
+    ref = statement.ref "quota" "quota";
   };
 }

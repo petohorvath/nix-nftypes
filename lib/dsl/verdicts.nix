@@ -3,7 +3,7 @@
   expression position (vmap data). Terminal verdicts are plain attrsets;
   `jump` and `goto` take a target chain name.
 */
-{ lib }:
+{ statement }:
 
 {
   accept = {
@@ -22,13 +22,14 @@
   /*
     Build a `jump` verdict, which evaluates another chain and then returns
     to the calling rule. `target` is the chain name. Returns
-    `{ jump = { target; }; }`.
+    `{ jump = { target; }; }`, and throws when `target` is not a string.
   */
-  jump = target: { jump = { inherit target; }; };
+  jump = target: statement.tagged "jump" "jump" { inherit target; };
 
   /*
     Build a `goto` verdict, which continues in another chain without
-    returning. `target` is the chain name. Returns `{ goto = { target; }; }`.
+    returning. `target` is the chain name. Returns `{ goto = { target; }; }`,
+    and throws when `target` is not a string.
   */
-  goto = target: { goto = { inherit target; }; };
+  goto = target: statement.tagged "goto" "goto" { inherit target; };
 }

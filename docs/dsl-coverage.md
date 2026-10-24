@@ -24,7 +24,8 @@ rendering `dsl.ruleset [...]` or calling `toTextBlock*`. Both paths share
 [`lib/table.nix`](../lib/table.nix), which keeps rules with their chains until
 command expansion needs a flat list. Its prepared table shape stays private;
 block emission passes each chain's rules directly to the text spelling helper.
-Command builders validate their own bodies before wrapping them in commands.
+Command builders validate their own bodies before wrapping them in commands,
+and statement builders validate the statements they build.
 
 ## Covered surfaces
 
@@ -187,15 +188,19 @@ The mapping and the JSON-spelling check are centralized in
 ## Validation boundaries
 
 Not every value under `dsl` is validated at constructor call time. Nix is lazy,
-and leaf constructors generally build attrsets. Validation occurs when a
-command builder or table preparation applies the matching schema body and the
-result is forced.
+and expression constructors and Field leaves build attrsets unchecked.
+Validation occurs when a statement builder, a command builder, or table
+preparation applies the matching schema body and the result is forced. A
+statement builder validates its statement, and the expressions in it, against
+the body `types.statement` takes for its tag, and its errors name the builder,
+as in `dsl.log.level`.
 
 `dsl.ruleset` also accepts raw command attrsets so callers can use parser forms
 not covered by the convenience API. Those raw children are passed through and
 are not validated automatically; only their order is checked, so a reset that
-nft would ignore throws. The renderers likewise do not turn arbitrary raw input
-into a typed value.
+nft would ignore throws. A statement builder in a raw command still validates
+its statement. The renderers likewise do not turn arbitrary raw input into a
+typed value.
 
 Validate raw user configuration explicitly with
 `nftlib.validate nftlib.types.ruleset`. See

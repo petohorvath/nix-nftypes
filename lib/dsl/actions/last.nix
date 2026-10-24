@@ -3,7 +3,7 @@
   the time the rule last matched, and the null form that nft lists for one
   never seeded.
 */
-{ lib }:
+{ lib, statement }:
 
 let
   variant = import ../internal/variant.nix { inherit lib; };
@@ -15,21 +15,19 @@ in
     `last { used; }` seeds it with a previous last-used time; nft rejects
     an empty body, so a missing `used` throws. `last.auto` is
     the null form `{ last = null; }`, an unseeded record. Each returns a
-    last statement.
+    last statement; `last { … }` throws when its body doesn't validate.
   */
   last =
     variant
-      (
-        {
-          used ? null,
-        }:
-        if used == null then
-          throw "nix-nftypes: dsl.last: a seeded last needs used; use last.auto for an unseeded one"
-        else
-          {
-            last = { inherit used; };
-          }
-      )
+      (statement.fromFields {
+        name = "last";
+        prepare =
+          body:
+          if body ? used then
+            body
+          else
+            throw "nix-nftypes: dsl.last: a seeded last needs used; use last.auto for an unseeded one";
+      })
       {
         auto = {
           last = null;

@@ -10,13 +10,9 @@
     counter's. Returns the bare name, which nft looks up as written, so
     `"@c"` names no object; a map expression, which selects the object by
     key, passes through.
-  - `referenceOnly caller tag`: a statement whose only form names an
-    object, such as `ct helper`. Returns a variant namespace whose `.ref`
-    takes what `objectReference` takes and returns `{ <tag> = <ref>; }`,
-    and which throws when called, pointing to `.ref`.
 
   Each throws on an empty name and on a value that is neither a name nor,
-  for `objectReference`, an attribute set.
+  for `objectReference`, a map expression, `{ map = …; }`.
 */
 { lib }:
 
@@ -41,18 +37,13 @@ let
     caller: ref:
     if builtins.isString ref then
       nameOf caller "an object name" ref
-    else if builtins.isAttrs ref then
+    else if builtins.isAttrs ref && builtins.attrNames ref == [ "map" ] then
       ref
     else
-      fail caller "expected an object name or a map expression, got ${builtins.typeOf ref}";
+      fail caller "expected an object name or a map expression, got ${
+        if builtins.isAttrs ref then "an attribute set without the one key `map`" else builtins.typeOf ref
+      }";
 in
 {
   inherit atReference objectReference;
-
-  referenceOnly = caller: tag: {
-    ref = ref: { ${tag} = objectReference "${caller}.ref" ref; };
-    __functor =
-      _self: _:
-      fail caller "a ${tag} statement names a ${tag} object and has no inline form; write `${caller}.ref name`";
-  };
 }
