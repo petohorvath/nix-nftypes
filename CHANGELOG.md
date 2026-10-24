@@ -18,10 +18,15 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `types.insertObject`, `types.replaceObject`, and `types.renameObject`, the object unions of `insert`, `replace`, and `rename` commands.
 - Set and map elements accept the statement keys nft lists for them, `counter`, `quota`, `limit`, and `last`, beside `val`, so `types.ruleset` validates the Read-back of a set whose elements carry stateful statements. nft's JSON parser ignores them on input.
 - The log, masquerade, redirect, queue, and reject statements accept the `null` body that nft lists for one with no options, so `types.ruleset` validates its Read-back. Text renders it as the bare statement, such as `log`. Their bodies, `types.statementBodies.logBody`, `masqueradeBody`, `queueBody`, and `rejectBody`, accept `null` too.
+- `types.byteUnit` and `types.limitRateUnit`, with their values under `enums`: nft's byte units, `bytes`, `kbytes`, and `mbytes`, and a limit's rate units, which add `packets`. `types.ctKey` and `enums.ctKey` hold the conntrack keys nft's JSON parser looks up.
 - `types.statementBodies` holds the body of every statement tag that takes more than `null`, the same type `types.statement` takes for that tag. It adds `objectRefBody`, which `ct helper`, `ct timeout`, `ct expectation`, `secmark`, and `tunnel` share: an expression, the object's name or a map expression that selects it. It also holds `verdictTargetBody`, the body of `jump` and `goto`, the same type as `types.expressionBodies.verdictTargetBody`. `accept`, `drop`, `continue`, `return`, and `notrack` take only `null`, so they have no body there and keep `types.nullLiteral`.
 
 ### Changed
 
+- The unit fields take only nft's units, in statements and named limits alike: a limit's `rate_unit` takes `types.limitRateUnit`, and its `burst_unit` and a quota's `val_unit` and `used_unit` take `types.byteUnit`. They took any string: nft's JSON parser loaded an unknown unit as bytes, and text wrote it as given, which nft rejects, so `{ limit = { rate = 10; per = "second"; rate_unit = "furlongs"; }; }` validated and loaded as 10 bytes/second.
+- A ct expression's `key` takes only nft's ct keys, `types.ctKey`. It took any string, which nft's JSON parser rejects with "Unknown ct key".
+- `expr.ipsec` requires `dir`, and `expr.fib` requires `saddr` or `daddr` among its `flags`; each throws, naming the builder, when its Refinement is missing. They built an expression nft rejects, such as `{ ipsec = { key = "reqid"; }; }`.
+- The enum-extraction check compares the ct keys and the byte units with nftables' `ct_templates` and `data_unit` tables.
 - `compatibility.priorityIntsByFamily` is an attrset indexed by family, like `hooksByFamily`, instead of a function: write `priorityIntsByFamily.bridge` for `priorityIntsByFamily "bridge"`. An unknown family is a missing attribute.
 - Flush commands are a `flush.<kind>` namespace like the other verbs: `flush.ruleset`, `flush.table`, `flush.chain`, `flush.set`, `flush.map`, and `flush.meter`. Each takes an object body, and `flush.ruleset { }` flushes every family. They replace `flushRuleset`, `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`, and the bare `flush` value.
 - Every DSL field name is camelCase:
@@ -100,6 +105,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Removed
 
+- `types.limitUnit` and `enums.limitUnit`, which no field used. Use `types.limitRateUnit` for a limit's rate unit and `types.byteUnit` for the others.
 - `compatibility.priorityIntsDefault` and `compatibility.priorityIntsBridge`. Use `compatibility.priorityIntsByFamily.<family>`, which holds the same tables.
 - `dsl.rule`. Use `add.rule`, which takes the same body.
 - `within`, a second name for `inSet`. Use `inSet`, which builds the same match.

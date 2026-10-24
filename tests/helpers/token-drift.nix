@@ -13,8 +13,11 @@ let
   # The model's token list for each source-checked table.
   models = {
     inherit (nftlib.enums)
+      byteUnit
+      ctKey
       family
       fibResult
+      limitRateUnit
       metaKey
       rtKey
       ;
@@ -26,6 +29,9 @@ let
   # parser accepts them outside the table. A token that shows up in the
   # table fails as stale.
   modelOnly = {
+    # json_parse_limit_stmt and the limit object parser test for `packets`
+    # before they read the rate in a byte unit.
+    limitRateUnit = [ "packets" ];
     # meta_key_parse's backwards-compatibility aliases after the table.
     metaKey = [
       "ibriport"

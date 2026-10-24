@@ -10,8 +10,10 @@ let
   inherit (internal) submodule taggedUnion;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
+    byteUnit
     flowOp
     ipFamily
+    limitRateUnit
     logFlag
     logLevel
     logPrefix
@@ -153,9 +155,9 @@ let
           description = "quota value";
         };
         val_unit = mkOption {
-          type = types.nullOr types.str;
+          type = types.nullOr byteUnit;
           default = null;
-          description = "unit of val (bytes/kbytes/mbytes/…)";
+          description = "unit of val; defaults to bytes";
         };
         used = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -163,9 +165,9 @@ let
           description = "initial used value";
         };
         used_unit = mkOption {
-          type = types.nullOr types.str;
+          type = types.nullOr byteUnit;
           default = null;
-          description = "unit of used";
+          description = "unit of used; defaults to bytes";
         };
         inv = mkOption {
           type = types.nullOr types.bool;
@@ -187,9 +189,9 @@ let
           description = "time unit (required for inline form)";
         };
         rate_unit = mkOption {
-          type = types.nullOr types.str;
+          type = types.nullOr limitRateUnit;
           default = null;
-          description = "unit of rate; defaults to \"packets\"";
+          description = "unit of rate; defaults to packets";
         };
         burst = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -197,9 +199,9 @@ let
           description = "burst value; defaults to 0";
         };
         burst_unit = mkOption {
-          type = types.nullOr types.str;
+          type = types.nullOr byteUnit;
           default = null;
-          description = "unit of burst";
+          description = "unit of a byte rate's burst; defaults to bytes";
         };
         inv = mkOption {
           type = types.nullOr types.bool;

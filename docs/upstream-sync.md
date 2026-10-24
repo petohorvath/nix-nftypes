@@ -128,8 +128,10 @@ statement and expression dispatch tables from the patched C source. Each
 model's extra tokens that the parser accepts outside the table, such as the
 `secpath` meta alias, are listed there with their reason.
 
-The extractor reads an entry written positionally, `{ "ip", NFPROTO_IPV4 }`, or
-as a designated initializer, `{ .name = "ip", … }`. Each table has a floor
+The extractor reads an entry written positionally, `{ "ip", NFPROTO_IPV4 }`, as
+a designated initializer, `{ .name = "ip", … }`, or as a template macro call,
+`CT_TEMPLATE("state", …)`, and a plain string array such as the byte units'
+`data_unit`. Each table has a floor
 equal to its token count at the locked nixpkgs, so a missing table, or one that
 lost an entry or that the extractor no longer reads, fails the extraction.
 

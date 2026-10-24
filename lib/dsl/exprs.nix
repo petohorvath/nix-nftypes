@@ -10,7 +10,18 @@
 
 let
   compact = import ./internal/compact.nix { inherit lib; };
+  location = import ./internal/location.nix { inherit lib; };
   reference = import ./internal/reference.nix { inherit lib; };
+
+  # Throw `message` from the `expr` constructor `name`.
+  fail =
+    name:
+    location.fail (
+      location.builder [
+        "expr"
+        name
+      ]
+    );
 in
 {
   # -- Structural -----------------------------------------------------------
@@ -242,8 +253,9 @@ in
     };
 
   # -- Refined key-string expressions ---------------------------------------
-  # The pre-built field tree covers known keys with bare access; these accept
-  # any key string and its refinements (`family`, `dir`, …).
+  # The pre-built field tree covers the keys nft loads bare; these take a
+  # key with its refinements (`family`, `dir`, …), and require the ones nft
+  # needs.
 
   /*
     Reference a conntrack key with optional refinements. `key` is the
@@ -275,17 +287,19 @@ in
 
   /*
     Look up the forwarding information base. `result` is the requested
-    result (`"oif"`, `"type"`, …) and `flags` the optional lookup flags.
-    Returns a fib expression.
+    result (`"oif"`, `"type"`, …) and `flags` the lookup flags, one or a
+    list. nft needs `saddr` or `daddr` among them, so the constructor
+    throws without either. Returns a fib expression.
   */
   fib =
     {
       result,
       flags ? null,
     }:
-    {
-      fib = compact { inherit result flags; };
-    };
+    if builtins.any (flag: flag == "saddr" || flag == "daddr") (lib.toList flags) then
+      { fib = { inherit result flags; }; }
+    else
+      fail "fib" "a FIB lookup needs saddr or daddr among its flags";
 
   /*
     Reference passive OS fingerprinting data. `key` is `"name"` or
@@ -301,26 +315,31 @@ in
     };
 
   /*
-    Reference IPsec (xfrm) state. `key` is the ipsec key; `family`, `dir`,
-    and `spnum` are optional refinements. Returns an ipsec expression.
+    Reference IPsec (xfrm) state. `key` is the ipsec key and `dir` the
+    policy direction, `"in"` or `"out"`, which nft needs for every key, so
+    the constructor throws without it. `family` and `spnum` are optional
+    refinements. Returns an ipsec expression.
   */
   ipsec =
     {
       key,
-      family ? null,
       dir ? null,
+      family ? null,
       spnum ? null,
     }:
-    {
-      ipsec = compact {
-        inherit
-          key
-          family
-          dir
-          spnum
-          ;
+    if dir == null then
+      fail "ipsec" "an IPsec key needs a direction, dir = \"in\" or \"out\""
+    else
+      {
+        ipsec = compact {
+          inherit
+            key
+            family
+            dir
+            spnum
+            ;
+        };
       };
-    };
 
   # -- Binary operators -----------------------------------------------------
 

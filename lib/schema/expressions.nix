@@ -25,6 +25,7 @@ let
   inherit (primitives.types)
     comment
     ctDirection
+    ctKey
     fibFlag
     fibResult
     ipFamily
@@ -274,8 +275,8 @@ let
     ctBody = submodule {
       options = {
         key = mkOption {
-          type = types.str;
-          description = "conntrack key (e.g. \"state\", \"saddr\")";
+          type = ctKey;
+          description = "conntrack key";
         };
         family = mkOption {
           type = types.nullOr ipFamily;

@@ -140,8 +140,8 @@ generatedTests
       belowLowest = 99;
       highest = 8;
       aboveHighest = 8;
-      member = 401;
-      enum = 164;
+      member = 452;
+      enum = 193;
     };
   };
 

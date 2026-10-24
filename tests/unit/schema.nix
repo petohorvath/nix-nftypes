@@ -838,6 +838,55 @@ textDriftTests
     expected = ''{"ct":{"dir":"original","family":"ip","key":"saddr"}}'';
   };
 
+  # nft's JSON parser looks a ct key up in ct_templates (src/ct.c) and
+  # fails on any other with "Unknown ct key".
+  testCtKeyIsOneOfNftsCtKeys =
+    let
+      ctKeys = [
+        "state"
+        "direction"
+        "status"
+        "mark"
+        "expiration"
+        "helper"
+        "l3proto"
+        "saddr"
+        "daddr"
+        "protocol"
+        "proto-src"
+        "proto-dst"
+        "label"
+        "bytes"
+        "packets"
+        "avgpkt"
+        "zone"
+        "event"
+        "ip saddr"
+        "ip daddr"
+        "ip6 saddr"
+        "ip6 daddr"
+        "secmark"
+        "id"
+      ];
+      inStatement = key: {
+        match = {
+          op = "==";
+          left.ct = { inherit key; };
+          right = 1;
+        };
+      };
+    in
+    {
+      expr = lib.filter (key: helpers.validates nftlib.types.statement (inStatement key)) (
+        ctKeys
+        ++ [
+          "count"
+          "wug"
+        ]
+      );
+      expected = ctKeys;
+    };
+
   # ------------------------------------------------------------------
   # Binary AND operation (mask)
   # ------------------------------------------------------------------
@@ -885,6 +934,105 @@ textDriftTests
     };
     expected = ''{"limit":{"burst":50,"per":"second","rate":100}}'';
   };
+
+  /*
+    nft's JSON parser reads every unit but `packets` as bytes
+    (rate_to_bytes), and its text grammar takes a byte unit only as bytes,
+    kbytes, or mbytes, so each unit field takes nft's units and nothing
+    else. A rate is in packets or a byte unit; a burst, a quota, and a used
+    amount are in a byte unit.
+  */
+  testUnitFieldsTakeNftsUnits =
+    let
+      limitStatement = fields: {
+        limit = {
+          rate = 10;
+          per = "second";
+        }
+        // fields;
+      };
+      quotaStatement = fields: {
+        quota = {
+          val = 10;
+          used = 5;
+        }
+        // fields;
+      };
+      limitObject = {
+        family = "inet";
+        table = "t";
+        name = "l";
+        rate = 10;
+        per = "second";
+      };
+      accepted = {
+        statement = helpers.validates nftlib.types.statement;
+        limitObject = body: helpers.validates nftlib.types.objectBodies.limitBody (limitObject // body);
+        selectLimitObject =
+          body: helpers.validates nftlib.types.objectBodies.selectLimitBody (limitObject // body);
+      };
+      byField = {
+        limit_rate_unit =
+          unit:
+          accepted.statement (limitStatement {
+            rate_unit = unit;
+          });
+        limit_burst_unit =
+          unit:
+          accepted.statement (limitStatement {
+            burst_unit = unit;
+          });
+        quota_val_unit =
+          unit:
+          accepted.statement (quotaStatement {
+            val_unit = unit;
+          });
+        quota_used_unit =
+          unit:
+          accepted.statement (quotaStatement {
+            used_unit = unit;
+          });
+        limitObject_rate_unit = unit: accepted.limitObject { rate_unit = unit; };
+        limitObject_burst_unit = unit: accepted.limitObject { burst_unit = unit; };
+        selectLimitObject_rate_unit = unit: accepted.selectLimitObject { rate_unit = unit; };
+        selectLimitObject_burst_unit = unit: accepted.selectLimitObject { burst_unit = unit; };
+      };
+      units = [
+        "packets"
+        "bytes"
+        "kbytes"
+        "mbytes"
+        "gbytes"
+        "furlongs"
+      ];
+    in
+    {
+      expr = lib.mapAttrs (_: check: lib.filter check units) byField;
+      expected =
+        let
+          rateUnits = [
+            "packets"
+            "bytes"
+            "kbytes"
+            "mbytes"
+          ];
+          byteUnits = [
+            "bytes"
+            "kbytes"
+            "mbytes"
+          ];
+        in
+        {
+          limit_rate_unit = rateUnits;
+          limit_burst_unit = byteUnits;
+          quota_val_unit = byteUnits;
+          quota_used_unit = byteUnits;
+          limitObject_rate_unit = rateUnits;
+          limitObject_burst_unit = byteUnits;
+          selectLimitObject_rate_unit = rateUnits;
+          selectLimitObject_burst_unit = byteUnits;
+        };
+    };
 
   # ------------------------------------------------------------------
   # Counter (named reference)

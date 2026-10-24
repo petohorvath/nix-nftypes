@@ -25,6 +25,10 @@
 # `nft-safe-scalar` predicate before interpolation. The JSON path is
 # unaffected (libnftables receives literal bytes; the kernel rejects
 # unknown protocol / field / key names at the syscall layer).
+#
+# The schema types a ct key as `ctKey`, so a table tree rejects a bad
+# one before rendering; its surface is a Raw attrset, which reaches the
+# renderer unvalidated (ADR 0003).
 
 let
   inherit (nftlib) dsl;
@@ -46,6 +50,29 @@ let
         };
       })
     ];
+
+  # The same rule as a Raw attrset, which nothing validates.
+  mkRawMatchRuleset = lhs: {
+    nftables = [
+      {
+        add.rule = {
+          family = "inet";
+          table = "fw";
+          chain = "input";
+          expr = [
+            {
+              match = {
+                op = "==";
+                left = lhs;
+                right = 22;
+              };
+            }
+            { accept = null; }
+          ];
+        };
+      }
+    ];
+  };
 
   surfaces = {
     payloadProtocol =
@@ -148,7 +175,7 @@ let
       };
     ctKey =
       bad:
-      mkMatchRuleset {
+      mkRawMatchRuleset {
         ct = {
           key = bad;
         };

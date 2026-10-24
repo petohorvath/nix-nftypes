@@ -159,9 +159,9 @@ let
   # quota: str → named ref;
   # attrset → `quota [over] <val> <unit> [used <u> <unit>]`.
   # `inv = true` flips the implicit "until" to "over". Text needs each
-  # unit, and JSON's default to bytes. `val_unit` and `used_unit` are
-  # `types.str` in the schema and render bare into the output, so each
-  # flows through `safeToken` to reject parser-meta bytes that would
+  # unit, and JSON's default to bytes. `val_unit` and `used_unit` render
+  # bare into the output, and a Raw attrset can hold any string there, so
+  # each flows through `safeToken` to reject parser-meta bytes that would
   # otherwise terminate the statement.
   renderQuota =
     ctx: body:

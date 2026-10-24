@@ -25,9 +25,9 @@ let
       burst = body.burst or null;
       rateUnit = body.rate_unit or null;
       burstUnit = body.burst_unit or null;
-      # The schema accepts arbitrary strings for these bare units. Check
-      # each one, even an ignored burst unit, so parser metacharacters
-      # can't split the clause.
+      # A Raw attrset can hold any string in these bare units. Check each
+      # one, even an ignored burst unit, so parser metacharacters can't
+      # split the clause.
       checkedBurstUnit = if burstUnit == null then null else safeToken "limit burst_unit" burstUnit;
       packetRate = rateUnit == null || rateUnit == "packets";
       rate = safeToken "limit rate" body.rate;

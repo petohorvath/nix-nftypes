@@ -36,9 +36,12 @@ let
   # One token per table, each in the source and the model; G1 and G3 of
   # docs/spec-coverage.md for rtKey and fibResult.
   modelTokens = {
+    byteUnit = "kbytes";
+    ctKey = "secmark";
     expressionTag = "osf";
     family = "netdev";
     fibResult = "check";
+    limitRateUnit = "kbytes";
     metaKey = "secmark";
     rtKey = "ipsec";
     statementTag = "tproxy";
@@ -106,9 +109,12 @@ lib.mapAttrs' (
     expected = [
       "control"
       "designatedEntries"
+      "missingEntry_byteUnit"
+      "missingEntry_ctKey"
       "missingEntry_expressionTag"
       "missingEntry_family"
       "missingEntry_fibResult"
+      "missingEntry_limitRateUnit"
       "missingEntry_metaKey"
       "missingEntry_rtKey"
       "missingEntry_statementTag"

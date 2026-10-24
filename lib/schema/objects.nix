@@ -16,6 +16,7 @@ let
     ;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
+    byteUnit
     chainPolicy
     chainType
     comment
@@ -23,6 +24,7 @@ let
     family
     hook
     ifname
+    limitRateUnit
     nullLiteral
     portNumber
     setFlag
@@ -216,11 +218,9 @@ let
       description = "time unit";
     };
     rate_unit = mkOption {
-      type = types.nullOr types.str;
+      type = types.nullOr limitRateUnit;
       default = null;
-      description = ''
-        unit of rate (packets/kbytes/mbytes/…); defaults to packets
-      '';
+      description = "unit of rate; defaults to packets";
     };
     burst = mkOption {
       type = types.nullOr types.ints.unsigned;
@@ -228,9 +228,9 @@ let
       description = "burst value; defaults to 0";
     };
     burst_unit = mkOption {
-      type = types.nullOr types.str;
+      type = types.nullOr byteUnit;
       default = null;
-      description = "unit of burst; defaults to bytes";
+      description = "unit of a byte rate's burst; defaults to bytes";
     };
     inv = mkOption {
       type = types.nullOr types.bool;
