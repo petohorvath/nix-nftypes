@@ -187,7 +187,10 @@ ruleset [
               prefix = "DROP-IN: ";
               level = "info";
             })
-            (reject.icmpx "admin-prohibited")
+            (reject {
+              type = "icmpx";
+              code = "admin-prohibited";
+            })
           ]
         ];
       };
@@ -250,7 +253,7 @@ ruleset [
               "established"
               "related"
             ])
-            (flow { flowtable = "@fastpath"; })
+            (flow "fastpath")
             accept
           ]
           # Outbound from LAN

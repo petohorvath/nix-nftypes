@@ -63,8 +63,8 @@ There is no `icmpv6.packetTooBig` leaf, because nft has no such field;
 key.
 
 `expr.set` is the anonymous-set constructor; `expr.setRef` is the named-set
-reference. `expr.map` and `expr.mapRef` make the same distinction for maps.
-Both references return the `"@name"` string. Every builder that names an
+reference, the `"@name"` string `inSet` requires. `expr.map` takes an
+anonymous map body or a named map's name. Every builder that names an
 object takes the name with or without its `@`, and emits `"@name"` for a set,
 map, or flowtable and the bare name for a stateful object
 ([API reference](api.md#references-to-named-objects)).
@@ -72,8 +72,8 @@ map, or flowtable and the bare name for a stateful object
 ### Statements
 
 Every schema statement tag has either a named constructor or a raw body path.
-Common constructors are pre-built; less common variants use callable attrsets
-or `.raw`/body forms.
+Common constructors are pre-built; a variant namespace adds only the forms an
+attrset can't express, such as `counter.ref` and `counter.auto`.
 
 Three names differ deliberately:
 
@@ -84,8 +84,8 @@ Three names differ deliberately:
 The shorter names are already used: `set` and `map` by expression
 constructors, and `reset` by the `reset.<kind>` command builders.
 
-`xt` exists for read-back compatibility even though nftables rejects it as new
-JSON input.
+`xt` has no constructor
+([schema coverage](spec-coverage.md#3-read-backinput-asymmetries)).
 
 ### Declarative objects and rules
 
@@ -101,13 +101,17 @@ Expansion is deterministic:
 2. all chains, sorted by name;
 3. stateful objects, which set and map elements can name: counters, quotas,
    limits, ct helpers, ct timeouts, ct expectations, secmarks, synproxies, and
-   ct counts; then the other kinds alphabetically; then standalone elements,
-   after their set/map definitions; names remain sorted within each kind;
+   ct counts; then the other kinds alphabetically; names remain sorted within
+   each kind;
 4. rules grouped by sorted chain name and kept in source order within each
    chain.
 
 This covers dependencies expressed by the table tree. Dependencies hidden in
 raw nested bodies remain the caller's responsibility.
+
+A set or map takes its elements in its own body. The tree has no top-level
+`elements` key; `add.element` in a `dsl.ruleset` adds elements to a set
+defined elsewhere.
 
 Nesting owns scope. A `dsl.table` body's explicit `family` and `name` must
 match its positional arguments. A named object's or chain's explicit `family`,
@@ -172,6 +176,7 @@ list of elements or statements in the singular. Examples:
 | `elements`       | `elem`, in a set, map, or element body                          |
 | `statements`     | `expr` in a rule; `stmt` in a set, map, `setStmt`, or `mapStmt` |
 | `statement`      | `stmt`, in `meter`                                              |
+| `code`           | `expr`, in `reject`                                             |
 
 Each field has one spelling: a JSON spelling throws in a statement, a command
 builder, or a table tree, and points to the DSL name.

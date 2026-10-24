@@ -3,27 +3,28 @@
 
 let
   compact = import ../internal/compact.nix { inherit lib; };
+  location = import ../internal/location.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
 in
 {
   /*
     Offload the flow to a flowtable. `flowtable` is the flowtable name, with
-    or without its leading `@`, and `op` the operation, `"add"` by default.
-    Returns a flow statement referencing `"@<name>"`; throws when
-    `flowtable` is not a string.
+    or without its leading `@`. Returns a flow statement that adds the flow
+    to `"@<name>"`, nft's only flow operation. Throws for an attrset,
+    pointing to `flow "ft"`, and when `flowtable` is not a string.
   */
   flow =
-    {
-      op ? "add",
-      flowtable,
-    }:
-    {
-      flow = {
-        inherit op;
-        flowtable = reference.atReference "flow" flowtable;
+    flowtable:
+    if builtins.isAttrs flowtable then
+      location.fail (location.builder [ "flow" ]) "takes the flowtable name alone; write `flow \"ft\"`"
+    else
+      {
+        flow = {
+          op = "add";
+          flowtable = reference.atReference "flow" flowtable;
+        };
       };
-    };
 
   /*
     Apply a statement per key through a meter. `name` is the meter name,

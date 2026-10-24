@@ -17,8 +17,10 @@ in
   Recognized keys in `body`:
     Table-level options: handle, flags, comment
     Object kinds (each: name → body attrset):
-      sets, maps, elements, flowtables, counters, quotas, limits,
-      ctHelpers, ctTimeouts, ctExpectations, ctCounts, secmarks, synproxies
+      sets, maps, flowtables, counters, quotas, limits, ctHelpers,
+      ctTimeouts, ctExpectations, ctCounts, secmarks, synproxies
+    A set or map takes its elements in its own body; `add.element` adds
+    elements to one defined elsewhere.
     Chains (name → chainBody), where chainBody may contain:
       type, hook, prio, dev, policy, handle, comment, rules
     rules is a list (order-preserving); each element is either a bare list

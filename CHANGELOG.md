@@ -36,8 +36,10 @@ The schema accepts what nft loads as written and rejects what it loads as someth
   - A rule's statement list is `statements`, in `add.rule`, `insert.rule`, `replace.rule`, and a table-tree rule entry, `{ statements; index?; comment?; }`: write `statements = [ … ]` for `expr = [ … ]`. The bare-list entry, `rules = [ [ accept ] ]`, is unchanged.
   - `setStmt`, `mapStmt`, and a set or map body take `statements` for `stmt`, and `meter` takes `statement`.
   - `rename.chain` takes `newName` for `newname`.
+  - `reject` takes `code` for `expr`, the ICMP code: write `reject { type = "icmpx"; code = "admin-prohibited"; }`.
   - A JSON spelling, such as `rate_unit`, `gc-interval`, `expr`, `newname`, or `elem` in a set or map body, throws in a statement, a command builder, and a table tree alike, and points to the DSL name: ``rate_unit: is the JSON spelling; write `rateUnit` ``. An object body passed it through, so a body with both spellings dropped one value, and a statement rejected it as an unexpected argument.
 - `expr.map key data` and `expr.payload protocol field` take positional arguments, like `vmap key data`.
+- `flow` takes the flowtable name alone, with or without its `@`: write `flow "ft"` for `flow { flowtable = "ft"; }`. Its `op` had one legal value, `add`, which the statement still emits.
 - `payload`, `payloadRaw`, and `payloadTunnel` sit under `expr` with the other expression constructors: write `expr.payload "tcp" "dport"` for `payload "tcp" "dport"`.
 - `insert` and `replace` are `<verb>.<kind>` namespaces like the other verbs, `rename` included: write `insert.rule` and `replace.rule` for `insert` and `replace`. Their errors name `dsl.insert.rule` and `dsl.replace.rule`.
 - The reset statement is `resetStmt`, like `setStmt` and `mapStmt`, and `reset` holds only the `reset.<kind>` command builders: write `resetStmt (expr.tcpOption { … })` for `reset (expr.tcpOption { … })`.
@@ -65,7 +67,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `setStmt`, `mapStmt`, and `flow` take the set, map, or flowtable name with or without its `@` and store it as `"@name"`, as `expr.setRef` does. They passed the name through, so a bare name failed in JSON.
 - The set and map statement `set` and `map` fields and the flow statement `flowtable` field require the `@` reference prefix (`types.namedReference`), because nft's JSON parser rejects a reference without it.
 - Text prints a set, map, or flow statement reference as stored and refuses one without its `@`, naming the field. It added an `@` to set and map references, so `"@blocked"` rendered as `add @@blocked`.
-- `expr.setRef "name"` and `expr.mapRef "name"` return the reference string `"@name"`, the shape nft lists, which a match, a map lookup, and a `vmap` take. `expr.mapRef` returned `{ map = "@name"; }`, which nft parses nowhere, and `expr.setRef` returned `{ set = "@name"; }`.
+- `expr.setRef "name"` returns the reference string `"@name"`, the shape nft lists, which a match, a map lookup, and a `vmap` take. It returned `{ set = "@name"; }`.
 - Every builder that references a named object takes the name with or without its `@` and emits the spelling nft's JSON parser looks up there ([API reference](docs/api.md#references-to-named-objects)):
   - The `.ref` of `counter`, `quota`, `limit`, `synproxy`, and `ctCount` drops a leading `@`. It passed `"@c"` through, which names no object, so the rule failed to load with "No such file or directory".
   - `vmap` and `expr.map` add the `@` to a bare map name, which nft's JSON parser read as a hostname.
@@ -112,7 +114,12 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `compatibility.priorityIntsDefault` and `compatibility.priorityIntsBridge`. Use `compatibility.priorityIntsByFamily.<family>`, which holds the same tables.
 - `dsl.rule`. Use `add.rule`, which takes the same body.
 - `within`, a second name for `inSet`. Use `inSet`, which builds the same match.
-- `match.eq`, `match.ne`, `match.lt`, `match.gt`, `match.le`, and `match.ge`, second names for the top-level operators. Use `eq`, `ne`, `lt`, `gt`, `le`, and `ge`; `match` keeps `raw`.
+- `match.eq`, `match.ne`, `match.lt`, `match.gt`, `match.le`, and `match.ge`, second names for the top-level operators. Use `eq`, `ne`, `lt`, `gt`, `le`, and `ge`.
+- `match.raw`, and the `match` namespace with it. The top-level operators cover nft's seven match operators; for an operator computed at evaluation, write the raw `{ match = { op; left; right; }; }`, which rule validation checks.
+- `expr.mapRef`. `expr.map` and `vmap` add the `@` to a bare map name: write `expr.map key "m"` for `expr.map key (expr.mapRef "m")`. It returned `{ map = "@name"; }`, which nft parses nowhere.
+- `reject.icmp`, `reject.icmpv6`, `reject.icmpx`, and `reject.tcpReset`, second forms of `reject { type; code?; }`: write `reject { type = "icmpx"; code = "admin-prohibited"; }` for `reject.icmpx "admin-prohibited"`, and `reject { type = "tcp reset"; }` for `reject.tcpReset`.
+- `xt`, which built a statement nft rejects as JSON input. `types.statementBodies.xtBody` still types its Read-back.
+- A table tree's top-level `elements` key, which named each set twice, as `elements.s = { elements = [ … ]; }`, and block form's `table elements` Refusal with it. Give a set or map its elements in its body, as `sets.s.elements = [ … ]`, or add them to a set defined elsewhere with `add.element` in a `dsl.ruleset`.
 - `types.matchStatement`, a second name for `types.statementOf [ "match" ]`. Use `statementOf [ "match" ]`, which builds the same type.
 - `expr.meta` and `expr.socket`, second names for Field leaves: they take only a key, and `fields.meta` and `fields.socket` have a leaf for every key the schema allows. Use the leaf, such as `fields.meta.mark` for `expr.meta "mark"`.
 - The single-tag object types `types.objects.table`, `chain`, `rule`, `set`, `map`, `element`, `flowtable`, `counter`, `quota`, `ctHelper`, `limit`, `ctTimeout`, `ctExpectation`, `ctCount`, `secmark`, `synproxy`, `tunnel`, `metainfo`, and `ruleset`, so `types.objectBodies` holds bodies only, like `types.expressionBodies` and `types.statementBodies`. Use a command's object union, such as `types.addObject` or `types.readBackObject`, which takes the same tagged shapes.

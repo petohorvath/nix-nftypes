@@ -128,14 +128,14 @@ let
       ];
       msg = "sets\\.s\\.elem: is the JSON spelling; write `elements`";
     };
-    treeElementElemJsonSpelling = {
-      value = dsl.ruleset [
-        (dsl.table "inet" "t" {
-          sets.s.type = "ipv4_addr";
-          elements.s.elem = [ "192.0.2.1" ];
-        })
-      ];
-      msg = "elements\\.s\\.elem: is the JSON spelling; write `elements`";
+    addElementElemJsonSpelling = {
+      value = dsl.add.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elem = [ "192.0.2.1" ];
+      };
+      msg = "nix-nftypes: dsl\\.add\\.element: elem: is the JSON spelling; write `elements`";
     };
     addMapElemJsonSpelling = {
       value = dsl.add.map {
@@ -264,6 +264,20 @@ let
         ];
       };
       msg = "nix-nftypes: dsl\\.mapStmt: stmt: is the JSON spelling; write `statements`";
+    };
+    rejectExprJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.reject {
+            type = "icmpx";
+            expr = "admin-prohibited";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.reject: expr: is the JSON spelling; write `code`";
     };
     meterStmtJsonSpelling = {
       value = dsl.add.rule {
@@ -971,18 +985,16 @@ in
   # `setElem` (the type behind `elem`) accepts string/int/bool/list as
   # bare expressions, so we exercise the schema via a different field —
   # `family` is a strict enum, easy to violate cleanly.
-  testTreeElementBadFamilyRejected = {
+  testAddElementBadFamilyRejected = {
     expr = toJson (
-      dsl.ruleset [
-        (dsl.table "ip" "t" {
-          elements.s = {
-            family = "wireguard";
-            elements = [ "1.2.3.4" ];
-          };
-        })
-      ]
+      dsl.add.element {
+        family = "wireguard";
+        table = "t";
+        name = "s";
+        elements = [ "1.2.3.4" ];
+      }
     );
-    expectedError.msg = "elements\\.s\\.family.*is not of type";
+    expectedError.msg = "add\\.element\\.family.*is not of type";
   };
 
   # flowtable.dev must be an interface name or a list of them; pass a

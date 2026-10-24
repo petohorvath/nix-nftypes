@@ -18,9 +18,6 @@
   return = {
     return = null;
   };
-  notrack = {
-    notrack = null;
-  };
 
   /*
     Build a `jump` verdict, which evaluates another chain and then returns

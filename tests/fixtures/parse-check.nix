@@ -265,6 +265,10 @@ let
   # ruleset) for the prior state the subject refers to, and rule-context
   # overrides for DSL parity statements and expressions.
   ownContexts = {
+    "dslParity.testCmdAddElementRename".state = ''
+      add table inet t
+      add set inet t blocked { type ipv4_addr; }
+    '';
     "dslParity.testCmdAddRule".state = rulesThroughHandle ipTc 4;
     "dslParity.testCmdDeleteLimit".state = ''
       add table inet t
@@ -360,13 +364,6 @@ let
       '';
       statement = dsl.mangle { meta.key = "mark"; };
     };
-    "dslParity.testExprMapRef" = {
-      state = ''
-        add table inet t
-        add map inet t pf { type inet_service : mark; }
-      '';
-      statement = dsl.mangle { meta.key = "mark"; };
-    };
     # Its `family` selects the nexthop's address family, which an ip table
     # would contradict.
     "dslParity.testExprRtRefined" = {
@@ -428,10 +425,6 @@ let
     "dslParity.testQuotaRef".state = ''
       add table inet t
       add quota inet t q1 { 1000 bytes; }
-    '';
-    "dslParity.testRenderElementObjectRename".state = ''
-      add table inet t
-      add set inet t blocked { type ipv4_addr; }
     '';
     "dslParity.testRenderNetdevIngress".state = ''
       add table netdev guard
@@ -894,10 +887,6 @@ in
     };
     "dslParity.testSecmark" = noSelinux;
     "dslParity.testSecmarkAtName" = noSelinux;
-    "dslParity.testXt" = {
-      reason = "xt is a Read-back shape; nft refuses it as JSON input";
-      error = "unsupported xtables compat expression";
-    };
     # The kernel, not the parser, refuses it: the brace form failed with
     # "syntax error, unexpected '{'".
     "textParity.testCreateSecmarkIsPositional" = noSelinux;

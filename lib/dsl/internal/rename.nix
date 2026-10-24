@@ -11,7 +11,8 @@
        Every DSL key is camelCase, whatever separator the JSON key uses.
     2. DSL-idiom renames where the JSON key names a list of elements or
        statements in the singular (`elements` → `elem`, `statements` →
-       `expr` or `stmt`) or abbreviates a word (`statement` → `stmt`).
+       `expr` or `stmt`), abbreviates a word (`statement` → `stmt`), or
+       names something other than what it holds (`code` → `expr` in `reject`).
        These are deliberate divergences from the JSON spec — chosen so
        that list-valued body keys match the rest of the DSL (`rules`,
        `flags`, `chains`, `sets`, …), and so that a rule's statements
@@ -94,6 +95,11 @@ let
 
     renameChain = {
       newName = "newname";
+    };
+
+    # The JSON `expr` holds the ICMP code, not an expression.
+    reject = {
+      code = "expr";
     };
 
     setStmt = elementStatementRenames;

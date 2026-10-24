@@ -14,9 +14,10 @@
 
   Two callers transform the table differently:
     - `commands.nix` keys by singular (`addObjectKinds.set`), and adds
-      `table` / `chain` / `rule` itself since those aren't table-tree
-      kinds (chains live under `chains.<name>` and rules under
-      `chains.<name>.rules`, both handled by the tree expander).
+      `table` / `chain` / `rule` / `element` itself since those aren't
+      table-tree kinds (chains live under `chains.<name>` and rules under
+      `chains.<name>.rules`, both handled by the tree expander; a tree
+      gives a set or map its elements in its own body).
     - lib/table.nix keys by plural (`objectKinds.sets`), iterating each
       present plural to prepare named entries for command or block output.
 
@@ -41,12 +42,6 @@ in
     plural = "maps";
     renameBody = rename.set;
     body = objects.mapBody;
-  };
-  element = {
-    tag = "element";
-    plural = "elements";
-    renameBody = rename.element;
-    body = objects.elementBody;
   };
   flowtable = {
     tag = "flowtable";

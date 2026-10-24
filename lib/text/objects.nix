@@ -285,14 +285,11 @@ let
   */
   renderTableBlock =
     ctx: table:
-    if builtins.any (object: object.kind == "element") table.objects then
-      primitives.refuseNoTextSpelling "table elements" "nft's block grammar has no standalone `element` command. Put initial elements on the set or map definition, or use `toText`."
-    else
-      lib.concatStringsSep "\n" (
-        map (line: "${line};") (renderTableBody ctx table.body)
-        ++ map (chain: renderChainBlock ctx chain.body chain.rules) table.chains
-        ++ map (object: renderObject ctx object.kind object.body) table.objects
-      );
+    lib.concatStringsSep "\n" (
+      map (line: "${line};") (renderTableBody ctx table.body)
+      ++ map (chain: renderChainBlock ctx chain.body chain.rules) table.chains
+      ++ map (object: renderObject ctx object.kind object.body) table.objects
+    );
 
   /*
     How `renderTableBlock` treats each field of the table, chain, and rule

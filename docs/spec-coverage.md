@@ -227,7 +227,7 @@ accept the resulting ruleset. Live-parser and real-load tests remain necessary.
 `xt` is modelled because listed legacy rules can contain it, but the JSON parser
 rejects `xt` as new input and instructs callers to use `iptables-nft`. No
 Integration case can load it, so the reach check names the `xt` statement as a
-Named exclusion.
+Named exclusion. The DSL has no `xt` builder.
 
 A set or map `comment` is a Read-back shape: nft lists it, but its JSON parser
 ignores it on input, in nftables 1.1.6 and 1.1.7. The schema accepts it, JSON

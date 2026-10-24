@@ -110,18 +110,6 @@ in
     expected = "";
   };
 
-  # An empty top-level elements collection emits no standalone command and is
-  # therefore a valid no-op for both public block renderers.
-  testEmptyElementsCollectionCompact = {
-    expr = toTextBlock (dsl.table "inet" "fw" { elements = { }; });
-    expected = "";
-  };
-
-  testEmptyElementsCollectionPretty = {
-    expr = toTextBlockPretty (dsl.table "inet" "fw" { elements = { }; });
-    expected = "";
-  };
-
   # Block renderers accept only declarative table nodes. Raw commands must
   # not be silently discarded or rendered without their table context.
   testRawTableCommandRejected = {
@@ -308,43 +296,6 @@ in
       }
     );
     expectedError.msg = helpers.refusals.ifname "set element";
-  };
-
-  # Standalone `element` is an imperative command and has no legal form
-  # inside a `table ... {}` block. Block form must refuse this DSL tree
-  # instead of emitting parser-invalid `element name { ... }` text.
-  testStandaloneElementsRefusedCompact = {
-    expr = toTextBlock (
-      dsl.table "inet" "fw" {
-        sets.blocked = {
-          type = "ipv4_addr";
-        };
-        elements.blocked = {
-          elements = [ "192.0.2.1" ];
-        };
-      }
-    );
-    expectedError.msg = helpers.refusals.noTextSpelling "table elements";
-  };
-
-  testStandaloneElementsRefusedPretty = {
-    expr = toTextBlockPretty (
-      dsl.table "inet" "fw" {
-        maps.services = {
-          type = "inet_service";
-          map = "inet_service";
-        };
-        elements.services = {
-          elements = [
-            [
-              80
-              8080
-            ]
-          ];
-        };
-      }
-    );
-    expectedError.msg = helpers.refusals.noTextSpelling "table elements";
   };
 
   # ---- chain only (base chain, no rules) -----------------------------

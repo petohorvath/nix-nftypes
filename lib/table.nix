@@ -27,12 +27,9 @@ let
   # Attribute names are sorted.
   sortedNames = builtins.attrNames;
 
-  /*
-    Stateful objects come first: a set or map element can name one (a map
-    of quotas, say), and JSON and imperative text load commands in order.
-    Standalone elements come last, after their set/map definitions. The
-    other kinds keep their sorted order.
-  */
+  # Stateful objects come first: a set or map element can name one (a map
+  # of quotas, say), and JSON and imperative text load commands in order.
+  # The other kinds keep their sorted order.
   statefulObjectKindNames = [
     "counters"
     "quotas"
@@ -45,9 +42,7 @@ let
     "ctCounts"
   ];
   orderedObjectKindNames =
-    statefulObjectKindNames
-    ++ lib.subtractLists (statefulObjectKindNames ++ [ "elements" ]) (sortedNames objectKinds)
-    ++ [ "elements" ];
+    statefulObjectKindNames ++ lib.subtractLists statefulObjectKindNames (sortedNames objectKinds);
 
   # The tree owns scope. Check after schema validation so ordinary type
   # errors keep their existing paths, and matching explicit scope fields
@@ -140,7 +135,10 @@ let
         if unknownBodyKeys == [ ] then
           body
         else
-          location.fail tree "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}";
+          location.fail tree (
+            "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}"
+            + lib.optionalString (builtins.elem "elements" unknownBodyKeys) "; give a set or map its elements in its body, as `sets.<name>.elements` or `maps.<name>.elements`, or add them to a set defined elsewhere with `add.element`"
+          );
       tableOptions = builtins.intersectAttrs {
         handle = null;
         flags = null;
@@ -184,7 +182,7 @@ let
     `flags` and `comment`, then the chain and object declarations, joined
     by newlines, without the `table <family> <name> { … }` wrapper. Throws
     when `node` is not a table node; text refuses what block grammar
-    cannot spell, such as standalone `elements` entries.
+    cannot spell, such as a rule `index`.
   */
   renderTableBlock =
     pretty: node:

@@ -2,7 +2,7 @@
   Statements that do not fit the variant-namespace pattern: mangle
   (payload-field rewrite), dynamic set/map modification (setStmt, mapStmt),
   resetStmt (takes a bare expression), secmark/tunnel (`.ref` to a named
-  object), and xt (xtables bridge).
+  object), and notrack (no body).
 */
 { lib }:
 
@@ -92,10 +92,9 @@ in
   */
   tunnel = reference.referenceOnly "tunnel" "tunnel";
 
-  /*
-    Represent an xtables extension for read-back compatibility; nftables
-    rejects it as JSON input. `type` is the extension type and `name` its
-    name. Returns an xt statement.
-  */
-  xt = type: name: { xt = { inherit type name; }; };
+  # Exempt the packet from connection tracking. A statement, not a verdict:
+  # it doesn't end the rule.
+  notrack = {
+    notrack = null;
+  };
 }
