@@ -4,8 +4,7 @@
   # `nixpkgs` is the NixOS stable release consumers deploy on. The project
   # policy reruns the checks with its stable and unstable pins overriding it.
   # nftables has no independent flake input (see tests/default.nix and
-  # docs/upstream-sync.md). The development-only inputs are in dev/flake.nix,
-  # which the `dev` partition loads, so consumers do not lock them.
+  # docs/upstream-sync.md). The development-only inputs are in dev/flake.nix.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-parts = {

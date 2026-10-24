@@ -307,9 +307,7 @@ input follows `nixpkgs`. Update it separately with
 `nix flake update flake-parts`.
 
 The development-only inputs, `nix-unit` and `treefmt-nix`, are in
-`dev/flake.nix`, which the `dev` partition loads with its own lock file, so
-consumers do not lock them. The partition takes both tools' packages from
-`nixpkgs`, so the policy pins cover them too. Update the inputs with
+`dev/flake.nix`, whose header explains the split. Update them with
 `nix flake update --flake ./dev`.
 
 Before merging an input update:

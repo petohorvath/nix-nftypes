@@ -92,7 +92,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Schema submodules take only an attrset of fields: they reject a module function, a path, and a `_module` key. A path-like string such as `{ synproxy = "/sp1"; }` is a synproxy name; it was imported as a module file, which aborted evaluation.
 - The `tests` flake output comes from nix-unit's flake-parts module: the evaluation-only suites are `tests.systems.<system>.unit`, with kebab-case suite names, instead of top-level suites. Run `nix-unit --flake .#tests.systems.<system>.unit`.
 - The repo formats and lints itself through `nix fmt` and the `treefmt` check, from treefmt-nix's flake-parts module.
-- `dev/flake.nix` declares the development-only inputs, `nix-unit` and `treefmt-nix`, which the `dev` partition loads with their own lock file, `dev/flake.lock`. The flake's own inputs stay `nixpkgs` and `flake-parts`, so consumers' lock files record nothing else. The `nix-unit` check fetches the partition's inputs while it evaluates `tests`, so it builds with network access.
+- The development-only inputs, `nix-unit` and `treefmt-nix`, are in `dev/flake.nix`, with their own lock file, so consumers' lock files record neither.
 
 ### Removed
 
