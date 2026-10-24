@@ -504,13 +504,10 @@ let
     # reset statement (TCP option strip): takes a tcp option expression.
     resetBody = expr;
 
-    # The statements that attach a named object to the packet take the
-    # object's name, or a map expression that selects it.
-    ctHelperBody = expr;
-    ctTimeoutBody = expr;
-    ctExpectationBody = expr;
-    secmarkBody = expr;
-    tunnelBody = expr;
+    # ct helper, ct timeout, ct expectation, secmark, and tunnel name an
+    # object: nft parses each body into an objref statement's expression
+    # (src/parser_json.c), the object's name or a map that selects it.
+    objectRefBody = expr;
 
     /*
       Map of tag → body type. Single source of truth for the full
@@ -544,9 +541,9 @@ let
       set = setBody;
       map = mapBody;
       log = logBody;
-      "ct helper" = ctHelperBody;
-      "ct timeout" = ctTimeoutBody;
-      "ct expectation" = ctExpectationBody;
+      "ct helper" = objectRefBody;
+      "ct timeout" = objectRefBody;
+      "ct expectation" = objectRefBody;
       meter = meterBody;
       queue = queueBody;
       vmap = vmapBody;
@@ -558,8 +555,8 @@ let
       tproxy = tproxyBody;
       synproxy = synproxyBody;
       reset = resetBody;
-      secmark = secmarkBody;
-      tunnel = tunnelBody;
+      secmark = objectRefBody;
+      tunnel = objectRefBody;
     };
 
     statement = taggedUnion bodiesByTag;

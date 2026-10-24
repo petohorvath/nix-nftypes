@@ -99,10 +99,13 @@ includes the statement's reference forms. Type a tagged object, such as
 
 `types.statementBodies` holds the body of each statement tag that takes more
 than `null`, the same type `types.statement` takes for that tag:
-`statementBodies.logBody` accepts `null` as `{ log = null; }` does, and
-`ctHelperBody` takes the name of a ct helper as `{ "ct helper" = "ftp"; }`
-does. `jump` and `goto` take `verdictTargetBody`, and the tags that take only
-`null`, such as `accept` and `notrack`, take `types.nullLiteral`.
+`statementBodies.logBody` accepts `null` as `{ log = null; }` does. `ct helper`,
+`ct timeout`, `ct expectation`, `secmark`, and `tunnel` share `objectRefBody`,
+an expression: the object's name, such as `"ftp"`, or a map expression that
+selects it. `jump` and `goto` take `verdictTargetBody`, the same type as
+`types.expressionBodies.verdictTargetBody`. `accept`, `drop`, `continue`,
+`return`, and `notrack` take only `null`, so they have no body there; type
+their body with `types.nullLiteral`.
 
 Each submodule takes only an attrset of its fields. Unlike `lib.types.submodule`,
 it rejects a module function, a path, and a `_module` key, so a string in a

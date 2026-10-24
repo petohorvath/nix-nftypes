@@ -1,8 +1,9 @@
 /*
-  Every statement tag has a body under `types.statementBodies`, and that
-  body accepts exactly what the `statement` union accepts for its tag, so
-  a downstream option typed with a statement body takes every value nft
-  lists for the statement.
+  Every statement tag whose body is more than `null` has a body under
+  `types.statementBodies`, and that body accepts exactly what the
+  `statement` union accepts for its tag, so a downstream option typed with
+  a statement body takes every value nft lists for the statement. The tags
+  that take only `null` have no body there and take `types.nullLiteral`.
 */
 {
   helpers,
@@ -14,7 +15,9 @@ let
   inherit (helpers) validates;
   inherit (nftlib) types;
 
-  # The body of each statement tag, by its name in `types.statementBodies`.
+  # The body of each statement tag that takes more than `null`, by its name
+  # in `types.statementBodies`. Pinned here, not read from the schema, as
+  # `public-surface.nix` pins the exported names.
   bodyNameByTag = {
     jump = "verdictTargetBody";
     goto = "verdictTargetBody";
@@ -33,9 +36,9 @@ let
     set = "setBody";
     map = "mapBody";
     log = "logBody";
-    "ct helper" = "ctHelperBody";
-    "ct timeout" = "ctTimeoutBody";
-    "ct expectation" = "ctExpectationBody";
+    "ct helper" = "objectRefBody";
+    "ct timeout" = "objectRefBody";
+    "ct expectation" = "objectRefBody";
     meter = "meterBody";
     queue = "queueBody";
     vmap = "vmapBody";
@@ -46,12 +49,12 @@ let
     tproxy = "tproxyBody";
     synproxy = "synproxyBody";
     reset = "resetBody";
-    secmark = "secmarkBody";
-    tunnel = "tunnelBody";
+    secmark = "objectRefBody";
+    tunnel = "objectRefBody";
   };
 
-  # The tags whose only body is the JSON null, which `types.nullLiteral`
-  # types.
+  # The tags whose only body is the JSON null. They have no body under
+  # `types.statementBodies` and take `types.nullLiteral`.
   nullBodyTags = [
     "accept"
     "continue"
@@ -67,7 +70,7 @@ let
     else
       types.statementBodies.${bodyNameByTag.${tag}};
 
-  tags = builtins.attrNames (types.statement.getSubOptions [ ]);
+  tags = builtins.attrNames types.statement.functor.payload.tags;
 
   payload = {
     payload = {
@@ -166,7 +169,7 @@ let
   comparisons = lib.concatMap (tag: map (compare tag) samples) tags;
 in
 {
-  testEveryStatementTagHasABody = {
+  testEveryStatementTagHasABodyOrTakesOnlyNull = {
     expr = lib.sort lib.lessThan (builtins.attrNames bodyNameByTag ++ nullBodyTags);
     expected = tags;
   };
