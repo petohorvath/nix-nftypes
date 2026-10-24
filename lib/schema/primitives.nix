@@ -68,6 +68,18 @@ let
   };
 
   /*
+    src/statement.c data_unit[], the units nft lists a byte amount in;
+    its text grammar takes no other (data_unit_parse), and its JSON parser
+    reads any other as bytes (rate_to_bytes). Bound outside `enumValues`
+    so `limitRateUnit` can extend it.
+  */
+  byteUnit = [
+    "bytes"
+    "kbytes"
+    "mbytes"
+  ];
+
+  /*
     Source-of-truth value lists for every primitive enum. Consumed
     twice: by the `types.enum` calls below (producing `types.<name>`)
     and re-exported under `nftypes.lib.enums` via `default.nix`. A
@@ -75,15 +87,6 @@ let
     extraction suite compares the table-backed lists with the patched
     nftables source.
   */
-  # src/statement.c data_unit[], the units nft lists a byte amount in;
-  # its text grammar takes no other (data_unit_parse), and its JSON parser
-  # reads any other as bytes (rate_to_bytes).
-  byteUnit = [
-    "bytes"
-    "kbytes"
-    "mbytes"
-  ];
-
   enumValues = {
     inherit byteUnit;
 

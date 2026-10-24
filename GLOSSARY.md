@@ -46,7 +46,7 @@ A pre-built expression for a common protocol or metadata field, such as the TCP 
 _Avoid_: field (on its own), leaf (on its own)
 
 **Refinement**:
-An optional field of an expression that qualifies its key, such as a conntrack direction, an address family, or the flags of a FIB lookup. A key that nft loads only with a refinement has no Field leaf.
+A field of an expression that qualifies its key, such as a conntrack direction, an address family, or the flags of a FIB lookup. Most keys take a refinement optionally, but some require one, as every IPsec key requires a direction. A key that nft loads only with a refinement has no Field leaf.
 
 **Variant namespace**:
 A statement constructor that is callable for its common form and carries named variants for the others, such as `counter.auto` or `reject.icmpx`.

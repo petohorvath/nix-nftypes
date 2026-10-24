@@ -230,7 +230,10 @@ let
     burst_unit = mkOption {
       type = types.nullOr byteUnit;
       default = null;
-      description = "unit of a byte rate's burst; defaults to bytes";
+      description = ''
+        unit of a byte rate's burst; defaults to bytes. nft ignores it on
+        a packet-rate limit
+      '';
     };
     inv = mkOption {
       type = types.nullOr types.bool;

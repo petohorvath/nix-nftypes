@@ -31,10 +31,15 @@ import re
 import sys
 
 # Registry: table name -> how to extract its tokens from the source. Each
-# entry names the source file (relative to the tree root), the C symbol
-# holding the table, its shape, the struct member holding the token, and
-# a `floor`: the token count at the locked nixpkgs, so losing a single
-# entry fails the extraction.
+# entry has these keys:
+#   "file"    the source file, relative to the tree root
+#   "symbol"  the C symbol holding the table
+#   "shape"   how its entries are written, one of the shapes below
+#   "macro"   the template macro, for the "template" shape only
+#   "member"  the struct member holding the token, for the "pair" and
+#             "template" shapes; "designated" and "strings" take none
+#   "floor"   the token count at the locked nixpkgs, so losing a single
+#             entry fails the extraction
 #
 # Only tables that map 1:1 and unambiguously onto a model token list are
 # listed: `op_tbl` (bitwise operators; a slice of `cb_tbl`, which is
@@ -91,16 +96,10 @@ REGISTRY = {
         "member": "token",
         "floor": 24,
     },
-    # A limit's rate is in packets or a byte unit, and its burst, a
-    # quota, and a used amount in a byte unit; the model's rate units add
-    # `packets`, which the parsers test for by name.
+    # The byte units, which also check the model's limit rate units:
+    # those add `packets`, which the parsers test for by name
+    # (tests/helpers/token-drift.nix).
     "byteUnit": {
-        "file": "src/statement.c",
-        "symbol": "data_unit",
-        "shape": "strings",
-        "floor": 3,
-    },
-    "limitRateUnit": {
         "file": "src/statement.c",
         "symbol": "data_unit",
         "shape": "strings",

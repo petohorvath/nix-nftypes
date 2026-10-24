@@ -294,6 +294,8 @@ in
   fib =
     {
       result,
+      # Required; the default lets the throw below carry the
+      # `nix-nftypes: dsl.expr.fib:` prefix (ADR 0009).
       flags ? null,
     }:
     if builtins.any (flag: flag == "saddr" || flag == "daddr") (lib.toList flags) then
@@ -323,6 +325,8 @@ in
   ipsec =
     {
       key,
+      # Required; the default lets the throw below carry the
+      # `nix-nftypes: dsl.expr.ipsec:` prefix (ADR 0009).
       dir ? null,
       family ? null,
       spnum ? null,

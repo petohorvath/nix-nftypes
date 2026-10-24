@@ -51,8 +51,9 @@ let
       })
     ];
 
-  # The same rule as a Raw attrset, which nothing validates.
-  mkRawMatchRuleset = lhs: {
+  # A rule in inet fw input holding `statement`, then accept, as a Raw
+  # attrset, which nothing validates.
+  rawRule = statement: {
     nftables = [
       {
         add.rule = {
@@ -60,13 +61,7 @@ let
           table = "fw";
           chain = "input";
           expr = [
-            {
-              match = {
-                op = "==";
-                left = lhs;
-                right = 22;
-              };
-            }
+            statement
             { accept = null; }
           ];
         };
@@ -175,9 +170,11 @@ let
       };
     ctKey =
       bad:
-      mkRawMatchRuleset {
-        ct = {
-          key = bad;
+      rawRule {
+        match = {
+          op = "==";
+          left.ct.key = bad;
+          right = 22;
         };
       };
   };

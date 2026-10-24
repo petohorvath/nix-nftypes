@@ -2,9 +2,9 @@
   Compares the tokens tooling/extract-upstream-tokens.py reads from the
   patched nftables source with the model's token lists: the enums and the
   statement and expression tags. Takes the model lists and the extracted
-  tables, `{ <table> = [ <token> … ]; }`, and returns per table the tokens
-  only one side has, beyond the documented `modelOnly` extras. Every list
-  is empty when the model and the source agree.
+  tables, `{ <table> = [ <token> … ]; }`, and returns per model list the
+  tokens only one side has, beyond the documented `modelOnly` extras.
+  Every list is empty when the model and the source agree.
 */
 { lib, nftlib }:
 let
@@ -24,6 +24,17 @@ let
     expressionTag = tagsOf nftlib.types.taggedExpression;
     statementTag = tagsOf nftlib.types.statement;
   };
+
+  # The source table a model list is compared with, where it has another
+  # name: a limit's rate units are `packets` and data_unit's byte units, so
+  # both lists check the one table.
+  sourceTables = {
+    limitRateUnit = "byteUnit";
+  };
+
+  # The tables the extractor must read, one per model list without a
+  # `sourceTables` entry.
+  tables = builtins.attrNames (removeAttrs models (builtins.attrNames sourceTables));
 
   # Tokens the model accepts that the source table lacks, because the
   # parser accepts them outside the table. A token that shows up in the
@@ -51,11 +62,12 @@ let
     lib.mapAttrs (
       name: model:
       let
-        source = extracted.${name} or null;
+        table = sourceTables.${name} or name;
+        source = extracted.${table} or null;
         extras = modelOnly.${name} or [ ];
       in
       if source == null then
-        { notExtracted = name; }
+        { notExtracted = table; }
       else
         {
           missingFromModel = lib.subtractLists model source;
@@ -65,5 +77,10 @@ let
     ) models;
 in
 {
-  inherit drift models modelOnly;
+  inherit
+    drift
+    models
+    modelOnly
+    tables
+    ;
 }

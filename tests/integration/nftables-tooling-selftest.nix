@@ -25,7 +25,7 @@ let
       (lib.mapAttrs (_: test: test.expr))
     ];
 
-  inherit (helpers.tokenDrift) models;
+  inherit (helpers.tokenDrift) models tables;
   extracted = builtins.fromJSON runs.control.output;
 
   # The Drift of one table whose model list `edit` changes.
@@ -82,7 +82,7 @@ lib.mapAttrs' (
   # Every table has a run that drops one of its entries.
   testEveryTableLosesAnEntry = {
     expr = builtins.attrNames missingEntryRuns;
-    expected = builtins.attrNames models;
+    expected = tables;
   };
 
   # A renamed C table must fail loudly, not pass vacuously.
@@ -114,7 +114,6 @@ lib.mapAttrs' (
       "missingEntry_expressionTag"
       "missingEntry_family"
       "missingEntry_fibResult"
-      "missingEntry_limitRateUnit"
       "missingEntry_metaKey"
       "missingEntry_rtKey"
       "missingEntry_statementTag"

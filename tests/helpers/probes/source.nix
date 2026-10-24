@@ -120,7 +120,6 @@ let
     expressionTag."parser_json.c" = "/{ \"osf\", json_parse_osf_expr,/d";
     family."parser_json.c" = "/{ \"netdev\", NFPROTO_NETDEV }/d";
     fibResult."parser_json.c" = "/= \"check\",/d";
-    limitRateUnit."statement.c" = "/^\t\"kbytes\",$/d";
     metaKey."meta.c" = "/META_TEMPLATE(\"secmark\",/d";
     rtKey."parser_json.c" = "/{ \"ipsec\", NFT_RT_XFRM },/d";
     statementTag."parser_json.c" = "/{ \"tproxy\", json_parse_tproxy_stmt },/d";
