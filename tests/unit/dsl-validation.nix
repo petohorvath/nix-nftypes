@@ -34,20 +34,20 @@ let
     ruleFamily.chains.input.rules = [
       {
         family = "ip";
-        expr = [ dsl.accept ];
+        statements = [ dsl.accept ];
       }
     ];
     ruleTable.chains.input.rules = [
       {
         table = "other";
-        expr = [ dsl.accept ];
+        statements = [ dsl.accept ];
       }
     ];
     ruleChain.chains = {
       input.rules = [
         {
           chain = "output";
-          expr = [ dsl.accept ];
+          statements = [ dsl.accept ];
         }
       ];
       output = { };
@@ -106,31 +106,38 @@ let
       value = dsl.notInSet dsl.fields.ip.saddr "blocked";
       msg = "notInSet: .*\"blocked\".*expr\\.setRef";
     };
-    setElemAndElements = {
+    treeSetGcIntervalJsonSpelling = {
+      value = dsl.ruleset [
+        (dsl.table "inet" "t" {
+          sets.s = {
+            type = "ipv4_addr";
+            "gc-interval" = 60;
+          };
+        })
+      ];
+      msg = "nix-nftypes: dsl\\.table inet\\.t: sets\\.s\\.gc-interval: is the JSON spelling; write `gcInterval`";
+    };
+    treeSetElemJsonSpelling = {
       value = dsl.ruleset [
         (dsl.table "inet" "t" {
           sets.s = {
             type = "ipv4_addr";
             elem = [ "192.0.2.1" ];
-            elements = [ "192.0.2.2" ];
           };
         })
       ];
-      msg = "sets\\.s\\.elements: .*`elem`";
+      msg = "sets\\.s\\.elem: is the JSON spelling; write `elements`";
     };
-    elementElemAndElements = {
+    treeElementElemJsonSpelling = {
       value = dsl.ruleset [
         (dsl.table "inet" "t" {
           sets.s.type = "ipv4_addr";
-          elements.s = {
-            elem = [ "192.0.2.1" ];
-            elements = [ "192.0.2.2" ];
-          };
+          elements.s.elem = [ "192.0.2.1" ];
         })
       ];
-      msg = "elements\\.s\\.elements: .*`elem`";
+      msg = "elements\\.s\\.elem: is the JSON spelling; write `elements`";
     };
-    addMapElemAndElements = {
+    addMapElemJsonSpelling = {
       value = dsl.add.map {
         family = "inet";
         table = "t";
@@ -138,22 +145,151 @@ let
         type = "ipv4_addr";
         map = "mark";
         elem = [ ];
-        elements = [ ];
       };
-      msg = "nix-nftypes: dsl\\.add\\.map: elements: .*`elem`";
+      msg = "nix-nftypes: dsl\\.add\\.map: elem: is the JSON spelling; write `elements`";
     };
-    limitRateUnitTwice = {
-      value = dsl.ruleset [
-        (dsl.table "inet" "t" {
-          limits.l = {
+    limitJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.limit {
             rate = 10;
             per = "second";
-            rateUnit = "packets";
-            rate_unit = "bytes";
+            rate_unit = "packets";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.limit: rate_unit: is the JSON spelling; write `rateUnit`";
+    };
+    logJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [ (dsl.log { "queue-threshold" = 1; }) ];
+      };
+      msg = "nix-nftypes: dsl\\.log: queue-threshold: is the JSON spelling; write `queueThreshold`";
+    };
+    quotaJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.quota {
+            val = 1;
+            used_unit = "bytes";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.quota: used_unit: is the JSON spelling; write `usedUnit`";
+    };
+    snatJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [ (dsl.snat { type_flags = [ "prefix" ]; }) ];
+      };
+      msg = "nix-nftypes: dsl\\.snat: type_flags: is the JSON spelling; write `typeFlags`";
+    };
+    addRuleExprJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        expr = [ dsl.accept ];
+      };
+      msg = "nix-nftypes: dsl\\.add\\.rule: expr: is the JSON spelling; write `statements`";
+    };
+    treeRuleExprJsonSpelling = {
+      value = dsl.ruleset [
+        (dsl.table "inet" "t" {
+          chains.c.rules = [ { expr = [ dsl.accept ]; } ];
+        })
+      ];
+      msg = "nix-nftypes: dsl\\.table inet\\.t: chains\\.c\\.rules\\.0\\.expr: is the JSON spelling; write `statements`";
+    };
+    renameChainNewnameJsonSpelling = {
+      value = dsl.rename.chain {
+        family = "inet";
+        table = "t";
+        name = "old";
+        newname = "new";
+      };
+      msg = "nix-nftypes: dsl\\.rename\\.chain: newname: is the JSON spelling; write `newName`";
+    };
+    treeSetStmtJsonSpelling = {
+      value = dsl.ruleset [
+        (dsl.table "inet" "t" {
+          sets.s = {
+            type = "ipv4_addr";
+            stmt = [ dsl.counter.auto ];
           };
         })
       ];
-      msg = "limits\\.l\\.rateUnit: .*`rate_unit`";
+      msg = "sets\\.s\\.stmt: is the JSON spelling; write `statements`";
+    };
+    setStmtStmtJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.setStmt {
+            op = "add";
+            elem = dsl.fields.ip.saddr;
+            set = "s";
+            stmt = [ dsl.counter.auto ];
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.setStmt: stmt: is the JSON spelling; write `statements`";
+    };
+    mapStmtStmtJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.mapStmt {
+            op = "add";
+            elem = dsl.fields.ip.saddr;
+            data = 1;
+            map = "m";
+            stmt = [ dsl.counter.auto ];
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.mapStmt: stmt: is the JSON spelling; write `statements`";
+    };
+    meterStmtJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.meter {
+            name = "m";
+            key = dsl.fields.ip.saddr;
+            stmt = dsl.counter.auto;
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.meter: stmt: is the JSON spelling; write `statement`";
+    };
+    addLimitJsonSpelling = {
+      value = dsl.add.limit {
+        family = "inet";
+        table = "t";
+        name = "l";
+        rate = 10;
+        per = "second";
+        rate_unit = "packets";
+      };
+      msg = "nix-nftypes: dsl\\.add\\.limit: rate_unit: is the JSON spelling; write `rateUnit`";
     };
     tableImports = {
       value = dsl.ruleset [ (dsl.table "inet" "t" { imports = [ ]; }) ];
@@ -181,7 +317,7 @@ let
           chains.c.rules = [
             {
               imports = [ ];
-              expr = [ dsl.accept ];
+              statements = [ dsl.accept ];
             }
           ];
         })
@@ -261,7 +397,7 @@ let
   };
   /*
     A rule entry is a list of statements or a rule body with statements in
-    `expr`. A bare statement such as `dsl.drop` expanded to a rule with no
+    `statements`. A bare statement such as `dsl.drop` expanded to a rule with no
     statement, so each entry here must throw in every form, naming the
     rule's path and showing the list form.
   */
@@ -278,8 +414,8 @@ let
     synproxyAuto = dsl.synproxy.auto;
     jump = dsl.jump "other";
     emptyList = [ ];
-    emptyExpr.expr = [ ];
-    nullExpr.expr = null;
+    emptyStatements.statements = [ ];
+    nullStatements.statements = null;
     commentOnly.comment = "no statements";
     string = "/r";
   };
@@ -305,7 +441,7 @@ let
     }
   ) malformedRuleEntries;
 
-  # A rule command needs its statements in `expr`: without them, `add`,
+  # A rule command needs its statements in `statements`: without them, `add`,
   # `insert`, and `replace` rendered a rule with no statement. Each must
   # throw in JSON and text, naming the command and showing the list form.
   ruleCommandBuilders = {
@@ -314,9 +450,9 @@ let
     "replace.rule" = body: dsl.replace.rule (body // { handle = 1; });
   };
   ruleCommandBodies = {
-    noExpr = { };
-    emptyExpr.expr = [ ];
-    nullExpr.expr = null;
+    noStatements = { };
+    emptyStatements.statements = [ ];
+    nullStatements.statements = null;
   };
   ruleCommandTests = lib.concatMapAttrs (
     verb: build:
@@ -339,7 +475,7 @@ let
           form: render:
           lib.nameValuePair "testRuleCommandWithoutStatementsThrows_${verb}_${name}_${form}" {
             expr = render value;
-            expectedError.msg = "nix-nftypes: dsl\\.${lib.escapeRegex verb}: .*a list of statements.*expr = \\[ dsl\\.drop \\]";
+            expectedError.msg = "nix-nftypes: dsl\\.${lib.escapeRegex verb}: .*a list of statements.*statements = \\[ dsl\\.drop \\]";
           }
         )
         {
@@ -444,7 +580,7 @@ in
                   family = "inet";
                   table = "fw";
                   chain = "input";
-                  expr = [ dsl.accept ];
+                  statements = [ dsl.accept ];
                 }
               ];
             };
@@ -552,13 +688,13 @@ in
     expectedError.msg = "list\\.map\\.type.*is not of type";
   };
 
-  testRenameChainBadNewnameRejected = {
+  testRenameChainBadNewNameRejected = {
     expr = toJson (
       dsl.rename.chain {
         family = "ip";
         table = "t";
         name = "c";
-        newname = 42;
+        newName = 42;
       }
     );
     expectedError.msg = "rename\\.chain\\.newname.*is not of type";
@@ -639,7 +775,7 @@ in
     expectedError.msg = "destroy\\.counter\\.name' was accessed but has no value defined";
   };
 
-  testRenameChainMissingNewnameRejected = {
+  testRenameChainMissingNewNameRejected = {
     expr = toJson (
       dsl.rename.chain {
         family = "ip";
@@ -656,7 +792,7 @@ in
         family = "ip";
         table = "t";
         chain = "c";
-        expr = [ dsl.accept ];
+        statements = [ dsl.accept ];
       }
     );
     expectedError.msg = "dsl\\.replace\\.rule\\.handle' was accessed but has no value defined";
@@ -668,7 +804,7 @@ in
         family = "ip";
         table = "t";
         chain = "c";
-        expr = [ dsl.accept ];
+        statements = [ dsl.accept ];
         handle = "abc";
       }
     );
@@ -681,7 +817,7 @@ in
         family = "ip";
         table = "t";
         chain = "c";
-        expr = [ dsl.accept ];
+        statements = [ dsl.accept ];
         index = -1;
       }
     );
@@ -764,7 +900,7 @@ in
         family = "ip";
         table = "t";
         chain = "c";
-        expr = [ dsl.accept ];
+        statements = [ dsl.accept ];
         handle = 4;
       }
     );
@@ -795,7 +931,7 @@ in
           chains.c = {
             rules = [
               {
-                expr = [ dsl.accept ];
+                statements = [ dsl.accept ];
                 handle = 4;
               }
             ];

@@ -8,16 +8,9 @@ let
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
   location = import ../internal/location.nix { inherit lib; };
-in
-{
-  /*
-    Log matching packets.
+  at = location.builder [ "log" ];
 
-    `log { prefix?; group?; snaplen?; queueThreshold?; level?; flags?; }`
-    takes the optional log settings; null values are omitted, so `log { }`
-    is the log statement with every default. Returns a log statement.
-  */
-  log =
+  logInline =
     {
       prefix ? null,
       group ? null,
@@ -28,7 +21,7 @@ in
     }:
     {
       log = compact (
-        rename.log (location.builder [ "log" ]) {
+        rename.log at {
           inherit
             prefix
             group
@@ -40,4 +33,15 @@ in
         }
       );
     };
+in
+{
+  /*
+    Log matching packets.
+
+    `log { prefix?; group?; snaplen?; queueThreshold?; level?; flags?; }`
+    takes the optional log settings; null values are omitted, so `log { }`
+    is the log statement with every default. Returns a log statement.
+    Throws for `queue-threshold`, pointing to `queueThreshold`.
+  */
+  log = args: logInline (rename.checkSpelling.log at args);
 }

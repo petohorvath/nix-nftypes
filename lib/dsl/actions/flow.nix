@@ -4,6 +4,24 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
+  rename = import ../internal/rename.nix { inherit lib; };
+  location = import ../internal/location.nix { inherit lib; };
+
+  # The pattern names the DSL spellings; `meter` checks for a JSON spelling
+  # first, so it throws pointing to its DSL name.
+  meterInline =
+    {
+      name,
+      key,
+      statement,
+      size ? null,
+    }:
+    {
+      meter = compact {
+        inherit name key size;
+        stmt = statement;
+      };
+    };
 in
 {
   /*
@@ -25,27 +43,12 @@ in
     };
 
   /*
-    Apply statements per key through a meter. `name` is the meter name, `key`
-    the per-flow key expression, `stmt` the statement to apply, and `size`
-    the optional maximum entry count. Returns a meter statement.
+    Apply a statement per key through a meter. `name` is the meter name,
+    `key` the per-flow key expression, `statement` the statement to apply,
+    and `size` the optional maximum entry count. Returns a meter statement;
+    throws for `stmt`, pointing to `statement`.
   */
-  meter =
-    {
-      name,
-      key,
-      stmt,
-      size ? null,
-    }:
-    {
-      meter = compact {
-        inherit
-          name
-          key
-          stmt
-          size
-          ;
-      };
-    };
+  meter = args: meterInline (rename.checkSpelling.meter (location.builder [ "meter" ]) args);
 
   /*
     Choose a verdict by looking up a key. `key` is the lookup expression and

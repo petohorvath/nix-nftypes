@@ -10,7 +10,11 @@ let
   rename = import ../internal/rename.nix { inherit lib; };
   location = import ../internal/location.nix { inherit lib; };
 
-  natBase =
+  # A JSON spelling throws pointing to its DSL name before the pattern
+  # would reject it as an unexpected argument.
+  natBase = tag: args: natInline tag (rename.checkSpelling.nat (location.builder [ tag ]) args);
+
+  natInline =
     tag:
     args@{
       addr ? null,

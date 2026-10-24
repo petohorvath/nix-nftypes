@@ -87,8 +87,8 @@ let
       inherit body;
     };
 
-  # A rule entry is a list of statements or a rule body with them in `expr`
-  # (./dsl/internal/rule-body.nix).
+  # A rule entry is a list of statements or a rule body with them in
+  # `statements` (./dsl/internal/rule-body.nix).
   prepareRule =
     tree: scope: index: entry:
     let

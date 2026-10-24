@@ -13,7 +13,15 @@ let
   location = import ../internal/location.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
 
-  limitBase =
+  limitAt = location.builder [ "limit" ];
+  quotaAt = location.builder [ "quota" ];
+
+  # A JSON spelling throws pointing to its DSL name before the pattern
+  # would reject it as an unexpected argument.
+  limitBase = args: limitInline (rename.checkSpelling.limit limitAt args);
+  quotaBase = args: quotaInline (rename.checkSpelling.quota quotaAt args);
+
+  limitInline =
     args@{
       rate,
       per,
@@ -23,10 +31,10 @@ let
       inv ? null,
     }:
     {
-      limit = compact (rename.limit (location.builder [ "limit" ]) args);
+      limit = compact (rename.limit limitAt args);
     };
 
-  quotaBase =
+  quotaInline =
     args@{
       val,
       valUnit ? null,
@@ -35,7 +43,7 @@ let
       inv ? null,
     }:
     {
-      quota = compact (rename.quota (location.builder [ "quota" ]) args);
+      quota = compact (rename.quota quotaAt args);
     };
 in
 {

@@ -370,7 +370,7 @@ rec {
           family = "ip";
           table = "t";
           chain = "c";
-          expr = [ accept ];
+          statements = [ accept ];
         })
       ];
     }
@@ -1041,10 +1041,10 @@ rec {
                 val = 100;
                 val_unit = "kbytes";
               };
-              withStatements = stmt: elem: {
+              withStatements = statements: element: {
                 type = "ipv4_addr";
-                inherit stmt;
-                elem = [ elem ];
+                inherit statements;
+                elements = [ element ];
               };
             in
             {
@@ -1965,7 +1965,7 @@ rec {
                   (dsl.meter {
                     name = "perSource";
                     key = ip.saddr;
-                    stmt = dsl.limit {
+                    statement = dsl.limit {
                       rate = 10;
                       per = "second";
                     };
@@ -1976,7 +1976,7 @@ rec {
                     name = "perDestination";
                     size = 128;
                     key = ip.daddr;
-                    stmt = dsl.counter.auto;
+                    statement = dsl.counter.auto;
                   })
                 ]
                 (tcpRule (dsl.resetStmt (dsl.expr.tcpOption { name = "sack"; })))
@@ -2271,7 +2271,7 @@ rec {
           (dsl.insert.rule (
             ruleScope
             // {
-              expr = [
+              statements = [
                 (dsl.eq meta.mark 10)
                 accept
               ];
@@ -2281,7 +2281,7 @@ rec {
             ruleScope
             // {
               handle = 3;
-              expr = [
+              statements = [
                 (dsl.eq meta.mark 11)
                 accept
               ];
@@ -2291,7 +2291,7 @@ rec {
             ruleScope
             // {
               handle = 2;
-              expr = [
+              statements = [
                 (dsl.eq meta.mark 12)
                 drop
               ];
@@ -2395,7 +2395,7 @@ rec {
           tableScope
           // {
             name = "old";
-            newname = "renamed";
+            newName = "renamed";
           }
         ))
       ];

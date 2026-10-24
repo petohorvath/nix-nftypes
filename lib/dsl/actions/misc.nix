@@ -9,6 +9,45 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
+  rename = import ../internal/rename.nix { inherit lib; };
+  location = import ../internal/location.nix { inherit lib; };
+
+  # The pattern names the DSL spellings; `setStmt` and `mapStmt` check for
+  # a JSON spelling first, so it throws pointing to its DSL name.
+  setStmtInline =
+    {
+      op,
+      elem,
+      set,
+      statements ? null,
+    }:
+    {
+      set = compact {
+        inherit op elem;
+        stmt = statements;
+        set = reference.atReference "setStmt" set;
+      };
+    };
+
+  mapStmtInline =
+    {
+      op,
+      elem,
+      data,
+      map,
+      statements ? null,
+    }:
+    {
+      map = compact {
+        inherit
+          op
+          elem
+          data
+          ;
+        stmt = statements;
+        map = reference.atReference "mapStmt" map;
+      };
+    };
 in
 {
   /*
@@ -21,50 +60,21 @@ in
     Modify a named set from the packet path. Distinct from the anonymous set
     expression in exprs.nix. `op` is `"add"`, `"update"`, or `"delete"`,
     `elem` the element expression, `set` the set name with or without its
-    leading `@`, and `stmt` an optional statement list. Returns a set
-    statement referencing `"@<name>"`; throws when `set` is not a string.
+    leading `@`, and `statements` an optional statement list. Returns a set
+    statement referencing `"@<name>"`; throws when `set` is not a string,
+    and for `stmt`, pointing to `statements`.
   */
-  setStmt =
-    {
-      op,
-      elem,
-      set,
-      stmt ? null,
-    }:
-    {
-      set = compact {
-        inherit op elem stmt;
-        set = reference.atReference "setStmt" set;
-      };
-    };
+  setStmt = args: setStmtInline (rename.checkSpelling.setStmt (location.builder [ "setStmt" ]) args);
 
   /*
     Modify a named map from the packet path. Distinct from the map lookup
     expression in exprs.nix. `op` is the update operation, `elem` the key
     expression, `data` the value expression, `map` the map name with or
-    without its leading `@`, and `stmt` an optional statement list. Returns
-    a map statement referencing `"@<name>"`; throws when `map` is not a
-    string.
+    without its leading `@`, and `statements` an optional statement list.
+    Returns a map statement referencing `"@<name>"`; throws when `map` is
+    not a string, and for `stmt`, pointing to `statements`.
   */
-  mapStmt =
-    {
-      op,
-      elem,
-      data,
-      map,
-      stmt ? null,
-    }:
-    {
-      map = compact {
-        inherit
-          op
-          elem
-          data
-          stmt
-          ;
-        map = reference.atReference "mapStmt" map;
-      };
-    };
+  mapStmt = args: mapStmtInline (rename.checkSpelling.setStmt (location.builder [ "mapStmt" ]) args);
 
   /*
     Reset stateful data referenced by an expression, such as a TCP option.

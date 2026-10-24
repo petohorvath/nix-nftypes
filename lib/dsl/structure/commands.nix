@@ -7,23 +7,24 @@
   nft's JSON parser rejects for the verb.
 
   Usage:
-    dsl.add.rule { family; table; chain; expr; }
+    dsl.add.rule { family; table; chain; statements; }
     dsl.create.counter { family; table; name; }
     dsl.delete.chain { family; table; name; }
     dsl.destroy.set { family; table; name; }
     dsl.flush.table { family; name; }
     dsl.flush.ruleset { }                         # every family
-    dsl.insert.rule { family; table; chain; expr; }
+    dsl.insert.rule { family; table; chain; statements; }
     dsl.list.table { family; name; }
-    dsl.rename.chain { family; table; name; newname; }
-    dsl.replace.rule { family; table; chain; handle; expr; }
+    dsl.rename.chain { family; table; name; newName; }
+    dsl.replace.rule { family; table; chain; handle; statements; }
     dsl.reset.counter { family; table; name; }
 
   The reset statement is `dsl.resetStmt`, in ../actions/misc.nix.
 
-  DSL idiomatic renames (elements → elem, gcInterval → gc-interval, …) are
-  applied per kind so users never have to write hyphenated keys even in
-  command-builder positions.
+  DSL idiomatic renames (elements → elem, gcInterval → gc-interval,
+  statements → expr, …) are applied per kind so users never write a JSON
+  key, even in command-builder positions; a JSON key throws, pointing to
+  the DSL name.
 
   Every constructor runs the renamed body through the matching schema
   submodule before wrapping it in a command tag, so a type-mismatched
@@ -177,8 +178,8 @@ let
 
   /*
     The rule kind of a command that adds statements: `add`, `insert`, or
-    `replace`. `body` is the verb's rule body. A rule takes no renames; its
-    body only needs statements, like a table tree's rule entry
+    `replace`. `body` is the verb's rule body. Its body needs statements,
+    in `statements`, like a table tree's rule entry
     (../internal/rule-body.nix).
   */
   ruleCommandKind = body: {
@@ -240,13 +241,13 @@ in
   # the kind nft names: `insert rule`, `replace rule`, `rename chain`.
   # `insert` and `replace` take a rule body like `add.rule`; `replace`
   # also requires the `handle` of the rule it replaces, and `rename` the
-  # chain's `newname`.
+  # chain's `newName`.
   insert = mkNamespace "insert" { rule = ruleCommandKind objects.insertRuleBody; };
   replace = mkNamespace "replace" { rule = ruleCommandKind objects.replaceRuleBody; };
   rename = mkNamespace "rename" {
     chain = {
       tag = "chain";
-      renameBody = keyRenames.none;
+      renameBody = keyRenames.renameChain;
       body = objects.renameChainBody;
     };
   };
