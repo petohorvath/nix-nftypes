@@ -960,15 +960,11 @@ in
     };
   };
   testRejectEmptyBody = ps (dsl.reject { }) { reject = { }; };
-  # The attrset form covers each answer, so `reject` has no named variant.
-  testRejectHasNoVariants = {
-    expr = builtins.filter (name: dsl.reject ? ${name}) [
-      "icmp"
-      "icmpv6"
-      "icmpx"
-      "tcpReset"
-    ];
-    expected = [ ];
+  # The attrset form covers each answer, so `reject` is a plain function,
+  # not a variant namespace: it carries no `reject.icmpx`.
+  testRejectIsAPlainFunction = {
+    expr = builtins.isFunction dsl.reject;
+    expected = true;
   };
 
   # log — base, empty body, camelCase rename
@@ -1324,7 +1320,7 @@ in
   # `flow` takes the flowtable name; nft's only flow operation is `add`.
   testFlowAttrsetThrows = {
     expr = dsl.flow { flowtable = "ft"; };
-    expectedError.msg = "nix-nftypes: dsl\\.flow: expected a name string, got set";
+    expectedError.msg = "nix-nftypes: dsl\\.flow: takes the flowtable name alone; write `flow \"ft\"`";
   };
   testMeter =
     ps
@@ -1703,7 +1699,7 @@ in
         })
       ]
     );
-    expectedError.msg = "nix-nftypes: dsl\\.table inet\\.t: unsupported key\\(s\\): elements";
+    expectedError.msg = "nix-nftypes: dsl\\.table inet\\.t: unsupported key\\(s\\): elements; .*`sets\\.<name>\\.elements` or `maps\\.<name>\\.elements`.*`add\\.element`";
   };
 
   # Set with camelCase-aliased autoMerge (→ "auto-merge").

@@ -298,9 +298,8 @@ setStmt { op = "add"; elem = fields.ip.saddr; set = "blocked"; }
 flow "ft"
 ```
 
-The DSL has no `xt` builder: nftables lists an `xt` statement but rejects it as
-JSON input. `types.statementBodies.xtBody` types the Read-back. See
-[`spec-coverage.md`](spec-coverage.md).
+The DSL has no `xt` builder; `types.statementBodies.xtBody` types the
+Read-back ([`spec-coverage.md`](spec-coverage.md#3-read-backinput-asymmetries)).
 
 ### Declarative table tree
 
@@ -364,9 +363,9 @@ maps take `elements` and `statements` for the JSON `elem` and `stmt`, `setStmt`
 and `mapStmt` take `statements`, and a rule takes `statements` for `expr`.
 `meter` takes one `statement` for `stmt`, and `reject` takes `code` for `expr`,
 which holds the ICMP code. Other fields keep nft's word: a chain or flowtable's
-`dev` takes one device or a list. The same renames apply to
-statements, table-tree objects, and command builders, and in each a JSON
-spelling throws, pointing to the DSL name:
+`dev` takes one device or a list. The same renames apply to statements,
+table-tree objects, and command builders, and in each a JSON spelling throws,
+pointing to the DSL name:
 
 ```text
 nix-nftypes: dsl.add.limit: rate_unit: is the JSON spelling; write `rateUnit`

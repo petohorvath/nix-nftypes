@@ -586,8 +586,8 @@ rec {
     }
 
     # -- standalone elements after set ----------------------------------
-    # `add.element` adds to a set the table tree before it defines; nft
-    # reports ENOENT when the commands are reversed.
+    # `add.element` adds an element to a set that the table tree before it
+    # defines; nft reports ENOENT when the commands are reversed.
     {
       name = "standalone-elements-after-set";
       children = [

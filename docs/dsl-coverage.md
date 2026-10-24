@@ -84,11 +84,8 @@ Three names differ deliberately:
 The shorter names are already used: `set` and `map` by expression
 constructors, and `reset` by the `reset.<kind>` command builders.
 
-`notrack` takes no body, like the verdicts, but it is a statement: a `vmap`
-rejects it as data.
-
-The DSL has no `xt` builder, because nftables rejects `xt` as new JSON input;
-`types.statementBodies.xtBody` types its Read-back.
+`xt` has no constructor
+([schema coverage](spec-coverage.md#3-read-backinput-asymmetries)).
 
 ### Declarative objects and rules
 

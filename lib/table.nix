@@ -135,7 +135,10 @@ let
         if unknownBodyKeys == [ ] then
           body
         else
-          location.fail tree "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}";
+          location.fail tree (
+            "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}"
+            + lib.optionalString (builtins.elem "elements" unknownBodyKeys) "; give a set or map its elements in its body, as `sets.<name>.elements` or `maps.<name>.elements`, or add them to a set defined elsewhere with `add.element`"
+          );
       tableOptions = builtins.intersectAttrs {
         handle = null;
         flags = null;

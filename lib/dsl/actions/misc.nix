@@ -92,8 +92,8 @@ in
   */
   tunnel = reference.referenceOnly "tunnel" "tunnel";
 
-  # Exempt the packet from connection tracking. A statement, not a
-  # verdict: it doesn't end the rule, and a vmap rejects it as data.
+  # Exempt the packet from connection tracking. A statement, not a verdict:
+  # it doesn't end the rule.
   notrack = {
     notrack = null;
   };
