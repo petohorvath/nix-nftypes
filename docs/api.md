@@ -178,6 +178,9 @@ refinement has no leaf; its `expr` constructor builds it:
 | the conntrack keys `saddr`, `daddr`, `proto-src`, `proto-dst` | `dir`                            | `expr.ct { key = "saddr"; dir = "original"; }`            |
 | every IPsec key                                               | `dir`                            | `expr.ipsec { key = "reqid"; dir = "in"; }`               |
 
+`expr.fib` and `expr.ipsec` throw, naming the builder, without their
+Refinement.
+
 Use `expr.payload protocol field`, `expr.payloadRaw`, and
 `expr.payloadTunnel` when no pre-built leaf exists. The other structural and
 generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
@@ -494,8 +497,11 @@ Cleaning is not validation.
 ## Reference data
 
 `nftlib.enums.<name>` exposes the same value list used by each enum type.
-Examples include `family`, `hook`, `operator`, `metaKey`, `rtKey`, `fibResult`,
-`setFlag`, and `tunnelType`.
+Examples include `family`, `hook`, `operator`, `metaKey`, `ctKey`, `rtKey`,
+`fibResult`, `setFlag`, and `tunnelType`. `byteUnit` holds nft's byte units,
+`bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
+quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
+`rate_unit`, adds `packets`.
 
 `nftlib.compatibility` holds the static tables and the helpers that look
 placements and priorities up in them. The tables are:

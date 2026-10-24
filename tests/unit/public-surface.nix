@@ -33,12 +33,14 @@ in
     expr = builtins.attrNames types;
     expected = [
       "addObject"
+      "byteUnit"
       "chainPolicy"
       "chainType"
       "command"
       "comment"
       "createObject"
       "ctDirection"
+      "ctKey"
       "ctL3Proto"
       "deleteObject"
       "expression"
@@ -55,7 +57,7 @@ in
       "ipFamily"
       "ipsecDirection"
       "ipsecKey"
-      "limitUnit"
+      "limitRateUnit"
       "listObject"
       "logFlag"
       "logLevel"
@@ -210,9 +212,11 @@ in
   testEnumExports = {
     expr = builtins.attrNames nftlib.enums;
     expected = [
+      "byteUnit"
       "chainPolicy"
       "chainType"
       "ctDirection"
+      "ctKey"
       "ctL3Proto"
       "family"
       "fibFlag"
@@ -222,7 +226,7 @@ in
       "ipFamily"
       "ipsecDirection"
       "ipsecKey"
-      "limitUnit"
+      "limitRateUnit"
       "logFlag"
       "logLevel"
       "metaKey"

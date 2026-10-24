@@ -541,6 +541,48 @@ in
         };
       };
 
+  # A single flag is a FIB lookup flag too.
+  testExprFibSingleFlag =
+    pe
+      (dsl.expr.fib {
+        result = "type";
+        flags = "daddr";
+      })
+      {
+        fib = {
+          result = "type";
+          flags = "daddr";
+        };
+      };
+
+  # nft fails a FIB result without `saddr` or `daddr` among its flags
+  # ("fib: need either saddr or daddr").
+  testExprFibWithoutAddressFlagThrows = {
+    expr = map (flags: (builtins.tryEval (dsl.expr.fib ({ result = "oif"; } // flags))).success) [
+      { }
+      { flags = "iif"; }
+      {
+        flags = [
+          "mark"
+          "iif"
+        ];
+      }
+    ];
+    expected = [
+      false
+      false
+      false
+    ];
+  };
+
+  testExprFibWithoutAddressFlagNamesTheBuilder = {
+    expr = dsl.expr.fib {
+      result = "oif";
+      flags = [ "iif" ];
+    };
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.fib: .*saddr or daddr";
+  };
+
   testExprCtRefined =
     pe
       (dsl.expr.ct {
@@ -610,6 +652,12 @@ in
           spnum = 2;
         };
       };
+
+  # nft fails every IPsec key without a direction ("Invalid argument").
+  testExprIpsecWithoutDirThrows = {
+    expr = dsl.expr.ipsec { key = "reqid"; };
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.ipsec: .*direction";
+  };
 
   testExprElem =
     pe

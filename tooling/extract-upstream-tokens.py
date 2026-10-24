@@ -9,7 +9,9 @@ structured C tables in the selected package set's patched nftables source
 tree: the primitive enums the JSON parser reads from a table, and the
 statement and expression dispatch tables. The enum extraction suite
 (tests/integration/nftables-enum-extraction.nix) compares each table with the
-model's list; this script only reads the source.
+model's list; this script only reads the source. The byte units come from
+`data_unit`, the table nft lists them from; the JSON parser's
+`rate_to_bytes` reads the same names.
 
 Unstructured `strcmp` ladders (`operator`, `socketKey`, `osfKey`) are out
 of its reach; they are left to the corpus check and to the maintainer
@@ -29,10 +31,15 @@ import re
 import sys
 
 # Registry: table name -> how to extract its tokens from the source. Each
-# entry names the source file (relative to the tree root), the C symbol
-# holding the table, its shape, the struct member holding the token, and
-# a `floor`: the token count at the locked nixpkgs, so losing a single
-# entry fails the extraction.
+# entry has these keys:
+#   "file"    the source file, relative to the tree root
+#   "symbol"  the C symbol holding the table
+#   "shape"   how its entries are written, one of the shapes below
+#   "macro"   the template macro, for the "template" shape only
+#   "member"  the struct member holding the token, for the "pair" and
+#             "template" shapes; "designated" and "strings" take none
+#   "floor"   the token count at the locked nixpkgs, so losing a single
+#             entry fails the extraction
 #
 # Only tables that map 1:1 and unambiguously onto a model token list are
 # listed: `op_tbl` (bitwise operators; a slice of `cb_tbl`, which is
@@ -47,8 +54,11 @@ import sys
 #   "designated"    `[ENUM] = "name"` designated initializers — take each RHS
 #                   string literal; `= NULL` entries carry no string and are
 #                   skipped. (fib_result_tbl)
-#   "meta_template" `[ENUM] = META_TEMPLATE("name", …)`, or the expanded
-#                   `[ENUM] = { ..., .token = "name" }`. (meta_templates)
+#   "template"      `[ENUM] = <macro>("name", …)`, or the expanded
+#                   `[ENUM] = { ..., .token = "name" }`. (meta_templates,
+#                   ct_templates)
+#   "strings"       a string array, `{ "name", …, NULL }`: take each string
+#                   literal. (data_unit)
 REGISTRY = {
     "family": {
         "file": "src/parser_json.c",
@@ -73,9 +83,27 @@ REGISTRY = {
     "metaKey": {
         "file": "src/meta.c",
         "symbol": "meta_templates",
-        "shape": "meta_template",
+        "shape": "template",
+        "macro": "META_TEMPLATE",
         "member": "token",
         "floor": 37,
+    },
+    "ctKey": {
+        "file": "src/ct.c",
+        "symbol": "ct_templates",
+        "shape": "template",
+        "macro": "CT_TEMPLATE",
+        "member": "token",
+        "floor": 24,
+    },
+    # The byte units, which also check the model's limit rate units:
+    # those add `packets`, which the parsers test for by name
+    # (tests/helpers/token-drift.nix).
+    "byteUnit": {
+        "file": "src/statement.c",
+        "symbol": "data_unit",
+        "shape": "strings",
+        "floor": 3,
     },
     # The two JSON dispatch tables: every statement / expression tag the
     # parser routes.
@@ -97,13 +125,13 @@ REGISTRY = {
 
 
 def extract_block(text, symbol):
-    """Return the brace-delimited body of `<symbol>[] = { … }` from `text`.
+    """Return the brace-delimited body of `<symbol>[…] = { … }` from `text`.
 
     Brace-matches from the opening `{` so nested braces (struct entries) are
     handled. Raises if the table can't be found — a renamed/removed table is
     itself a drift signal worth surfacing loudly.
     """
-    m = re.search(re.escape(symbol) + r"\[\]\s*=\s*\{", text)
+    m = re.search(re.escape(symbol) + r"\[[^\]]*\]\s*=\s*\{", text)
     if not m:
         raise LookupError(f"table '{symbol}' not found (renamed or removed upstream?)")
     start = m.end() - 1  # position of the opening brace
@@ -138,10 +166,17 @@ def tokens_from_block(block, spec):
     if shape == "designated":
         # RHS string of each `[ENUM] = "name"`; `= NULL` has no match.
         return [m.group(1) for m in re.finditer(r'=\s*"([^"]*)"', block)]
-    if shape == "meta_template":
-        # First arg of each META_TEMPLATE("name", …), or a `.token` member.
-        pattern = r'META_TEMPLATE\(\s*"([^"]*)"|' + designated_member(spec["member"])
+    if shape == "template":
+        # First arg of each <macro>("name", …), or a `.token` member.
+        pattern = (
+            re.escape(spec["macro"])
+            + r'\(\s*"([^"]*)"|'
+            + designated_member(spec["member"])
+        )
         return [m.group(1) or m.group(2) for m in re.finditer(pattern, block)]
+    if shape == "strings":
+        # Each string literal; the closing NULL has none.
+        return re.findall(r'"([^"]*)"', block)
     raise ValueError(f"unknown shape '{shape}'")
 
 

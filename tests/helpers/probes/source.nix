@@ -115,6 +115,8 @@ let
   # A sed script per C file the extractor reads, deleting one entry of
   # each table.
   missingEntryEdits = {
+    byteUnit."statement.c" = "/^\t\"kbytes\",$/d";
+    ctKey."ct.c" = "/CT_TEMPLATE(\"secmark\",/d";
     expressionTag."parser_json.c" = "/{ \"osf\", json_parse_osf_expr,/d";
     family."parser_json.c" = "/{ \"netdev\", NFPROTO_NETDEV }/d";
     fibResult."parser_json.c" = "/= \"check\",/d";
@@ -124,9 +126,11 @@ let
   };
 
   # Rewrites entries as designated initializers with the token last:
-  # family_tbl's and stmt_parser_tbl's, and two meta templates, whose macro
-  # call spans two lines.
+  # family_tbl's and stmt_parser_tbl's, and two meta and two ct templates,
+  # whose macro call spans two lines.
   designatedEntryEdits = {
+    "ct.c" =
+      "/CT_TEMPLATE(\"\\(bytes\\|zone\\)\",/{N;s/CT_TEMPLATE(\\(\"[a-z]*\"\\),\\([^)]*\\))/{ .dtype = \\2, .token = \\1 }/}";
     "parser_json.c" = lib.concatStringsSep "\n" [
       "s/{ \\(\"[a-z0-9]*\"\\), \\(NFPROTO_[A-Z0-9]*\\) }/{ .val = \\2, .name = \\1 }/"
       "s/{ \\(\"[a-z ]*\"\\), \\(json_parse_[a-z_]*_stmt\\) }/{ .cb = \\2, .key = \\1 }/"
@@ -135,14 +139,13 @@ let
       "/META_TEMPLATE(\"\\(length\\|mark\\)\",/{N;s/META_TEMPLATE(\\(\"[a-z]*\"\\),\\([^)]*\\))/{ .dtype = \\2, .token = \\1 }/}";
   };
 
-  # Copies the two C files the extractor reads to `dir`/src and applies
-  # each file's sed script in `edits`, `{ <file> = <script>; }`.
+  # Copies the C files the extractor reads to `dir`/src and applies each
+  # file's sed script in `edits`, `{ <file> = <script>; }`.
   doctorSource =
     dir: edits:
     ''
       mkdir -p ${dir}/src
-      cp ${nftablesSource}/src/parser_json.c ${nftablesSource}/src/meta.c \
-        ${dir}/src/
+      cp ${nftablesSource}/src/{ct,meta,parser_json,statement}.c ${dir}/src/
       chmod +w ${dir}/src/*
     ''
     + lib.concatStrings (

@@ -68,6 +68,18 @@ let
   };
 
   /*
+    src/statement.c data_unit[], the units nft lists a byte amount in;
+    its text grammar takes no other (data_unit_parse), and its JSON parser
+    reads any other as bytes (rate_to_bytes). Bound outside `enumValues`
+    so `limitRateUnit` can extend it.
+  */
+  byteUnit = [
+    "bytes"
+    "kbytes"
+    "mbytes"
+  ];
+
+  /*
     Source-of-truth value lists for every primitive enum. Consumed
     twice: by the `types.enum` calls below (producing `types.<name>`)
     and re-exported under `nftypes.lib.enums` via `default.nix`. A
@@ -76,6 +88,12 @@ let
     nftables source.
   */
   enumValues = {
+    inherit byteUnit;
+
+    # A limit's `rate_unit`: `packets`, which json_parse_limit_stmt tests
+    # for before reading the rate as bytes, or a byte unit.
+    limitRateUnit = [ "packets" ] ++ byteUnit;
+
     family = [
       "ip"
       "ip6"
@@ -297,6 +315,34 @@ let
       "reply"
     ];
 
+    # src/ct.c ct_templates[], the keys json_parse_ct_expr looks up.
+    ctKey = [
+      "state"
+      "direction"
+      "status"
+      "mark"
+      "expiration"
+      "helper"
+      "l3proto"
+      "saddr"
+      "daddr"
+      "protocol"
+      "proto-src"
+      "proto-dst"
+      "label"
+      "bytes"
+      "packets"
+      "avgpkt"
+      "zone"
+      "event"
+      "ip saddr"
+      "ip daddr"
+      "ip6 saddr"
+      "ip6 daddr"
+      "secmark"
+      "id"
+    ];
+
     numgenMode = [
       "inc"
       "random"
@@ -358,11 +404,6 @@ let
       "match"
       "target"
       "watcher"
-    ];
-
-    limitUnit = [
-      "packets"
-      "bytes"
     ];
 
     timeUnit = [

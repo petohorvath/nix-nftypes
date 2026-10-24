@@ -123,15 +123,18 @@ It does not prove that every parser branch appears in the corpus.
 `integration-nftables-enum-extraction` runs
 `tooling/extract-upstream-tokens.py`, which reads selected enum tables and the
 statement and expression dispatch tables from the patched C source. Each
-`testEnumDrift_<table>` test compares one table with the model's list
+`testEnumDrift_<list>` test compares one model token list with its table
 (`tests/helpers/token-drift.nix`) and fails on a token only one side has. The
+byte units and a limit's rate units both check the `data_unit` table. The
 model's extra tokens that the parser accepts outside the table, such as the
 `secpath` meta alias, are listed there with their reason.
 
-The extractor reads an entry written positionally, `{ "ip", NFPROTO_IPV4 }`, or
-as a designated initializer, `{ .name = "ip", … }`. Each table has a floor
-equal to its token count at the locked nixpkgs, so a missing table, or one that
-lost an entry or that the extractor no longer reads, fails the extraction.
+The extractor reads a struct entry written positionally,
+`{ "ip", NFPROTO_IPV4 }`, as a designated initializer, `{ .name = "ip", … }`,
+or as a template macro call, `CT_TEMPLATE("state", …)`. It also reads a plain
+string array, such as the byte units' `data_unit`. Each table has a floor equal
+to its token count at the locked nixpkgs, so a missing table, or one that lost
+an entry or that the extractor no longer reads, fails the extraction.
 
 Conditional string branches and constructs outside the extractor still require
 manual review or corpus/live coverage.

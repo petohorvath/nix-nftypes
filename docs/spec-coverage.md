@@ -188,11 +188,10 @@ Some parser conditions depend on large lookup tables or relationships between
 fields. The schema checks useful local types but leaves the final condition to
 `nft`:
 
-- `ct.key` is a string, and whether `ct.dir` is legal depends on that key;
+- whether `ct.dir` is legal depends on `ct.key`;
 - FIB flags have parser-level mutual-exclusion rules;
 - tunnel source and destination fields must form one same-family pair;
-- set/map datatypes and several unit names are strings rather than exhaustive
-  enums;
+- set/map datatypes are strings rather than exhaustive enums;
 - `mangle.key` and the `reset` statement accept broader expression shapes than
   the parser, while `concat` does not enforce its minimum of two operands;
 - tunnel `type` and its nested tunnel-parameter body are typed independently,

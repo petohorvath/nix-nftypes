@@ -6,114 +6,96 @@
 }:
 
 # Regression coverage for the limit/quota unit-name injection class.
-# `limit` and `quota` carry `rate_unit`, `burst_unit`, `val_unit`,
-# `used_unit` fields typed `types.str` in the schema (`rateUnit`, … in
-# the DSL). The renderer
-# emitted each bare into the surrounding clause:
+# `limit` and `quota` carry `rate_unit`, `burst_unit`, `val_unit`, and
+# `used_unit` fields (`rateUnit`, … in the DSL), which the renderer emits
+# bare into the surrounding clause:
 #
 #   limit rate <N> <rate_unit>/<per> burst <N> <burst_unit>
 #   quota [over] <N> <val_unit> used <N> <used_unit>
 #
-# A value carrying a newline + `add chain …` truncated the clause and
-# dropped a fresh chain into the rendered file — accepted by `nft -f`
-# as a real chain at attacker-chosen priority.
+# When the schema typed them `types.str`, a value carrying a newline +
+# `add chain …` truncated the clause and dropped a fresh chain into the
+# rendered file — accepted by `nft -f` as a real chain at
+# attacker-chosen priority.
 #
-# Limit statements, named objects, and positional `create` commands share
-# lib/text/limit.nix. Limit and quota units pass through `safeToken` /
-# the shared `nft-safe-scalar` predicate.
+# The schema now takes only nft's units (`limitRateUnit`, `byteUnit`),
+# so each surface below is a Raw attrset, which reaches the renderer
+# unvalidated (ADR 0003). Limit statements, named objects, and
+# positional `create` commands share lib/text/limit.nix. Limit and quota
+# units pass through `safeToken` / the shared `nft-safe-scalar`
+# predicate.
 
 let
-  inherit (nftlib) dsl toTextPretty;
+  inherit (nftlib) toTextPretty;
+
+  # A rule in inet fw input holding `statement`, then accept.
+  rawRule = statement: {
+    nftables = [
+      {
+        add.rule = {
+          family = "inet";
+          table = "fw";
+          chain = "input";
+          expr = [
+            statement
+            { accept = null; }
+          ];
+        };
+      }
+    ];
+  };
 
   rulesetLimitStmt =
     field: value:
-    dsl.ruleset [
-      (dsl.table "inet" "fw" {
-        chains.input = {
-          type = "filter";
-          hook = "input";
-          prio = 0;
-          rules = [
-            [
-              (dsl.limit (
-                {
-                  rate = 1;
-                  per = "second";
-                  burst = 5;
-                }
-                // {
-                  ${field} = value;
-                }
-              ))
-              dsl.accept
-            ]
-          ];
-        };
-      })
-    ];
+    rawRule {
+      limit = {
+        rate = 1;
+        per = "second";
+        burst = 5;
+        ${field} = value;
+      };
+    };
 
   rulesetQuotaStmt =
     field: value:
-    dsl.ruleset [
-      (dsl.table "inet" "fw" {
-        chains.input = {
-          type = "filter";
-          hook = "input";
-          prio = 0;
-          rules = [
-            [
-              (dsl.quota (
-                {
-                  val = 100;
-                  used = 50;
-                }
-                // {
-                  ${field} = value;
-                }
-              ))
-              dsl.accept
-            ]
-          ];
-        };
-      })
-    ];
+    rawRule {
+      quota = {
+        val = 100;
+        used = 50;
+        ${field} = value;
+      };
+    };
 
-  rulesetLimitObject =
-    field: value:
-    dsl.ruleset [
-      (dsl.table "inet" "fw" {
-        limits.fast = {
+  # The named limit `fast`, added or created.
+  rawLimitObject = verb: field: value: {
+    nftables = [
+      {
+        ${verb}.limit = {
+          family = "inet";
+          table = "fw";
+          name = "fast";
           rate = 10;
           per = "second";
           burst = 5;
           ${field} = value;
         };
-      })
+      }
     ];
+  };
 
-  rulesetCreateLimit =
-    field: value:
-    dsl.ruleset [
-      (dsl.create.limit {
-        family = "inet";
-        table = "fw";
-        name = "fast";
-        rate = 10;
-        per = "second";
-        burst = 5;
-        ${field} = value;
-      })
-    ];
+  rulesetLimitObject = rawLimitObject "add";
+
+  rulesetCreateLimit = rawLimitObject "create";
 
   surfaces = {
-    limitStmt_rate_unit = rulesetLimitStmt "rateUnit";
-    limitStmt_burst_unit = rulesetLimitStmt "burstUnit";
-    quotaStmt_val_unit = rulesetQuotaStmt "valUnit";
-    quotaStmt_used_unit = rulesetQuotaStmt "usedUnit";
-    limitObject_rate_unit = rulesetLimitObject "rateUnit";
-    limitObject_burst_unit = rulesetLimitObject "burstUnit";
-    createLimit_rate_unit = rulesetCreateLimit "rateUnit";
-    createLimit_burst_unit = rulesetCreateLimit "burstUnit";
+    limitStmt_rate_unit = rulesetLimitStmt "rate_unit";
+    limitStmt_burst_unit = rulesetLimitStmt "burst_unit";
+    quotaStmt_val_unit = rulesetQuotaStmt "val_unit";
+    quotaStmt_used_unit = rulesetQuotaStmt "used_unit";
+    limitObject_rate_unit = rulesetLimitObject "rate_unit";
+    limitObject_burst_unit = rulesetLimitObject "burst_unit";
+    createLimit_rate_unit = rulesetCreateLimit "rate_unit";
+    createLimit_burst_unit = rulesetCreateLimit "burst_unit";
   };
 
   # Field label each surface's renderer names in its refusal.
@@ -178,15 +160,15 @@ let
 
   prettyTests = {
     testPrettyRejects_limitStmt_rate_unit_newline = {
-      expr = toTextPretty (rulesetLimitStmt "rateUnit" badInputs.newline);
+      expr = toTextPretty (rulesetLimitStmt "rate_unit" badInputs.newline);
       expectedError.msg = refusal "limit rate_unit";
     };
     testPrettyRejects_limitObject_burst_unit_newline = {
-      expr = toTextPretty (rulesetLimitObject "burstUnit" badInputs.newline);
+      expr = toTextPretty (rulesetLimitObject "burst_unit" badInputs.newline);
       expectedError.msg = refusal "limit burst_unit";
     };
     testPrettyRejects_createLimit_burst_unit_newline = {
-      expr = toTextPretty (rulesetCreateLimit "burstUnit" badInputs.newline);
+      expr = toTextPretty (rulesetCreateLimit "burst_unit" badInputs.newline);
       expectedError.msg = refusal "limit burst_unit";
     };
   };
