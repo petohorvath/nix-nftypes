@@ -120,7 +120,7 @@ in
         name = "fw";
       };
     };
-    expectedError.msg = "nix-nftypes: text: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "nix-nftypes: toTextBlock: block-form text rendering expects one dsl\\.table node";
   };
 
   testRawChainCommandRejectedPretty = {
@@ -131,14 +131,14 @@ in
         name = "input";
       };
     };
-    expectedError.msg = "nix-nftypes: text: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "nix-nftypes: toTextBlockPretty: block-form text rendering expects one dsl\\.table node";
   };
 
   # Assertions cross the public table interface. The old internal command
   # envelope and its partition/regroup protocol no longer exist.
   testRulesetEnvelopeRejected = {
     expr = toTextBlock (dsl.ruleset [ (dsl.table "inet" "fw" { }) ]);
-    expectedError.msg = "nix-nftypes: text: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "nix-nftypes: toTextBlock: block-form text rendering expects one dsl\\.table node";
   };
 
   testTableListRejectedPretty = {
@@ -146,7 +146,7 @@ in
       (dsl.table "inet" "fw" { })
       (dsl.table "inet" "other" { })
     ];
-    expectedError.msg = "nix-nftypes: text: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "nix-nftypes: toTextBlockPretty: block-form text rendering expects one dsl\\.table node";
   };
 
   testUnknownTableKeyRejected = {

@@ -19,6 +19,7 @@ let
   ruleBody = import ./dsl/internal/rule-body.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
   tableTreeMarker = import ./table-tree-marker.nix { };
+  fail = import ./fail.nix { };
   objectKindRegistry = import ./dsl/structure/object-kinds.nix { inherit lib objects; };
   objectKinds = lib.mapAttrs' (
     _: cfg: lib.nameValuePair cfg.plural (removeAttrs cfg [ "plural" ])
@@ -197,24 +198,30 @@ let
     ++ lib.concatMap (chain: map (add "rule") chain.rules) table.chains;
 
   /*
-    Render one `dsl.table` node's contents in block form. `pretty` selects
-    multi-line output and `node` is the table node. Returns the table's
-    `flags` and `comment`, then the chain and object declarations, joined
-    by newlines, without the `table <family> <name> { … }` wrapper. Throws
-    when `node` is not a table node; text refuses what block grammar
-    cannot spell, such as a rule `index`.
+    Render one `dsl.table` node's contents in block form. `api` names the
+    renderer in errors, `pretty` selects multi-line output, and `node` is
+    the table node. Returns the table's `flags` and `comment`, then the
+    chain and object declarations, joined by newlines, without the
+    `table <family> <name> { … }` wrapper. Throws when `node` is not a
+    table node; text refuses what block grammar cannot spell, such as a
+    rule `index`.
   */
   renderTableBlock =
-    pretty: node:
+    api: pretty:
+    let
+      # Bound before `node`, so each renderer builds its text modules once.
+      render = text.renderTableBlock api pretty;
+    in
+    node:
     if !(tableTreeMarker.isTableTree node) then
-      throw "nix-nftypes: text: block-form text rendering expects one dsl.table node"
+      fail api "block-form text rendering expects one dsl.table node"
     else
       let
         table = prepareTable node;
       in
       # Validate even an empty table's omitted wrapper fields. Construction
       # stays lazy; validation is forced when the rendered string is needed.
-      builtins.deepSeq table.body (text.renderTableBlock pretty table);
+      builtins.deepSeq table.body (render table);
 in
 {
   inherit expandTable;
@@ -225,7 +232,7 @@ in
     `networking.nftables.tables.<name>.content`. Takes the table node and
     returns compact block-form text; see `renderTableBlock` for failures.
   */
-  toTextBlock = renderTableBlock false;
+  toTextBlock = renderTableBlock "toTextBlock" false;
 
   /*
     Multi-line variant of `toTextBlock`, for readable generated
@@ -233,5 +240,5 @@ in
     each statement on its own indented line; see `renderTableBlock` for
     failures.
   */
-  toTextBlockPretty = renderTableBlock true;
+  toTextBlockPretty = renderTableBlock "toTextBlockPretty" true;
 }

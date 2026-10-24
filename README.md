@@ -89,7 +89,6 @@ The [`examples`](examples) directory holds longer rulesets, each a function of `
 | `toTextPretty`      | multi-line imperative nftables text | `nft -f`                                       |
 | `toTextBlock`       | compact block form of one table     | a host that supplies the `table { … }` wrapper |
 | `toTextBlockPretty` | multi-line block form of one table  | a host that supplies the `table { … }` wrapper |
-| `toNix`             | Nix syntax for inspection           | people, not `nft`                              |
 
 [`docs/api.md`](docs/api.md) documents every renderer, the schema types, the DSL, and the compatibility helpers. [`GLOSSARY.md`](GLOSSARY.md) defines the project's terms.
 
@@ -119,7 +118,7 @@ networking.nftables = {
 
 ## Validate hand-written rulesets
 
-The DSL validates every object, chain, and rule it assembles when output is requested. The renderers do not validate: they clean and render whatever they receive. A raw attrset, whether rendered directly or passed among the commands of `dsl.ruleset`, reaches the output unchecked.
+The DSL validates every object, chain, and rule it assembles when output is requested. The renderers do not validate: they clean and render whatever ruleset or table tree they receive. A raw attrset, whether rendered directly or passed among the commands of `dsl.ruleset`, reaches the output unchecked.
 
 Validate raw values that come from users or other modules with `nftlib.validate`, before rendering them:
 

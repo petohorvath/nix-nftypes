@@ -41,6 +41,7 @@ let
   # DSL-key → JSON-key renames; distinct from the `rename` command below.
   keyRenames = import ../internal/rename.nix { inherit lib; };
   ruleBody = import ../internal/rule-body.nix { inherit lib; };
+  compact = import ../internal/compact.nix { inherit lib; };
   inherit (import ../internal/location.nix { inherit lib; }) builder;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
@@ -201,7 +202,9 @@ let
     Returns `{ <dslKey> = body: { <command> = { <jsonTag> = validated; }; };
     … }`. Each builder takes the object body with DSL spellings, renames it,
     and validates it against the kind's schema body; errors name the
-    builder (`dsl.create.chain.prio`).
+    builder (`dsl.create.chain.prio`). Like a table tree's bodies, the
+    command holds only the fields given, without a `null` for an unset or
+    null field.
   */
   mkNamespace =
     command: kinds:
@@ -212,9 +215,11 @@ let
           command
           kind
         ];
+        renamed = cfg.renameBody location userBody;
         validated = validate {
           type = cfg.body;
-          value = cfg.renameBody location userBody;
+          # A flush.ruleset body renames to the JSON null.
+          value = if builtins.isAttrs renamed then compact renamed else renamed;
           inherit location;
         };
       in

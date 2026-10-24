@@ -1,7 +1,8 @@
 /*
-  Render-time value cleaning shared by the JSON renderer (lib/json) and the
-  text renderer (lib/text). Both call it once at their entry point so nested
-  renderers can trust that their input is already clean.
+  Render-time value cleaning shared by every renderer: ./prepare-ruleset.nix
+  cleans the ruleset of `toJson`, `toText`, and `toTextPretty`, and the text
+  renderer (lib/text) a block-form table. Each cleans once at its entry
+  point, so nested renderers can trust that their input is already clean.
 */
 { lib }:
 

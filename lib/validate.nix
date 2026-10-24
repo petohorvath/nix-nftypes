@@ -14,12 +14,14 @@
 
   # Returns
 
-  The evaluated value, with option defaults filled in. Cleaning removes
-  the unset ones again when the value is rendered.
+  `value` unchanged. An option it leaves unset stays absent rather than
+  taking its `null` default, or the empty list for a rule's `expr`, which
+  the renderers fill. No schema type transforms its value, so the check
+  adds nothing else.
 
-  Submodule checks are lazy, so the result is forced in full before it is
-  returned: every check runs, however deep. A mismatch throws the module
-  system's error, whose option path starts with `validate`.
+  Submodule checks are lazy, so the checked value is forced in full before
+  `value` is returned: every check runs, however deep. A mismatch throws
+  the module system's error, whose option path starts with `validate`.
 */
 type: value:
 let
@@ -36,4 +38,4 @@ let
       ];
     }).config.validate;
 in
-builtins.deepSeq checked checked
+builtins.deepSeq checked value

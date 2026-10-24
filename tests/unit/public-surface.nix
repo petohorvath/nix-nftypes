@@ -14,12 +14,10 @@ in
   testTopLevelExports = {
     expr = builtins.attrNames nftlib;
     expected = [
-      "cleanValue"
       "compatibility"
       "dsl"
       "enums"
       "toJson"
-      "toNix"
       "toText"
       "toTextBlock"
       "toTextBlockPretty"
@@ -366,57 +364,5 @@ in
       "tcpOption"
       "tcpOptionRaw"
     ];
-  };
-
-  # toNix is a diagnostic formatter: cleaned (no unset nulls, no markers,
-  # tagged nulls kept) and one binding per line.
-  testToNixPrintsCleanedValueOneBindingPerLine = {
-    expr = nftlib.toNix {
-      nftables = [
-        {
-          add.table = {
-            family = "inet";
-            name = "t";
-            comment = null;
-            _type = "marker";
-          };
-        }
-        {
-          add.rule = {
-            family = "inet";
-            table = "t";
-            chain = "c";
-            expr = [ { accept = null; } ];
-          };
-        }
-      ];
-    };
-    expected = ''
-      {
-        nftables = [
-          {
-            add = {
-              table = {
-                family = "inet";
-                name = "t";
-              };
-            };
-          }
-          {
-            add = {
-              rule = {
-                chain = "c";
-                expr = [
-                  {
-                    accept = null;
-                  }
-                ];
-                family = "inet";
-                table = "t";
-              };
-            };
-          }
-        ];
-      }'';
   };
 }

@@ -10,6 +10,23 @@ let
   inherit (helpers) roundtrip;
   inherit (nftlib) toJson;
 
+  # A rule whose verdict carries a library's `_type` marker.
+  markedVerdictRuleset.nftables = [
+    {
+      add.rule = {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        expr = [
+          {
+            drop = null;
+            _type = "x.y";
+          }
+        ];
+      };
+    }
+  ];
+
   # A stateful-object reference selected by destination port.
   portMapReference.map = {
     key.payload = {
@@ -2501,36 +2518,35 @@ textDriftTests
     expected = ''{"nftables":[]}'';
   };
 
-  testCleanStripsTypeArbitraryAttrset = {
+  # Cleaning reaches every command: an unset field's `null` and a marker
+  # never render.
+  testCleanStripsTypeAndNullsInCommands = {
     expr = toJson {
-      _type = "x.y";
-      foo = 1;
-    };
-    expected = ''{"foo":1}'';
-  };
-
-  # A marker doesn't hide the null sentinel: a marked verdict stays a
-  # verdict instead of becoming `{}`.
-  testCleanKeepsMarkedVerdict = {
-    expr = nftlib.cleanValue {
-      accept = null;
-      _type = "x.y";
-    };
-    expected = {
-      accept = null;
-    };
-  };
-
-  testCleanKeepsMarkedVerdictInRule = {
-    expr = toJson {
-      expr = [
+      nftables = [
         {
-          drop = null;
           _type = "x.y";
+          add.table = {
+            _type = "x.z";
+            family = "inet";
+            name = "t";
+            comment = null;
+          };
         }
       ];
     };
-    expected = ''{"expr":[{"drop":null}]}'';
+    expected = "{\"nftables\":[{\"add\":{\"table\":{\"family\":\"inet\",\"name\":\"t\"}}}]}";
+  };
+
+  # A marker doesn't hide the null sentinel: a marked verdict stays a
+  # verdict instead of becoming `{}`, in JSON and in text.
+  testCleanKeepsMarkedVerdictInRule = {
+    expr = toJson markedVerdictRuleset;
+    expected = "{\"nftables\":[{\"add\":{\"rule\":{\"chain\":\"c\",\"expr\":[{\"drop\":null}],\"family\":\"inet\",\"table\":\"t\"}}}]}";
+  };
+
+  testCleanKeepsMarkedVerdictInText = {
+    expr = nftlib.toText markedVerdictRuleset;
+    expected = "add rule inet t c drop";
   };
 
   # ------------------------------------------------------------------

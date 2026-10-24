@@ -11,6 +11,7 @@
   reference (a name or a map selecting one) or an inline body.
 */
 {
+  fail,
   lib,
   context,
   primitives,
@@ -588,19 +589,19 @@ let
   renderStatement =
     ctx: v:
     if !(builtins.isAttrs v) then
-      throw "nix-nftypes: text: statement must be an attrset, got ${builtins.typeOf v}"
+      fail "statement must be an attrset, got ${builtins.typeOf v}"
     else
       let
         names = builtins.attrNames v;
       in
       if builtins.length names != 1 then
-        throw "nix-nftypes: text: statement must have exactly one tag, got [${lib.concatStringsSep ", " names}]"
+        fail "statement must have exactly one tag, got [${lib.concatStringsSep ", " names}]"
       else
         let
           tag = builtins.head names;
         in
         if !(taggedRenderers ? ${tag}) then
-          throw "nix-nftypes: text: no renderer for tag '${tag}'"
+          fail "no renderer for tag '${tag}'"
         else
           taggedRenderers.${tag} ctx v.${tag};
 
