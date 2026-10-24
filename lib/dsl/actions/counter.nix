@@ -3,11 +3,11 @@
   anonymous counter, a reference to a named counter, and the null form
   (e.g. `nft -j list --stateless`).
 */
-{ lib }:
+{ lib, statement }:
 
 let
+  inherit (import ../internal/location.nix { inherit lib; }) fail;
   variant = import ../internal/variant.nix { inherit lib; };
-  reference = import ../internal/reference.nix { inherit lib; };
 in
 {
   /*
@@ -19,26 +19,23 @@ in
     object: `ref` is its name, with or without a leading `@`, or a map
     expression that selects one by key. `counter.auto` is the null form
     `{ counter = null; }`, an unseeded counter. Each returns a counter
-    statement.
+    statement, and throws when its body doesn't validate.
   */
   counter =
     variant
-      (
-        {
-          packets ? null,
-          bytes ? null,
-        }:
-        if packets == null || bytes == null then
-          throw "nix-nftypes: dsl.counter: an inline counter needs both packets and bytes; use counter.auto for an unseeded counter"
-        else
-          {
-            counter = { inherit packets bytes; };
-          }
-      )
+      (statement.fromFields {
+        name = "counter";
+        prepare =
+          location: body:
+          if body ? packets && body ? bytes then
+            body
+          else
+            fail location "an inline counter needs both packets and bytes; use counter.auto for an unseeded counter";
+      })
       {
         auto = {
           counter = null;
         };
-        ref = ref: { counter = reference.objectReference "counter.ref" ref; };
+        ref = statement.ref { name = "counter"; };
       };
 }

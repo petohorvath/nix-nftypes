@@ -13,15 +13,16 @@ let
   location = import ./internal/location.nix { inherit lib; };
   reference = import ./internal/reference.nix { inherit lib; };
 
-  # Throw `message` from the `expr` constructor `name`.
-  fail =
+  # The location of the `expr` constructor `name`.
+  exprBuilder =
     name:
-    location.fail (
-      location.builder [
-        "expr"
-        name
-      ]
-    );
+    location.builder [
+      "expr"
+      name
+    ];
+
+  # Throw `message` from the `expr` constructor `name`.
+  fail = name: location.fail (exprBuilder name);
 in
 {
   # -- Structural -----------------------------------------------------------
@@ -56,7 +57,7 @@ in
     named references. Returns the reference string `"@<name>"`, the shape
     nft lists, and throws when `name` is not a string.
   */
-  setRef = reference.atReference "expr.setRef";
+  setRef = reference.atReference (exprBuilder "setRef");
 
   /*
     Build a map lookup. `key` is the lookup expression and `data` the
@@ -66,7 +67,7 @@ in
   map = key: data: {
     map = {
       inherit key;
-      data = if builtins.isString data then reference.atReference "expr.map" data else data;
+      data = if builtins.isString data then reference.atReference (exprBuilder "map") data else data;
     };
   };
 

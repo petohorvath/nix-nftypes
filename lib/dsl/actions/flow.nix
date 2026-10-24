@@ -1,11 +1,9 @@
 # Flow-offload, meter, and verdict-map statements.
-{ lib }:
+{ lib, statement }:
 
 let
-  compact = import ../internal/compact.nix { inherit lib; };
   location = import ../internal/location.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
-  rename = import ../internal/rename.nix { inherit lib; };
 in
 {
   /*
@@ -15,52 +13,39 @@ in
     pointing to `flow "ft"`, and when `flowtable` is not a string.
   */
   flow =
+    let
+      flowLocation = location.builder [ "flow" ];
+    in
     flowtable:
     if builtins.isAttrs flowtable then
-      location.fail (location.builder [ "flow" ]) "takes the flowtable name alone; write `flow \"ft\"`"
+      location.fail flowLocation "takes the flowtable name alone; write `flow \"ft\"`"
     else
-      {
-        flow = {
-          op = "add";
-          flowtable = reference.atReference "flow" flowtable;
-        };
+      statement.tagged { name = "flow"; } {
+        op = "add";
+        flowtable = reference.atReference flowLocation flowtable;
       };
 
   /*
-    Apply a statement per key through a meter. `name` is the meter name,
-    `key` the per-flow key expression, `statement` the statement to apply,
-    and `size` the optional maximum entry count. Returns a meter statement;
-    throws for `stmt`, pointing to `statement`.
+    Apply a statement per key through a meter.
+
+    `meter { name; key; statement; size?; }` takes the meter name, the
+    per-flow key expression, the statement to apply, and the optional
+    maximum entry count. Returns a meter statement. Throws when the body
+    doesn't validate, and for `stmt`, pointing to `statement`.
   */
-  meter = rename.statementBuilder "meter" (
-    renameBody:
-    {
-      name,
-      key,
-      statement,
-      size ? null,
-    }:
-    {
-      meter = compact (renameBody {
-        inherit
-          name
-          key
-          statement
-          size
-          ;
-      });
-    }
-  );
+  meter = statement.fromFields { name = "meter"; };
 
   /*
     Choose a verdict by looking up a key. `key` is the lookup expression and
     `data` the verdict map body, or a named map's name with or without its
-    leading `@`. Returns a vmap statement whose named map is `"@<name>"`.
+    leading `@`. Returns a vmap statement whose named map is `"@<name>"`,
+    and throws when its body doesn't validate.
   */
-  vmap = key: data: {
-    vmap = {
+  vmap =
+    key: data:
+    statement.tagged { name = "vmap"; } {
       inherit key;
-      data = if builtins.isString data then reference.atReference "vmap" data else data;
+      data =
+        if builtins.isString data then reference.atReference (location.builder [ "vmap" ]) data else data;
     };
-  };
 }

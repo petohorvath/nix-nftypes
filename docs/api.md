@@ -12,7 +12,7 @@ There are three distinct operations:
 
 1. **Validation** through `nftlib.validate` and the `nftlib.types` schema.
 2. **DSL construction**, which validates assembled table objects, chains, rules,
-   and command-builder bodies when evaluation forces them.
+   statements, and command-builder bodies when evaluation forces them.
 3. **Rendering**, which cleans and serializes a value but does not perform a
    complete schema validation pass on arbitrary raw attrsets.
 
@@ -39,7 +39,8 @@ system's error, whose option path starts with `validate`, such as
 `dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
 nodes are expanded and validated; raw command attrsets are deliberately passed
 through as an escape hatch. Only the order of the commands is checked: a reset
-that nft would ignore throws (see [Commands](#commands)).
+that nft would ignore throws (see [Commands](#commands)). A statement that a
+builder or match operator made is validated by it, inside a raw command too.
 
 Table trees derive scope from nesting. Explicit `family` and `name` fields in a
 `dsl.table` body must match its positional arguments; `family`, `table`, and
@@ -195,9 +196,11 @@ Top-level match helpers include:
 - `hasAnyFlag`, nft's `in` operator, which matches when any of the given flags
   is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn,ack`.
 
-Together they cover nft's seven match operators. A caller that computes the
-operator writes the raw `{ match = { op; left; right; }; }`, which rule
-validation checks.
+Together they cover nft's seven match operators. Each validates its match
+statement when called, as the statement builders do (see
+[Statements](#statements)), so `eq { bogus = 1; } 2` throws naming
+`dsl.eq.left`. A caller that computes the operator writes the raw
+`{ match = { op; left; right; }; }`, which rule validation checks.
 
 `inSet` and `notInSet` take a list, a set expression, or a named-set
 reference such as `"@trusted"`. A string without `@` throws and points to
@@ -255,12 +258,14 @@ log { prefix = "DROP: "; level = "info"; }
 limit { rate = 10; per = "minute"; burst = 5; }
 ```
 
-`.ref name` references a named object. `ctHelper`, `ctTimeout`,
-`ctExpectation`, `secmark`, and `tunnel` have no other form, so calling one
-directly throws and points to its `.ref`. `.auto` is the null-body form, such
-as `{ counter = null; }`, that `nft -j list --stateless` prints; `counter`,
-`synproxy`, and `last` have it. A statement whose fields are all optional takes
-`{ }` for its empty form, for example `log { }` or `masquerade { }`.
+`.ref name` references a named object, by its name or by a map expression
+that selects one by key; it throws for any other attribute set. `ctHelper`,
+`ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` have no other form, so
+calling one directly throws and points to its `.ref`. `.auto` is the
+null-body form, such as `{ counter = null; }`, that `nft -j list --stateless`
+prints; `counter`, `synproxy`, and `last` have it. A statement whose fields
+are all optional takes `{ }` for its empty form, for example `log { }` or
+`masquerade { }`.
 
 `counter` has no `{ }` form. nft parses an inline counter only with both
 `packets` and `bytes`, so `counter { }` and a counter with one of them throw.
@@ -284,6 +289,39 @@ Other top-level constructors include `snat`, `dnat`, `masquerade`, `redirect`,
 `queue`, `synproxy`, `flow`, `meter`, `vmap`, `mangle`, `tproxy`, `fwd`, `dup`,
 `last`, and `notrack`, which exempts the packet from connection tracking.
 `notrack` is a statement, not a verdict: a `vmap` rejects it as data.
+
+`snat`, `dnat`, and `tproxy` take `addr`, `port`, or both: the kernel refuses
+an snat or dnat with neither, and nft an empty tproxy, so `snat { }` and
+`tproxy { }` throw. A builder's other required fields are those its schema body
+requires, such as `limit`'s `rate` and `per`, `fwd`'s `dev`, and `meter`'s
+`name`, `key`, and `statement`.
+
+Every statement builder and match operator validates its statement when
+called, against the body `types.statement` takes for its tag, as command
+builders do. A statement is then checked wherever it goes, in a raw command
+passed through `dsl.ruleset` too. A field's error is the module system's,
+without the `nix-nftypes:` prefix, and its option path starts with the
+builder:
+
+```text
+A definition for option `dsl.log.level' is not of type `null or one of "emerg", …'.
+The option `dsl.redirect.addr' does not exist.
+The option `dsl.limit.per' was accessed but has no value defined.
+```
+
+The option path need not name the field as the DSL spells it. A field takes
+its JSON key before validation, so a renamed field appears by its JSON
+spelling, as in `dsl.quota.val_unit` for `valUnit`. A builder that takes its
+body positionally names the body's JSON field, as in `dsl.mangle.key` or
+`dsl.eq.left`, or, where the body is a single expression, the internal option
+`value`: `resetStmt` errors name `dsl.resetStmt.value`, and a `.ref` given a
+map expression names its key as `dsl.counter.ref.value.map.key`.
+
+The builders' own checks carry the prefix. A body that isn't an attribute set
+throws, such as
+`nix-nftypes: dsl.log: expected an attribute set of fields, got a string`, and
+so does a body the schema rejects as a whole, such as
+``nix-nftypes: dsl.snat: not of type `snat/dnat body with addr or port'.``.
 
 The statement tags named `set`, `map`, and `reset` would collide with the
 `expr.set` and `expr.map` constructors and the `reset.<kind>` command builders,

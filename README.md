@@ -118,7 +118,7 @@ networking.nftables = {
 
 ## Validate hand-written rulesets
 
-The DSL validates every object, chain, and rule it assembles when output is requested. The renderers do not validate: they clean and render whatever ruleset or table tree they receive. A raw attrset, whether rendered directly or passed among the commands of `dsl.ruleset`, reaches the output unchecked.
+The DSL validates every object, chain, rule, and statement it assembles when output is requested, a statement inside a raw command included. The renderers do not validate: they clean and render whatever ruleset or table tree they receive. A raw attrset, whether rendered directly or passed among the commands of `dsl.ruleset`, reaches the output unchecked.
 
 Validate raw values that come from users or other modules with `nftlib.validate`, before rendering them:
 
