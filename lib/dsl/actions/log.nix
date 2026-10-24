@@ -7,7 +7,6 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
-  location = import ../internal/location.nix { inherit lib; };
 in
 {
   /*
@@ -16,8 +15,10 @@ in
     `log { prefix?; group?; snaplen?; queueThreshold?; level?; flags?; }`
     takes the optional log settings; null values are omitted, so `log { }`
     is the log statement with every default. Returns a log statement.
+    Throws for `queue-threshold`, pointing to `queueThreshold`.
   */
-  log =
+  log = rename.statementBuilder "log" (
+    renameBody:
     {
       prefix ? null,
       group ? null,
@@ -27,17 +28,16 @@ in
       flags ? null,
     }:
     {
-      log = compact (
-        rename.log (location.builder [ "log" ]) {
-          inherit
-            prefix
-            group
-            snaplen
-            queueThreshold
-            level
-            flags
-            ;
-        }
-      );
-    };
+      log = compact (renameBody {
+        inherit
+          prefix
+          group
+          snaplen
+          queueThreshold
+          level
+          flags
+          ;
+      });
+    }
+  );
 }

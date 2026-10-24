@@ -8,20 +8,22 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
-  location = import ../internal/location.nix { inherit lib; };
 
   natBase =
     tag:
-    args@{
-      addr ? null,
-      family ? null,
-      port ? null,
-      flags ? null,
-      typeFlags ? null,
-    }:
-    {
-      ${tag} = compact (rename.nat (location.builder [ tag ]) args);
-    };
+    rename.statementBuilder tag (
+      renameBody:
+      args@{
+        addr ? null,
+        family ? null,
+        port ? null,
+        flags ? null,
+        typeFlags ? null,
+      }:
+      {
+        ${tag} = compact (renameBody args);
+      }
+    );
 
   masqueradeBase =
     tag:

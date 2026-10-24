@@ -81,8 +81,8 @@ in
       dsl.table "ip" "t" {
         sets.s = {
           type = "ipv4_addr";
-          stmt = [ { counter = null; } ];
-          elem = [
+          statements = [ { counter = null; } ];
+          elements = [
             {
               elem = {
                 val = "10.0.0.1";
@@ -229,7 +229,7 @@ in
       dsl.table "inet" "fw" {
         chains.input.rules = [
           {
-            expr = [ dsl.accept ];
+            statements = [ dsl.accept ];
             handle = 7;
           }
         ];
@@ -247,7 +247,7 @@ in
           [ dsl.accept ]
           [ dsl.notrack ]
           {
-            expr = [ dsl.drop ];
+            statements = [ dsl.drop ];
             index = 0;
           }
         ];
@@ -262,7 +262,7 @@ in
       dsl.table "inet" "fw" {
         chains.input.rules = [
           {
-            expr = [ dsl.accept ];
+            statements = [ dsl.accept ];
             index = 0;
             comment = "first";
           }
@@ -405,7 +405,7 @@ in
         chains.input = baseChain // {
           rules = [
             {
-              expr = [ dsl.accept ];
+              statements = [ dsl.accept ];
               comment = "allow";
             }
           ];
@@ -433,7 +433,7 @@ in
               family = "inet";
               table = "fw";
               chain = "input";
-              expr = [
+              statements = [
                 (dsl.counter {
                   packets = 1;
                   bytes = 2;

@@ -4,6 +4,7 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
+  rename = import ../internal/rename.nix { inherit lib; };
 in
 {
   /*
@@ -25,27 +26,30 @@ in
     };
 
   /*
-    Apply statements per key through a meter. `name` is the meter name, `key`
-    the per-flow key expression, `stmt` the statement to apply, and `size`
-    the optional maximum entry count. Returns a meter statement.
+    Apply a statement per key through a meter. `name` is the meter name,
+    `key` the per-flow key expression, `statement` the statement to apply,
+    and `size` the optional maximum entry count. Returns a meter statement;
+    throws for `stmt`, pointing to `statement`.
   */
-  meter =
+  meter = rename.statementBuilder "meter" (
+    renameBody:
     {
       name,
       key,
-      stmt,
+      statement,
       size ? null,
     }:
     {
-      meter = compact {
+      meter = compact (renameBody {
         inherit
           name
           key
-          stmt
+          statement
           size
           ;
-      };
-    };
+      });
+    }
+  );
 
   /*
     Choose a verdict by looking up a key. `key` is the lookup expression and

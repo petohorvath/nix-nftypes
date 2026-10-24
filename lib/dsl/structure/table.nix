@@ -22,7 +22,7 @@ in
     Chains (name → chainBody), where chainBody may contain:
       type, hook, prio, dev, policy, handle, comment, rules
     rules is a list (order-preserving); each element is either a bare list
-    of statements or an attrset `{ expr = [...]; index?; comment?; }`.
+    of statements or an attrset `{ statements = [...]; index?; comment?; }`.
 
   Nesting owns family/table/name/chain. Explicit matching fields in child
   bodies, and in `body` itself, are accepted, but conflicting values fail

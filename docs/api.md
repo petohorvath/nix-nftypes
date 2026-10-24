@@ -340,20 +340,28 @@ order. This covers dependencies made explicit by the table tree; dependencies
 hidden in raw nested bodies remain the caller's responsibility.
 
 A rule entry is either a non-empty statement list or an attrset with a
-non-empty `expr` plus optional `index` and `comment`. Any other entry throws,
-naming its path, such as `chains.input.rules.0`: write a single statement as a
-list, `[ dsl.drop ]`, not as the bare `dsl.drop`. A rule entry takes no
-`handle`, as `add.rule` takes none.
+non-empty `statements` list plus optional `index` and `comment`. Any other
+entry throws, naming its path, such as `chains.input.rules.0`: write a single
+statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`. A rule entry
+takes no `handle`, as `add.rule` takes none.
 
 ### Naming and argument conventions
 
-Every DSL field name is camelCase. The DSL renames it where JSON uses hyphens
-or underscores, for example `queueThreshold` to `queue-threshold`, `gcInterval`
-to `gc-interval`, `rateUnit` to `rate_unit`, and
-`typeFlags` to `type_flags`. The same renames apply to statements, table-tree
-objects, and command builders. Named sets and maps also take `elements` for the
-JSON `elem` key. A body that gives both spellings of a field, such as
-`elements` and `elem`, throws instead of keeping one of them.
+Every DSL field name is camelCase, and each field has one spelling. The DSL
+renames it where JSON uses hyphens or underscores or runs words together, for
+example `queueThreshold` to `queue-threshold`, `gcInterval` to `gc-interval`,
+`rateUnit` to `rate_unit`, `typeFlags` to `type_flags`, and `newName` to
+`newname`. A field that holds elements or statements is plural: named sets and
+maps take `elements` and `statements` for the JSON `elem` and `stmt`, `setStmt`
+and `mapStmt` take `statements`, and a rule takes `statements` for `expr`.
+`meter` takes one `statement` for `stmt`. Other fields keep nft's word: a chain
+or flowtable's `dev` takes one device or a list. The same renames apply to
+statements, table-tree objects, and command builders, and in each a JSON
+spelling throws, pointing to the DSL name:
+
+```text
+nix-nftypes: dsl.add.limit: rate_unit: is the JSON spelling; write `rateUnit`
+```
 
 A body is an attrset of fields, never a module. A string in a body position,
 such as `create.counter "c1"`, throws naming its path, and a string in a name or
@@ -425,9 +433,9 @@ when the body lacks a field nft requires for the verb, naming the field:
   puts it before that rule; see
   [`spec-coverage.md`](spec-coverage.md#rule-handles-on-add-rule).
 - `add.rule`, `insert.rule`, and `replace.rule` require statements, a
-  non-empty `expr` list, as a table tree's rule entries do. Without them, the
-  builder throws, naming the command, such as `add.rule`.
-- `rename.chain` requires `newname`.
+  non-empty `statements` list, as a table tree's rule entries do. Without
+  them, the builder throws, naming the command, such as `add.rule`.
+- `rename.chain` requires `newName`.
 
 `delete`, `destroy`, `list`, `flush`, and `reset` select an object by `family`,
 `table`, and `name`, and demand no field that nft ignores for the verb: a set's

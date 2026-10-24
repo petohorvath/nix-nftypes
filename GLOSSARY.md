@@ -59,6 +59,10 @@ _Avoid_: table node, declarative table structure
 **Scope**:
 The family, table, chain, and name that a body takes from its position in a table tree. Nesting owns scope; an explicit field that disagrees is a scope conflict.
 
+**JSON spelling**:
+The name libnftables JSON gives a field whose DSL name differs, such as `rate_unit` for `rateUnit` or `expr` for a rule's `statements`. No DSL body takes it.
+_Avoid_: JSON name, alias
+
 **Expansion**:
 Turning a table tree into an ordered list of commands: the table, its chains, its named objects, then its rules.
 

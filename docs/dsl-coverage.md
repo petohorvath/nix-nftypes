@@ -158,17 +158,25 @@ remains.
 ## Key renaming
 
 Every DSL field and object-kind name is camel case. The DSL translates it where
-nftables uses spaces, hyphens, or underscores. Examples:
+nftables uses spaces, hyphens, or underscores, runs words together, or names a
+list of elements or statements in the singular. Examples:
 
-| DSL              | JSON              |
-| ---------------- | ----------------- |
-| `ctHelper`       | `ct helper`       |
-| `queueThreshold` | `queue-threshold` |
-| `gcInterval`     | `gc-interval`     |
-| `rateUnit`       | `rate_unit`       |
-| `typeFlags`      | `type_flags`      |
+| DSL              | JSON                                                            |
+| ---------------- | --------------------------------------------------------------- |
+| `ctHelper`       | `ct helper`                                                     |
+| `queueThreshold` | `queue-threshold`                                               |
+| `gcInterval`     | `gc-interval`                                                   |
+| `rateUnit`       | `rate_unit`                                                     |
+| `typeFlags`      | `type_flags`                                                    |
+| `newName`        | `newname`                                                       |
+| `elements`       | `elem`, in a set, map, or element body                          |
+| `statements`     | `expr` in a rule; `stmt` in a set, map, `setStmt`, or `mapStmt` |
+| `statement`      | `stmt`, in `meter`                                              |
 
-The mapping is centralized in
+Each field has one spelling: a JSON spelling throws in a statement, a command
+builder, or a table tree, and points to the DSL name.
+
+The mapping and the JSON-spelling check are centralized in
 [`lib/dsl/internal/rename.nix`](../lib/dsl/internal/rename.nix).
 
 ## Validation boundaries

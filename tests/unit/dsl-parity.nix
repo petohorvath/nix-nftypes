@@ -1374,7 +1374,7 @@ in
       (dsl.meter {
         name = "m";
         key = dsl.fields.meta.iifname;
-        stmt = dsl.counter {
+        statement = dsl.counter {
           packets = 0;
           bytes = 0;
         };
@@ -1459,14 +1459,14 @@ in
           map = "@cache";
         };
       };
-  # `stmt` holds statements that run per element, such as a counter.
+  # `statements` holds statements that run per element, such as a counter.
   testSetStmtStatements =
     ps
       (dsl.setStmt {
         op = "update";
         elem = dsl.fields.ip.saddr;
         set = "@blocked";
-        stmt = [ dsl.counter.auto ];
+        statements = [ dsl.counter.auto ];
       })
       {
         set = {
@@ -1488,7 +1488,7 @@ in
         elem = dsl.fields.ip.saddr;
         data = 42;
         map = "@cache";
-        stmt = [ dsl.counter.auto ];
+        statements = [ dsl.counter.auto ];
       })
       {
         map = {
@@ -1607,6 +1607,42 @@ in
                 handle = 5;
                 flags = [ "dormant" ];
                 comment = "demo";
+              };
+            };
+          }
+        ];
+      };
+
+  # A set's `statements` (DSL) are the JSON `stmt`: each element gets its
+  # own instance.
+  testRenderSetStatementsRename =
+    pr
+      (dsl.ruleset [
+        (dsl.table "inet" "t" {
+          sets.seen = {
+            type = "ipv4_addr";
+            statements = [ dsl.counter.auto ];
+          };
+        })
+      ])
+      {
+        nftables = [
+          {
+            add = {
+              table = {
+                family = "inet";
+                name = "t";
+              };
+            };
+          }
+          {
+            add = {
+              set = {
+                family = "inet";
+                table = "t";
+                name = "seen";
+                type = "ipv4_addr";
+                stmt = [ { counter = null; } ];
               };
             };
           }
@@ -2016,7 +2052,7 @@ in
           chains.c = {
             rules = [
               {
-                expr = [ dsl.accept ];
+                statements = [ dsl.accept ];
                 comment = "the rule";
               }
             ];
@@ -2246,7 +2282,7 @@ in
                   protocol = "tcp";
                   policy.established = 300;
                 };
-                elements.s.elem = [ "192.0.2.2" ];
+                elements.s.elements = [ "192.0.2.2" ];
                 flowtables.f = {
                   hook = "ingress";
                   prio = 0;
@@ -3440,7 +3476,7 @@ in
         family = "ip";
         table = "t";
         chain = "c";
-        expr = [ dsl.accept ];
+        statements = [ dsl.accept ];
         index = 1;
       })
       {
@@ -3877,7 +3913,7 @@ in
         {
           element = scope // {
             name = "s";
-            elem = [ "10.0.0.1" ];
+            elements = [ "10.0.0.1" ];
           };
           rule = scope // {
             chain = "c";
@@ -3970,7 +4006,7 @@ in
         family = "ip";
         table = "t";
         name = "old";
-        newname = "new";
+        newName = "new";
       })
       {
         rename = {
@@ -4079,7 +4115,7 @@ in
         table = "t";
         chain = "c";
         handle = 42;
-        expr = [ { accept = null; } ];
+        statements = [ { accept = null; } ];
       })
       {
         replace = {
@@ -4099,7 +4135,7 @@ in
         table = "t";
         chain = "c";
         index = 0;
-        expr = [ { drop = null; } ];
+        statements = [ { drop = null; } ];
       })
       {
         insert = {
@@ -4248,14 +4284,14 @@ in
           family = "ip";
           table = "t";
           name = "oldchain";
-          newname = "newchain";
+          newName = "newchain";
         })
         (dsl.replace.rule {
           family = "ip";
           table = "t";
           chain = "c";
           handle = 7;
-          expr = [ { accept = null; } ];
+          statements = [ { accept = null; } ];
         })
         (dsl.destroy.set {
           family = "ip";

@@ -10,10 +10,10 @@ let
   compact = import ../internal/compact.nix { inherit lib; };
   variant = import ../internal/variant.nix { inherit lib; };
   rename = import ../internal/rename.nix { inherit lib; };
-  location = import ../internal/location.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
 
-  limitBase =
+  limitBase = rename.statementBuilder "limit" (
+    renameBody:
     args@{
       rate,
       per,
@@ -23,10 +23,12 @@ let
       inv ? null,
     }:
     {
-      limit = compact (rename.limit (location.builder [ "limit" ]) args);
-    };
+      limit = compact (renameBody args);
+    }
+  );
 
-  quotaBase =
+  quotaBase = rename.statementBuilder "quota" (
+    renameBody:
     args@{
       val,
       valUnit ? null,
@@ -35,8 +37,9 @@ let
       inv ? null,
     }:
     {
-      quota = compact (rename.quota (location.builder [ "quota" ]) args);
-    };
+      quota = compact (renameBody args);
+    }
+  );
 in
 {
   /*

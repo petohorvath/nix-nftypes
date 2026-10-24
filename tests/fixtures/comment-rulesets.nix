@@ -45,7 +45,7 @@
           policy = "accept";
           rules = [
             {
-              expr = [ dsl.accept ];
+              statements = [ dsl.accept ];
               inherit comment;
             }
           ];
@@ -59,7 +59,7 @@
       (dsl.table "inet" "t" {
         sets.s = {
           type = "ipv4_addr";
-          elem = [
+          elements = [
             {
               elem = {
                 val = "1.2.3.4";

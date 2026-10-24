@@ -9,6 +9,7 @@
 let
   compact = import ../internal/compact.nix { inherit lib; };
   reference = import ../internal/reference.nix { inherit lib; };
+  rename = import ../internal/rename.nix { inherit lib; };
 in
 {
   /*
@@ -21,50 +22,55 @@ in
     Modify a named set from the packet path. Distinct from the anonymous set
     expression in exprs.nix. `op` is `"add"`, `"update"`, or `"delete"`,
     `elem` the element expression, `set` the set name with or without its
-    leading `@`, and `stmt` an optional statement list. Returns a set
-    statement referencing `"@<name>"`; throws when `set` is not a string.
+    leading `@`, and `statements` an optional statement list. Returns a set
+    statement referencing `"@<name>"`; throws when `set` is not a string,
+    and for `stmt`, pointing to `statements`.
   */
-  setStmt =
+  setStmt = rename.statementBuilder "setStmt" (
+    renameBody:
     {
       op,
       elem,
       set,
-      stmt ? null,
+      statements ? null,
     }:
     {
-      set = compact {
-        inherit op elem stmt;
+      set = compact (renameBody {
+        inherit op elem statements;
         set = reference.atReference "setStmt" set;
-      };
-    };
+      });
+    }
+  );
 
   /*
     Modify a named map from the packet path. Distinct from the map lookup
     expression in exprs.nix. `op` is the update operation, `elem` the key
     expression, `data` the value expression, `map` the map name with or
-    without its leading `@`, and `stmt` an optional statement list. Returns
-    a map statement referencing `"@<name>"`; throws when `map` is not a
-    string.
+    without its leading `@`, and `statements` an optional statement list.
+    Returns a map statement referencing `"@<name>"`; throws when `map` is
+    not a string, and for `stmt`, pointing to `statements`.
   */
-  mapStmt =
+  mapStmt = rename.statementBuilder "mapStmt" (
+    renameBody:
     {
       op,
       elem,
       data,
       map,
-      stmt ? null,
+      statements ? null,
     }:
     {
-      map = compact {
+      map = compact (renameBody {
         inherit
           op
           elem
           data
-          stmt
+          statements
           ;
         map = reference.atReference "mapStmt" map;
-      };
-    };
+      });
+    }
+  );
 
   /*
     Reset stateful data referenced by an expression, such as a TCP option.
