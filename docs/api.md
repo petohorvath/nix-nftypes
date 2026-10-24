@@ -83,16 +83,17 @@ Refusal ends with `Field: <label>.`
 
 Per-variant bodies are grouped under:
 
-- `types.expressions`;
-- `types.statements`;
-- `types.objects`.
+- `types.expressionBodies`;
+- `types.statementBodies`;
+- `types.objectBodies`.
 
 These namespaces hold bodies only, each named `<kind>Body`, such as
-`types.objects.setBody` and `types.statements.counterBody`. A body several tags
-share is named for what they share (`natBody`), a variant of one tag's body puts
-the variant first (`rawPayloadBody`), and the body of one command puts its verb
-first (`flushRulesetBody`, `selectSetBody`). A statement body includes the
-statement's reference forms. Type a tagged object, such as
+`types.objectBodies.setBody` and `types.statementBodies.counterBody`. A body
+several tags share is named for what they share (`natBody`), a variant or a
+nested part of one tag's body puts its parent first (`payloadRawBody`,
+`tunnelVxlanBody`), and the body of one command puts its verb first
+(`flushRulesetBody`, `insertRuleBody`, `selectSetBody`). A statement body
+includes the statement's reference forms. Type a tagged object, such as
 `{ chain = { … }; }`, with its command's union, such as `types.addObject` or
 `types.readBackObject`.
 
@@ -101,8 +102,8 @@ it rejects a module function, a path, and a `_module` key, so a string in a
 union with a body, such as the synproxy reference `"/sp1"`, is a name rather
 than a module file to import.
 
-Primitive types include `family`, `hook`, `chainType`, `policy`, `portNumber`,
-`prefixLength`, `ifname`, `nftQuotedString`, `logPrefix`, `namedReference`
+Primitive types include `family`, `hook`, `chainType`, `chainPolicy`,
+`portNumber`, `prefixLength`, `ifname`, `comment`, `logPrefix`, `namedReference`
 (`"@name"`), `nullLiteral` (the JSON `null` of a body such as
 `{ counter = null; }`), and the enum-backed types listed in `nftlib.enums`.
 
@@ -171,6 +172,8 @@ Use `expr.payload protocol field`, `expr.payloadRaw`, and
 `expr.payloadTunnel` when no pre-built leaf exists. The other structural and
 generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
 `range`, `set`, `setRef`, `map`, `mapRef`, `numgen`, `jhash`, and `symhash`.
+The binary operators sit there too: `expr.bitAnd`, `bitOr`, `bitXor`,
+`shiftLeft`, and `shiftRight`, as in `expr.bitAnd fields.meta.mark 255`.
 
 Top-level match helpers include:
 
@@ -413,14 +416,14 @@ when the body lacks a field nft requires for the verb, naming the field:
   builder throws, naming the command, such as `add.rule`.
 - `rename.chain` requires `newname`.
 
-`delete`, `destroy`, `list`, `flush`, and `reset` select an object by
-`family`, `table`, and `name`, and demand no field that nft ignores for the
-verb: a set's or map's datatypes, a limit's rate, a flowtable's hook, and a
-synproxy's `mss` and `wscale` are optional there. `types.objects` holds these
-selection bodies, such as `selectSetBody`. Every `delete.<kind>` but
-`delete.rule` requires `name`, though nft also deletes most kinds by `handle`
-alone ([`spec-coverage.md`](spec-coverage.md)); `destroy.<kind>` requires it
-in nft too.
+`delete`, `destroy`, `list`, `flush`, and `reset` select an object by `family`,
+`table`, and `name`, and demand no field that nft ignores for the verb: a set's
+or map's datatypes, a limit's rate, a flowtable's hook, and a synproxy's `mss`
+and `wscale` are optional there. `types.objectBodies` holds these selection
+bodies, such as `selectSetBody`. Every `delete.<kind>` but `delete.rule`
+requires `name`, though nft also deletes most kinds by `handle` alone
+([`spec-coverage.md`](spec-coverage.md)); `destroy.<kind>` requires it in nft
+too.
 
 A rule is selected by its `chain` and `handle`, which `delete.rule` and
 `destroy.rule` require as a positive integer: nft takes handle 0 as none, and

@@ -21,11 +21,11 @@ let
     natTypeFlag
     nullLiteral
     operator
-    perUnit
     queueFlag
     rejectType
     setOp
     synproxyFlag
+    timeUnit
     xtType
     ;
   expr = expressions.expression;
@@ -181,7 +181,7 @@ let
           description = "rate value";
         };
         per = mkOption {
-          type = perUnit;
+          type = timeUnit;
           description = "time unit (required for inline form)";
         };
         rate_unit = mkOption {
@@ -509,7 +509,7 @@ let
       drift. Kept inside `bodies` (rather than alongside it) so the
       body submodules above are in scope without qualification.
     */
-    statementBodies = {
+    bodiesByTag = {
       # Verdicts
       accept = nullLiteral;
       drop = nullLiteral;
@@ -552,7 +552,7 @@ let
       tunnel = expr;
     };
 
-    statement = taggedUnion statementBodies;
+    statement = taggedUnion bodiesByTag;
 
     /*
       `statementOf : [ String ] -> Type` — restrict a `statement`-typed
@@ -574,7 +574,7 @@ let
     statementOf =
       kinds:
       let
-        valid = lib.attrNames statementBodies;
+        valid = lib.attrNames bodiesByTag;
         invalid = lib.subtractLists valid kinds;
         renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
       in
@@ -588,17 +588,17 @@ let
           + "${renderList invalid}. Valid kinds: ${renderList valid}."
         )
       else
-        taggedUnion (lib.getAttrs kinds statementBodies)
+        taggedUnion (lib.getAttrs kinds bodiesByTag)
         // {
           description = "statement (one of: ${renderList kinds})";
         };
   };
 in
 {
-  inherit (bodies) statement statementBodies statementOf;
+  inherit (bodies) bodiesByTag statement statementOf;
   all = removeAttrs bodies [
+    "bodiesByTag"
     "statement"
     "statementOf"
-    "statementBodies"
   ];
 }

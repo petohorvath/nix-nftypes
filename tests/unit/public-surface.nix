@@ -33,15 +33,17 @@ in
     expr = builtins.attrNames types;
     expected = [
       "addObject"
+      "chainPolicy"
       "chainType"
       "command"
+      "comment"
       "createObject"
       "ctDirection"
       "ctL3Proto"
       "deleteObject"
       "expression"
+      "expressionBodies"
       "expressionOf"
-      "expressions"
       "family"
       "fibFlag"
       "fibResult"
@@ -51,6 +53,8 @@ in
       "ifname"
       "insertObject"
       "ipFamily"
+      "ipsecDirection"
+      "ipsecKey"
       "limitUnit"
       "listObject"
       "logFlag"
@@ -60,16 +64,13 @@ in
       "namedReference"
       "natFlag"
       "natTypeFlag"
-      "nftQuotedString"
-      "ngMode"
       "nullLiteral"
-      "objects"
+      "numgenMode"
+      "objectBodies"
       "operator"
       "osfKey"
       "osfTtl"
       "payloadBase"
-      "perUnit"
-      "policy"
       "portNumber"
       "prefixLength"
       "queueFlag"
@@ -85,22 +86,21 @@ in
       "setPolicy"
       "socketKey"
       "statement"
+      "statementBodies"
       "statementOf"
-      "statements"
       "synproxyFlag"
       "tableFlag"
       "taggedExpression"
       "tcpUdpProto"
+      "timeUnit"
       "tunnelKey"
       "tunnelType"
-      "xfrmDir"
-      "xfrmKey"
       "xtType"
     ];
   };
 
   testExpressionBodyExports = {
-    expr = builtins.attrNames types.expressions;
+    expr = builtins.attrNames types.expressionBodies;
     expected = [
       "binaryOpBody"
       "concatBody"
@@ -114,29 +114,29 @@ in
       "jhashBody"
       "mapBody"
       "metaBody"
-      "namedPayloadBody"
-      "namedTcpOptionBody"
       "numgenBody"
       "osfBody"
       "payloadBody"
+      "payloadNamedBody"
+      "payloadRawBody"
+      "payloadTunnelBody"
       "prefixBody"
       "rangeBody"
-      "rawPayloadBody"
-      "rawTcpOptionBody"
       "rtBody"
       "sctpChunkBody"
       "setBody"
       "socketBody"
       "symhashBody"
       "tcpOptionBody"
+      "tcpOptionNamedBody"
+      "tcpOptionRawBody"
       "tunnelBody"
-      "tunnelPayloadBody"
       "verdictTargetBody"
     ];
   };
 
   testStatementBodyExports = {
-    expr = builtins.attrNames types.statements;
+    expr = builtins.attrNames types.statementBodies;
     expected = [
       "counterBody"
       "ctCountBody"
@@ -165,7 +165,7 @@ in
   };
 
   testObjectBodyExports = {
-    expr = builtins.attrNames types.objects;
+    expr = builtins.attrNames types.objectBodies;
     expected = [
       "addRuleBody"
       "chainBody"
@@ -177,6 +177,7 @@ in
       "elementBody"
       "flowtableBody"
       "flushRulesetBody"
+      "insertRuleBody"
       "limitBody"
       "mapBody"
       "metainfoBody"
@@ -207,6 +208,7 @@ in
   testEnumExports = {
     expr = builtins.attrNames nftlib.enums;
     expected = [
+      "chainPolicy"
       "chainType"
       "ctDirection"
       "ctL3Proto"
@@ -216,19 +218,19 @@ in
       "flowOp"
       "hook"
       "ipFamily"
+      "ipsecDirection"
+      "ipsecKey"
       "limitUnit"
       "logFlag"
       "logLevel"
       "metaKey"
       "natFlag"
       "natTypeFlag"
-      "ngMode"
+      "numgenMode"
       "operator"
       "osfKey"
       "osfTtl"
       "payloadBase"
-      "perUnit"
-      "policy"
       "queueFlag"
       "rejectType"
       "rtKey"
@@ -239,10 +241,9 @@ in
       "synproxyFlag"
       "tableFlag"
       "tcpUdpProto"
+      "timeUnit"
       "tunnelKey"
       "tunnelType"
-      "xfrmDir"
-      "xfrmKey"
       "xtType"
     ];
   };
@@ -331,9 +332,9 @@ in
   testDslExprExports = {
     expr = builtins.attrNames dsl.expr;
     expected = [
-      "bitand"
-      "bitor"
-      "bitxor"
+      "bitAnd"
+      "bitOr"
+      "bitXor"
       "concat"
       "ct"
       "dccpOption"
@@ -343,7 +344,6 @@ in
       "ipOption"
       "ipsec"
       "jhash"
-      "lshift"
       "map"
       "mapRef"
       "numgen"
@@ -353,11 +353,12 @@ in
       "payloadTunnel"
       "prefix"
       "range"
-      "rshift"
       "rt"
       "sctpChunk"
       "set"
       "setRef"
+      "shiftLeft"
+      "shiftRight"
       "symhash"
       "tcpOption"
       "tcpOptionRaw"

@@ -16,21 +16,21 @@ let
     ;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
+    chainPolicy
     chainType
+    comment
     ctL3Proto
     family
     hook
     ifname
-    nftQuotedString
     nullLiteral
-    perUnit
-    policy
     portNumber
     setFlag
     setPolicy
     synproxyFlag
     tableFlag
     tcpUdpProto
+    timeUnit
     tunnelType
     ;
   expr = expressions.expression;
@@ -124,11 +124,11 @@ let
 
   commentOption = {
     comment = mkOption {
-      # See lib/schema/primitives.nix nftQuotedString for the
+      # See `comment` in lib/schema/primitives.nix for the
       # character-set / length constraints (security-critical: nft has no
       # string-escape syntax, so '"' / '\' / control chars in the rendered
       # text inject statements or corrupt the output).
-      type = types.nullOr nftQuotedString;
+      type = types.nullOr comment;
       default = null;
       description = "free-form object comment";
     };
@@ -212,7 +212,7 @@ let
       description = "rate value";
     };
     per = mkOption {
-      type = perUnit;
+      type = timeUnit;
       description = "time unit";
     };
     rate_unit = mkOption {
@@ -346,7 +346,7 @@ let
             description = "bound interface(s) for netdev-family base chains";
           };
           policy = mkOption {
-            type = types.nullOr policy;
+            type = types.nullOr chainPolicy;
             default = null;
             description = "default policy for base chains";
           };
@@ -365,7 +365,14 @@ let
       };
     };
 
+    # A listed rule, as Read-back emits it, with the `handle` nft assigned.
     ruleBody = submodule {
+      options = ruleOptions;
+    };
+
+    # `insert rule` puts the rule before the rule with `handle`, at `index`,
+    # or, with neither, first in the chain.
+    insertRuleBody = submodule {
       options = ruleOptions;
     };
 
@@ -889,7 +896,7 @@ let
   });
 
   # `insert` takes only a rule.
-  insertObject = wrap "rule" bodies.ruleBody;
+  insertObject = wrap "rule" bodies.insertRuleBody;
 
   # `replace` takes only a rule, and requires its `handle`.
   replaceObject = wrap "rule" bodies.replaceRuleBody;

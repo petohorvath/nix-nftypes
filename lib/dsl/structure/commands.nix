@@ -241,7 +241,7 @@ in
   # `insert` and `replace` take a rule body like `add.rule`; `replace`
   # also requires the `handle` of the rule it replaces, and `rename` the
   # chain's `newname`.
-  insert = mkNamespace "insert" { rule = ruleCommandKind objects.ruleBody; };
+  insert = mkNamespace "insert" { rule = ruleCommandKind objects.insertRuleBody; };
   replace = mkNamespace "replace" { rule = ruleCommandKind objects.replaceRuleBody; };
   rename = mkNamespace "rename" {
     chain = {

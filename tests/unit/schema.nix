@@ -111,9 +111,9 @@ let
     let
       inherit (internal) textBlockFields;
       bodyTypes = {
-        table = nftlib.types.objects.tableBody;
-        chain = nftlib.types.objects.chainBody;
-        rule = nftlib.types.objects.addRuleBody;
+        table = nftlib.types.objectBodies.tableBody;
+        chain = nftlib.types.objectBodies.chainBody;
+        rule = nftlib.types.objectBodies.addRuleBody;
       };
       schemaFields = type: builtins.attrNames (removeAttrs (type.getSubOptions [ ]) [ "_module" ]);
       classified = body: lib.concatLists (builtins.attrValues textBlockFields.${body});

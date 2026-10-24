@@ -73,7 +73,7 @@ let
   # We cannot "escape" the dangerous characters because nft has no escape
   # syntax to render into. Instead the function asserts the input is
   # already safe (no `"`, no `\`, no control characters incl. NUL/\n) and
-  # returns it as-is. The schema's `nftQuotedString` type uses the same
+  # returns it as-is. The schema's `comment` type uses the same
   # predicate (see lib/nft-safe-string.nix) and catches most violations
   # at eval time; this assert is the defense-in-depth backstop for any
   # caller that bypasses the schema (tests, third-party DSLs, hand-built

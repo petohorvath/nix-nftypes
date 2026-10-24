@@ -19,14 +19,14 @@ let
   portNumber = types.ints.between 0 65535;
   prefixLength = types.ints.between 0 128;
 
-  # A free-form string safe for rendering into nft's quoted-string syntax
-  # (`comment "…"`; a log prefix has its own `logPrefix`). The
-  # safe-character set lives in lib/nft-safe-string.nix; the text
-  # renderer's defense-in-depth `assertSafeString` asserts the same
-  # predicate, so neither path can drift. 128-byte length cap matches
+  # A comment: a free-form string safe for rendering into nft's
+  # quoted-string syntax (`comment "…"`; a log prefix has its own
+  # `logPrefix`). The safe-character set lives in lib/nft-safe-string.nix;
+  # the text renderer's defense-in-depth `assertSafeString` asserts the
+  # same predicate, so neither path can drift. 128-byte length cap matches
   # kernel NFTNL_UDATA_COMMENT_MAXLEN.
-  nftQuotedString = mkOptionType {
-    name = "nftQuotedString";
+  comment = mkOptionType {
+    name = "comment";
     description = "nft-safe quoted string (no '\"', '\\', or control characters; ≤128 bytes)";
     descriptionClass = "noun";
     check = s: builtins.isString s && nftSafeString.isSafe s && builtins.stringLength s <= 128;
@@ -95,7 +95,7 @@ let
       "egress"
     ];
 
-    policy = [
+    chainPolicy = [
       "accept"
       "drop"
     ];
@@ -176,12 +176,12 @@ let
 
     flowOp = [ "add" ];
 
-    xfrmDir = [
+    ipsecDirection = [
       "in"
       "out"
     ];
 
-    xfrmKey = [
+    ipsecKey = [
       "saddr"
       "daddr"
       "reqid"
@@ -297,7 +297,7 @@ let
       "reply"
     ];
 
-    ngMode = [
+    numgenMode = [
       "inc"
       "random"
     ];
@@ -365,7 +365,7 @@ let
       "bytes"
     ];
 
-    perUnit = [
+    timeUnit = [
       "second"
       "minute"
       "hour"
@@ -382,10 +382,10 @@ in
   # One `types.enum` per `enumValues` entry, plus the non-enum primitives.
   types = lib.mapAttrs (_: types.enum) enumValues // {
     inherit
+      comment
       ifname
       logPrefix
       namedReference
-      nftQuotedString
       nullLiteral
       portNumber
       prefixLength

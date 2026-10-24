@@ -118,7 +118,7 @@ let
     }
     {
       left = tcp.flags;
-      right = dsl.expr.bitor "syn" "ack";
+      right = dsl.expr.bitOr "syn" "ack";
     }
     {
       left = ct.state;
@@ -126,7 +126,7 @@ let
     }
     {
       left = ct.state;
-      right = dsl.expr.bitor "established" "related";
+      right = dsl.expr.bitOr "established" "related";
     }
     {
       left = ct.status;
@@ -144,44 +144,44 @@ let
   markValues =
     let
       inherit (dsl.expr)
-        bitand
-        bitor
-        bitxor
-        lshift
-        rshift
+        bitAnd
+        bitOr
+        bitXor
+        shiftLeft
+        shiftRight
         ;
       inherit (meta) mark;
     in
     [
       # A right operand at the parent's precedence, for every operator.
-      (lshift mark (lshift 1 2))
-      (rshift mark (rshift 8 1))
-      (lshift mark (rshift 4 2))
-      (rshift mark (lshift 4 2))
-      (bitand mark (bitand 255 15))
-      (bitxor mark (bitxor 1 2))
-      (bitor mark (bitor 1 2))
+      (shiftLeft mark (shiftLeft 1 2))
+      (shiftRight mark (shiftRight 8 1))
+      (shiftLeft mark (shiftRight 4 2))
+      (shiftRight mark (shiftLeft 4 2))
+      (bitAnd mark (bitAnd 255 15))
+      (bitXor mark (bitXor 1 2))
+      (bitOr mark (bitOr 1 2))
       # A left operand at the parent's precedence.
-      (rshift (lshift mark 4) 2)
+      (shiftRight (shiftLeft mark 4) 2)
       # An operand list folds left, so only the first operand shares it.
       {
         "<<" = [
           mark
           1
-          (rshift 4 1)
+          (shiftRight 4 1)
         ];
       }
       # Each pair of adjacent levels, the lower one inside, on either side.
-      (bitxor (bitor mark 1) 3)
-      (bitxor mark (bitor 1 2))
-      (bitand (bitxor mark 1) 3)
-      (bitand mark (bitxor 1 2))
-      (lshift (bitand mark 255) 1)
-      (lshift mark (bitand 7 3))
+      (bitXor (bitOr mark 1) 3)
+      (bitXor mark (bitOr 1 2))
+      (bitAnd (bitXor mark 1) 3)
+      (bitAnd mark (bitXor 1 2))
+      (shiftLeft (bitAnd mark 255) 1)
+      (shiftLeft mark (bitAnd 7 3))
       # The higher one inside, which needs no parentheses.
-      (bitor (bitxor mark 1) 3)
-      (bitxor (bitand mark 3) 1)
-      (bitand (lshift mark 1) 255)
+      (bitOr (bitXor mark 1) 3)
+      (bitXor (bitAnd mark 3) 1)
+      (bitAnd (shiftLeft mark 1) 255)
     ];
 
   # Interface names that bare text loaded as something else or couldn't
@@ -2235,8 +2235,8 @@ rec {
             prio = 0;
             dev = "eth0";
             rules = [
-              [ (dsl.eq dsl.fields.tunnelMeta.id 42) ]
-              [ (dsl.eq dsl.fields.tunnelMeta.path true) ]
+              [ (dsl.eq dsl.fields.tunnel.id 42) ]
+              [ (dsl.eq dsl.fields.tunnel.path true) ]
             ];
           };
         })

@@ -108,17 +108,17 @@ let
   # Strings that the custom option types of lib/schema/primitives.nix
   # accept (sample) and refuse (wrong value).
   customSamples = {
+    comment = "x";
     ifname = "eth0";
     logPrefix = "x";
     namedReference = "@x";
-    nftQuotedString = "x";
     inherit null;
   };
   customWrongValues = {
+    comment = "a\"b";
     ifname = "";
     logPrefix = "";
     namedReference = "x";
-    nftQuotedString = "a\"b";
     null = "null";
   };
 

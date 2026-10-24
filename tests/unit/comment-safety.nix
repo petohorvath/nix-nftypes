@@ -16,7 +16,7 @@
 #
 # The fix is layered:
 #   - Schema: commentOption and elemBody.comment are now
-#     `nftQuotedString` — '"' / '\' / control / >128B rejected at
+#     `types.comment` — '"' / '\' / control / >128B rejected at
 #     `evalModules` time.
 #   - Renderer: `primitives.assertSafeString` / `quoteString` assert on the same
 #     character set, so any caller bypassing the schema (raw attrsets,

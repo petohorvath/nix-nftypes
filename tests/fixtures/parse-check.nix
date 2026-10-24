@@ -339,7 +339,7 @@ let
       }
     '';
     # Constant binary operations fold on the right of a match.
-    "dslParity.testExprBitxor".statement = right: matchWith right { meta.key = "mark"; };
+    "dslParity.testExprBitXor".statement = right: matchWith right { meta.key = "mark"; };
     "dslParity.testExprConcat".statement = matchWith {
       set = [
         {
@@ -353,7 +353,6 @@ let
     # Elements belong to a set.
     "dslParity.testExprElem" = elementContext;
     "dslParity.testExprElemOmitsUnsetOptions" = elementContext;
-    "dslParity.testExprLshift".statement = right: matchWith right { meta.key = "length"; };
     "dslParity.testExprMap" = {
       state = ''
         add table inet t
@@ -368,7 +367,6 @@ let
       '';
       statement = dsl.mangle { meta.key = "mark"; };
     };
-    "dslParity.testExprRshift".statement = right: matchWith right { meta.key = "length"; };
     # Its `family` selects the nexthop's address family, which an ip table
     # would contradict.
     "dslParity.testExprRtRefined" = {
@@ -385,6 +383,8 @@ let
       };
     "dslParity.testExprSetListStillWorks".statement = ipSaddrIn;
     "dslParity.testExprSetRef".state = trustedV4.state;
+    "dslParity.testExprShiftLeft".statement = right: matchWith right { meta.key = "length"; };
+    "dslParity.testExprShiftRight".statement = right: matchWith right { meta.key = "length"; };
     "dslParity.testFlow".state = ''
       add table inet t
       add flowtable inet t ft { hook ingress priority 0; devices = { eth0 }; }

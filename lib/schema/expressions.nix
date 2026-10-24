@@ -3,7 +3,7 @@
   internal,
   primitives,
   # Lazy reference to the sibling `statements` module. Only
-  # `.statementBodies` is consumed (by the statement keys of `elemBody`),
+  # `.bodiesByTag` is consumed (by the statement keys of `elemBody`),
   # and the access is deferred until value validation, breaking what would
   # otherwise be a load-order cycle: `statements.nix` already imports from
   # this file (statements consume `expr`), so a direct import in the other
@@ -23,14 +23,16 @@ let
     ;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
+    comment
     ctDirection
     fibFlag
     fibResult
     ipFamily
+    ipsecDirection
+    ipsecKey
     metaKey
-    nftQuotedString
-    ngMode
     nullLiteral
+    numgenMode
     osfKey
     osfTtl
     payloadBase
@@ -38,8 +40,6 @@ let
     rtKey
     socketKey
     tunnelKey
-    xfrmDir
-    xfrmKey
     ;
 
   # Fixed-point recursion so bodies and the top-level `expression` type can
@@ -84,7 +84,7 @@ let
     #   2. inner-tunnel:  { tunnel, protocol, field }
     #   3. named:         { protocol, field }
     # Discriminated by key presence so `types.oneOf` routes correctly.
-    rawPayloadBody = discriminatedSubmodule {
+    payloadRawBody = discriminatedSubmodule {
       requireKeys = [
         "base"
         "offset"
@@ -106,7 +106,7 @@ let
       };
     };
 
-    tunnelPayloadBody = discriminatedSubmodule {
+    payloadTunnelBody = discriminatedSubmodule {
       requireKeys = [
         "tunnel"
         "protocol"
@@ -128,7 +128,7 @@ let
       };
     };
 
-    namedPayloadBody = discriminatedSubmodule {
+    payloadNamedBody = discriminatedSubmodule {
       requireKeys = [
         "protocol"
         "field"
@@ -147,9 +147,9 @@ let
     };
 
     payloadBody = types.oneOf [
-      rawPayloadBody
-      tunnelPayloadBody
-      namedPayloadBody
+      payloadRawBody
+      payloadTunnelBody
+      payloadNamedBody
     ];
 
     exthdrBody = submodule {
@@ -174,7 +174,7 @@ let
     # TCP option has two forms (parser_json.c:745-785):
     #   raw:   { base, offset, len }  — base is tcp option kind (0-255)
     #   named: { name, field? }
-    rawTcpOptionBody = discriminatedSubmodule {
+    tcpOptionRawBody = discriminatedSubmodule {
       requireKeys = [
         "base"
         "offset"
@@ -196,7 +196,7 @@ let
       };
     };
 
-    namedTcpOptionBody = discriminatedSubmodule {
+    tcpOptionNamedBody = discriminatedSubmodule {
       requireKeys = [ "name" ];
       forbidKeys = [ "base" ];
       options = {
@@ -212,7 +212,7 @@ let
       };
     };
 
-    tcpOptionBody = types.either rawTcpOptionBody namedTcpOptionBody;
+    tcpOptionBody = types.either tcpOptionRawBody tcpOptionNamedBody;
 
     # IP option (parser_json.c:822): { name, field? }
     ipOptionBody = submodule {
@@ -293,7 +293,7 @@ let
     numgenBody = submodule {
       options = {
         mode = mkOption {
-          type = ngMode;
+          type = numgenMode;
           description = "number generator mode";
         };
         mod = mkOption {
@@ -383,8 +383,8 @@ let
     ipsecBody = submodule {
       options = {
         key = mkOption {
-          type = xfrmKey;
-          description = "xfrm key (saddr/daddr/reqid/spi)";
+          type = ipsecKey;
+          description = "IPsec key (saddr/daddr/reqid/spi)";
         };
         family = mkOption {
           type = types.nullOr ipFamily;
@@ -392,7 +392,7 @@ let
           description = "address family (required for saddr/daddr)";
         };
         dir = mkOption {
-          type = types.nullOr xfrmDir;
+          type = types.nullOr ipsecDirection;
           default = null;
           description = "policy direction (in/out)";
         };
@@ -428,7 +428,7 @@ let
           description = "remaining time in seconds";
         };
         comment = mkOption {
-          type = types.nullOr nftQuotedString;
+          type = types.nullOr comment;
           default = null;
           description = "element comment";
         };
@@ -440,7 +440,7 @@ let
       // lib.genAttrs [ "counter" "quota" "limit" "last" ] (
         tag:
         mkOption {
-          type = types.nullOr statements.statementBodies.${tag};
+          type = types.nullOr statements.bodiesByTag.${tag};
           default = null;
           description = "element ${tag} statement, as nft lists it";
         }
@@ -462,7 +462,7 @@ let
       shape embedded in `expression`) and the public `expressionOf`
       subset helper. Adding a new tag here participates in both.
     */
-    expressionBodies = {
+    bodiesByTag = {
       # Compound/structural
       concat = concatBody;
       set = setBody;
@@ -505,7 +505,7 @@ let
     };
 
     # Tagged union of everything represented as `{ <key>: <body> }`.
-    taggedExpression = taggedUnion expressionBodies;
+    taggedExpression = taggedUnion bodiesByTag;
 
     # The generated description names each branch's description, and
     # the list branch's names `expression` again, so a type error on a
@@ -543,7 +543,7 @@ let
     expressionOf =
       kinds:
       let
-        valid = lib.attrNames expressionBodies;
+        valid = lib.attrNames bodiesByTag;
         invalid = lib.subtractLists valid kinds;
         renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
       in
@@ -557,7 +557,7 @@ let
           + "${renderList invalid}. Valid kinds: ${renderList valid}."
         )
       else
-        taggedUnion (lib.getAttrs kinds expressionBodies)
+        taggedUnion (lib.getAttrs kinds bodiesByTag)
         // {
           description = "tagged expression (one of: ${renderList kinds})";
         };
@@ -571,9 +571,9 @@ in
     verdictTargetBody
     ;
   all = removeAttrs exprs [
+    "bodiesByTag"
     "expression"
-    "taggedExpression"
-    "expressionBodies"
     "expressionOf"
+    "taggedExpression"
   ];
 }

@@ -80,7 +80,7 @@ in
     All schema types in one namespace, mirroring `lib.types`. Primitive
     enums (family, hook, portNumber, …) sit alongside composable
     submodule types (expression, statement, command, …) and per-variant
-    body namespaces (expressions, statements, objects).
+    body namespaces (expressionBodies, statementBodies, objectBodies).
   */
   types = primitives.types // {
     /*
@@ -95,7 +95,7 @@ in
     # branches: the type `expressionOf` restricts, and whose
     # `.functor.payload.tags` lists every expression tag.
     inherit (expressions) taggedExpression;
-    expressions = expressions.all;
+    expressionBodies = expressions.all;
 
     /*
       Statement union plus per-variant body submodules and a subset
@@ -105,10 +105,10 @@ in
       hand-rolled walker checks downstream.
     */
     inherit (statements) statement statementOf;
-    statements = statements.all;
+    statementBodies = statements.all;
 
-    # Object bodies, single-tag wrappers, combined unions.
-    objects = objects.all;
+    # Object bodies, and the object union of each command.
+    objectBodies = objects.all;
     inherit (objects)
       addObject
       createObject
