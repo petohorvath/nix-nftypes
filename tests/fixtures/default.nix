@@ -39,22 +39,6 @@ rec {
       })
     ];
   nftMisbehaviour = import ./nft-misbehaviour.nix { };
-  # Each object collection a table tree holds, by its key, with the noun
-  # its shape error uses for one entry's body.
-  tableTreeObjectCollections = {
-    sets = "set";
-    maps = "map";
-    flowtables = "flowtable";
-    counters = "counter";
-    quotas = "quota";
-    limits = "limit";
-    ctHelpers = "ct helper";
-    ctTimeouts = "ct timeout";
-    ctExpectations = "ct expectation";
-    ctCounts = "ct count";
-    secmarks = "secmark";
-    synproxies = "synproxy";
-  };
   parseCheck = import ./parse-check.nix {
     inherit
       dsl

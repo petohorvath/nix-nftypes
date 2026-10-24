@@ -1,6 +1,7 @@
 {
   fixtures,
   helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -13,7 +14,7 @@
 # collapse to attrsets the schema already accepts.
 
 let
-  inherit (helpers) roundtrip;
+  inherit (helpers) capitalise roundtrip;
   inherit (nftlib)
     dsl
     toJson
@@ -30,7 +31,6 @@ let
   pr = parity nftlib.types.ruleset;
   pc = parity nftlib.types.command;
 
-  capitalise = word: lib.toUpper (builtins.substring 0 1 word) + builtins.substring 1 (-1) word;
 in
 {
   # =========================================================================
@@ -4297,15 +4297,19 @@ in
         ];
       };
 }
-# A wrongly shaped object collection names the table and the collection,
+# A kind's wrongly shaped named objects name the table and the kind's key,
 # through JSON and imperative text, for every kind a table tree holds.
-// lib.concatMapAttrs (collection: noun: {
-  "testTableTree${capitalise collection}ListThrows" = {
-    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { ${collection} = [ ]; }) ]);
-    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${collection}: expected an attribute set of ${noun} bodies, got a list$";
-  };
-  "testTableTree${capitalise collection}StringThrowsInText" = {
-    expr = toText (dsl.ruleset [ (dsl.table "inet" "fw" { ${collection} = "/x"; }) ]);
-    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${collection}: expected an attribute set of ${noun} bodies, got a string$";
-  };
-}) fixtures.tableTreeObjectCollections
+// lib.concatMapAttrs (
+  _:
+  { plural, tag, ... }:
+  {
+    "testTableTree${capitalise plural}ListThrows" = {
+      expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { ${plural} = [ ]; }) ]);
+      expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${plural}: expected an attribute set of ${tag} bodies, got a list$";
+    };
+    "testTableTree${capitalise plural}StringThrowsInText" = {
+      expr = toText (dsl.ruleset [ (dsl.table "inet" "fw" { ${plural} = "/x"; }) ]);
+      expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${plural}: expected an attribute set of ${tag} bodies, got a string$";
+    };
+  }
+) internal.dslObjectKinds

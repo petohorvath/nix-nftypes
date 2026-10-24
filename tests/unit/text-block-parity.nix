@@ -1,6 +1,7 @@
 {
   fixtures,
   helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -21,13 +22,12 @@
 
 let
   inherit (fixtures.blockTables) baseChain limitTable referencedTable;
+  inherit (helpers) capitalise;
   inherit (nftlib)
     dsl
     toTextBlock
     toTextBlockPretty
     ;
-
-  capitalise = word: lib.toUpper (builtins.substring 0 1 word) + builtins.substring 1 (-1) word;
 in
 {
   # nft's JSON parser ignores a set or map comment, so block form refuses
@@ -583,11 +583,15 @@ in
       }'';
   };
 }
-# A wrongly shaped object collection names the table and the collection in
-# block form too, for every kind a table tree holds.
-// lib.concatMapAttrs (collection: noun: {
-  "test${capitalise collection}ListRejected" = {
-    expr = toTextBlock (dsl.table "inet" "fw" { ${collection} = [ ]; });
-    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${collection}: expected an attribute set of ${noun} bodies, got a list$";
-  };
-}) fixtures.tableTreeObjectCollections
+# A kind's wrongly shaped named objects name the table and the kind's key
+# in block form too, for every kind a table tree holds.
+// lib.concatMapAttrs (
+  _:
+  { plural, tag, ... }:
+  {
+    "test${capitalise plural}ListRejected" = {
+      expr = toTextBlock (dsl.table "inet" "fw" { ${plural} = [ ]; });
+      expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${plural}: expected an attribute set of ${tag} bodies, got a list$";
+    };
+  }
+) internal.dslObjectKinds

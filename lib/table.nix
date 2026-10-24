@@ -66,17 +66,18 @@ let
           builtins.toJSON validated.${key}
         }";
 
-  # Preparation lists a collection's names or indexes before it checks any
-  # entry, so a wrongly shaped collection fails here, at its path, instead
-  # of as a bare Nix type error. `at` is the collection's location.
-  requireCollection =
+  # Preparation lists the names in `chains` or in one kind's named objects,
+  # and the indexes in a chain's `rules`, before it checks any entry, so a
+  # wrongly shaped value fails here, at its path `at`, instead of as a bare
+  # Nix type error.
+  requireShape =
     isShape: expected: at: value:
     if isShape value then
       value
     else
       location.fail at "expected ${expected}, got a ${builtins.typeOf value}";
 
-  requireNamedBodies = noun: requireCollection builtins.isAttrs "an attribute set of ${noun} bodies";
+  requireNamedBodies = noun: requireShape builtins.isAttrs "an attribute set of ${noun} bodies";
 
   # `tree` is the table tree's location (../dsl/internal/location.nix).
   prepareObject =
@@ -116,7 +117,7 @@ let
         name
       ];
       checkedBody = requireBody at userBody;
-      rules = requireCollection builtins.isList "a list of rules" (location.within at [ "rules" ]) (
+      rules = requireShape builtins.isList "a list of rules" (location.within at [ "rules" ]) (
         checkedBody.rules or [ ]
       );
     in
@@ -175,9 +176,9 @@ let
       objects = lib.concatMap (
         kind:
         let
-          named = objectsOfKind kind;
+          bodiesByName = objectsOfKind kind;
         in
-        map (name: prepareObject tree scope kind name named.${name}) (sortedNames named)
+        map (name: prepareObject tree scope kind name bodiesByName.${name}) (sortedNames bodiesByName)
       ) presentKinds;
     };
 
