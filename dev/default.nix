@@ -17,7 +17,10 @@
       # so they run as the `integration-<suite>` entries of ../tests.
       nix-unit = {
         package = pkgs.nix-unit;
-        inputs = removeAttrs inputs [ "self" ];
+        # The check passes the root inputs from the store. Evaluating
+        # `tests` loads this partition, whose inputs (./flake.nix) it fetches.
+        inputs = { inherit (inputs) flake-parts nixpkgs; };
+        allowNetwork = true;
         enableSystemAgnostic = false;
         tests.unit = import ../tests/unit { inherit (inputs) nixpkgs; };
       };

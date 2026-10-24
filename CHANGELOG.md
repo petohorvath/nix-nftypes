@@ -91,8 +91,8 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Every Refusal ends with `Field: <label>.`. The Refusals of a non-integer chain or flowtable priority (`chain prio`, `flowtable prio`), an unsafe set or map datatype (`set type`, `map type`, `map value type`), an unsafe expression string (`expression`), and a `{ set = …; }` body that is neither a list nor a reference (`set expression`) named no field.
 - Schema submodules take only an attrset of fields: they reject a module function, a path, and a `_module` key. A path-like string such as `{ synproxy = "/sp1"; }` is a synproxy name; it was imported as a module file, which aborted evaluation.
 - The `tests` flake output comes from nix-unit's flake-parts module: the evaluation-only suites are `tests.systems.<system>.unit`, with kebab-case suite names, instead of top-level suites. Run `nix-unit --flake .#tests.systems.<system>.unit`.
-- The flake has a `nix-unit` input, which provides that module. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.nix-unit.follows = "";`.
-- The flake has a `treefmt-nix` input, which formats and lints the repo through `nix fmt` and the `treefmt` check. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.treefmt-nix.follows = "";`.
+- The repo formats and lints itself through `nix fmt` and the `treefmt` check, from treefmt-nix's flake-parts module.
+- The development-only inputs, `nix-unit` and `treefmt-nix`, are in `dev/flake.nix`, with their own lock file, so consumers' lock files record neither.
 
 ### Removed
 

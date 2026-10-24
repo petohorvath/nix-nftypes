@@ -4,24 +4,12 @@
   # `nixpkgs` is the NixOS stable release consumers deploy on. The project
   # policy reruns the checks with its stable and unstable pins overriding it.
   # nftables has no independent flake input (see tests/default.nix and
-  # docs/upstream-sync.md).
+  # docs/upstream-sync.md). The development-only inputs are in dev/flake.nix.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
-    };
-    nix-unit = {
-      url = "github:nix-community/nix-unit";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        treefmt-nix.follows = "";
-        nix-github-actions.follows = "";
-      };
-    };
-    treefmt-nix = {
-      url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -37,7 +25,10 @@
 
       imports = [ flake-parts.flakeModules.partitions ];
 
-      partitions.dev.module = ./dev;
+      partitions.dev = {
+        extraInputsFlake = ./dev;
+        module = ./dev;
+      };
       partitionedAttrs = {
         checks = "dev";
         devShells = "dev";
