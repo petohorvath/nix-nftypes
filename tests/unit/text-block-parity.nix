@@ -1,6 +1,7 @@
 {
   fixtures,
   helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -21,12 +22,12 @@
 
 let
   inherit (fixtures.blockTables) baseChain limitTable referencedTable;
+  inherit (helpers) capitalise;
   inherit (nftlib)
     dsl
     toTextBlock
     toTextBlockPretty
     ;
-
 in
 {
   # nft's JSON parser ignores a set or map comment, so block form refuses
@@ -151,6 +152,17 @@ in
   testUnknownTableKeyRejected = {
     expr = toTextBlock (dsl.table "inet" "fw" { chians.input = { }; });
     expectedError.msg = "nix-nftypes: dsl\\.table inet\\.fw: unsupported key.*chians";
+  };
+
+  # A wrongly shaped `chains` or rule list names the table and its path.
+  testChainsListRejected = {
+    expr = toTextBlock (dsl.table "inet" "fw" { chains = [ ]; });
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains: expected an attribute set of chain bodies, got a list$";
+  };
+
+  testRulesSetRejectedPretty = {
+    expr = toTextBlockPretty (dsl.table "inet" "fw" { chains.input.rules = { }; });
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules: expected a list of rules, got a set$";
   };
 
   # Omitting wrapper fields from output must not skip their validation,
@@ -571,3 +583,15 @@ in
       }'';
   };
 }
+# A kind's wrongly shaped named objects name the table and the kind's key
+# in block form too, for every kind a table tree holds.
+// lib.concatMapAttrs (
+  _:
+  { plural, tag, ... }:
+  {
+    "test${capitalise plural}ListRejected" = {
+      expr = toTextBlock (dsl.table "inet" "fw" { ${plural} = [ ]; });
+      expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${plural}: expected an attribute set of ${tag} bodies, got a list$";
+    };
+  }
+) internal.dslObjectKinds

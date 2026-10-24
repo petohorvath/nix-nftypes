@@ -33,6 +33,12 @@ let
     internal = {
       inherit nftSafeIfname nftSafeScalar;
       dslMergeDisjoint = import ../lib/dsl/internal/merge-disjoint.nix { inherit lib; };
+      # The object-kind registry, so a test covers every kind a table tree
+      # holds without repeating the registry.
+      dslObjectKinds = import ../lib/dsl/structure/object-kinds.nix {
+        inherit lib;
+        objects = nftlib.types.objectBodies;
+      };
       textBlockFields = text.blockFields;
       textDispatch = text.dispatch;
       textPrimitives = text.primitives;

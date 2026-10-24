@@ -66,6 +66,19 @@ let
           builtins.toJSON validated.${key}
         }";
 
+  # Preparation lists the names in `chains` or in one kind's named objects,
+  # and the indexes in a chain's `rules`, before it checks any entry, so a
+  # wrongly shaped value fails here, at its path `at`, instead of as a bare
+  # Nix type error.
+  requireShape =
+    isShape: expected: at: value:
+    if isShape value then
+      value
+    else
+      location.fail at "expected ${expected}, got a ${builtins.typeOf value}";
+
+  requireNamedBodies = noun: requireShape builtins.isAttrs "an attribute set of ${noun} bodies";
+
   # `tree` is the table tree's location (../dsl/internal/location.nix).
   prepareObject =
     tree: scope: pluralKey: name: userBody:
@@ -104,12 +117,15 @@ let
         name
       ];
       checkedBody = requireBody at userBody;
+      rules = requireShape builtins.isList "a list of rules" (location.within at [ "rules" ]) (
+        checkedBody.rules or [ ]
+      );
     in
     {
       body = prepareBody objects.chainBody at (scope // { inherit name; }) (
         removeAttrs checkedBody [ "rules" ]
       );
-      rules = lib.imap0 (prepareRule tree (scope // { chain = name; })) (checkedBody.rules or [ ]);
+      rules = lib.imap0 (prepareRule tree (scope // { chain = name; })) rules;
     };
 
   prepareTable =
@@ -148,17 +164,21 @@ let
         inherit family;
         table = name;
       };
-      chains = checkedBody.chains or { };
+      chains = requireNamedBodies "chain" (location.within tree [ "chains" ]) (checkedBody.chains or { });
       presentKinds = builtins.filter (kind: checkedBody ? ${kind}) orderedObjectKindNames;
+      objectsOfKind =
+        kind:
+        requireNamedBodies objectKinds.${kind}.tag (location.within tree [ kind ]) checkedBody.${kind};
     in
     {
       body = prepareBody objects.tableBody tree { inherit family name; } tableOptions;
       chains = map (name: prepareChain tree scope name chains.${name}) (sortedNames chains);
       objects = lib.concatMap (
         kind:
-        map (name: prepareObject tree scope kind name checkedBody.${kind}.${name}) (
-          sortedNames checkedBody.${kind}
-        )
+        let
+          bodiesByName = objectsOfKind kind;
+        in
+        map (name: prepareObject tree scope kind name bodiesByName.${name}) (sortedNames bodiesByName)
       ) presentKinds;
     };
 

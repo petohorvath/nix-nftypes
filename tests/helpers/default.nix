@@ -46,6 +46,10 @@ in
 
   roundtrip = valueType: value: nftlib.toJson (validate valueType value);
 
+  # `word` with its first letter upper-cased, to build a camelCase test
+  # name from an attribute name.
+  capitalise = word: lib.toUpper (builtins.substring 0 1 word) + builtins.substring 1 (-1) word;
+
   # Classifies corpus statements the schema rejects; see corpus-drift.nix.
   corpusDrift = import ./corpus-drift.nix {
     inherit lib;

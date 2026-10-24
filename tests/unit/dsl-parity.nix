@@ -1,6 +1,7 @@
 {
   fixtures,
   helpers,
+  internal,
   lib,
   nftlib,
   ...
@@ -13,8 +14,12 @@
 # collapse to attrsets the schema already accepts.
 
 let
-  inherit (helpers) roundtrip;
-  inherit (nftlib) dsl toJson;
+  inherit (helpers) capitalise roundtrip;
+  inherit (nftlib)
+    dsl
+    toJson
+    toText
+    ;
 
   parity = t: nftValue: handwritten: {
     expr = roundtrip t nftValue;
@@ -25,6 +30,7 @@ let
   ps = parity nftlib.types.statement;
   pr = parity nftlib.types.ruleset;
   pc = parity nftlib.types.command;
+
 in
 {
   # =========================================================================
@@ -1700,6 +1706,32 @@ in
       ]
     );
     expectedError.msg = "nix-nftypes: dsl\\.table inet\\.t: unsupported key\\(s\\): elements; .*`sets\\.<name>\\.elements` or `maps\\.<name>\\.elements`.*`add\\.element`";
+  };
+
+  # A wrongly shaped `chains` or rule list names the table and its path.
+  testTableTreeChainsListThrows = {
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains = [ ]; }) ]);
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains: expected an attribute set of chain bodies, got a list$";
+  };
+
+  testTableTreeRulesSetThrows = {
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.rules = { }; }) ]);
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules: expected a list of rules, got a set$";
+  };
+
+  # A single rule entry where the list belongs, which reads like a list of
+  # its statements, is still a wrongly shaped rule list.
+  testTableTreeRulesRuleEntryThrowsInText = {
+    expr = toText (
+      dsl.ruleset [
+        (dsl.table "inet" "fw" {
+          chains.input.rules = {
+            statements = [ dsl.accept ];
+          };
+        })
+      ]
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules: expected a list of rules, got a set$";
   };
 
   # Set with camelCase-aliased autoMerge (→ "auto-merge").
@@ -4265,3 +4297,19 @@ in
         ];
       };
 }
+# A kind's wrongly shaped named objects name the table and the kind's key,
+# through JSON and imperative text, for every kind a table tree holds.
+// lib.concatMapAttrs (
+  _:
+  { plural, tag, ... }:
+  {
+    "testTableTree${capitalise plural}ListThrows" = {
+      expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { ${plural} = [ ]; }) ]);
+      expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${plural}: expected an attribute set of ${tag} bodies, got a list$";
+    };
+    "testTableTree${capitalise plural}StringThrowsInText" = {
+      expr = toText (dsl.ruleset [ (dsl.table "inet" "fw" { ${plural} = "/x"; }) ]);
+      expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${plural}: expected an attribute set of ${tag} bodies, got a string$";
+    };
+  }
+) internal.dslObjectKinds
