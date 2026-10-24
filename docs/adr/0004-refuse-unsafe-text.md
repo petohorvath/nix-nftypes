@@ -1,6 +1,6 @@
 # Refuse values that are not nft-safe instead of escaping them
 
-nftables text has no escape syntax: the lexer ends a quoted string at the next `"`, treats `\` as a literal byte, and splits on newlines and other parser metacharacters. Escaping cannot work, so the project refuses such values: schema types such as `comment` and `ifname` reject them at evaluation, and the text renderer asserts the same shared predicates as defence in depth for raw attrsets that bypass the schema. A comment containing `"` had rendered to text that `nft -f` loaded as an extra `policy accept` chain, a full firewall bypass.
+nftables text has no escape syntax: the lexer ends a quoted string at the next `"`, treats `\` as a literal byte, and splits on newlines and other parser metacharacters. Escaping cannot work, so the project refuses such values: schema types such as `types.comment` and `types.ifname` reject them at evaluation, and the text renderer asserts the same shared predicates as defence in depth for raw attrsets that bypass the schema. A comment containing `"` had rendered to text that `nft -f` loaded as an extra `policy accept` chain, a full firewall bypass.
 
 ## Consequences
 
