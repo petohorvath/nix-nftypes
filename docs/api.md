@@ -97,6 +97,13 @@ includes the statement's reference forms. Type a tagged object, such as
 `{ chain = { … }; }`, with its command's union, such as `types.addObject` or
 `types.readBackObject`.
 
+`types.statementBodies` holds the body of each statement tag that takes more
+than `null`, the same type `types.statement` takes for that tag:
+`statementBodies.logBody` accepts `null` as `{ log = null; }` does, and
+`ctHelperBody` takes the name of a ct helper as `{ "ct helper" = "ftp"; }`
+does. `jump` and `goto` take `verdictTargetBody`, and the tags that take only
+`null`, such as `accept` and `notrack`, take `types.nullLiteral`.
+
 Each submodule takes only an attrset of its fields. Unlike `lib.types.submodule`,
 it rejects a module function, a path, and a `_module` key, so a string in a
 union with a body, such as the synproxy reference `"/sp1"`, is a name rather

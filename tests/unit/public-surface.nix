@@ -140,6 +140,9 @@ in
     expected = [
       "counterBody"
       "ctCountBody"
+      "ctExpectationBody"
+      "ctHelperBody"
+      "ctTimeoutBody"
       "dupBody"
       "flowBody"
       "fwdBody"
@@ -156,9 +159,12 @@ in
       "quotaBody"
       "rejectBody"
       "resetBody"
+      "secmarkBody"
       "setBody"
       "synproxyBody"
       "tproxyBody"
+      "tunnelBody"
+      "verdictTargetBody"
       "vmapBody"
       "xtBody"
     ];
