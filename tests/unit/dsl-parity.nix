@@ -14,7 +14,11 @@
 
 let
   inherit (helpers) roundtrip;
-  inherit (nftlib) dsl toJson;
+  inherit (nftlib)
+    dsl
+    toJson
+    toText
+    ;
 
   parity = t: nftValue: handwritten: {
     expr = roundtrip t nftValue;
@@ -25,6 +29,8 @@ let
   ps = parity nftlib.types.statement;
   pr = parity nftlib.types.ruleset;
   pc = parity nftlib.types.command;
+
+  capitalise = word: lib.toUpper (builtins.substring 0 1 word) + builtins.substring 1 (-1) word;
 in
 {
   # =========================================================================
@@ -1700,6 +1706,32 @@ in
       ]
     );
     expectedError.msg = "nix-nftypes: dsl\\.table inet\\.t: unsupported key\\(s\\): elements; .*`sets\\.<name>\\.elements` or `maps\\.<name>\\.elements`.*`add\\.element`";
+  };
+
+  # A wrongly shaped `chains` or rule list names the table and its path.
+  testTableTreeChainsListThrows = {
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains = [ ]; }) ]);
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains: expected an attribute set of chain bodies, got a list$";
+  };
+
+  testTableTreeRulesSetThrows = {
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.rules = { }; }) ]);
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules: expected a list of rules, got a set$";
+  };
+
+  # A single rule entry where the list belongs, which reads like a list of
+  # its statements, is still a wrongly shaped rule list.
+  testTableTreeRulesRuleEntryThrowsInText = {
+    expr = toText (
+      dsl.ruleset [
+        (dsl.table "inet" "fw" {
+          chains.input.rules = {
+            statements = [ dsl.accept ];
+          };
+        })
+      ]
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules: expected a list of rules, got a set$";
   };
 
   # Set with camelCase-aliased autoMerge (→ "auto-merge").
@@ -4265,3 +4297,15 @@ in
         ];
       };
 }
+# A wrongly shaped object collection names the table and the collection,
+# through JSON and imperative text, for every kind a table tree holds.
+// lib.concatMapAttrs (collection: noun: {
+  "testTableTree${capitalise collection}ListThrows" = {
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { ${collection} = [ ]; }) ]);
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${collection}: expected an attribute set of ${noun} bodies, got a list$";
+  };
+  "testTableTree${capitalise collection}StringThrowsInText" = {
+    expr = toText (dsl.ruleset [ (dsl.table "inet" "fw" { ${collection} = "/x"; }) ]);
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: ${collection}: expected an attribute set of ${noun} bodies, got a string$";
+  };
+}) fixtures.tableTreeObjectCollections
