@@ -255,7 +255,7 @@ in
         "urgptr"
         "window"
       ];
-      tunnelMeta = [
+      tunnel = [
         "id"
         "path"
       ];

@@ -12,10 +12,10 @@ let
   # object-type unions.
   #
   # `replace`, `insert`, and `rename` take their object-kind tag inside the
-  # command body — `{ replace: { rule: <ruleBody> } }`, not
-  # `{ replace: <ruleBody> }`. The nftables JSON parser rejects the direct
-  # form (verified with `nft -c -j -f`), so we use the single-tag unions
-  # `objects.insertObject`, `objects.replaceObject`, and
+  # command body — `{ replace: { rule: <replaceRuleBody> } }`, not
+  # `{ replace: <replaceRuleBody> }`. The nftables JSON parser rejects the
+  # direct form (verified with `nft -c -j -f`), so we use the single-tag
+  # unions `objects.insertObject`, `objects.replaceObject`, and
   # `objects.renameObject` here.
   command = taggedUnion {
     add = objects.addObject;

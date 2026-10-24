@@ -26,7 +26,8 @@ let
   inherit (helpers) optionTree;
 
   # Every public schema type, by its path under `nftlib.types`; the
-  # namespaces `expressions`, `statements` and `objects` hold the bodies.
+  # namespaces `expressionBodies`, `statementBodies` and `objectBodies`
+  # hold the bodies.
   roots = lib.concatMapAttrs (
     name: value:
     if value._type or null == "option-type" then
@@ -42,39 +43,39 @@ let
   # The ends of every `types.ints.between` field, from nft and the kernel.
   expectedRanges = {
     # IPsec SA index: nft refuses spnum above 255.
-    "expressions.ipsecBody.spnum" = [
+    "expressionBodies.ipsecBody.spnum" = [
       0
       255
     ];
     # An IPv6 prefix is at most 128 bits.
-    "expressions.prefixBody.len" = [
+    "expressionBodies.prefixBody.len" = [
       0
       128
     ];
     # TCP option kind: one byte.
-    "expressions.rawTcpOptionBody.base" = [
+    "expressionBodies.tcpOptionRawBody.base" = [
       0
       255
     ];
     # Ports are 16 bits.
-    "objects.ctExpectationBody.dport" = [
+    "objectBodies.ctExpectationBody.dport" = [
       0
       65535
     ];
-    "objects.tunnelBody.dport" = [
+    "objectBodies.tunnelBody.dport" = [
       0
       65535
     ];
-    "objects.tunnelBody.sport" = [
+    "objectBodies.tunnelBody.sport" = [
       0
       65535
     ];
     # IP header TOS and TTL: one byte each.
-    "objects.tunnelBody.tos" = [
+    "objectBodies.tunnelBody.tos" = [
       0
       255
     ];
-    "objects.tunnelBody.ttl" = [
+    "objectBodies.tunnelBody.ttl" = [
       0
       255
     ];

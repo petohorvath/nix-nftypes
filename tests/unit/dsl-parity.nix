@@ -178,7 +178,7 @@ in
     };
   };
 
-  # -- Field trees — meta / ct / rt / socket / osf / tunnelMeta ------------
+  # -- Field trees — meta / ct / rt / socket / osf / tunnel ----------------
 
   testFieldMetaMark = pe dsl.fields.meta.mark {
     meta = {
@@ -220,7 +220,7 @@ in
       key = "version";
     };
   };
-  testFieldTunnelMetaId = pe dsl.fields.tunnelMeta.id {
+  testFieldTunnelId = pe dsl.fields.tunnel.id {
     tunnel = {
       key = "id";
     };
@@ -650,7 +650,7 @@ in
     expectedError.msg = "unexpected argument 'stmt'";
   };
 
-  testExprBitor = pe (dsl.expr.bitor dsl.fields.meta.mark 255) {
+  testExprBitOr = pe (dsl.expr.bitOr dsl.fields.meta.mark 255) {
     "|" = [
       {
         meta = {
@@ -660,13 +660,13 @@ in
       255
     ];
   };
-  testExprBitxor = pe (dsl.expr.bitxor 1 2) {
+  testExprBitXor = pe (dsl.expr.bitXor 1 2) {
     "^" = [
       1
       2
     ];
   };
-  testExprBitand = pe (dsl.expr.bitand dsl.fields.meta.mark 255) {
+  testExprBitAnd = pe (dsl.expr.bitAnd dsl.fields.meta.mark 255) {
     "&" = [
       {
         meta = {
@@ -676,13 +676,13 @@ in
       255
     ];
   };
-  testExprLshift = pe (dsl.expr.lshift 1 4) {
+  testExprShiftLeft = pe (dsl.expr.shiftLeft 1 4) {
     "<<" = [
       1
       4
     ];
   };
-  testExprRshift = pe (dsl.expr.rshift 16 4) {
+  testExprShiftRight = pe (dsl.expr.shiftRight 16 4) {
     ">>" = [
       16
       4

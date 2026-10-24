@@ -328,7 +328,7 @@ in
     Combine two expressions with bitwise OR. `a` and `b` are the operands.
     Returns a `|` expression.
   */
-  bitor = a: b: {
+  bitOr = a: b: {
     "|" = [
       a
       b
@@ -339,7 +339,7 @@ in
     Combine two expressions with bitwise XOR. `a` and `b` are the operands.
     Returns a `^` expression.
   */
-  bitxor = a: b: {
+  bitXor = a: b: {
     "^" = [
       a
       b
@@ -350,7 +350,7 @@ in
     Combine two expressions with bitwise AND, typically to mask a value.
     `a` and `b` are the operands. Returns a `&` expression.
   */
-  bitand = a: b: {
+  bitAnd = a: b: {
     "&" = [
       a
       b
@@ -361,7 +361,7 @@ in
     Shift an expression left. `a` is the value and `b` the shift count.
     Returns a `<<` expression.
   */
-  lshift = a: b: {
+  shiftLeft = a: b: {
     "<<" = [
       a
       b
@@ -372,7 +372,7 @@ in
     Shift an expression right. `a` is the value and `b` the shift count.
     Returns a `>>` expression.
   */
-  rshift = a: b: {
+  shiftRight = a: b: {
     ">>" = [
       a
       b

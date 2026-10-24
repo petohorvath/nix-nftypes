@@ -20,7 +20,7 @@ let
   rt = import ./rt.nix { inherit lib; };
   socket = import ./socket.nix { inherit lib; };
   osf = import ./osf.nix { inherit lib; };
-  tunnelMeta = import ./tunnelMeta.nix { inherit lib; };
+  tunnel = import ./tunnel.nix { inherit lib; };
 in
 payloadFields
 // {
@@ -30,6 +30,6 @@ payloadFields
     osf
     rt
     socket
-    tunnelMeta
+    tunnel
     ;
 }
