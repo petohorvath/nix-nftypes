@@ -189,11 +189,13 @@ The mapping and the JSON-spelling check are centralized in
 
 Not every value under `dsl` is validated at constructor call time. Nix is lazy,
 and expression constructors and Field leaves build attrsets unchecked.
-Validation occurs when a statement builder, a command builder, or table
-preparation applies the matching schema body and the result is forced. A
-statement builder validates its statement, and the expressions in it, against
-the body `types.statement` takes for its tag, and its errors name the builder,
-as in `dsl.log.level`.
+Validation occurs when a statement builder, a match operator, a command
+builder, or table preparation applies the matching schema body and the result
+is forced. A statement builder or match operator validates its statement, and
+the expressions in it, against the body `types.statement` takes for its tag.
+Its field errors are the module system's, whose option path starts with the
+builder, as in `dsl.log.level` or `dsl.eq.left`, and may name a field by its
+JSON spelling.
 
 `dsl.ruleset` also accepts raw command attrsets so callers can use parser forms
 not covered by the convenience API. Those raw children are passed through and

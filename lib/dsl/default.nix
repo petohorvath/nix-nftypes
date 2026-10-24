@@ -26,7 +26,7 @@ let
   };
 
   fields = import ./fields { inherit lib; };
-  ops = import ./ops.nix { inherit lib; };
+  ops = import ./ops.nix { inherit lib statement; };
   verdicts = import ./verdicts.nix { inherit statement; };
   exprs = import ./exprs.nix { inherit lib; };
   payload = import ./payload.nix { inherit lib; };

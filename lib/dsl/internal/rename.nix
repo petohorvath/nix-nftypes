@@ -146,6 +146,8 @@ let
     if builtins.isAttrs checked then renameChecked renames checked else checked;
 
   bodyRenames = lib.mapAttrs (_: renameKeys) renames;
+
+  none = _location: lib.id;
 in
 {
   inherit (bodyRenames)
@@ -156,9 +158,9 @@ in
     set
     ;
 
-  none = _location: lib.id;
+  inherit none;
 
   checkSpelling.rule = checkKeys renames.rule;
 
-  statement = name: renameKeys (renames.${name} or { });
+  statement = name: bodyRenames.${name} or none;
 }

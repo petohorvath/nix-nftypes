@@ -8,12 +8,6 @@
 
 let
   reference = import ../internal/reference.nix { inherit lib; };
-
-  # Store the named set or map in `field` of `body` as `"@<name>"`.
-  namedReference =
-    caller: field: body:
-    body
-    // lib.optionalAttrs (body ? ${field}) { ${field} = reference.atReference caller body.${field}; };
 in
 {
   /*
@@ -21,7 +15,7 @@ in
     `value` the new value expression. Returns a mangle statement, and
     throws when its body doesn't validate.
   */
-  mangle = key: value: statement.tagged "mangle" "mangle" { inherit key value; };
+  mangle = key: value: statement.tagged { name = "mangle"; } { inherit key value; };
 
   /*
     Modify a named set from the packet path. Distinct from the anonymous set
@@ -37,7 +31,7 @@ in
   setStmt = statement.fromFields {
     name = "setStmt";
     tag = "set";
-    prepare = namedReference "setStmt" "set";
+    prepare = reference.normaliseAtReference "set";
   };
 
   /*
@@ -54,7 +48,7 @@ in
   mapStmt = statement.fromFields {
     name = "mapStmt";
     tag = "map";
-    prepare = namedReference "mapStmt" "map";
+    prepare = reference.normaliseAtReference "map";
   };
 
   /*
@@ -63,20 +57,23 @@ in
     command namespace. Returns a reset statement, and throws when `e` is
     not an expression.
   */
-  resetStmt = statement.tagged "resetStmt" "reset";
+  resetStmt = statement.tagged {
+    name = "resetStmt";
+    tag = "reset";
+  };
 
   /*
     Apply a security mark. `secmark.ref ref` names the secmark object:
     `ref` is its name, with or without a leading `@`, or a map expression
     that selects one by key. Returns a secmark statement.
   */
-  secmark = statement.referenceOnly "secmark" "secmark";
+  secmark = statement.referenceOnly { name = "secmark"; };
 
   /*
     Attach tunnel metadata. `tunnel.ref ref` names the tunnel object, as
     `secmark.ref` does. Returns a tunnel statement.
   */
-  tunnel = statement.referenceOnly "tunnel" "tunnel";
+  tunnel = statement.referenceOnly { name = "tunnel"; };
 
   # Exempt the packet from connection tracking. A statement, not a verdict:
   # it doesn't end the rule.

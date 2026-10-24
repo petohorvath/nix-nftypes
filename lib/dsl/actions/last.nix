@@ -6,6 +6,7 @@
 { lib, statement }:
 
 let
+  inherit (import ../internal/location.nix { inherit lib; }) fail;
   variant = import ../internal/variant.nix { inherit lib; };
 in
 {
@@ -22,11 +23,11 @@ in
       (statement.fromFields {
         name = "last";
         prepare =
-          body:
+          location: body:
           if body ? used then
             body
           else
-            throw "nix-nftypes: dsl.last: a seeded last needs used; use last.auto for an unseeded one";
+            fail location "a seeded last needs used; use last.auto for an unseeded one";
       })
       {
         auto = {

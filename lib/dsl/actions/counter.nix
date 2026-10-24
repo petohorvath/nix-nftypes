@@ -6,6 +6,7 @@
 { lib, statement }:
 
 let
+  inherit (import ../internal/location.nix { inherit lib; }) fail;
   variant = import ../internal/variant.nix { inherit lib; };
 in
 {
@@ -25,16 +26,16 @@ in
       (statement.fromFields {
         name = "counter";
         prepare =
-          body:
+          location: body:
           if body ? packets && body ? bytes then
             body
           else
-            throw "nix-nftypes: dsl.counter: an inline counter needs both packets and bytes; use counter.auto for an unseeded counter";
+            fail location "an inline counter needs both packets and bytes; use counter.auto for an unseeded counter";
       })
       {
         auto = {
           counter = null;
         };
-        ref = statement.ref "counter" "counter";
+        ref = statement.ref { name = "counter"; };
       };
 }

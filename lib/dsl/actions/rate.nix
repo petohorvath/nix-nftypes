@@ -20,7 +20,7 @@ in
     body doesn't validate.
   */
   limit = variant (statement.fromFields { name = "limit"; }) {
-    ref = statement.ref "limit" "limit";
+    ref = statement.ref { name = "limit"; };
   };
 
   /*
@@ -33,6 +33,6 @@ in
     validate.
   */
   quota = variant (statement.fromFields { name = "quota"; }) {
-    ref = statement.ref "quota" "quota";
+    ref = statement.ref { name = "quota"; };
   };
 }

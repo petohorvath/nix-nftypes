@@ -24,12 +24,12 @@
     to the calling rule. `target` is the chain name. Returns
     `{ jump = { target; }; }`, and throws when `target` is not a string.
   */
-  jump = target: statement.tagged "jump" "jump" { inherit target; };
+  jump = target: statement.tagged { name = "jump"; } { inherit target; };
 
   /*
     Build a `goto` verdict, which continues in another chain without
     returning. `target` is the chain name. Returns `{ goto = { target; }; }`,
     and throws when `target` is not a string.
   */
-  goto = target: statement.tagged "goto" "goto" { inherit target; };
+  goto = target: statement.tagged { name = "goto"; } { inherit target; };
 }

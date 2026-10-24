@@ -70,7 +70,7 @@ _Avoid_: JSON name, alias
 Turning a table tree into an ordered list of commands: the table, its chains, its named objects, then its rules.
 
 **Raw attrset**:
-A hand-written value that the DSL did not build and nothing has validated; a raw attrset among a ruleset's commands is a raw command.
+A hand-written value that the DSL did not build and nothing has validated as a whole; a DSL-built value inside it, such as a statement, was validated when built. A raw attrset among a ruleset's commands is a raw command.
 
 **Escape hatch**:
 A lower-level path to a parser form the convenience API does not cover: a generic constructor, such as `expr.payloadRaw`, or a raw attrset.

@@ -19,6 +19,6 @@ in
     auto = {
       synproxy = null;
     };
-    ref = statement.ref "synproxy" "synproxy";
+    ref = statement.ref { name = "synproxy"; };
   };
 }

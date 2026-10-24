@@ -13,13 +13,16 @@ in
     pointing to `flow "ft"`, and when `flowtable` is not a string.
   */
   flow =
+    let
+      flowLocation = location.builder [ "flow" ];
+    in
     flowtable:
     if builtins.isAttrs flowtable then
-      location.fail (location.builder [ "flow" ]) "takes the flowtable name alone; write `flow \"ft\"`"
+      location.fail flowLocation "takes the flowtable name alone; write `flow \"ft\"`"
     else
-      statement.tagged "flow" "flow" {
+      statement.tagged { name = "flow"; } {
         op = "add";
-        flowtable = reference.atReference "flow" flowtable;
+        flowtable = reference.atReference flowLocation flowtable;
       };
 
   /*
@@ -40,8 +43,9 @@ in
   */
   vmap =
     key: data:
-    statement.tagged "vmap" "vmap" {
+    statement.tagged { name = "vmap"; } {
       inherit key;
-      data = if builtins.isString data then reference.atReference "vmap" data else data;
+      data =
+        if builtins.isString data then reference.atReference (location.builder [ "vmap" ]) data else data;
     };
 }

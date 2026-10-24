@@ -15,21 +15,30 @@ in
     a map expression that selects one by key. Returns a `ct helper`
     statement, and throws when `ref` is neither.
   */
-  ctHelper = statement.referenceOnly "ctHelper" "ct helper";
+  ctHelper = statement.referenceOnly {
+    name = "ctHelper";
+    tag = "ct helper";
+  };
 
   /*
     Assign a conntrack timeout policy to the flow. `ctTimeout.ref ref`
     names the ct timeout object, as `ctHelper.ref` does. Returns a
     `ct timeout` statement.
   */
-  ctTimeout = statement.referenceOnly "ctTimeout" "ct timeout";
+  ctTimeout = statement.referenceOnly {
+    name = "ctTimeout";
+    tag = "ct timeout";
+  };
 
   /*
     Assign a conntrack expectation to the flow. `ctExpectation.ref ref`
     names the ct expectation object, as `ctHelper.ref` does. Returns a
     `ct expectation` statement.
   */
-  ctExpectation = statement.referenceOnly "ctExpectation" "ct expectation";
+  ctExpectation = statement.referenceOnly {
+    name = "ctExpectation";
+    tag = "ct expectation";
+  };
 
   /*
     Match on the number of tracked connections.
@@ -47,6 +56,9 @@ in
         tag = "ct count";
       })
       {
-        ref = statement.ref "ctCount" "ct count";
+        ref = statement.ref {
+          name = "ctCount";
+          tag = "ct count";
+        };
       };
 }
