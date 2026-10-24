@@ -17,7 +17,8 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `types.deleteObject`, the object union of `delete` and `destroy` commands, and `types.readBackObject`, a bare listed object in a ruleset, as `nft -j list` emits.
 - `types.insertObject`, `types.replaceObject`, and `types.renameObject`, the object unions of `insert`, `replace`, and `rename` commands.
 - Set and map elements accept the statement keys nft lists for them, `counter`, `quota`, `limit`, and `last`, beside `val`, so `types.ruleset` validates the Read-back of a set whose elements carry stateful statements. nft's JSON parser ignores them on input.
-- The log, masquerade, redirect, queue, and reject statements accept the `null` body that nft lists for one with no options, so `types.ruleset` validates its Read-back. Text renders it as the bare statement, such as `log`.
+- The log, masquerade, redirect, queue, and reject statements accept the `null` body that nft lists for one with no options, so `types.ruleset` validates its Read-back. Text renders it as the bare statement, such as `log`. Their bodies, `types.statementBodies.logBody`, `masqueradeBody`, `queueBody`, and `rejectBody`, accept `null` too.
+- `types.statementBodies` holds the body of every statement tag that takes more than `null`, the same type `types.statement` takes for that tag. It adds `objectRefBody`, which `ct helper`, `ct timeout`, `ct expectation`, `secmark`, and `tunnel` share: an expression, the object's name or a map expression that selects it. It also holds `verdictTargetBody`, the body of `jump` and `goto`, the same type as `types.expressionBodies.verdictTargetBody`. `accept`, `drop`, `continue`, `return`, and `notrack` take only `null`, so they have no body there and keep `types.nullLiteral`.
 
 ### Changed
 

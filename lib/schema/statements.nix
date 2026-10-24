@@ -8,7 +8,6 @@
 let
   inherit (lib) mkOption types;
   inherit (internal) submodule taggedUnion;
-  inherit (expressions) verdictTargetBody;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     flowOp
@@ -37,7 +36,7 @@ let
 
   # nft lists a log, masquerade, redirect, queue or reject statement with
   # no options as a null body (src/json.c), and its JSON parser loads that
-  # body back.
+  # body back, so the body of each takes null.
   orNull = types.either nullLiteral;
 
   # A translation body that names an address or a port: nft refuses an
@@ -85,6 +84,9 @@ let
   };
 
   bodies = rec {
+    # jump and goto take the same body as the verdict expressions.
+    inherit (expressions) verdictTargetBody;
+
     matchBody = submodule {
       options = {
         left = mkOption {
@@ -270,7 +272,7 @@ let
       };
     };
 
-    masqueradeBody = submodule {
+    masqueradeBody = orNull (submodule {
       options = {
         port = mkOption {
           type = types.nullOr expr;
@@ -283,9 +285,9 @@ let
           description = "masquerade/redirect flags";
         };
       };
-    };
+    });
 
-    rejectBody = submodule {
+    rejectBody = orNull (submodule {
       options = {
         type = mkOption {
           type = types.nullOr rejectType;
@@ -298,7 +300,7 @@ let
           description = "ICMP code (when type is icmp/icmpx/icmpv6)";
         };
       };
-    };
+    });
 
     setBody = submodule {
       options = {
@@ -349,7 +351,7 @@ let
       };
     };
 
-    logBody = submodule {
+    logBody = orNull (submodule {
       options = {
         prefix = mkOption {
           type = types.nullOr logPrefix;
@@ -382,7 +384,7 @@ let
           description = "log flags";
         };
       };
-    };
+    });
 
     meterBody = submodule {
       options = {
@@ -406,7 +408,7 @@ let
       };
     };
 
-    queueBody = submodule {
+    queueBody = orNull (submodule {
       options = {
         num = mkOption {
           type = types.nullOr expr;
@@ -419,7 +421,7 @@ let
           description = "queue flags";
         };
       };
-    };
+    });
 
     vmapBody = submodule {
       options = {
@@ -502,6 +504,11 @@ let
     # reset statement (TCP option strip): takes a tcp option expression.
     resetBody = expr;
 
+    # ct helper, ct timeout, ct expectation, secmark, and tunnel name an
+    # object: nft parses each body into an objref statement's expression
+    # (src/parser_json.c), the object's name or a map that selects it.
+    objectRefBody = expr;
+
     /*
       Map of tag → body type. Single source of truth for the full
       `statement` attrTag union and the `statementOf` subset helper —
@@ -528,17 +535,17 @@ let
       dup = dupBody;
       snat = natBody;
       dnat = natBody;
-      masquerade = orNull masqueradeBody;
-      redirect = orNull masqueradeBody;
-      reject = orNull rejectBody;
+      masquerade = masqueradeBody;
+      redirect = masqueradeBody;
+      reject = rejectBody;
       set = setBody;
       map = mapBody;
-      log = orNull logBody;
-      "ct helper" = expr;
-      "ct timeout" = expr;
-      "ct expectation" = expr;
+      log = logBody;
+      "ct helper" = objectRefBody;
+      "ct timeout" = objectRefBody;
+      "ct expectation" = objectRefBody;
       meter = meterBody;
-      queue = orNull queueBody;
+      queue = queueBody;
       vmap = vmapBody;
       "ct count" = ctCountBody;
       xt = xtBody;
@@ -548,8 +555,8 @@ let
       tproxy = tproxyBody;
       synproxy = synproxyBody;
       reset = resetBody;
-      secmark = expr;
-      tunnel = expr;
+      secmark = objectRefBody;
+      tunnel = objectRefBody;
     };
 
     statement = taggedUnion bodiesByTag;

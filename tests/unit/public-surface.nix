@@ -152,6 +152,7 @@ in
       "matchBody"
       "meterBody"
       "natBody"
+      "objectRefBody"
       "queueBody"
       "quotaBody"
       "rejectBody"
@@ -159,6 +160,7 @@ in
       "setBody"
       "synproxyBody"
       "tproxyBody"
+      "verdictTargetBody"
       "vmapBody"
       "xtBody"
     ];
