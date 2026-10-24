@@ -6,30 +6,18 @@
 { lib, clean }:
 
 let
-  inherit (import ../table-tree-marker.nix { }) requireNoTableTree;
+  requireRuleset = import ../require-ruleset.nix { inherit lib; };
 in
 {
   /*
-    Serialize a value to compact libnftables JSON.
+    Serialize a ruleset to compact libnftables JSON.
 
-    `value` is a schema-shaped value, usually a ruleset
-    (`{ nftables = [ … ]; }`). It is cleaned first, which drops unset
-    nullable fields and module markers; it is not type-checked. A table
-    tree, alone or among the commands, throws: wrap it in `dsl.ruleset`.
+    `ruleset` is `{ nftables = [ … ]; }`, as `dsl.ruleset` builds it. It is
+    cleaned first, which drops unset nullable fields and module markers; it
+    is not type-checked. Anything else throws, a lone command or a table
+    tree included: wrap it in `dsl.ruleset [ … ]`.
 
     Returns the JSON string.
   */
-  toJson = value: builtins.toJSON (clean (requireNoTableTree "toJson" value));
-
-  /*
-    Render a value as pretty-printed Nix syntax for inspecting generated
-    output.
-
-    `value` is any schema-shaped value; it is cleaned the same way as in
-    `toJson`.
-
-    Returns a multi-line string from `lib.generators.toPretty`.
-  */
-  toNix =
-    value: lib.generators.toPretty { multiline = true; } (clean (requireNoTableTree "toNix" value));
+  toJson = ruleset: builtins.toJSON (clean (requireRuleset "toJson" ruleset));
 }

@@ -5,6 +5,7 @@ let
   evalSucceeds = expr: (builtins.tryEval expr).success;
 
   inherit (nftlib) validate;
+  clean = import ../../lib/clean.nix { inherit lib; };
 
   # False on any type error; `validate` already forces every check.
   validates = valueType: value: evalSucceeds (validate valueType value);
@@ -16,7 +17,7 @@ in
   /*
     `expectedError.msg` patterns for the text renderer's safety refusals.
     Each takes the field label the refusing call site passes and matches
-    the refusal from its `nix-nftypes: text:` prefix to its closing
+    the refusal from its `nix-nftypes: <renderer>:` prefix to its closing
     `Field: <label>.`, so a refusal of a different field fails the test.
     The opening phrase may wrap at any space.
   */
@@ -24,7 +25,9 @@ in
     let
       refusal =
         phrase: field:
-        "nix-nftypes: text: ${lib.replaceStrings [ " " ] [ "\\s+" ] phrase}[\\s\\S]*Field: ${field}\\.";
+        "nix-nftypes: toText(Pretty|Block|BlockPretty)?: ${
+          lib.replaceStrings [ " " ] [ "\\s+" ] phrase
+        }[\\s\\S]*Field: ${field}\\.";
     in
     {
       bareToken = refusal "refusing to render a bare nft token";
@@ -44,7 +47,10 @@ in
       setExpression = refusal "refusing to render a `\\{ set = …; \\}` body" "set expression";
     };
 
-  roundtrip = valueType: value: nftlib.toJson (validate valueType value);
+  # The JSON of `value` once it validates as `valueType`, cleaned as the
+  # renderers clean it: the parity suites compare expressions, statements,
+  # and commands, and `toJson` takes only a ruleset.
+  roundtrip = valueType: value: builtins.toJSON (clean (validate valueType value));
 
   # `word` with its first letter upper-cased, to build a camelCase test
   # name from an attribute name.

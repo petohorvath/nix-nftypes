@@ -10,7 +10,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Added
 
-- `validate type value` checks a value against a schema type and returns it ready to render. It forces the whole value, so every check runs, and replaces the `lib.evalModules` pattern the docs showed.
+- `validate type value` checks a value against a schema type and returns it unchanged, ready to render. It forces the whole value, so every check runs, and replaces the `lib.evalModules` pattern the docs showed.
 - `add.<kind>`, a command builder for each of the 16 add-object kinds, like `create.<kind>`.
 - Sets and maps accept a `comment`, so `types.ruleset` validates the Read-back of a commented set or map. nft's JSON parser ignores it on input.
 - ct helper, timeout, and expectation objects accept `l3proto = "inet"`, which nft lists for one in an inet table. Their `l3proto` has its own type, `types.ctL3Proto`, with values under `enums.ctL3Proto`.
@@ -101,15 +101,19 @@ The schema accepts what nft loads as written and rejects what it loads as someth
   - `add.rule`, `insert.rule`, or `replace.rule` without statements in `statements`. They rendered a rule with no statement. The error names the command, such as `add.rule`, and shows the list form, `statements = [ dsl.drop ]`.
 - A chain sets `type`, `hook`, and `prio` together, a base chain, or none of them, a regular chain. The schema rejects a chain with only some of them, and `dsl` builders and table trees throw naming the chain, such as `chains.input`. nft loads such a chain as a regular chain whose rules never see packets, and a table tree that left out `type` emitted one.
 - `compatibility.chainTypeFor` returns `"filter"` whenever the type its priority suggests can't attach at the placement, so it never returns a type `compatibility.validChainPlacement` rejects. It returned `"nat"` for bridge `srcnat` and `dstnat`, at `forward`, and in the arp and netdev families, and `"route"` for arp `mangle`.
-- Every library error starts `nix-nftypes: <API>: `, naming what the caller called: a builder such as `dsl.create.ctCount`, a table tree as `dsl.table inet.t` followed by the field's path, `text` for the text renderers, `types.statementOf`, or a compatibility helper such as `compatibility.resolvePriority`. Text Refusals began `nftypes:`, the text renderers' other errors `text.commands:` or `text:`, `statementOf` and `expressionOf` errors `nftypes.types.statementOf:`, compatibility helper errors had no prefix, and `resolvePriority "foo" "filter"` blamed `priorityIntsByFamily`. Command builders dropped the `dsl.` and named the JSON tag, as in `create.ct count`; their module-system option paths now start with the builder too, as in `dsl.create.ctCount.name`, and `replace.rule` and `insert.rule` errors name `dsl.replace.rule` and `dsl.insert.rule`.
+- Every library error starts `nix-nftypes: <API>: `, naming what the caller called: a builder such as `dsl.create.ctCount`, a table tree as `dsl.table inet.t` followed by the field's path, a renderer such as `toText` or `toTextBlock`, Refusals included, `types.statementOf`, or a compatibility helper such as `compatibility.resolvePriority`. Text Refusals began `nftypes:`, the text renderers' other errors `text.commands:` or `text:`, `statementOf` and `expressionOf` errors `nftypes.types.statementOf:`, compatibility helper errors had no prefix, and `resolvePriority "foo" "filter"` blamed `priorityIntsByFamily`. Command builders dropped the `dsl.` and named the JSON tag, as in `create.ct count`; their module-system option paths now start with the builder too, as in `dsl.create.ctCount.name`, and `replace.rule` and `insert.rule` errors name `dsl.replace.rule` and `dsl.insert.rule`.
 - Every Refusal ends with `Field: <label>.`. The Refusals of a non-integer chain or flowtable priority (`chain prio`, `flowtable prio`), an unsafe set or map datatype (`set type`, `map type`, `map value type`), an unsafe expression string (`expression`), and a `{ set = …; }` body that is neither a list nor a reference (`set expression`) named no field.
 - Schema submodules take only an attrset of fields: they reject a module function, a path, and a `_module` key. A path-like string such as `{ synproxy = "/sp1"; }` is a synproxy name; it was imported as a module file, which aborted evaluation.
 - The `tests` flake output comes from nix-unit's flake-parts module: the evaluation-only suites are `tests.systems.<system>.unit`, with kebab-case suite names, instead of top-level suites. Run `nix-unit --flake .#tests.systems.<system>.unit`.
 - The flake has a `nix-unit` input, which provides that module. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.nix-unit.follows = "";`.
 - The flake has a `treefmt-nix` input, which formats and lints the repo through `nix fmt` and the `treefmt` check. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.treefmt-nix.follows = "";`.
+- Command builders return only the fields they were given, renamed to JSON keys, as table trees and statement builders do: `add.limit { family = "inet"; table = "t"; name = "l"; rate = 10; per = "second"; }` returns those five fields under `add.limit`. They returned every unset field as `null`, such as `burst = null;` and `comment = null;`. `delete.rule` and `destroy.rule` still send `expr = [ ]`, which nft requires for `destroy`. Rendered output is unchanged; code that reads a builder's value sees no `null` fields.
+- `toJson`, `toText`, and `toTextPretty` take only a ruleset, `{ nftables = [ … ]; }`, and throw on anything else, naming the renderer: wrap a lone command in `dsl.ruleset`, as in `toJson (dsl.ruleset [ (add.table { family = "inet"; name = "t"; }) ])`. `toJson` rendered a lone command as a bare `{"add":…}`, which `nft -j -f` rejects, and the text renderers threw only without an `nftables` key.
 
 ### Removed
 
+- `toNix`. Command builders and `validate` no longer return unset `null` fields, so it was `lib.generators.toPretty { multiline = true; }` over a cleaned value: write `lib.generators.toPretty { multiline = true; }` for `toNix`.
+- `cleanValue`. The renderers still clean their input, so a raw ruleset with `null` fields or `_type` markers renders as before.
 - `types.limitUnit` and `enums.limitUnit`, which no field used. Use `types.limitRateUnit` for a limit's rate unit and `types.byteUnit` for the others.
 - `compatibility.priorityIntsDefault` and `compatibility.priorityIntsBridge`. Use `compatibility.priorityIntsByFamily.<family>`, which holds the same tables.
 - `dsl.rule`. Use `add.rule`, which takes the same body.
@@ -136,7 +140,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 ### Fixed
 
 - `dsl.ruleset` throws when a reset of a counter, quota, set, map, or rule is not its last command, as `types.ruleset` does, whether a builder or a raw attrset made it. nft resets nothing for one placed earlier and still exits 0.
-- `toJson`, `toNix`, `toText`, and `toTextPretty` throw for a `dsl.table` tree passed where a ruleset belongs, alone or among its commands, and ask for `dsl.ruleset`. `toJson` and `toNix` rendered it with its internal marker, as JSON nft rejects, and the text errors didn't say what was wrong.
+- `toJson`, `toText`, and `toTextPretty` throw for a `dsl.table` tree passed where a ruleset belongs, alone or among its commands, and ask for `dsl.ruleset`. `toJson` rendered it with its internal marker, as JSON nft rejects, and the text errors didn't say what was wrong.
 - The home-router example loads. Its input chain had a `flow` statement, which the kernel takes only in a forward chain, and its flowtable was named `offload`, which text can't spell; it's now `fastpath`.
 - Text of a listed ruleset leaves out its `metainfo`, which nft's JSON parser ignores. It wrote a `metainfo` line, which nft rejects.
 - Text leaves the `handle` off a listed rule, which nft's JSON parser ignores, so a Read-back with rules loads as text. It wrote `rule … handle 7`, which text reads as a position, so the load failed with "No such file or directory".
@@ -164,7 +168,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Text declares a map of ct helpers, ct timeouts, or ct expectations with a typeof key, as in `typeof tcp dport : ct helper`. It refused the value as an unsafe datatype. With a datatype key, which nft lists but can't parse, text refuses the map, naming the field (`map type`).
 - Text writes a tunnel statement as `tunnel name "vxlan0"`. It wrote `meta tunnel set "vxlan0"`, which nft rejects.
 - Text quotes an OS fingerprint on the right side of an `osf name` or `osf version` match and in a typeof set of one, as in `osf version == "Linux:3.0"`. It wrote the string bare, and nft's text failed to parse `Linux:3.0`.
-- `cleanValue`, and so `toJson` and the text renderers, keep a verdict that carries a `_type` marker: `{ accept = null; _type = …; }` cleans to `{ accept = null; }`. It became `{ }`.
+- `toJson` and the text renderers keep a verdict that carries a `_type` marker: `{ accept = null; _type = …; }` cleans to `{ accept = null; }`. It became `{ }`.
 - A wrong value in an expression field, such as a match's `left`, is a type error naming the field. `types.expression` described itself in its own description, so evaluation failed with "infinite recursion encountered" instead.
 
 ## [0.1.0] - 2026-10-13

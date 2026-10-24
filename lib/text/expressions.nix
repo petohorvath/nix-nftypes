@@ -18,6 +18,7 @@
   its own variants for the named-object forms.
 */
 {
+  api,
   lib,
   context,
   primitives,
@@ -59,7 +60,7 @@ let
       # the schema (raw attrsets, third-party DSLs).
       if !(nftSafeScalar.isSafe v) then
         throw ''
-          nix-nftypes: text: refusing to render a scalar string at expression
+          nix-nftypes: ${api}: refusing to render a scalar string at expression
           position that contains a character unsafe for nft's bare-token
           grammar (any of: whitespace, ',', ';', '{', '}', '"', '\', '#',
           control character, byte above 0x7F). The renderer emits the value
@@ -74,7 +75,7 @@ let
       else
         v
     else
-      throw "nix-nftypes: text: cannot render scalar of unknown type";
+      throw "nix-nftypes: ${api}: cannot render scalar of unknown type";
 
   # ---- quoted values ----------------------------------------------------
 
@@ -234,7 +235,7 @@ let
       body
     else if !(builtins.isList body) then
       throw ''
-        nix-nftypes: text: refusing to render a `{ set = …; }` body that is
+        nix-nftypes: ${api}: refusing to render a `{ set = …; }` body that is
         neither a list (anonymous set) nor an `@`-prefixed string (named-set
         reference). For a named-set reference, use `expr.setRef "<name>"` or
         pass `"@<name>"` directly as the right operand.
@@ -607,14 +608,14 @@ let
         names = builtins.attrNames v;
       in
       if builtins.length names != 1 then
-        throw "nix-nftypes: text: tagged expression must have exactly one key, got [${lib.concatStringsSep ", " names}]"
+        throw "nix-nftypes: ${api}: tagged expression must have exactly one key, got [${lib.concatStringsSep ", " names}]"
       else
         let
           tag = builtins.head names;
           body = v.${tag};
         in
         if !(taggedRenderers ? ${tag}) then
-          throw "nix-nftypes: text: no renderer for tag '${tag}'"
+          throw "nix-nftypes: ${api}: no renderer for tag '${tag}'"
         else
           taggedRenderers.${tag} ctx body
     else if builtins.isList v then

@@ -30,10 +30,12 @@ in
 nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 ```
 
-`validate` takes any schema type and returns the value with option defaults
-filled in, which rendering cleans away. It forces the whole value, so every
-check runs before it returns, however deep. A mismatch throws the module
-system's error, whose option path starts with `validate`, such as
+`validate` takes any schema type and returns the value unchanged. An option
+the value leaves unset stays absent, so a raw `destroy` rule command writes the
+`expr = [ ];` that nft's JSON parser requires there. `validate` forces the
+whole value, so every check runs before it returns, however deep. A mismatch
+throws the module system's error, whose option path starts with `validate`,
+such as
 `validate.nftables."[definition 1-entry 2]".add.chain.policy`.
 
 `dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
@@ -52,9 +54,9 @@ chosen scope.
 
 Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
-`dsl.table inet.t` followed by the field's path, `text` for the text renderers,
-`types.statementOf`, or a helper such as `compatibility.resolvePriority`. A text
-Refusal ends with `Field: <label>.`
+`dsl.table inet.t` followed by the field's path, a renderer such as `toText` or
+`toTextBlock`, `types.statementOf`, or a helper such as
+`compatibility.resolvePriority`. A text Refusal ends with `Field: <label>.`
 ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ## Schema types
@@ -402,6 +404,13 @@ positionally. See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
 every family, and `flush.ruleset { family = "ip"; }` flushes one.
 
+A builder returns one command holding only the fields given, under their JSON
+keys, as a table tree's commands do: `add.limit { family = "inet"; table = "t";
+name = "l"; rate = 10; per = "second"; }` returns those five fields under
+`add.limit`, without a `null` for an unset field. `delete.rule` and
+`destroy.rule` add the `expr = [ ]` that nft requires for `destroy`. Render a
+command inside a ruleset: `toJson (dsl.ruleset [ (dsl.add.limit { … }) ])`.
+
 In one batch, nft runs a `reset` of a counter, quota, set, map, or rule only as
 the last command: followed by any other command, it resets nothing, and nft still
 exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere else,
@@ -460,21 +469,20 @@ the kernel then deletes every rule in the chain.
 
 ## Renderers
 
-### `toJson value`
+Every renderer cleans its input before rendering it ([Cleaning](#cleaning)),
+and names itself in its errors, as in `nix-nftypes: toTextBlock: `.
 
-Returns compact JSON via `builtins.toJSON` after `cleanValue` normalization.
-Use the result with `nft -j -f`.
+### `toJson ruleset`
 
-`toJson`, `toNix`, `toText`, and `toTextPretty` take a ruleset, not a table
-tree. A `dsl.table` value passed alone or among the `nftables` commands throws
-and asks for `dsl.ruleset [ … ]`, which expands it into commands.
+Returns compact JSON via `builtins.toJSON`. Use the result with `nft -j -f`.
 
-### `toNix value`
+`toJson`, `toText`, and `toTextPretty` take only a ruleset,
+`{ nftables = [ … ]; }`, and throw on anything else. Build one with
+`dsl.ruleset [ … ]`, which also takes a lone command or a table tree: a
+`dsl.table` value passed alone or among the `nftables` commands throws and asks
+for `dsl.ruleset`, which expands it into commands.
 
-Returns a human-readable Nix representation after the same normalization. It is
-a diagnostic formatter, not JSON and not input for `nft`.
-
-### `toText value` and `toTextPretty value`
+### `toText ruleset` and `toTextPretty ruleset`
 
 Render imperative nftables commands. The compact form minimizes whitespace;
 the pretty form uses readable multi-line blocks. Both are pure Nix.
@@ -494,7 +502,7 @@ differ. See [`text-coverage.md`](text-coverage.md).
 
 ## Cleaning
 
-`cleanValue` recursively removes:
+Cleaning, which each renderer applies to its input, recursively removes:
 
 - internal module markers such as `_type`;
 - unset `null` fields from ordinary multi-key attrsets.

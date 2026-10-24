@@ -89,7 +89,6 @@ The [`examples`](examples) directory holds longer rulesets, each a function of `
 | `toTextPretty`      | multi-line imperative nftables text | `nft -f`                                       |
 | `toTextBlock`       | compact block form of one table     | a host that supplies the `table { … }` wrapper |
 | `toTextBlockPretty` | multi-line block form of one table  | a host that supplies the `table { … }` wrapper |
-| `toNix`             | Nix syntax for inspection           | people, not `nft`                              |
 
 [`docs/api.md`](docs/api.md) documents every renderer, the schema types, the DSL, and the compatibility helpers. [`GLOSSARY.md`](GLOSSARY.md) defines the project's terms.
 

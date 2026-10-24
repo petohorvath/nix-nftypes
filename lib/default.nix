@@ -155,20 +155,19 @@ in
       ;
   };
 
-  # Serialize after cleaning. These functions do not run arbitrary raw input
+  # Serialize a ruleset after cleaning. `toJson` does not run raw input
   # through `types.ruleset`; callers that need schema validation must do that
   # explicitly.
-  inherit (json) toJson toNix;
-  cleanValue = clean;
+  inherit (json) toJson;
 
   # The explicit Validation step the renderers leave to the caller.
   validate = import ./validate.nix { inherit lib; };
 
   /*
     Render schema-shaped values to the nftables `.nft` text syntax `nft -f`
-    consumes. The imperative entries (`toText` / `toTextPretty`) accept
-    the same attrset shapes the schema and DSL produce, but do not perform a
-    complete type-validation pass for raw attrsets. The block-form entries
+    consumes. The imperative entries (`toText` / `toTextPretty`) take a
+    ruleset, as `toJson` does, but do not perform a complete
+    type-validation pass for raw attrsets. The block-form entries
     (`toTextBlock` / `toTextBlockPretty`) accept a single `dsl.table`
     value and emit only the contents of that table — no
     `table <fam> <name> { ... }` wrapper — so a host module like

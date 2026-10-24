@@ -12,7 +12,12 @@
               `dsl.create.chain.prio`), and this module's own errors with
               `nix-nftypes: <api>: `.
 
-  Returns the evaluated configuration, with option defaults filled in.
+  Returns `value` unchanged once the check has run in full. Submodule
+  checks are lazy, so the evaluated configuration is forced before `value`
+  is returned: a body holds only the fields its caller gave, never an
+  unset option's `null` default, and a type error deep inside it still
+  throws. No schema type transforms its value, so the configuration adds
+  nothing but those defaults and an unset rule `expr`'s empty list.
 
   `value` is data, never a module (see ./require-body.nix): a string such
   as `"c1"` or `"/sp1"` is not imported as a module file, and module keys
@@ -52,38 +57,40 @@ let
   inherit (import ./location.nix { inherit lib; }) fail;
   body = requireBody location value;
   prefix = location.optionPrefix;
-in
-if isFlatSubmodule then
-  let
-    inherit
+  checked =
+    if isFlatSubmodule then
+      let
+        inherit
+          (lib.evalModules {
+            inherit prefix;
+            modules = [
+              { options = subOptions; }
+              # `config` keeps module keys such as `imports` plain fields.
+              { config = body; }
+            ];
+          })
+          config
+          ;
+      in
+      if type.check body then
+        config
+      else
+        # A field's own type error names the field, so it goes first.
+        builtins.seq (lib.foldl' (forced: name: builtins.seq (config.${name} or null) forced) null (
+          builtins.attrNames body
+        )) (fail location "not of type `${type.description}'.")
+    else
       (lib.evalModules {
         inherit prefix;
         modules = [
-          { options = subOptions; }
-          # `config` keeps module keys such as `imports` plain fields.
-          { config = body; }
+          {
+            options.value = lib.mkOption {
+              inherit type;
+              description = "Body validated against the requested schema type.";
+            };
+          }
+          { inherit value; }
         ];
-      })
-      config
-      ;
-  in
-  if type.check body then
-    config
-  else
-    # A field's own type error names the field, so it goes first.
-    builtins.seq (lib.foldl' (forced: name: builtins.seq (config.${name} or null) forced) null (
-      builtins.attrNames body
-    )) (fail location "not of type `${type.description}'.")
-else
-  (lib.evalModules {
-    inherit prefix;
-    modules = [
-      {
-        options.value = lib.mkOption {
-          inherit type;
-          description = "Body validated against the requested schema type.";
-        };
-      }
-      { inherit value; }
-    ];
-  }).config.value
+      }).config.value;
+in
+builtins.deepSeq checked value

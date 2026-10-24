@@ -18,6 +18,12 @@
 let
   inherit (nftlib) dsl toJson;
 
+  # Render one command; `toJson` takes only a ruleset.
+  renderCommand = command: toJson (dsl.ruleset [ command ]);
+
+  # Force a DSL value in full, as rendering it would.
+  force = value: builtins.deepSeq value value;
+
   # Ownership is a property of table trees, shared by command and block
   # output. Use valid but conflicting values so schema type errors cannot
   # mask a missing scope check. The sibling exists in the rule-chain case:
@@ -501,43 +507,107 @@ let
 
   droppedInputTests = lib.concatMapAttrs (name: case: {
     "testDroppedInputThrows_${name}" = {
-      expr = toJson case.value;
+      expr = force case.value;
       expectedError.msg = case.msg;
     };
     "testDroppedInputCatchable_${name}" = {
-      expr = (builtins.tryEval (builtins.deepSeq (toJson case.value) null)).success;
+      expr = (builtins.tryEval (force case.value)).success;
       expected = false;
     };
   }) droppedInputs;
 
   # ----- a table tree passed where a ruleset belongs -------------------
 
+  # The imperative renderers, each of which names itself in its errors
+  # (ADR 0009).
+  imperativeRenderers = [
+    "toJson"
+    "toText"
+    "toTextPretty"
+  ];
+
   # Each imperative renderer throws for a table tree, alone or among a
-  # ruleset's commands, and names the wrapper it needs. Each error starts
-  # with the renderer's API name, `text` for the text renderers (ADR 0009).
+  # ruleset's commands, and names the wrapper it needs.
   bareTableTests =
     let
       tree = dsl.table "inet" "t" { chains.c = { }; };
-      renderers = {
-        toJson = "toJson";
-        toNix = "toNix";
-        toText = "text";
-        toTextPretty = "text";
-      };
       placements = {
         alone = tree;
         inRuleset.nftables = [ tree ];
       };
     in
-    lib.concatMapAttrs (
-      renderer: api:
-      lib.mapAttrs' (
-        placement: value:
-        lib.nameValuePair "testBareTableThrows_${renderer}_${placement}" {
+    lib.concatMap (
+      renderer:
+      lib.mapAttrsToList (placement: value: {
+        name = "testBareTableThrows_${renderer}_${placement}";
+        value = {
           expr = nftlib.${renderer} value;
-          expectedError.msg = "nix-nftypes: ${api}: got a dsl\\.table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
-        }
-      ) placements
+          expectedError.msg = "nix-nftypes: ${renderer}: got a dsl\\.table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
+        };
+      }) placements
+    ) imperativeRenderers;
+
+  # An imperative renderer takes only a ruleset: a lone command, which nft
+  # would reject as a bare `{"add":…}`, or any other value throws.
+  notARulesetTests =
+    let
+      values = {
+        command = dsl.add.table {
+          family = "inet";
+          name = "t";
+        };
+        commandList = [
+          (dsl.add.table {
+            family = "inet";
+            name = "t";
+          })
+        ];
+        string = "add table inet t";
+        extraKey = {
+          nftables = [ ];
+          add.table = {
+            family = "inet";
+            name = "t";
+          };
+        };
+      };
+    in
+    lib.concatMap (
+      renderer:
+      lib.mapAttrsToList (shape: value: {
+        name = "testNotARulesetThrows_${renderer}_${shape}";
+        value = {
+          expr = nftlib.${renderer} value;
+          expectedError.msg = "nix-nftypes: ${renderer}: expected a ruleset \\{ nftables = \\[ … \\]; \\}";
+        };
+      }) values
+    ) imperativeRenderers;
+
+  # A Refusal names the renderer called, not the text renderers as a
+  # whole.
+  refusalNamesTheRendererTests =
+    let
+      # The schema takes a set comment, which nft's JSON parser ignores, so
+      # text refuses it (ADR 0010).
+      tree = dsl.table "inet" "t" {
+        sets.s = {
+          type = "ipv4_addr";
+          comment = "c";
+        };
+      };
+      renderers = {
+        toText = nftlib.toText (dsl.ruleset [ tree ]);
+        toTextPretty = nftlib.toTextPretty (dsl.ruleset [ tree ]);
+        toTextBlock = nftlib.toTextBlock tree;
+        toTextBlockPretty = nftlib.toTextBlockPretty tree;
+      };
+    in
+    lib.mapAttrs' (
+      renderer: rendered:
+      lib.nameValuePair "testRefusalNamesTheRenderer_${renderer}" {
+        expr = rendered;
+        expectedError.msg = "^nix-nftypes: ${renderer}: refusing to render";
+      }
     ) renderers;
 in
 {
@@ -561,19 +631,17 @@ in
   };
 
   testChainDeclarationDoesNotForceRuleBodies = {
-    expr = toJson (
+    expr = force (
       builtins.elemAt
         (dsl.ruleset [
           (dsl.table "inet" "fw" { chains.input.rules = [ (throw "rule body forced") ]; })
         ]).nftables
         1
     );
-    expected = toJson {
-      add.chain = {
-        family = "inet";
-        table = "fw";
-        name = "input";
-      };
+    expected.add.chain = {
+      family = "inet";
+      table = "fw";
+      name = "input";
     };
   };
 
@@ -666,8 +734,85 @@ in
 
   # ----- command-builder constructors (commands.nix) --------------------
 
+  # A builder returns the fields it was given, renamed, and no unset
+  # field as `null`.
+  testCommandBuilderReturnsOnlyTheGivenFields = {
+    expr = dsl.add.limit {
+      family = "inet";
+      table = "t";
+      name = "l";
+      rate = 10;
+      per = "second";
+      burstUnit = "kbytes";
+    };
+    expected.add.limit = {
+      family = "inet";
+      table = "t";
+      name = "l";
+      rate = 10;
+      per = "second";
+      burst_unit = "kbytes";
+    };
+  };
+
+  # nft ignores a selected rule's `expr`, but its JSON parser requires the
+  # key for `destroy`, so the selecting builders send the empty list.
+  testSelectingRuleBuildersSendAnEmptyExpr = {
+    expr = lib.genAttrs [ "delete" "destroy" ] (
+      verb:
+      dsl.${verb}.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        handle = 4;
+      }
+    );
+    expected = lib.genAttrs [ "delete" "destroy" ] (verb: {
+      ${verb}.rule = {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        handle = 4;
+        expr = [ ];
+      };
+    });
+  };
+
+  # Nested bodies, such as a set element's, keep only their given fields
+  # too.
+  testCommandBuilderNestedBodiesKeepOnlyTheGivenFields = {
+    expr = dsl.add.set {
+      family = "inet";
+      table = "t";
+      name = "s";
+      type = "ipv4_addr";
+      elements = [
+        {
+          elem = {
+            val = "10.0.0.1";
+            timeout = 3;
+          };
+        }
+      ];
+    };
+    expected.add.set = {
+      family = "inet";
+      table = "t";
+      name = "s";
+      type = "ipv4_addr";
+      elem = [
+        {
+          elem = {
+            val = "10.0.0.1";
+            timeout = 3;
+          };
+        }
+      ];
+    };
+  };
+
   testCreateChainPrioStringRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.create.chain {
         family = "ip";
         table = "t";
@@ -679,7 +824,7 @@ in
   };
 
   testDeleteCounterBadFamilyRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.delete.counter {
         family = "wireguard";
         table = "t";
@@ -690,7 +835,7 @@ in
   };
 
   testListMapBadTypeRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.list.map {
         family = "ip";
         table = "t";
@@ -703,7 +848,7 @@ in
   };
 
   testRenameChainBadNewNameRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.rename.chain {
         family = "ip";
         table = "t";
@@ -715,7 +860,7 @@ in
   };
 
   testAddFlowtableMissingHookRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.add.flowtable {
         family = "inet";
         table = "t";
@@ -727,7 +872,7 @@ in
   };
 
   testCreateFlowtableMissingPrioRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.create.flowtable {
         family = "inet";
         table = "t";
@@ -766,7 +911,7 @@ in
   };
 
   testAddChainWithoutPrioRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.add.chain {
         family = "ip";
         table = "t";
@@ -779,7 +924,7 @@ in
   };
 
   testDestroyCounterByHandleRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.destroy.counter {
         family = "inet";
         table = "t";
@@ -790,7 +935,7 @@ in
   };
 
   testRenameChainMissingNewNameRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.rename.chain {
         family = "ip";
         table = "t";
@@ -801,7 +946,7 @@ in
   };
 
   testReplaceRuleMissingHandleRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.replace.rule {
         family = "ip";
         table = "t";
@@ -813,7 +958,7 @@ in
   };
 
   testReplaceRuleBadHandleRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.replace.rule {
         family = "ip";
         table = "t";
@@ -826,7 +971,7 @@ in
   };
 
   testInsertRuleBadIndexRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.insert.rule {
         family = "ip";
         table = "t";
@@ -841,7 +986,7 @@ in
   # ----- flush and add namespaces (commands.nix) -------------------------
 
   testFlushTableBadFamilyRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.flush.table {
         family = "wireguard";
         name = "t";
@@ -851,7 +996,7 @@ in
   };
 
   testFlushChainBadHandleRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.flush.chain {
         family = "ip";
         table = "t";
@@ -864,7 +1009,7 @@ in
 
   # A flush selects its set or map by name: nft ignores the datatypes.
   testFlushSetMissingNameRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.flush.set {
         family = "ip";
         table = "t";
@@ -875,7 +1020,7 @@ in
   };
 
   testFlushMapBadTypeRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.flush.map {
         family = "ip";
         table = "t";
@@ -887,7 +1032,7 @@ in
   };
 
   testFlushMeterBadTableRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.flush.meter {
         family = "ip";
         table = 42;
@@ -898,7 +1043,7 @@ in
   };
 
   testFlushRulesetBadFamilyRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.flush.ruleset {
         family = "wireguard";
       }
@@ -909,7 +1054,7 @@ in
   # nft 1.1.6's JSON parser ignores a handle on `add rule`, so the
   # builder refuses one.
   testAddRuleHandleRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.add.rule {
         family = "ip";
         table = "t";
@@ -986,7 +1131,7 @@ in
   # bare expressions, so we exercise the schema via a different field —
   # `family` is a strict enum, easy to violate cleanly.
   testAddElementBadFamilyRejected = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.add.element {
         family = "wireguard";
         table = "t";
@@ -1255,4 +1400,6 @@ in
 // droppedInputTests
 // malformedRuleEntryTests
 // ruleCommandTests
-// bareTableTests
+// lib.listToAttrs bareTableTests
+// lib.listToAttrs notARulesetTests
+// refusalNamesTheRendererTests

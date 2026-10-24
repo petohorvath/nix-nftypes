@@ -21,6 +21,9 @@ let
     toText
     ;
 
+  # Render one command; `toJson` takes only a ruleset.
+  renderCommand = command: toJson (dsl.ruleset [ command ]);
+
   parity = t: nftValue: handwritten: {
     expr = roundtrip t nftValue;
     expected = roundtrip t handwritten;
@@ -656,13 +659,14 @@ in
   # Unset options don't appear in the rendered shape: the DSL `compact`
   # helper drops null-valued attrs before wrapping.
   testExprElemOmitsUnsetOptions = {
-    expr = toJson (
-      dsl.expr.elem {
-        val = "1.2.3.4";
-        timeout = 60;
-      }
-    );
-    expected = ''{"elem":{"timeout":60,"val":"1.2.3.4"}}'';
+    expr = dsl.expr.elem {
+      val = "1.2.3.4";
+      timeout = 60;
+    };
+    expected.elem = {
+      timeout = 60;
+      val = "1.2.3.4";
+    };
   };
 
   # nft's JSON parser ignores element statements, so `expr.elem` takes
@@ -3867,7 +3871,7 @@ in
         .${kind} or (scope // { name = "x"; });
       builds =
         verb: kind:
-        (builtins.tryEval (builtins.deepSeq (toJson (dsl.${verb}.${kind} (selectorOf kind))) true)).success;
+        (builtins.tryEval (builtins.deepSeq (dsl.${verb}.${kind} (selectorOf kind)) true)).success;
     in
     {
       expr =
@@ -3892,7 +3896,7 @@ in
   # deletes every rule in the chain, so delete and destroy require a
   # positive handle (measured on nft 1.1.6 and 1.1.7).
   testCmdDeleteRuleRequiresHandle = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.delete.rule {
         family = "inet";
         table = "t";
@@ -3902,7 +3906,7 @@ in
     expectedError.msg = "dsl\\.delete\\.rule\\.handle' was accessed but has no value defined";
   };
   testCmdDestroyRuleRejectsHandleZero = {
-    expr = toJson (
+    expr = renderCommand (
       dsl.destroy.rule {
         family = "inet";
         table = "t";

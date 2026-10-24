@@ -41,6 +41,7 @@ let
   # DSL-key → JSON-key renames; distinct from the `rename` command below.
   keyRenames = import ../internal/rename.nix { inherit lib; };
   ruleBody = import ../internal/rule-body.nix { inherit lib; };
+  compact = import ../internal/compact.nix { inherit lib; };
   inherit (import ../internal/location.nix { inherit lib; }) builder;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
@@ -79,23 +80,26 @@ let
     delete, destroy, list, flush, and reset select an object by family,
     table, and name (ADR 0009): nft ignores the datatypes, rate, hook, and
     mss that adding a set, map, limit, flowtable, or synproxy requires. A
-    rule is selected by its chain and positive handle. `selecting kinds`
-    gives each of these kinds in `kinds` its selection body.
+    rule is selected by its chain and positive handle. nft ignores the
+    rule's `expr`, but its JSON parser requires the key for `destroy`, so
+    the builder sends the empty list. `selecting kinds` gives each of these
+    kinds in `kinds` its selection body.
   */
-  selectBodies = {
-    flowtable = objects.selectFlowtableBody;
-    limit = objects.selectLimitBody;
-    map = objects.selectMapBody;
-    rule = objects.selectRuleBody;
-    set = objects.selectSetBody;
-    synproxy = objects.selectSynproxyBody;
+  selectKinds = {
+    flowtable.body = objects.selectFlowtableBody;
+    limit.body = objects.selectLimitBody;
+    map.body = objects.selectMapBody;
+    rule = {
+      body = objects.selectRuleBody;
+      renameBody = _location: body: { expr = [ ]; } // body;
+    };
+    set.body = objects.selectSetBody;
+    synproxy.body = objects.selectSynproxyBody;
   };
   selecting =
     kinds:
     kinds
-    // lib.mapAttrs (kind: body: kinds.${kind} // { inherit body; }) (
-      builtins.intersectAttrs kinds selectBodies
-    );
+    // lib.mapAttrs (kind: select: kinds.${kind} // select) (builtins.intersectAttrs kinds selectKinds);
 
   /*
     nft mishandles delete and destroy of a ct timeout or ct expectation
@@ -201,7 +205,9 @@ let
     Returns `{ <dslKey> = body: { <command> = { <jsonTag> = validated; }; };
     … }`. Each builder takes the object body with DSL spellings, renames it,
     and validates it against the kind's schema body; errors name the
-    builder (`dsl.create.chain.prio`).
+    builder (`dsl.create.chain.prio`). Like a table tree's bodies, the
+    command holds only the fields given, without a `null` for an unset or
+    null field.
   */
   mkNamespace =
     command: kinds:
@@ -212,9 +218,11 @@ let
           command
           kind
         ];
+        renamed = cfg.renameBody location userBody;
         validated = validate {
           type = cfg.body;
-          value = cfg.renameBody location userBody;
+          # A flush.ruleset body renames to the JSON null.
+          value = if builtins.isAttrs renamed then compact renamed else renamed;
           inherit location;
         };
       in

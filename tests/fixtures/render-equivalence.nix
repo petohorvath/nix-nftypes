@@ -65,7 +65,7 @@ rec {
   refusals = {
     commented-set-and-map =
       let
-        jsonIgnored = "nix-nftypes: text: refusing\\s+to\\s+render\\s+a\\s+field\\s+that\\s+nft's\\s+JSON\\s+parser\\s+ignores[\\s\\S]*Field: (set|map) comment\\.";
+        jsonIgnored = "nix-nftypes: toText(Pretty)?: refusing\\s+to\\s+render\\s+a\\s+field\\s+that\\s+nft's\\s+JSON\\s+parser\\s+ignores[\\s\\S]*Field: (set|map) comment\\.";
       in
       {
         compact = jsonIgnored;

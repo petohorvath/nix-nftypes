@@ -6,7 +6,7 @@ Validation is a separate step from rendering. `validate` checks a value against 
 
 Because a raw attrset can reach the text renderer unvalidated, the text renderer carries its own safety checks (see ADR-0004).
 
-Checks of a value's shape or position are not validation, so they don't conflict with this decision: the imperative renderers throw for a table tree where a ruleset belongs, and `dsl.ruleset` throws for a reset that nft would ignore, raw commands included, without checking any command's contents.
+Checks of a value's shape or position are not validation, so they don't conflict with this decision: the imperative renderers throw for anything but a ruleset, pointing a table tree to `dsl.ruleset`, and `dsl.ruleset` throws for a reset that nft would ignore, raw commands included, without checking any command's contents.
 
 ## Evidence
 
