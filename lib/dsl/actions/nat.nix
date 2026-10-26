@@ -3,111 +3,74 @@
   dup, and tproxy. SNAT/DNAT take the full NAT body; masquerade/redirect take
   a reduced port-and-flags body.
 */
-{ lib }:
+{ statement, ... }:
 
-let
-  compact = import ../internal/compact.nix { inherit lib; };
-  rename = import ../internal/rename.nix { inherit lib; };
-
-  natBase =
-    tag:
-    rename.statementBuilder tag (
-      renameBody:
-      args@{
-        addr ? null,
-        family ? null,
-        port ? null,
-        flags ? null,
-        typeFlags ? null,
-      }:
-      {
-        ${tag} = compact (renameBody args);
-      }
-    );
-
-  masqueradeBase =
-    tag:
-    {
-      port ? null,
-      flags ? null,
-    }:
-    {
-      ${tag} = compact { inherit port flags; };
-    };
-in
 {
   /*
-    Rewrite the source address. Every argument is optional and omitted when
-    null: `addr` is the new address, `family` the address family, `port`
-    the new port, `flags` the NAT flags, and `typeFlags` the address-type
-    flags. Returns an snat statement.
+    Rewrite the source address.
+
+    `snat { addr?; family?; port?; flags?; typeFlags?; }` takes `addr`, the
+    new address, `port`, the new port, or both: the kernel refuses an snat
+    with neither. `family` is the address family, `flags` the NAT flags,
+    and `typeFlags` the address-type flags. Null values are omitted.
+    Returns an snat statement, and throws when the body doesn't validate.
   */
-  snat = natBase "snat";
+  snat = statement.fromFields { name = "snat"; };
 
   /*
-    Rewrite the destination address. Every argument is optional and omitted
-    when null: `addr` is the new address, `family` the address family,
-    `port` the new port, `flags` the NAT flags, and `typeFlags` the
-    address-type flags. Returns a dnat statement.
+    Rewrite the destination address.
+
+    `dnat { addr?; family?; port?; flags?; typeFlags?; }` takes `addr`, the
+    new address, `port`, the new port, or both: the kernel refuses a dnat
+    with neither. `family` is the address family, `flags` the NAT flags,
+    and `typeFlags` the address-type flags. Null values are omitted.
+    Returns a dnat statement, and throws when the body doesn't validate.
   */
-  dnat = natBase "dnat";
+  dnat = statement.fromFields { name = "dnat"; };
 
   /*
     Rewrite the source address to the outgoing interface's address.
 
     `masquerade { port?; flags?; }` takes an optional port and NAT flags;
-    `masquerade { }` is the empty form. Returns a masquerade statement.
+    `masquerade { }` is the empty form. Returns a masquerade statement,
+    and throws when the body doesn't validate.
   */
-  masquerade = masqueradeBase "masquerade";
+  masquerade = statement.fromFields { name = "masquerade"; };
 
   /*
     Redirect the packet to the local machine.
 
     `redirect { port?; flags?; }` takes an optional port and NAT flags;
-    `redirect { }` is the empty form. Returns a redirect statement.
+    `redirect { }` is the empty form. Returns a redirect statement, and
+    throws when the body doesn't validate.
   */
-  redirect = masqueradeBase "redirect";
+  redirect = statement.fromFields { name = "redirect"; };
 
   /*
-    Forward the packet out of a device. `dev` is the output device, and
+    Forward the packet out of a device.
+
+    `fwd { dev; family?; addr?; }` takes the output device `dev`, and
     `family` and `addr` optionally select a next hop. Returns a fwd
-    statement.
+    statement, and throws when the body doesn't validate.
   */
-  fwd =
-    {
-      dev,
-      family ? null,
-      addr ? null,
-    }:
-    {
-      fwd = compact { inherit dev family addr; };
-    };
+  fwd = statement.fromFields { name = "fwd"; };
 
   /*
-    Duplicate the packet to another destination. `addr` is the destination
-    address and `dev` the optional output device. Returns a dup statement.
+    Duplicate the packet to another destination.
+
+    `dup { addr; dev?; }` takes the destination address `addr` and the
+    optional output device `dev`. Returns a dup statement, and throws when
+    the body doesn't validate.
   */
-  dup =
-    {
-      addr,
-      dev ? null,
-    }:
-    {
-      dup = compact { inherit addr dev; };
-    };
+  dup = statement.fromFields { name = "dup"; };
 
   /*
-    Redirect the packet to a local socket without rewriting it. `family`,
-    `addr`, and `port` are optional and omitted when null. Returns a tproxy
-    statement.
+    Redirect the packet to a local socket without rewriting it.
+
+    `tproxy { family?; addr?; port?; }` takes `addr`, the local address,
+    `port`, the local port, or both: nft refuses a tproxy with neither.
+    `family` is the address family. Null values are omitted. Returns a
+    tproxy statement, and throws when the body doesn't validate.
   */
-  tproxy =
-    {
-      family ? null,
-      addr ? null,
-      port ? null,
-    }:
-    {
-      tproxy = compact { inherit family addr port; };
-    };
+  tproxy = statement.fromFields { name = "tproxy"; };
 }

@@ -21,17 +21,20 @@
   such as `imports`, `key`, or `freeformType` are fields the schema doesn't
   have. Each throws an error naming its path.
 
-  Two cases:
-    - submodule types (every body in lib/schema/objects.nix except
-      `flushRulesetBody`): extract the inner options via `getSubOptions` and run
-      evalModules directly against them, so errors show the field name
-      without indirection. The options alone drop a check on the body as
-      a whole (a `discriminatedSubmodule` constraint such as a chain's
-      type, hook and prio together), so the type's own check runs too.
-    - other types (only `flushRulesetBody`, which is `oneOf [ nullLiteral,
-      submodule { family; } ]`): wrap in a top-level `value` option. Errors
-      look like "<prefix>.value: …"; flushRulesetBody is shallow enough that the
-      indirection isn't burdensome.
+  A union such as `flushRulesetBody`, `oneOf [ nullLiteral, submodule {
+  family; } ]`, or a statement's `logBody`, is checked against the branch
+  the module system merges `value` with (`branchFor`). Then two cases:
+    - submodule types (every body in lib/schema/objects.nix, and the
+      branch an attrset takes in such a union): extract the inner options
+      via `getSubOptions` and run evalModules directly against them, so
+      errors show the field name without indirection, as in
+      `dsl.flush.ruleset.family` or `dsl.log.level`. The options alone drop
+      a check on the body as a whole (a `discriminatedSubmodule` constraint
+      such as a chain's type, hook and prio together), so the type's own
+      check runs too.
+    - other types, such as `nullLiteral` or an expression: wrap in a
+      top-level `value` option. Errors look like "<prefix>.value: …", as in
+      `dsl.resetStmt.value`.
 */
 { lib }:
 
@@ -42,12 +45,28 @@
 }:
 
 let
+  /*
+    The submodule branch of the union `type` that the module system merges
+    `value` with, or `type` itself when that branch is no submodule: an
+    `either` takes its left type when `value` passes that type's check, and
+    its right one otherwise.
+  */
+  branchFor =
+    type: value:
+    let
+      inherit (type.nestedTypes) left right;
+      branch = branchFor (if left.check value then left else right) value;
+    in
+    if type.name == "either" && branch.name == "submodule" then branch else type;
+
+  target = branchFor type value;
+
   # `getSubOptions` exists on submodules and on composite types like
   # `either`/`oneOf` that wrap them. Submodules return their declared
   # options (plus `_module`); composites return an empty set unless the
   # composite happens to be a single submodule. Distinguish by whether
   # any user-declared option survives the `_module` strip.
-  rawSubOptions = if type ? getSubOptions then type.getSubOptions [ ] else { };
+  rawSubOptions = if target ? getSubOptions then target.getSubOptions [ ] else { };
   subOptions = removeAttrs rawSubOptions [ "_module" ];
   isFlatSubmodule = subOptions != { };
   requireBody = import ./require-body.nix { inherit lib; };
@@ -69,20 +88,20 @@ let
           config
           ;
       in
-      if type.check body then
+      if target.check body then
         config
       else
         # A field's own type error names the field, so it goes first.
         builtins.seq (lib.foldl' (forced: name: builtins.seq (config.${name} or null) forced) null (
           builtins.attrNames body
-        )) (fail location "not of type `${type.description}'.")
+        )) (fail location "not of type `${target.description}'.")
     else
       (lib.evalModules {
         inherit prefix;
         modules = [
           {
             options.value = lib.mkOption {
-              inherit type;
+              type = target;
               description = "Body validated against the requested schema type.";
             };
           }

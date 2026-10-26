@@ -2,12 +2,8 @@
   Log statement. `queueThreshold` is translated to the hyphenated JSON key
   `queue-threshold` by internal/rename.nix, so callers never write hyphens.
 */
-{ lib }:
+{ statement, ... }:
 
-let
-  compact = import ../internal/compact.nix { inherit lib; };
-  rename = import ../internal/rename.nix { inherit lib; };
-in
 {
   /*
     Log matching packets.
@@ -15,29 +11,8 @@ in
     `log { prefix?; group?; snaplen?; queueThreshold?; level?; flags?; }`
     takes the optional log settings; null values are omitted, so `log { }`
     is the log statement with every default. Returns a log statement.
-    Throws for `queue-threshold`, pointing to `queueThreshold`.
+    Throws when the body doesn't validate, and for `queue-threshold`,
+    pointing to `queueThreshold`.
   */
-  log = rename.statementBuilder "log" (
-    renameBody:
-    {
-      prefix ? null,
-      group ? null,
-      snaplen ? null,
-      queueThreshold ? null,
-      level ? null,
-      flags ? null,
-    }:
-    {
-      log = compact (renameBody {
-        inherit
-          prefix
-          group
-          snaplen
-          queueThreshold
-          level
-          flags
-          ;
-      });
-    }
-  );
+  log = statement.fromFields { name = "log"; };
 }
