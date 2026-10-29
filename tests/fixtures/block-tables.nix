@@ -57,7 +57,7 @@ rec {
     };
     maps.dispatch = {
       type = "inet_service";
-      map = "verdict";
+      dataType = "verdict";
       elements = [
         [
           22
