@@ -1883,7 +1883,7 @@ in
   # nft's reset statement strips a TCP option and refuses any other
   # expression ("Illegal TCP optstrip argument").
   testResetStmtOtherThanTcpOptionRejected = {
-    expr = force (dsl.resetStmt (dsl.expr.ct { key = "mark"; }));
+    expr = force (dsl.resetStmt dsl.fields.ct.mark);
     expectedError.msg = "`dsl\\.resetStmt\\.ct' does not exist";
   };
 
