@@ -725,9 +725,9 @@ let
     "reset"
   ];
 
-  tagsOf = type: builtins.attrNames type.functor.payload.tags;
+  tagsOf = import ../helpers/tags-of.nix;
   statementTags = tagsOf nftlib.types.statement;
-  expressionTags = tagsOf nftlib.types.taggedExpression;
+  expressionTags = tagsOf nftlib.types.expression;
 
   # Whether a tagged value is a command. `reset` is also a statement, whose
   # body is a tagged expression, such as a set; a reset command's object
