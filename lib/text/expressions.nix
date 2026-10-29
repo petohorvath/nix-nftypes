@@ -3,7 +3,7 @@
   in lib/schema/expressions.nix:
     - scalar fallbacks: string, int, bool;
     - bare list (used inside set/concat/range bodies);
-    - tagged union (taggedExpression) dispatched by single key.
+    - tagged union (the schema's `taggedExpression`) dispatched by single key.
 
   Two contexts in which expressions appear:
     - default — top-level, statement RHS, etc.

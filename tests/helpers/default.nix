@@ -70,6 +70,10 @@ in
   # token-drift.nix.
   tokenDrift = import ./token-drift.nix { inherit lib nftlib; };
 
+  # The tags of a tagged union, or of the tagged unions among a `oneOf`'s
+  # branches.
+  tagsOf = import ./tags-of.nix;
+
   # The source-provenance tests for one provenance record.
   sourceProvenanceTests = import ./source-provenance.nix { inherit lib; };
 

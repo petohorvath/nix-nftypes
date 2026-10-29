@@ -13,14 +13,12 @@
   ...
 }:
 let
-  inherit (helpers) reach;
-
-  tagsOf = union: builtins.attrNames union.functor.payload.tags;
+  inherit (helpers) reach tagsOf;
 
   # What the schema accepts.
   inventory = {
     statements = tagsOf nftlib.types.statement;
-    expressions = tagsOf nftlib.types.taggedExpression;
+    expressions = tagsOf nftlib.types.expression;
     commands = lib.concatLists (
       lib.mapAttrsToList (
         verb: option: map (kind: "${verb} ${kind}") (tagsOf option.type)

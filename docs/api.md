@@ -72,23 +72,22 @@ it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ### Main types
 
-| Type               | Shape                                                                                                                                              |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ruleset`          | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                          |
-| `command`          | one command wrapper such as `add`, `delete`, or `flush`                                                                                            |
-| `expression`       | scalar, list, or tagged expression                                                                                                                 |
-| `taggedExpression` | tagged-expression forms only                                                                                                                       |
-| `statement`        | one tagged rule statement                                                                                                                          |
-| `addObject`        | the 16 add-object tags; a rule takes no `handle`                                                                                                   |
-| `createObject`     | add-object tags except `rule`                                                                                                                      |
-| `deleteObject`     | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                              |
-| `listObject`       | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                        |
-| `readBackObject`   | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; a rule keeps its `handle` |
-| `flushObject`      | table, chain, set, map, meter, or ruleset                                                                                                          |
-| `resetObject`      | counter, quota, rule, set, map, or element                                                                                                         |
-| `insertObject`     | a rule                                                                                                                                             |
-| `replaceObject`    | a rule with the `handle` of the rule it replaces                                                                                                   |
-| `renameObject`     | a chain with its `newname`                                                                                                                         |
+| Type             | Shape                                                                                                                                              |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ruleset`        | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                          |
+| `command`        | one command wrapper such as `add`, `delete`, or `flush`                                                                                            |
+| `expression`     | scalar, list, or tagged expression                                                                                                                 |
+| `statement`      | one tagged rule statement                                                                                                                          |
+| `addObject`      | the 16 add-object tags; a rule takes no `handle`                                                                                                   |
+| `createObject`   | add-object tags except `rule`                                                                                                                      |
+| `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                              |
+| `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                        |
+| `readBackObject` | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; a rule keeps its `handle` |
+| `flushObject`    | table, chain, set, map, meter, or ruleset                                                                                                          |
+| `resetObject`    | counter, quota, rule, set, map, or element                                                                                                         |
+| `insertObject`   | a rule                                                                                                                                             |
+| `replaceObject`  | a rule with the `handle` of the rule it replaces                                                                                                   |
+| `renameObject`   | a chain with its `newname`                                                                                                                         |
 
 Per-variant bodies are grouped under:
 
@@ -126,6 +125,23 @@ Primitive types include `family`, `hook`, `chainType`, `chainPolicy`,
 (`"@name"`), `nullLiteral` (the JSON `null` of a body such as
 `{ counter = null; }`), and the enum-backed types listed in `nftlib.enums`.
 
+Type names spell their words out, even where the field they type keeps nft's
+abbreviation:
+
+| Type                    | Types                                                    | Name in 0.1.0 |
+| ----------------------- | -------------------------------------------------------- | ------------- |
+| `matchOperator`         | a match statement's `op`                                 | `operator`    |
+| `setOperator`           | a set or map statement's `op`                            | `setOp`       |
+| `flowOperator`          | a flow statement's `op`                                  | `flowOp`      |
+| `ctL3Protocol`          | a ct helper, timeout, or expectation object's `l3proto`  | none          |
+| `tcpUdpProtocol`        | a ct helper, timeout, or expectation object's `protocol` | `tcpUdpProto` |
+| `tunnelErspanDirection` | an ERSPAN version 2 tunnel's `dir`                       | none          |
+
+A tunnel object's `tunnel` field takes
+`types.objectBodies.tunnelEncapsulationBody`, which was `tunnelNestedBody`.
+There is no `types.taggedExpression`: use `expression`, or `expressionOf` for
+selected tags.
+
 ### Restricted tag sets
 
 Use `statementOf` and `expressionOf` when a downstream option should accept
@@ -160,7 +176,11 @@ type = lib.types.oneOf [
 ];
 ```
 
-Unknown tag names fail while constructing the restricted type.
+An unknown tag, an empty list, or a tag that is not a string fails while
+constructing the restricted type, with a `nix-nftypes: types.statementOf:` or
+`nix-nftypes: types.expressionOf:` error. A value outside the restricted type
+fails with the type's description, which names its tags, such as
+`statement (one of: "match")`.
 
 ## DSL
 
@@ -604,8 +624,8 @@ Cleaning is not validation.
 ## Reference data
 
 `nftlib.enums.<name>` exposes the same value list used by each enum type.
-Examples include `family`, `hook`, `operator`, `metaKey`, `ctKey`, `rtKey`,
-`fibResult`, `setFlag`, and `tunnelType`. `byteUnit` holds nft's byte units,
+Examples include `family`, `hook`, `matchOperator`, `metaKey`, `ctKey`,
+`rtKey`, `fibResult`, `setFlag`, and `tunnelType`. `byteUnit` holds nft's byte units,
 `bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
 quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
 `rate_unit`, adds `packets`.
