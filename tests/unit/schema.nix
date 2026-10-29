@@ -2550,117 +2550,302 @@ textDriftTests
   };
 
   # ------------------------------------------------------------------
-  # resolvePriority — int passthrough
+  # prioritiesByFamily — the symbols nft accepts at each hook of each
+  # family, measured with `nft -c` on nftables 1.1.6 and 1.1.7 and read
+  # from `std_prio_family_hook_compat` in `src/rule.c`.
+  # integration-chain-placement checks it against the package set's nft.
   # ------------------------------------------------------------------
-  testResolvePriorityIntPassthroughIp = {
-    expr = nftlib.compatibility.resolvePriority "ip" 42;
-    expected = 42;
-  };
-
-  testResolvePriorityIntPassthroughBridge = {
-    expr = nftlib.compatibility.resolvePriority "bridge" (-100);
-    expected = -100;
-  };
-
-  # ------------------------------------------------------------------
-  # resolvePriority — default table (ip / ip6 / inet / arp / netdev)
-  # ------------------------------------------------------------------
-  testResolvePriorityIpFilter = {
-    expr = nftlib.compatibility.resolvePriority "ip" "filter";
-    expected = 0;
-  };
-
-  testResolvePriorityIp6Raw = {
-    expr = nftlib.compatibility.resolvePriority "ip6" "raw";
-    expected = -300;
-  };
-
-  testResolvePriorityInetSrcnat = {
-    expr = nftlib.compatibility.resolvePriority "inet" "srcnat";
-    expected = 100;
-  };
-
-  testResolvePriorityNetdevMangle = {
-    expr = nftlib.compatibility.resolvePriority "netdev" "mangle";
-    expected = -150;
-  };
-
-  # ------------------------------------------------------------------
-  # resolvePriority — bridge table (overrides default values)
-  # ------------------------------------------------------------------
-  testResolvePriorityBridgeFilter = {
-    expr = nftlib.compatibility.resolvePriority "bridge" "filter";
-    expected = -200;
-  };
-
-  testResolvePriorityBridgeOut = {
-    expr = nftlib.compatibility.resolvePriority "bridge" "out";
-    expected = 100;
-  };
-
-  testResolvePriorityBridgeDstnat = {
-    expr = nftlib.compatibility.resolvePriority "bridge" "dstnat";
-    expected = -300;
-  };
-
-  # ------------------------------------------------------------------
-  # resolvePriority — unknown family throws
-  # ------------------------------------------------------------------
-  testResolvePriorityUnknownFamilyThrows = {
-    expr = nftlib.compatibility.resolvePriority "wat" "filter";
-    expectedError.msg = "nix-nftypes: compatibility.resolvePriority: unknown family 'wat'";
-  };
-
-  # ------------------------------------------------------------------
-  # resolvePriority — unknown symbol throws (default table)
-  # ------------------------------------------------------------------
-  testResolvePriorityUnknownSymbolThrowsDefault = {
-    expr = nftlib.compatibility.resolvePriority "ip" "out";
-    expectedError.msg = "nix-nftypes: compatibility.resolvePriority: unknown priority symbol 'out' for family 'ip'";
-  };
-
-  # ------------------------------------------------------------------
-  # resolvePriority — symbol valid in the default table is rejected for
-  # bridge if it isn't in the bridge table (`raw`/`mangle`/`security`
-  # are default-only).
-  # ------------------------------------------------------------------
-  testResolvePriorityUnknownSymbolThrowsBridge = {
-    expr = nftlib.compatibility.resolvePriority "bridge" "raw";
-    expectedError.msg = "unknown priority symbol 'raw' for family 'bridge'";
-  };
-
-  # Every symbol of every family resolves to its value in `man nft`
-  # Table 6 (bridge: Table 7).
-  testResolvePriorityEverySymbol =
+  testPrioritiesByFamilyMatchesNft =
     let
-      defaultTable = {
-        raw = -300;
-        mangle = -150;
-        dstnat = -100;
-        filter = 0;
-        security = 50;
-        srcnat = 100;
-      };
-      tables = {
-        arp = defaultTable;
-        bridge = {
-          dstnat = -300;
-          filter = -200;
-          out = 100;
-          srcnat = 300;
+      inetAt = {
+        prerouting = {
+          raw = -300;
+          mangle = -150;
+          dstnat = -100;
+          filter = 0;
+          security = 50;
         };
-        inet = defaultTable;
-        ip = defaultTable;
-        ip6 = defaultTable;
-        netdev = defaultTable;
+        input = {
+          raw = -300;
+          mangle = -150;
+          filter = 0;
+          security = 50;
+          srcnat = 100;
+        };
+        forward = {
+          raw = -300;
+          mangle = -150;
+          filter = 0;
+          security = 50;
+        };
+        output = {
+          raw = -300;
+          mangle = -150;
+          dstnat = -100;
+          filter = 0;
+          security = 50;
+        };
+        postrouting = {
+          raw = -300;
+          mangle = -150;
+          filter = 0;
+          security = 50;
+          srcnat = 100;
+        };
       };
     in
     {
-      expr = lib.mapAttrs (
-        family: lib.mapAttrs (symbol: _: nftlib.compatibility.resolvePriority family symbol)
-      ) tables;
-      expected = tables;
+      expr = nftlib.compatibility.prioritiesByFamily;
+      expected = {
+        ip = inetAt;
+        ip6 = inetAt;
+        inet = inetAt // {
+          ingress = {
+            raw = -300;
+            mangle = -150;
+            filter = 0;
+            security = 50;
+          };
+        };
+        bridge = {
+          prerouting = {
+            dstnat = -300;
+            filter = -200;
+          };
+          input.filter = -200;
+          forward.filter = -200;
+          output = {
+            filter = -200;
+            out = 100;
+          };
+          postrouting = {
+            filter = -200;
+            srcnat = 300;
+          };
+        };
+        arp = {
+          input.filter = 0;
+          output.filter = 0;
+        };
+        netdev = {
+          ingress.filter = 0;
+          egress.filter = 0;
+        };
+      };
     };
+
+  # ------------------------------------------------------------------
+  # priorityValue — symbol → int at a family's hook
+  # ------------------------------------------------------------------
+  testPriorityValueIntPassthroughIp = {
+    expr = nftlib.compatibility.priorityValue "ip" "input" 42;
+    expected = 42;
+  };
+
+  testPriorityValueIntPassthroughBridge = {
+    expr = nftlib.compatibility.priorityValue "bridge" "input" (-100);
+    expected = -100;
+  };
+
+  # Every symbol at every hook resolves to its value in its table.
+  testPriorityValueEverySymbol = {
+    expr = lib.mapAttrs (
+      family:
+      lib.mapAttrs (hook: lib.mapAttrs (symbol: _: nftlib.compatibility.priorityValue family hook symbol))
+    ) nftlib.compatibility.prioritiesByFamily;
+    expected = nftlib.compatibility.prioritiesByFamily;
+  };
+
+  testPriorityValueBridgeFilter = {
+    expr = nftlib.compatibility.priorityValue "bridge" "forward" "filter";
+    expected = -200;
+  };
+
+  testPriorityValueNatHooks = {
+    expr = map (hook: nftlib.compatibility.priorityValue "inet" hook.name hook.symbol) [
+      {
+        name = "prerouting";
+        symbol = "dstnat";
+      }
+      {
+        name = "output";
+        symbol = "dstnat";
+      }
+      {
+        name = "input";
+        symbol = "srcnat";
+      }
+      {
+        name = "postrouting";
+        symbol = "srcnat";
+      }
+    ];
+    expected = [
+      (-100)
+      (-100)
+      100
+      100
+    ];
+  };
+
+  # nft accepts only `filter` in arp and netdev.
+  testPriorityValueNetdevMangleThrows = {
+    expr = nftlib.compatibility.priorityValue "netdev" "ingress" "mangle";
+    expectedError.msg = "nix-nftypes: compatibility.priorityValue: family 'netdev' has no priority 'mangle' at hook 'ingress'. Valid priorities: any int, filter.";
+  };
+
+  testPriorityValueArpRawThrows = {
+    expr = nftlib.compatibility.priorityValue "arp" "input" "raw";
+    expectedError.msg = "family 'arp' has no priority 'raw' at hook 'input'";
+  };
+
+  # nft accepts `dstnat` only at prerouting and output, and `srcnat`
+  # only at input and postrouting.
+  testPriorityValueDstnatAtInputThrows = {
+    expr = nftlib.compatibility.priorityValue "ip" "input" "dstnat";
+    expectedError.msg = "family 'ip' has no priority 'dstnat' at hook 'input'";
+  };
+
+  testPriorityValueDstnatAtForwardThrows = {
+    expr = nftlib.compatibility.priorityValue "inet" "forward" "dstnat";
+    expectedError.msg = "family 'inet' has no priority 'dstnat' at hook 'forward'";
+  };
+
+  testPriorityValueSrcnatAtPreroutingThrows = {
+    expr = nftlib.compatibility.priorityValue "ip6" "prerouting" "srcnat";
+    expectedError.msg = "family 'ip6' has no priority 'srcnat' at hook 'prerouting'";
+  };
+
+  testPriorityValueSrcnatAtIngressThrows = {
+    expr = nftlib.compatibility.priorityValue "inet" "ingress" "srcnat";
+    expectedError.msg = "family 'inet' has no priority 'srcnat' at hook 'ingress'";
+  };
+
+  # In bridge, `dstnat`, `out`, and `srcnat` are each accepted at one
+  # hook.
+  testPriorityValueBridgeDstnatAtInputThrows = {
+    expr = nftlib.compatibility.priorityValue "bridge" "input" "dstnat";
+    expectedError.msg = "family 'bridge' has no priority 'dstnat' at hook 'input'";
+  };
+
+  testPriorityValueBridgeOutAtPostroutingThrows = {
+    expr = nftlib.compatibility.priorityValue "bridge" "postrouting" "out";
+    expectedError.msg = "family 'bridge' has no priority 'out' at hook 'postrouting'";
+  };
+
+  testPriorityValueBridgeSrcnatAtForwardThrows = {
+    expr = nftlib.compatibility.priorityValue "bridge" "forward" "srcnat";
+    expectedError.msg = "family 'bridge' has no priority 'srcnat' at hook 'forward'";
+  };
+
+  # `raw`, `mangle`, and `security` are default-table symbols only.
+  testPriorityValueBridgeRawThrows = {
+    expr = nftlib.compatibility.priorityValue "bridge" "prerouting" "raw";
+    expectedError.msg = "family 'bridge' has no priority 'raw' at hook 'prerouting'";
+  };
+
+  testPriorityValueUnknownSymbolThrows = {
+    expr = nftlib.compatibility.priorityValue "ip" "input" "out";
+    expectedError.msg = "family 'ip' has no priority 'out' at hook 'input'";
+  };
+
+  testPriorityValueNonStringThrows = {
+    expr = nftlib.compatibility.priorityValue "ip" "input" [ "filter" ];
+    expectedError.msg = "family 'ip' has no priority of type list at hook 'input'";
+  };
+
+  # Family and hook are checked for an int too.
+  testPriorityValueUnknownFamilyThrows = {
+    expr = nftlib.compatibility.priorityValue "wat" "input" 0;
+    expectedError.msg = "nix-nftypes: compatibility.priorityValue: unknown family 'wat'. Valid families: arp, bridge, inet, ip, ip6, netdev.";
+  };
+
+  testPriorityValueHookFamilyLacksThrows = {
+    expr = nftlib.compatibility.priorityValue "arp" "forward" 0;
+    expectedError.msg = "nix-nftypes: compatibility.priorityValue: family 'arp' has no hook 'forward'. Valid hooks: input, output.";
+  };
+
+  # ------------------------------------------------------------------
+  # priorityName — int → symbol, the reverse of priorityValue.
+  # ------------------------------------------------------------------
+  testPriorityNameIpZero = {
+    expr = nftlib.compatibility.priorityName "ip" "input" 0;
+    expected = "filter";
+  };
+
+  testPriorityNameSymbolPassthrough = {
+    expr = nftlib.compatibility.priorityName "ip" "input" "filter";
+    expected = "filter";
+  };
+
+  testPriorityNameIpSrcnat = {
+    expr = nftlib.compatibility.priorityName "ip" "postrouting" 100;
+    expected = "srcnat";
+  };
+
+  testPriorityNameIpUnknownInt = {
+    expr = nftlib.compatibility.priorityName "ip" "input" 17;
+    expected = 17;
+  };
+
+  # -100 is `dstnat` only where nft accepts `dstnat`; elsewhere nft lists
+  # the int.
+  testPriorityNameDstnatIntAtPrerouting = {
+    expr = nftlib.compatibility.priorityName "ip" "prerouting" (-100);
+    expected = "dstnat";
+  };
+
+  testPriorityNameDstnatIntAtInput = {
+    expr = nftlib.compatibility.priorityName "ip" "input" (-100);
+    expected = -100;
+  };
+
+  testPriorityNameNetdevMangleInt = {
+    expr = nftlib.compatibility.priorityName "netdev" "ingress" (-150);
+    expected = -150;
+  };
+
+  # Bridge-specific: -200 is bridge filter (not 0).
+  testPriorityNameBridgeFilter = {
+    expr = nftlib.compatibility.priorityName "bridge" "input" (-200);
+    expected = "filter";
+  };
+
+  testPriorityNameBridgeSrcnat = {
+    expr = nftlib.compatibility.priorityName "bridge" "postrouting" 300;
+    expected = "srcnat";
+  };
+
+  testPriorityNameBridgeSrcnatIntAtInput = {
+    expr = nftlib.compatibility.priorityName "bridge" "input" 300;
+    expected = 300;
+  };
+
+  # 0 is `filter` for ip but unknown for bridge — no canonicalization.
+  testPriorityNameBridgeZero = {
+    expr = nftlib.compatibility.priorityName "bridge" "input" 0;
+    expected = 0;
+  };
+
+  testPriorityNameRejectedSymbolThrows = {
+    expr = nftlib.compatibility.priorityName "ip" "input" "dstnat";
+    expectedError.msg = "nix-nftypes: compatibility.priorityName: family 'ip' has no priority 'dstnat' at hook 'input'";
+  };
+
+  testPriorityNameUnknownSymbolThrows = {
+    expr = nftlib.compatibility.priorityName "bridge" "input" "bogus";
+    expectedError.msg = "nix-nftypes: compatibility.priorityName: family 'bridge' has no priority 'bogus' at hook 'input'";
+  };
+
+  testPriorityNameUnknownFamilyThrows = {
+    expr = nftlib.compatibility.priorityName "nope" "input" 0;
+    expectedError.msg = "nix-nftypes: compatibility.priorityName: unknown family 'nope'";
+  };
+
+  testPriorityNameHookFamilyLacksThrows = {
+    expr = nftlib.compatibility.priorityName "netdev" "input" 0;
+    expectedError.msg = "nix-nftypes: compatibility.priorityName: family 'netdev' has no hook 'input'";
+  };
 
   # ------------------------------------------------------------------
   # compatibility matrix spot-checks
@@ -2721,23 +2906,13 @@ textDriftTests
     ];
   };
 
-  testCompatPriorityDefaultFilter = {
-    expr = nftlib.compatibility.priorityIntsByFamily.ip.filter;
-    expected = 0;
-  };
-
-  testCompatPriorityBridgeFilter = {
-    expr = nftlib.compatibility.priorityIntsByFamily.bridge.filter;
-    expected = -200;
-  };
-
   # ------------------------------------------------------------------
-  # hooksByChainType — `null` is the "any hook the family exposes"
-  # sentinel for `filter`; `nat` and `route` carry explicit lists.
+  # hooksByChainType — `filter` lists every hook in the schema's enum;
+  # `nat` and `route` list fewer.
   # ------------------------------------------------------------------
-  testCompatHooksByChainTypeFilterSentinel = {
+  testCompatHooksByChainTypeFilterIsEveryHook = {
     expr = nftlib.compatibility.hooksByChainType.filter;
-    expected = null;
+    expected = nftlib.enums.hook;
   };
 
   testCompatHooksByChainTypeNat = {
@@ -2797,6 +2972,11 @@ textDriftTests
     expected = true;
   };
 
+  testValidChainPlacementNetdevFilterEgress = {
+    expr = nftlib.compatibility.validChainPlacement "netdev" "filter" "egress";
+    expected = true;
+  };
+
   testValidChainPlacementNetdevNatIngress = {
     expr = nftlib.compatibility.validChainPlacement "netdev" "nat" "ingress";
     expected = false;
@@ -2807,105 +2987,27 @@ textDriftTests
     expected = true;
   };
 
+  # A hook in the enum that the family lacks is an invalid placement.
   testValidChainPlacementArpFilterForward = {
     expr = nftlib.compatibility.validChainPlacement "arp" "filter" "forward";
     expected = false;
   };
 
-  # Unknown family / chainType / hook strings fall through to false
-  # rather than throw — consumers can probe freely without try/catch.
-  testValidChainPlacementUnknownFamily = {
+  # A value outside its enum throws, so a typo doesn't read as an
+  # invalid placement.
+  testValidChainPlacementUnknownFamilyThrows = {
     expr = nftlib.compatibility.validChainPlacement "wat" "filter" "input";
-    expected = false;
+    expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown family 'wat'. Valid families: arp, bridge, inet, ip, ip6, netdev.";
   };
 
-  testValidChainPlacementUnknownChainType = {
+  testValidChainPlacementUnknownChainTypeThrows = {
     expr = nftlib.compatibility.validChainPlacement "ip" "wat" "input";
-    expected = false;
+    expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown chain type 'wat'. Valid chain types: filter, nat, route.";
   };
 
-  # ------------------------------------------------------------------
-  # priorityIntsByFamily — one symbol→int table per family, indexed
-  # like hooksByFamily. The same tables back resolvePriority,
-  # priorityNameOf, and chainTypeFor.
-  # ------------------------------------------------------------------
-  testPriorityIntsByFamilyCoversEveryFamily = {
-    expr = builtins.attrNames nftlib.compatibility.priorityIntsByFamily;
-    expected = [
-      "arp"
-      "bridge"
-      "inet"
-      "ip"
-      "ip6"
-      "netdev"
-    ];
-  };
-
-  testPriorityIntsByFamilyInet = {
-    expr = nftlib.compatibility.priorityIntsByFamily.inet;
-    expected = {
-      raw = -300;
-      mangle = -150;
-      dstnat = -100;
-      filter = 0;
-      security = 50;
-      srcnat = 100;
-    };
-  };
-
-  testPriorityIntsByFamilyBridge = {
-    expr = nftlib.compatibility.priorityIntsByFamily.bridge;
-    expected = {
-      dstnat = -300;
-      filter = -200;
-      out = 100;
-      srcnat = 300;
-    };
-  };
-
-  # ------------------------------------------------------------------
-  # priorityNameOf — int → symbol reverse of resolvePriority.
-  # ------------------------------------------------------------------
-  testPriorityNameOfIpZero = {
-    expr = nftlib.compatibility.priorityNameOf "ip" 0;
-    expected = "filter";
-  };
-
-  testPriorityNameOfIpFilterPassthrough = {
-    expr = nftlib.compatibility.priorityNameOf "ip" "filter";
-    expected = "filter";
-  };
-
-  testPriorityNameOfIpSrcnat = {
-    expr = nftlib.compatibility.priorityNameOf "ip" 100;
-    expected = "srcnat";
-  };
-
-  testPriorityNameOfIpUnknownInt = {
-    expr = nftlib.compatibility.priorityNameOf "ip" 17;
-    expected = 17;
-  };
-
-  # Bridge-specific: -200 is bridge filter (not 0).
-  testPriorityNameOfBridgeFilter = {
-    expr = nftlib.compatibility.priorityNameOf "bridge" (-200);
-    expected = "filter";
-  };
-
-  testPriorityNameOfBridgeSrcnat = {
-    expr = nftlib.compatibility.priorityNameOf "bridge" 300;
-    expected = "srcnat";
-  };
-
-  # 0 is `filter` for ip but unknown for bridge — no canonicalization.
-  testPriorityNameOfBridgeZero = {
-    expr = nftlib.compatibility.priorityNameOf "bridge" 0;
-    expected = 0;
-  };
-
-  testPriorityNameOfUnknownFamilyThrows = {
-    expr = nftlib.compatibility.priorityNameOf "nope" 0;
-    expectedError.msg = "nix-nftypes: compatibility.priorityNameOf: unknown family 'nope'";
+  testValidChainPlacementUnknownHookThrows = {
+    expr = nftlib.compatibility.validChainPlacement "ip" "filter" "inptu";
+    expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown hook 'inptu'. Valid hooks: prerouting, input, forward, output, postrouting, ingress, egress.";
   };
 
   # ------------------------------------------------------------------
@@ -2926,6 +3028,11 @@ textDriftTests
     expected = "nat";
   };
 
+  testChainTypeForIpInputSrcnatInt = {
+    expr = nftlib.compatibility.chainTypeFor "ip" "input" 100;
+    expected = "nat";
+  };
+
   testChainTypeForIpPreroutingDstnat = {
     expr = nftlib.compatibility.chainTypeFor "ip" "prerouting" "dstnat";
     expected = "nat";
@@ -2941,6 +3048,13 @@ textDriftTests
     expected = "filter";
   };
 
+  # -100 is `dstnat` only where nft accepts `dstnat`, so at input it is
+  # a filter priority.
+  testChainTypeForIpInputDstnatInt = {
+    expr = nftlib.compatibility.chainTypeFor "ip" "input" (-100);
+    expected = "filter";
+  };
+
   # The bridge family has no nat chain type, so bridge srcnat (300, not
   # 100) is a filter chain in both symbol and int form.
   testChainTypeForBridgePostroutingSrcnatSymbol = {
@@ -2953,51 +3067,49 @@ textDriftTests
     expected = "filter";
   };
 
-  # nat doesn't attach at forward.
-  testChainTypeForIpForwardDstnat = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "forward" "dstnat";
-    expected = "filter";
-  };
-
-  # arp has neither nat nor route chains.
-  testChainTypeForArpOutputMangle = {
-    expr = nftlib.compatibility.chainTypeFor "arp" "output" "mangle";
-    expected = "filter";
-  };
-
   testChainTypeForNetdevIngressSrcnatInt = {
     expr = nftlib.compatibility.chainTypeFor "netdev" "ingress" 100;
     expected = "filter";
   };
 
   /*
-    Every hook each family exposes, at every priority symbol of the
-    family and every int either priority table names (plus two no table
-    names), lists the placements whose type `validChainPlacement`
-    rejects. A hook the family lacks has no valid type at all.
+    Every hook each family exposes, at every symbol nft accepts there
+    and every int a priority table names (plus two no table names),
+    lists the placements whose type `validChainPlacement` rejects.
   */
   testChainTypeForPassesValidChainPlacement =
     let
-      inherit (nftlib.compatibility) hooksByFamily priorityIntsByFamily;
-      tableInts = lib.concatMap lib.attrValues (lib.attrValues priorityIntsByFamily);
-      priorities =
-        family:
-        lib.attrNames priorityIntsByFamily.${family}
-        ++ lib.unique tableInts
-        ++ [
-          (-1)
-          1000
-        ];
+      inherit (nftlib.compatibility) prioritiesByFamily;
+      tableInts = lib.unique (
+        lib.concatMap (byHook: lib.concatMap lib.attrValues (lib.attrValues byHook)) (
+          lib.attrValues prioritiesByFamily
+        )
+      );
+      hooks = lib.concatLists (
+        lib.mapAttrsToList (
+          family: lib.mapAttrsToList (hook: priorities: { inherit family hook priorities; })
+        ) prioritiesByFamily
+      );
       placements = lib.concatMap (
-        family:
-        lib.concatMap (
-          hook:
-          map (prio: {
+        {
+          family,
+          hook,
+          priorities,
+        }:
+        map
+          (prio: {
             inherit family hook prio;
             type = nftlib.compatibility.chainTypeFor family hook prio;
-          }) (priorities family)
-        ) hooksByFamily.${family}
-      ) (lib.attrNames hooksByFamily);
+          })
+          (
+            lib.attrNames priorities
+            ++ tableInts
+            ++ [
+              (-1)
+              1000
+            ]
+          )
+      ) hooks;
     in
     {
       expr = {
@@ -3006,10 +3118,11 @@ textDriftTests
           p: !(nftlib.compatibility.validChainPlacement p.family p.type p.hook)
         ) placements;
       };
-      # 5 + 5 + 6 + 2 + 2 hooks at 6 symbols + 10 ints, and 5 bridge hooks
-      # at 4 symbols + 10 ints.
+      # 88 accepted symbols over the 25 hooks (ip, ip6, and inet 24 each
+      # plus 4 at inet ingress, bridge 8, arp 2, netdev 2), and 8 table
+      # ints plus 2 at each hook.
       expected = {
-        count = 20 * 16 + 5 * 14;
+        count = 88 + 25 * 10;
         rejected = [ ];
       };
     };
@@ -3030,11 +3143,25 @@ textDriftTests
     expected = "filter";
   };
 
-  # Symbol unknown to the family returns null (not "filter") — the
-  # placement is uninterpretable, distinct from a known-filter case.
-  testChainTypeForUnknownSymbol = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" "wat";
-    expected = null;
+  # A symbol nft rejects at the placement throws, as nft does.
+  testChainTypeForIpForwardDstnatThrows = {
+    expr = nftlib.compatibility.chainTypeFor "ip" "forward" "dstnat";
+    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'ip' has no priority 'dstnat' at hook 'forward'";
+  };
+
+  testChainTypeForArpOutputMangleThrows = {
+    expr = nftlib.compatibility.chainTypeFor "arp" "output" "mangle";
+    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'arp' has no priority 'mangle' at hook 'output'";
+  };
+
+  testChainTypeForUnknownSymbolThrows = {
+    expr = nftlib.compatibility.chainTypeFor "ip" "input" "bogus";
+    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'ip' has no priority 'bogus' at hook 'input'";
+  };
+
+  testChainTypeForHookFamilyLacksThrows = {
+    expr = nftlib.compatibility.chainTypeFor "bridge" "ingress" "filter";
+    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'bridge' has no hook 'ingress'";
   };
 
   testChainTypeForUnknownFamilyThrows = {

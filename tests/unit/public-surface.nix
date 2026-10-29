@@ -260,9 +260,9 @@ in
       "hooksByChainType"
       "hooksByFamily"
       "hooksWithOifname"
-      "priorityIntsByFamily"
-      "priorityNameOf"
-      "resolvePriority"
+      "prioritiesByFamily"
+      "priorityName"
+      "priorityValue"
       "validChainPlacement"
     ];
   };

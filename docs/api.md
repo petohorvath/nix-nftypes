@@ -55,7 +55,7 @@ Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
 `dsl.table inet.t` followed by the field's path, a renderer such as `toText` or
 `toTextBlock`, `types.statementOf`, or a helper such as
-`compatibility.resolvePriority`. A text Refusal ends with `Field: <label>.`
+`compatibility.priorityValue`. A text Refusal ends with `Field: <label>.`
 ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ## Schema types
@@ -420,9 +420,9 @@ data`, `expr.payload protocol field`, `expr.prefix addr len`, and
 `counter.ref name`. Every other builder takes one attrset.
 `dsl.table family name body` is the exception; it mirrors nftables'
 `table inet filter { … }` syntax. The rule covers `dsl` builders: the
-compatibility helpers `compatibility.chainTypeFor` and
-`compatibility.validChainPlacement` take their three placement keys
-positionally. See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
+compatibility helpers look values up in the compatibility tables and take
+their three keys positionally, as in
+`compatibility.priorityValue family hook priority`. See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 
 ### Commands
 
@@ -566,28 +566,50 @@ placements and priorities up in them. The tables are:
 - `hooksByFamily`;
 - `familiesByChainType`;
 - `hooksByChainType`;
-- `priorityIntsByFamily`, the symbolic priority table of each family, indexed
-  like `hooksByFamily`: `priorityIntsByFamily.bridge.filter` is `-200`;
+- `prioritiesByFamily`, the symbolic priorities nft accepts at each hook of
+  each family, indexed by family and hook: `prioritiesByFamily.bridge.input`
+  is `{ filter = -200; }`;
 - `hooksWithOifname`.
+
+`prioritiesByFamily` holds only what nft accepts, as `std_prio_family_hook_compat`
+in nftables' `src/rule.c` decides:
+
+| Family        | Symbols                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| ip, ip6, inet | `raw`, `mangle`, `filter`, and `security` at every hook; `dstnat` at prerouting and output; `srcnat` at input and postrouting |
+| bridge        | `filter` at every hook; `dstnat` at prerouting, `out` at output, and `srcnat` at postrouting                                  |
+| arp, netdev   | `filter`                                                                                                                      |
 
 The helpers are:
 
-- `resolvePriority family value` converts a known symbolic priority to an int.
-  Ints pass through without consulting `family`; symbolic lookup throws for an
-  unknown family or symbol. It resolves a bare symbol only, so add an offset
-  with Nix arithmetic: `resolvePriority "ip" "filter" + 10`.
-- `priorityNameOf family value` maps a known int to its canonical symbol and
-  otherwise returns the original value. Integer lookup throws on an unknown
-  family; symbols pass through without consulting `family`.
+- `priorityValue family hook priority` converts a symbolic priority to its int
+  at the hook, and passes an int through. It resolves a bare symbol only, so
+  add an offset with Nix arithmetic:
+  `priorityValue "ip" "input" "filter" + 10`.
+- `priorityName family hook priority` is the reverse: it maps an int to the
+  symbol nft accepts for it at the hook, and otherwise returns the int, as nft
+  lists it. `priorityName "ip" "prerouting" (-100)` is `"dstnat"`, but
+  `priorityName "ip" "input" (-100)` is `-100`. A symbol passes through.
 - `chainTypeFor family hook priority` classifies the project's conventional
   chain type policy. NAT priorities map to `nat` and the `mangle` priority to
   `route`, unless `validChainPlacement` rejects that type at the hook, in the
   family; every other placement maps to `filter`. So
   `chainTypeFor "bridge" "postrouting" 300` (bridge `srcnat`) and
-  `chainTypeFor "ip" "forward" "dstnat"` return `filter`. An unknown symbol
-  returns `null`.
+  `chainTypeFor "ip" "prerouting" "mangle"` return `filter`. An int counts as a
+  symbol only where nft accepts the symbol, so
+  `chainTypeFor "ip" "input" (-100)` is `filter` too.
 - `validChainPlacement family chainType hook` checks the static family,
-  chain-type, and hook tables.
+  chain-type, and hook tables. A hook the family lacks is an invalid
+  placement: `validChainPlacement "arp" "filter" "forward"` is `false`.
+
+Every helper throws, naming the helper, on a family, chain type, or hook
+outside its table, so a typo doesn't read as an invalid placement. The three
+priority helpers also throw on a hook the family lacks and on a symbol nft
+rejects at the hook, as nft does:
+
+```text
+nix-nftypes: compatibility.priorityValue: family 'netdev' has no priority 'mangle' at hook 'ingress'. Valid priorities: any int, filter.
+```
 
 These helpers do not inspect kernel versions, loaded modules, devices, or
 runtime state. An `inet`/`netdev` ingress chain can still require `dev`, for
