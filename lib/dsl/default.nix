@@ -12,6 +12,7 @@
 {
   lib,
   objects,
+  listedObjectBodies,
   expandTable,
   resetOrder,
   statementBodiesByTag,
@@ -43,7 +44,14 @@ let
   actions = import ./actions { inherit lib statement; };
   ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetOrder; };
   table = import ./structure/table.nix { inherit lib; };
-  commands = import ./structure/commands.nix { inherit lib objects validate; };
+  commands = import ./structure/commands.nix {
+    inherit
+      lib
+      listedObjectBodies
+      objects
+      validate
+      ;
+  };
   mergeDisjoint = import ./internal/merge-disjoint.nix { inherit lib; };
 in
 # One flat namespace plus a few nested ones. The layers must define

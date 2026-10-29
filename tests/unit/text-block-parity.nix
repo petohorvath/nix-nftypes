@@ -28,6 +28,53 @@ let
     toTextBlock
     toTextBlockPretty
     ;
+
+  /*
+    A Table tree adds its objects, and nft ignores a handle on add, so
+    neither block form takes one: the table, a chain, a rule, or a named
+    object.
+  */
+  handleRejectedTests =
+    let
+      cases = {
+        table = {
+          body.handle = 7;
+          at = "handle";
+        };
+        chain = {
+          body.chains.input.handle = 7;
+          at = "chains\\.input\\.handle";
+        };
+        rule = {
+          body.chains.input.rules = [
+            {
+              statements = [ dsl.accept ];
+              handle = 7;
+            }
+          ];
+          at = "chains\\.input\\.rules\\.0\\.handle";
+        };
+        counter = {
+          body.counters.hits.handle = 7;
+          at = "counters\\.hits\\.handle";
+        };
+      };
+    in
+    lib.concatMapAttrs (
+      name: case:
+      lib.mapAttrs'
+        (
+          renderer: render:
+          lib.nameValuePair "test${capitalise name}HandleRejected${renderer}" {
+            expr = render (dsl.table "inet" "fw" case.body);
+            expectedError.msg = "nix-nftypes: dsl\\.table inet\\.fw: ${case.at}: nft ignores a handle on add.*Read-back";
+          }
+        )
+        {
+          Compact = toTextBlock;
+          Pretty = toTextBlockPretty;
+        }
+    ) cases;
 in
 {
   # nft's JSON parser ignores a set or map comment, so block form refuses
@@ -184,14 +231,12 @@ in
   };
 
   # The wrapper holds only the family and name: flags and comment stay in
-  # the block, or a dormant table would load active. A handle has no
-  # block-form spelling.
+  # the block, or a dormant table would load active.
   testTableFlagsAndCommentStayInBlock = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         comment = "table";
         flags = [ "dormant" ];
-        handle = 7;
       }
     );
     expected = "flags dormant;\ncomment \"table\";\n";
@@ -223,21 +268,6 @@ in
       }
     );
     expectedError.msg = "chains\\.input\\.prio";
-  };
-
-  # A rule loads through `add rule`, which takes no handle.
-  testRuleHandleRejectedPretty = {
-    expr = toTextBlockPretty (
-      dsl.table "inet" "fw" {
-        chains.input.rules = [
-          {
-            statements = [ dsl.accept ];
-            handle = 7;
-          }
-        ];
-      }
-    );
-    expectedError.msg = "chains\\.input\\.rules\\.\"?0\"?\\.handle' does not exist";
   };
 
   # JSON and imperative text add the rule after the rule at its index,
@@ -606,3 +636,4 @@ in
     };
   }
 ) internal.dslObjectKinds
+// handleRejectedTests

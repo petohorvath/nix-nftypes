@@ -17,7 +17,7 @@
 # report that something is wrong.
 
 let
-  inherit (helpers) commandJson;
+  inherit (helpers) capitalise commandJson;
   inherit (nftlib) dsl toJson;
 
   # Force a DSL value in full, as rendering it would.
@@ -1379,6 +1379,141 @@ let
         expectedError.msg = "^nix-nftypes: ${renderer}: refusing to render";
       }
     ) renderers;
+
+  /*
+    nft reads a handle only in Read-back, a Selector, and `insert` and
+    `replace` rule (ADR 0009). Every `add`, `create`, and `rename` builder
+    and every Table-tree body throws on one, at the handle, and points to
+    Read-back. The body is otherwise valid, so only the handle fails.
+  */
+  handleTests =
+    let
+      scope = {
+        family = "ip";
+        table = "t";
+      };
+      named = scope // {
+        name = "o";
+      };
+      # A valid body of each `add` kind.
+      addBodies = {
+        table = {
+          family = "ip";
+          name = "t";
+        };
+        chain = named;
+        rule = scope // {
+          chain = "c";
+          statements = [ dsl.accept ];
+        };
+        set = named // {
+          type = "ipv4_addr";
+        };
+        map = named // {
+          type = "ipv4_addr";
+          dataType = "verdict";
+        };
+        element = named // {
+          elements = [ "10.0.0.1" ];
+        };
+        flowtable = named // {
+          hook = "ingress";
+          prio = 0;
+        };
+        counter = named;
+        quota = named;
+        ctHelper = named;
+        limit = named // {
+          rate = 1;
+          per = "second";
+        };
+        ctTimeout = named;
+        ctExpectation = named;
+        ctCount = named // {
+          val = 1;
+        };
+        secmark = named;
+        synproxy = named // {
+          mss = 1460;
+          wscale = 7;
+        };
+      };
+      withHandle = body: body // { handle = 3; };
+      readBack = "nft ignores a handle on add, create, and rename, and a Table tree adds its objects; a handle appears in Read-back";
+      rejects = verb: kind: body: {
+        expr = commandJson (dsl.${verb}.${kind} (withHandle body));
+        expectedError.msg = "^nix-nftypes: dsl\\.${verb}\\.${kind}: handle: ${readBack}";
+      };
+      treeRejects = at: body: {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" body) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: ${at}\\.handle: ${readBack}";
+      };
+      ruleScope = scope // {
+        chain = "c";
+      };
+    in
+    lib.mapAttrs' (
+      kind: body: lib.nameValuePair "testAdd${capitalise kind}HandleRejected" (rejects "add" kind body)
+    ) addBodies
+    // lib.mapAttrs' (
+      kind: body:
+      lib.nameValuePair "testCreate${capitalise kind}HandleRejected" (rejects "create" kind body)
+    ) (removeAttrs addBodies [ "rule" ])
+    // lib.mapAttrs' (
+      kind: cfg:
+      lib.nameValuePair "testTree${capitalise kind}HandleRejected" (
+        treeRejects "${cfg.plural}\\.o" {
+          ${cfg.plural}.o = withHandle (removeAttrs addBodies.${kind} (builtins.attrNames named));
+        }
+      )
+    ) internal.dslObjectKinds
+    // {
+      # Every builder of each verb is covered.
+      testHandleTestsCoverEveryAddKind = {
+        expr = builtins.attrNames dsl.add;
+        expected = builtins.attrNames addBodies;
+      };
+      testRenameChainHandleRejected = rejects "rename" "chain" (named // { newName = "d"; });
+      testTreeTableHandleRejected = {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" { handle = 3; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: handle: ${readBack}";
+      };
+      testTreeChainHandleRejected = treeRejects "chains\\.c" { chains.c.handle = 3; };
+      testTreeRuleHandleRejected = treeRejects "chains\\.c\\.rules\\.0" {
+        chains.c.rules = [
+          {
+            statements = [ dsl.accept ];
+            handle = 3;
+          }
+        ];
+      };
+      # `insert.rule` places a rule and `replace.rule` replaces one by its
+      # handle, and a Selector selects by it.
+      testHandleKeptWhereNftReadsIt = {
+        expr = lib.mapAttrs (_: command: builtins.fromJSON (commandJson command)) {
+          insert = dsl.insert.rule (withHandle addBodies.rule);
+          replace = dsl.replace.rule (withHandle addBodies.rule);
+          deleteTable = dsl.delete.table (withHandle addBodies.table);
+          deleteCounter = dsl.delete.counter (withHandle named);
+          flushChain = dsl.flush.chain (withHandle named);
+          listSet = dsl.list.set (withHandle named);
+          resetQuota = dsl.reset.quota (withHandle named);
+        };
+        expected = lib.mapAttrs (_: command: { nftables = [ command ]; }) {
+          insert.insert.rule = withHandle ruleScope // {
+            expr = [ { accept = null; } ];
+          };
+          replace.replace.rule = withHandle ruleScope // {
+            expr = [ { accept = null; } ];
+          };
+          deleteTable.delete.table = withHandle addBodies.table;
+          deleteCounter.delete.counter = withHandle named;
+          flushChain.flush.chain = withHandle named;
+          listSet.list.set = withHandle named;
+          resetQuota.reset.quota = withHandle named;
+        };
+      };
+    };
 in
 {
   # Building a table or ruleset stays lazy; only rendering validates.
@@ -1832,21 +1967,6 @@ in
     expectedError.msg = "`dsl\\.flush\\.ruleset\\.family' is not of type";
   };
 
-  # nft 1.1.6's JSON parser ignores a handle on `add rule`, so the
-  # builder refuses one.
-  testAddRuleHandleRejected = {
-    expr = commandJson (
-      dsl.add.rule {
-        family = "ip";
-        table = "t";
-        chain = "c";
-        statements = [ dsl.accept ];
-        handle = 4;
-      }
-    );
-    expectedError.msg = "dsl\\.add\\.rule\\.handle' does not exist";
-  };
-
   # ----- table-tree leaves (lib/table.nix) ------------------------------
   # One per plural-keyed object container, each picking a clearly-bad
   # value for the matching schema submodule. Asserts the leaf-validation
@@ -1861,25 +1981,6 @@ in
       ]
     );
     expectedError.msg = "flags\\..*is not of type";
-  };
-
-  # A table tree's rule loads through `add rule`, which takes no handle.
-  testTreeRuleHandleRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "ip" "t" {
-          chains.c = {
-            rules = [
-              {
-                statements = [ dsl.accept ];
-                handle = 4;
-              }
-            ];
-          };
-        })
-      ]
-    );
-    expectedError.msg = "chains\\.c\\.rules\\..*\\.handle' does not exist";
   };
 
   testTreeSetBadTypeRejected = {
@@ -2391,6 +2492,7 @@ in
   };
 }
 // scopeTests
+// handleTests
 // droppedInputTests
 // malformedRuleEntryTests
 // uncalledStatementTests

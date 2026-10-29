@@ -33,6 +33,7 @@
 */
 {
   lib,
+  listedObjectBodies,
   objects,
   validate,
 }:
@@ -42,6 +43,7 @@ let
   keyRenames = import ../internal/rename.nix { inherit lib; };
   ruleBody = import ../internal/rule-body.nix { inherit lib; };
   compact = import ../internal/compact.nix { inherit lib; };
+  rejectHandle = import ../internal/reject-handle.nix { inherit lib; };
   inherit (import ../internal/location.nix { inherit lib; }) builder;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
@@ -81,7 +83,8 @@ let
     table, and name (ADR 0009): nft ignores the datatypes, rate, hook, and
     mss that adding a set, map, limit, flowtable, or synproxy requires. A
     rule is selected by its chain and positive handle. `selecting kinds`
-    gives each of these kinds in `kinds` its selection body.
+    gives each of these kinds in `kinds` its selection body, and each other
+    kind its listed body, which keeps the handle the add body rejects.
   */
   selectBodies = {
     flowtable = objects.selectFlowtableBody;
@@ -91,12 +94,13 @@ let
     set = objects.selectSetBody;
     synproxy = objects.selectSynproxyBody;
   };
-  selecting =
-    kinds:
-    kinds
-    // lib.mapAttrs (kind: body: kinds.${kind} // { inherit body; }) (
-      builtins.intersectAttrs kinds selectBodies
-    );
+  selecting = lib.mapAttrs (
+    kind: cfg:
+    cfg
+    // {
+      body = selectBodies.${kind} or listedObjectBodies.${cfg.tag} or cfg.body;
+    }
+  );
 
   /*
     nft mishandles delete and destroy of a ct timeout or ct expectation
@@ -198,6 +202,7 @@ let
   /*
     Build one command namespace. `command` is the command tag (`"create"`,
     `"delete"`, …) and `kinds` the registry of object kinds it accepts.
+    `add`, `create`, and `rename` bodies take no handle (../internal/reject-handle.nix).
 
     Returns `{ <dslKey> = body: { <command> = { <jsonTag> = validated; }; };
     … }`. Each builder takes the object body with DSL spellings, renames it,
@@ -215,7 +220,18 @@ let
           command
           kind
         ];
-        renamed = cfg.renameBody location userBody;
+        renamed = cfg.renameBody location (
+          if
+            builtins.elem command [
+              "add"
+              "create"
+              "rename"
+            ]
+          then
+            rejectHandle location userBody
+          else
+            userBody
+        );
         validated = validate {
           type = cfg.body;
           # A flush.ruleset body renames to the JSON null.

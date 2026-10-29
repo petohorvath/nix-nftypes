@@ -535,37 +535,159 @@ let
     };
 
   /*
-    nft 1.1.6's JSON parser ignores a handle on `add rule` and appends the
-    rule, so the schema rejects one there (a Known difference, ADR 0010).
-    `insert` places the rule before the handle's rule, and a listed rule
-    carries its handle.
+    nft reads a `handle` only in Read-back, a Selector, and `insert` and
+    `replace` rule (ADR 0009). It ignores one on `add`, `create`, and
+    `rename`, except that nft 1.1.7 places an added rule after it, so
+    those bodies reject it and the error points to Read-back (a Known
+    difference, ADR 0010). An element has no handle at all.
   */
-  ruleHandleTests =
+  handleTests =
     let
-      rule = {
+      scope = {
         family = "ip";
         table = "t";
-        chain = "c";
-        handle = 3;
-        expr = [ { accept = null; } ];
       };
+      # A minimal valid add body of each kind but `element`.
+      addBodies = {
+        table = {
+          family = "ip";
+          name = "t";
+        };
+        chain = scope // {
+          name = "c";
+        };
+        rule = scope // {
+          chain = "c";
+          expr = [ { accept = null; } ];
+        };
+        set = scope // {
+          name = "s";
+          type = "ipv4_addr";
+        };
+        map = scope // {
+          name = "m";
+          type = "ipv4_addr";
+          map = "verdict";
+        };
+        flowtable = scope // {
+          name = "f";
+          hook = "ingress";
+          prio = 0;
+        };
+        counter = scope // {
+          name = "o";
+        };
+        quota = scope // {
+          name = "o";
+        };
+        "ct helper" = scope // {
+          name = "o";
+        };
+        limit = scope // {
+          name = "o";
+          rate = 1;
+          per = "second";
+        };
+        "ct timeout" = scope // {
+          name = "o";
+        };
+        "ct expectation" = scope // {
+          name = "o";
+        };
+        "ct count" = scope // {
+          name = "o";
+          val = 1;
+        };
+        secmark = scope // {
+          name = "o";
+        };
+        synproxy = scope // {
+          name = "o";
+          mss = 1460;
+          wscale = 7;
+        };
+      };
+      withHandle = body: body // { handle = 3; };
+      rejects =
+        verb: kind: body:
+        lib.nameValuePair
+          "test${helpers.capitalise verb}${lib.concatMapStrings helpers.capitalise (lib.splitString " " kind)}RejectsHandle"
+          {
+            expr = roundtrip nftlib.types.command { ${verb}.${kind} = withHandle body; };
+            expectedError.msg = "${verb}\\.\"?${kind}\"?' is not of type `[^']*without a handle[^']*Read-back";
+          };
+      accepts = command: {
+        expr = helpers.validates nftlib.types.command command;
+        expected = true;
+      };
+      rule = withHandle addBodies.rule;
     in
-    {
-      testAddRuleRejectsHandle = {
-        expr = roundtrip nftlib.types.command { add.rule = rule; };
-        expectedError.msg = "add\\.rule\\.handle' does not exist";
+    lib.listToAttrs (
+      lib.mapAttrsToList (rejects "add") addBodies
+      ++ lib.mapAttrsToList (rejects "create") (removeAttrs addBodies [ "rule" ])
+      ++ [
+        (rejects "rename" "chain" (addBodies.chain // { newname = "d"; }))
+      ]
+    )
+    // {
+      testAddBodiesWithoutHandle = {
+        expr = lib.mapAttrs (
+          kind: body: helpers.validates nftlib.types.command { add.${kind} = body; }
+        ) addBodies;
+        expected = lib.mapAttrs (_: _: true) addBodies;
+      };
+      testAddElementRejectsHandle = {
+        expr = roundtrip nftlib.types.command {
+          add.element = scope // {
+            name = "s";
+            elem = [ "10.0.0.1" ];
+            handle = 3;
+          };
+        };
+        expectedError.msg = "add\\.element\\.handle' does not exist";
       };
       testAddRuleWithoutHandle = {
-        expr = roundtrip nftlib.types.command { add.rule = removeAttrs rule [ "handle" ]; };
+        expr = roundtrip nftlib.types.command { add.rule = addBodies.rule; };
         expected = "{\"add\":{\"rule\":{\"chain\":\"c\",\"expr\":[{\"accept\":null}],\"family\":\"ip\",\"table\":\"t\"}}}";
       };
       testInsertRuleKeepsHandle = {
         expr = roundtrip nftlib.types.command { insert.rule = rule; };
         expected = "{\"insert\":{\"rule\":{\"chain\":\"c\",\"expr\":[{\"accept\":null}],\"family\":\"ip\",\"handle\":3,\"table\":\"t\"}}}";
       };
+      testReplaceRuleKeepsHandle = accepts { replace.rule = rule; };
       testListedRuleKeepsHandle = {
         expr = roundtrip nftlib.types.readBackObject { inherit rule; };
         expected = "{\"rule\":{\"chain\":\"c\",\"expr\":[{\"accept\":null}],\"family\":\"ip\",\"handle\":3,\"table\":\"t\"}}";
+      };
+      # Read-back lists every object with the handle nft assigned.
+      testReadBackObjectsKeepHandle = {
+        expr = lib.mapAttrs (
+          kind: body: helpers.validates nftlib.types.readBackObject { ${kind} = withHandle body; }
+        ) addBodies;
+        expected = lib.mapAttrs (_: _: true) addBodies;
+      };
+      # A Selector selects by handle.
+      testSelectorsKeepHandle = {
+        expr = lib.mapAttrs (_: helpers.validates nftlib.types.command) {
+          deleteTable.delete.table = withHandle addBodies.table;
+          deleteChain.delete.chain = withHandle addBodies.chain;
+          deleteRule.delete.rule = rule;
+          deleteCounter.delete.counter = withHandle addBodies.counter;
+          deleteSet.delete.set = withHandle (removeAttrs addBodies.set [ "type" ]);
+          flushChain.flush.chain = withHandle addBodies.chain;
+          listTable.list.table = withHandle addBodies.table;
+          resetQuota.reset.quota = withHandle addBodies.quota;
+        };
+        expected = {
+          deleteTable = true;
+          deleteChain = true;
+          deleteRule = true;
+          deleteCounter = true;
+          deleteSet = true;
+          flushChain = true;
+          listTable = true;
+          resetQuota = true;
+        };
       };
     };
 in
@@ -574,7 +696,7 @@ textDriftTests
 // mishandledCommandTests
 // tunnelCommandTests
 // commandRequirementTests
-// ruleHandleTests
+// handleTests
 // listSelectorTests
 // {
   # ------------------------------------------------------------------

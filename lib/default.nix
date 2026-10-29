@@ -72,6 +72,7 @@ let
   dsl = import ./dsl {
     inherit lib;
     objects = objects.all;
+    listedObjectBodies = objects.listed;
     statementBodiesByTag = statements.bodiesByTag;
     # `expr.elem` builds an element as input, without the statements nft
     # lists beside it.

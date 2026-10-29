@@ -18,6 +18,7 @@ let
   location = import ./dsl/internal/location.nix { inherit lib; };
   ruleBody = import ./dsl/internal/rule-body.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
+  rejectHandle = import ./dsl/internal/reject-handle.nix { inherit lib; };
   tableTreeMarker = import ./table-tree-marker.nix { };
   fail = import ./fail.nix { };
   inherit (import ./describe.nix { inherit lib; }) describe;
@@ -49,13 +50,14 @@ let
   # The tree owns scope. Check after schema validation so ordinary type
   # errors keep their existing paths, and matching explicit scope fields
   # remain useful when composing bodies. Raw commands can choose any scope.
+  # A tree's bodies take no handle, as `add` bodies take none.
   prepareBody =
     type: at: scope: userBody:
     let
       validated = compact (validate {
         inherit type;
         location = at;
-        value = compact (scope // requireBody at userBody);
+        value = compact (scope // rejectHandle at (requireBody at userBody));
       });
       conflicts = builtins.filter (key: validated.${key} != scope.${key}) (sortedNames scope);
       key = builtins.head conflicts;
@@ -135,14 +137,15 @@ let
     let
       inherit (node) family name;
       tree = location.tableTree family name;
-      body = removeAttrs node [
-        tableTreeMarker.marker
-        "family"
-        "name"
-      ];
+      body = rejectHandle tree (
+        removeAttrs node [
+          tableTreeMarker.marker
+          "family"
+          "name"
+        ]
+      );
       allowedBodyKeys = [
         "_type"
-        "handle"
         "flags"
         "comment"
         "chains"
@@ -158,7 +161,6 @@ let
             + lib.optionalString (builtins.elem "elements" unknownBodyKeys) "; give a set or map its elements in its body, as `sets.<name>.elements` or `maps.<name>.elements`, or add them to a set defined elsewhere with `add.element`"
           );
       tableOptions = builtins.intersectAttrs {
-        handle = null;
         flags = null;
         comment = null;
       } checkedBody;
