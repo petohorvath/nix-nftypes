@@ -197,6 +197,35 @@ let
       ]
   );
 
+  # nft's JSON loads an added, inserted, replaced, or listed rule with no
+  # statements as an empty rule, while its text grammar rejects
+  # `add rule ip t c` as a syntax error, so text refuses it (#96).
+  ruleWithoutStatementsRefusals =
+    let
+      body = {
+        family = "ip";
+        table = "t";
+        chain = "c";
+        expr = [ ];
+      };
+    in
+    lib.mapAttrs'
+      (
+        name: command:
+        lib.nameValuePair "testRuleWithoutStatementsRefused_${name}" {
+          expr = one command;
+          expectedError.msg = helpers.refusals.ruleWithoutStatements;
+        }
+      )
+      {
+        add.add.rule = body;
+        insert.insert.rule = body;
+        replace.replace.rule = body // {
+          handle = 7;
+        };
+        listed.rule = body;
+      };
+
   # nft's JSON parser ignores element statements, both the keys nft lists
   # and a `stmt` list, so text would load statements that JSON drops (a
   # Known difference).
@@ -2740,3 +2769,4 @@ in
 }
 // typeKeyCtObjectMapRefusals
 // elementStatementRefusals
+// ruleWithoutStatementsRefusals

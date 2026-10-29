@@ -1636,6 +1636,30 @@ textDriftTests
     };
   };
 
+  # nft's JSON loads an added, inserted, or replaced rule with no
+  # statements as written, so the schema accepts one (ADR 0010); only the
+  # text renderers refuse it (#96).
+  testRuleWithoutStatementsValidates =
+    let
+      body = {
+        family = "inet";
+        table = "filter";
+        chain = "input";
+        expr = [ ];
+      };
+      commands = {
+        add.add.rule = body;
+        insert.insert.rule = body;
+        replace.replace.rule = body // {
+          handle = 4;
+        };
+      };
+    in
+    {
+      expr = lib.mapAttrs (_: helpers.validates nftlib.types.command) commands;
+      expected = lib.mapAttrs (_: _: true) commands;
+    };
+
   # nftables rejects `create rule` explicitly. `create` must not reuse the
   # broader add-object union or raw typed input would accept an impossible
   # command even though the DSL omits its constructor.

@@ -96,6 +96,13 @@ space, such as `"ct count"` or `"ct timeout"`. Define such a map with JSON. A
 statement that looks it up (`ct count name meta mark map @m`) and inline map
 references still render to text.
 
+nft's JSON loads an added, inserted, replaced, or listed rule with no
+statements as an empty rule, while its text grammar rejects `add rule inet fw
+input` as a syntax error. The text renderer refuses such a rule and names the
+field (`rule expr`). The schema accepts it and the DSL never builds one, so
+only raw input reaches the renderer with one. A `delete` or `destroy` rule
+needs no statements and renders as before.
+
 A tunnel match (`tunnel id`, `tunnel path`) leaves nft's lexer reading tunnel
 keywords for the rest of the input, in nftables 1.1.6 and 1.1.7. A later
 command that names a chain `ingress` or `egress` then fails to parse, quoted

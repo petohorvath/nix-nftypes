@@ -288,6 +288,10 @@ A schema value can be valid JSON input while lacking a usable text spelling.
 Text support and exclusions are tracked separately in
 [`text-coverage.md`](text-coverage.md).
 
+An added, inserted, or replaced rule with no statements is one such value. nft's
+JSON parser loads it as an empty rule, so the schema accepts it, while nft's text
+grammar has no spelling for it, so the text renderer refuses it.
+
 ## Validation boundaries
 
 Nix module validation is strict about declared fields, enum membership, and

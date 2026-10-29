@@ -648,7 +648,10 @@ ruleset's commands in place.
 
 These three renderers give a rule without `expr` the empty list: nft's JSON
 parser requires the key on a rule even where it ignores it, as for
-`destroy.rule`, so a raw rule command may leave it out.
+`destroy.rule`, so a raw rule command may leave it out. nft's text grammar
+has no spelling for an added, inserted, replaced, or listed rule with no
+statements, so `toText` and `toTextPretty` refuse one, while `toJson` renders
+it as the empty rule nft's JSON loads.
 
 ### `toJson ruleset`
 
