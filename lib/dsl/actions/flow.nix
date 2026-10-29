@@ -30,10 +30,15 @@ in
 
     `meter { name; key; statement; size?; }` takes the meter name, the
     per-flow key expression, the statement to apply, and the optional
-    maximum entry count. Returns a meter statement. Throws when the body
-    doesn't validate, and for `stmt`, pointing to `statement`.
+    maximum entry count. The name declares the meter's set, so it takes
+    the bare name: a leading `@` is dropped. Returns a meter statement.
+    Throws when the body doesn't validate, and for `stmt`, pointing to
+    `statement`.
   */
-  meter = statement.fromFields { name = "meter"; };
+  meter = statement.fromFields {
+    name = "meter";
+    prepare = reference.normaliseBareName;
+  };
 
   /*
     Choose a verdict by looking up a key. `key` is the lookup expression and

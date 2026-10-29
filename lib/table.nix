@@ -90,7 +90,12 @@ let
 
   requireNamedBodies = noun: requireShape builtins.isAttrs "an attribute set of ${noun} bodies";
 
-  # `tree` is the table tree's location (../dsl/internal/location.nix).
+  /*
+    `tree` is the table tree's location (../dsl/internal/location.nix). An
+    object's key declares it, so it is the bare name: a key such as
+    `sets."@s"` would declare a set no Reference could name without
+    ambiguity (ADR 0009).
+  */
   prepareObject =
     tree: scope: pluralKey: name: userBody:
     let
@@ -101,10 +106,13 @@ let
       ];
       body = prepareBody cfg.body at (scope // { inherit name; }) (cfg.renameBody at userBody);
     in
-    {
-      kind = cfg.tag;
-      inherit body;
-    };
+    if lib.hasPrefix "@" name then
+      location.fail at "a Table tree declares an object by its bare name; drop the leading `@`, which only a Reference adds"
+    else
+      {
+        kind = cfg.tag;
+        inherit body;
+      };
 
   # A rule entry is a list of statements or a rule body with them in
   # `statements` (./dsl/internal/rule-body.nix).
