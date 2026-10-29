@@ -368,10 +368,13 @@ so their DSL names are `setStmt`, `mapStmt`, and `resetStmt`. `resetStmt expr`
 resets the stateful data an expression selects, such as a TCP option:
 `resetStmt (expr.tcpOption { name = "sack"; })`. Like `flow`, `setStmt` and
 `mapStmt` take the set, map, or flowtable name with or without its leading `@`.
-`flow` takes the flowtable alone, because nft's only flow operation is `add`:
+`setStmt` takes the `element` it adds, and `mapStmt` takes the `key` and `data`
+it writes. `flow` takes the flowtable alone, because nft's only flow operation
+is `add`:
 
 ```nix
-setStmt { op = "add"; elem = fields.ip.saddr; set = "blocked"; }
+setStmt { op = "add"; element = fields.ip.saddr; set = "blocked"; }
+mapStmt { op = "update"; key = fields.ip.saddr; data = 1; map = "marks"; }
 flow "ft"
 ```
 
@@ -435,12 +438,21 @@ Every DSL field name is camelCase, and each field has one spelling. The DSL
 renames it where JSON uses hyphens or underscores or runs words together, for
 example `queueThreshold` to `queue-threshold`, `gcInterval` to `gc-interval`,
 `rateUnit` to `rate_unit`, `typeFlags` to `type_flags`, and `newName` to
-`newname`. A field that holds elements or statements is plural: named sets and
-maps take `elements` and `statements` for the JSON `elem` and `stmt`, `setStmt`
-and `mapStmt` take `statements`, and a rule takes `statements` for `expr`.
-`meter` takes one `statement` for `stmt`, and `reject` takes `code` for `expr`,
-which holds the ICMP code. Other fields keep nft's word: a chain or flowtable's
-`dev` takes one device or a list. The same renames apply to statements,
+`newname`. A field that holds statements, elements, or a key takes the DSL word
+for what it holds:
+
+- Named sets and maps take `elements` and `statements` for the JSON `elem` and
+  `stmt`.
+- `setStmt` takes `element` and `mapStmt` takes `key` for the JSON `elem`, and
+  both take `statements` for `stmt`.
+- A rule takes `statements` for `expr`, and `meter` takes one `statement` for
+  `stmt`.
+
+A field whose JSON key names something other than what it holds also takes the
+DSL word: `reject` takes `code` for `expr`, which holds the ICMP code, and a
+map takes `dataType` for `map`, which holds the data type of its values, as in
+`maps.m = { type = "ifname"; dataType = "verdict"; }`. Other fields keep nft's
+word: a chain or flowtable's `dev` takes one device or a list. The same renames apply to statements,
 table-tree objects, and command builders, and in each a JSON spelling throws,
 pointing to the DSL name:
 

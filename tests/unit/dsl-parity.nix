@@ -1576,7 +1576,7 @@ in
     ps
       (dsl.setStmt {
         op = "add";
-        elem = "10.0.0.1";
+        element = "10.0.0.1";
         set = "@blocked";
       })
       {
@@ -1590,7 +1590,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = "10.0.0.1";
+        key = "10.0.0.1";
         data = 42;
         map = "@cache";
       })
@@ -1607,7 +1607,7 @@ in
     ps
       (dsl.setStmt {
         op = "update";
-        elem = dsl.fields.ip.saddr;
+        element = dsl.fields.ip.saddr;
         set = "@blocked";
         statements = [ dsl.counter.auto ];
       })
@@ -1628,7 +1628,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = dsl.fields.ip.saddr;
+        key = dsl.fields.ip.saddr;
         data = 42;
         map = "@cache";
         statements = [ dsl.counter.auto ];
@@ -1651,7 +1651,7 @@ in
     ps
       (dsl.setStmt {
         op = "add";
-        elem = "10.0.0.1";
+        element = "10.0.0.1";
         set = "blocked";
       })
       {
@@ -1665,7 +1665,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = "10.0.0.1";
+        key = "10.0.0.1";
         data = 42;
         map = "cache";
       })
@@ -1680,7 +1680,7 @@ in
   testStatementReferencesRejectNonString = {
     expr = dsl.setStmt {
       op = "add";
-      elem = "10.0.0.1";
+      element = "10.0.0.1";
       set = dsl.expr.set [ "blocked" ];
     };
     expectedError.msg = "setStmt: expected a name string, got set";
@@ -1962,7 +1962,7 @@ in
         (dsl.table "inet" "t" {
           maps.c = {
             type = "inet_service";
-            map = "inet_service";
+            dataType = "inet_service";
             gcInterval = 60;
             flags = [ "timeout" ];
           };
@@ -2387,7 +2387,7 @@ in
                 };
                 maps.m = {
                   type = "ipv4_addr";
-                  map = "quota";
+                  dataType = "quota";
                   elements = [
                     [
                       "192.0.2.1"
@@ -2789,7 +2789,7 @@ in
         (dsl.table "inet" "t" {
           maps.iif_dispatch = {
             type = "ifname";
-            map = "verdict";
+            dataType = "verdict";
             elements = [
               [
                 "eth0"
@@ -3052,7 +3052,7 @@ in
               "ipv4_addr"
               "inet_service"
             ];
-            map = [
+            dataType = [
               "ipv4_addr"
               "inet_service"
             ];
@@ -3781,7 +3781,7 @@ in
         table = "t";
         name = "m";
         type = "ipv4_addr";
-        map = "verdict";
+        dataType = "verdict";
         comment = "per-host verdicts";
       })
       {
@@ -4204,7 +4204,7 @@ in
         table = "t";
         name = "m";
         type = "ipv4_addr";
-        map = "mark";
+        dataType = "mark";
       })
       {
         reset = {
@@ -4347,7 +4347,7 @@ in
         table = "nat";
         name = "port_forward";
         type = "inet_service";
-        map = "inet_service";
+        dataType = "inet_service";
       })
       {
         flush = {

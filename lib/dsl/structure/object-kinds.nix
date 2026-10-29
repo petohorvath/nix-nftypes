@@ -40,7 +40,7 @@ in
   map = {
     tag = "map";
     plural = "maps";
-    renameBody = rename.set;
+    renameBody = rename.map;
     body = objects.mapBody;
   };
   flowtable = {
