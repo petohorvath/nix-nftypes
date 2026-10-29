@@ -557,7 +557,12 @@ Returns compact JSON via `builtins.toJSON`. Use the result with `nft -j -f`.
 ### `toText ruleset` and `toTextPretty ruleset`
 
 Render imperative nftables commands. The compact form minimizes whitespace;
-the pretty form uses readable multi-line blocks. Both are pure Nix.
+the pretty form uses readable multi-line blocks and puts a blank line where
+the commands move to another table. Both are pure Nix.
+
+Every line ends with a newline, the last included, so renders concatenate:
+`toText a + toText b` loads as both rulesets. An empty ruleset renders as
+`""`.
 
 ### `toTextBlock tableNode` and `toTextBlockPretty tableNode`
 
@@ -568,6 +573,9 @@ no block-form spelling and is omitted. A chain block lists its rules in order,
 so a rule `index` has no block-form spelling either, and is refused
 (`rule index`); order the rules in the list instead. Passing a full ruleset or
 a raw command is an error.
+
+Every declaration ends with a newline, the last included, and a table with no
+declarations renders as `""`.
 
 The JSON renderer is authoritative when JSON and text grammar capabilities
 differ. See [`text-coverage.md`](text-coverage.md).

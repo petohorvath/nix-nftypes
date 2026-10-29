@@ -19,6 +19,16 @@ let
   # Wrap a single command in a ruleset so toText's entry contract is met.
   one = cmd: toText { nftables = [ cmd ]; };
 
+  # Two ip tables, for output that spans tables.
+  tableA = {
+    family = "ip";
+    name = "a";
+  };
+  tableB = {
+    family = "ip";
+    name = "b";
+  };
+
   # A rule matching the ct expression `body` against an IPv4 address.
   ctMatch = body: {
     add.rule = {
@@ -228,6 +238,79 @@ let
       };
 in
 {
+  # ---- line endings ---------------------------------------------------
+  # Every line ends with a newline, the last included, so two renders
+  # concatenate into two commands, not one glued line.
+  testConcatenatedRendersKeepCommandsApart = {
+    expr = one { add.table = tableA; } + one { add.table = tableB; };
+    expected = "add table ip a\nadd table ip b\n";
+  };
+
+  testPrettyEndsLastLineWithNewline = {
+    expr = nftlib.toTextPretty { nftables = [ { add.table = tableA; } ]; };
+    expected = "add table ip a\n";
+  };
+
+  # An empty ruleset adds nothing to the text it is appended to.
+  testEmptyRulesetRendersEmpty = {
+    expr = map (render: render { nftables = [ ]; }) [
+      toText
+      nftlib.toTextPretty
+    ];
+    expected = [
+      ""
+      ""
+    ];
+  };
+
+  # Pretty form separates one table's commands from the next table's with
+  # a blank line; a command outside any table, such as `flush ruleset`,
+  # is separated from a table's commands too.
+  testPrettySeparatesTables = {
+    expr = nftlib.toTextPretty {
+      nftables = [
+        { flush.ruleset = null; }
+        { add.table = tableA; }
+        {
+          add.chain = {
+            family = "ip";
+            table = "a";
+            name = "c";
+          };
+        }
+        { add.table = tableB; }
+        {
+          add.chain = {
+            family = "ip";
+            table = "a";
+            name = "d";
+          };
+        }
+      ];
+    };
+    expected = ''
+      flush ruleset
+
+      add table ip a
+      add chain ip a c
+
+      add table ip b
+
+      add chain ip a d
+    '';
+  };
+
+  # Compact form keeps one command per line, with no blank lines.
+  testCompactKeepsTablesAdjacent = {
+    expr = toText {
+      nftables = [
+        { add.table = tableA; }
+        { add.table = tableB; }
+      ];
+    };
+    expected = "add table ip a\nadd table ip b\n";
+  };
+
   # ---- expressions (rendered via the match statement) -----------------
   testMatchPayloadEq = {
     expr = one {
@@ -251,7 +334,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c tcp dport == 22";
+    expected = "add rule ip t c tcp dport == 22\n";
   };
 
   # nft's JSON field `parameter-problem` is `param-problem` in text.
@@ -277,7 +360,7 @@ in
         ];
       };
     };
-    expected = "add rule ip6 t c icmpv6 param-problem == 1";
+    expected = "add rule ip6 t c icmpv6 param-problem == 1\n";
   };
 
   testMatchPayloadArpSaddrEther = {
@@ -302,7 +385,7 @@ in
         ];
       };
     };
-    expected = "add rule arp t c arp saddr ether == 00:11:22:33:44:55";
+    expected = "add rule arp t c arp saddr ether == 00:11:22:33:44:55\n";
   };
 
   testMatchAnonymousSet = {
@@ -332,7 +415,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c ct state { established, related } accept";
+    expected = "add rule ip t c ct state { established, related } accept\n";
   };
 
   # A ct address key carries its family, as nft lists it.
@@ -341,7 +424,7 @@ in
       key = "ip saddr";
       dir = "original";
     });
-    expected = "add rule ip t c ct original ip saddr == 10.0.0.1";
+    expected = "add rule ip t c ct original ip saddr == 10.0.0.1\n";
   };
 
   # nft's JSON parser ignores a ct expression's `family`, while text would
@@ -382,7 +465,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c ip saddr == 10.0.0.0/8";
+    expected = "add rule ip t c ip saddr == 10.0.0.0/8\n";
   };
 
   testRange = {
@@ -412,7 +495,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c tcp dport == 1024-65535";
+    expected = "add rule ip t c tcp dport == 1024-65535\n";
   };
 
   testBinopPrec = {
@@ -442,7 +525,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c (meta mark | 1) & 2 == 1";
+    expected = "add rule ip t c (meta mark | 1) & 2 == 1\n";
   };
 
   # A later operand of higher precedence needs no parens.
@@ -464,7 +547,7 @@ in
         };
       }
     ];
-    expected = "add rule ip t c meta mark | 1 ^ 3 == 1";
+    expected = "add rule ip t c meta mark | 1 ^ 3 == 1\n";
   };
 
   # A concatenation matched against a named set, with an interface name
@@ -487,7 +570,7 @@ in
         };
       }
     ];
-    expected = "add rule inet t c meta iifname . ip saddr == @allowed";
+    expected = "add rule inet t c meta iifname . ip saddr == @allowed\n";
   };
 
   testMapLookup = {
@@ -517,7 +600,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c dnat ip to 10.0.0.10:tcp dport map @port_forward";
+    expected = "add rule ip t c dnat ip to 10.0.0.10:tcp dport map @port_forward\n";
   };
 
   # ---- statements -----------------------------------------------------
@@ -538,7 +621,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c counter packets 10 bytes 500 accept";
+    expected = "add rule ip t c counter packets 10 bytes 500 accept\n";
   };
 
   # The null body nft lists for a statement with no options.
@@ -564,11 +647,11 @@ in
           reject = null;
         };
     expected = {
-      log = "add rule ip t c log";
-      masquerade = "add rule ip t c masquerade";
-      queue = "add rule ip t c queue";
-      redirect = "add rule ip t c redirect";
-      reject = "add rule ip t c reject";
+      log = "add rule ip t c log\n";
+      masquerade = "add rule ip t c masquerade\n";
+      queue = "add rule ip t c queue\n";
+      redirect = "add rule ip t c redirect\n";
+      reject = "add rule ip t c reject\n";
     };
   };
 
@@ -579,9 +662,9 @@ in
       burst = 5;
     };
     expected = {
-      statement = "add rule ip t c limit rate 10/minute burst 5 packets";
-      object = "add limit ip t lim { rate 10/minute burst 5 packets; }";
-      create = "create limit ip t lim rate 10/minute burst 5 packets";
+      statement = "add rule ip t c limit rate 10/minute burst 5 packets\n";
+      object = "add limit ip t lim { rate 10/minute burst 5 packets; }\n";
+      create = "create limit ip t lim rate 10/minute burst 5 packets\n";
     };
   };
 
@@ -591,9 +674,9 @@ in
       per = "minute";
     };
     expected = {
-      statement = "add rule ip t c limit rate 10/minute";
-      object = "add limit ip t lim { rate 10/minute; }";
-      create = "create limit ip t lim rate 10/minute";
+      statement = "add rule ip t c limit rate 10/minute\n";
+      object = "add limit ip t lim { rate 10/minute; }\n";
+      create = "create limit ip t lim rate 10/minute\n";
     };
   };
 
@@ -607,9 +690,9 @@ in
       burst_unit = null;
     };
     expected = {
-      statement = "add rule ip t c limit rate 10/minute";
-      object = "add limit ip t lim { rate 10/minute; }";
-      create = "create limit ip t lim rate 10/minute";
+      statement = "add rule ip t c limit rate 10/minute\n";
+      object = "add limit ip t lim { rate 10/minute; }\n";
+      create = "create limit ip t lim rate 10/minute\n";
     };
   };
 
@@ -623,9 +706,9 @@ in
       burst_unit = "bytes";
     };
     expected = {
-      statement = "add rule ip t c limit rate over 10 kbytes/minute burst 5 bytes";
-      object = "add limit ip t lim { rate over 10 kbytes/minute burst 5 bytes; }";
-      create = "create limit ip t lim rate over 10 kbytes/minute burst 5 bytes";
+      statement = "add rule ip t c limit rate over 10 kbytes/minute burst 5 bytes\n";
+      object = "add limit ip t lim { rate over 10 kbytes/minute burst 5 bytes; }\n";
+      create = "create limit ip t lim rate over 10 kbytes/minute burst 5 bytes\n";
     };
   };
 
@@ -641,9 +724,9 @@ in
       burst_unit = "packets";
     };
     expected = {
-      statement = "add rule ip t c limit rate 10/minute";
-      object = "add limit ip t lim { rate 10/minute; }";
-      create = "create limit ip t lim rate 10/minute";
+      statement = "add rule ip t c limit rate 10/minute\n";
+      object = "add limit ip t lim { rate 10/minute; }\n";
+      create = "create limit ip t lim rate 10/minute\n";
     };
   };
 
@@ -656,9 +739,9 @@ in
       burst_unit = "kbytes";
     };
     expected = {
-      statement = "add rule ip t c limit rate 10 mbytes/minute";
-      object = "add limit ip t lim { rate 10 mbytes/minute; }";
-      create = "create limit ip t lim rate 10 mbytes/minute";
+      statement = "add rule ip t c limit rate 10 mbytes/minute\n";
+      object = "add limit ip t lim { rate 10 mbytes/minute; }\n";
+      create = "create limit ip t lim rate 10 mbytes/minute\n";
     };
   };
 
@@ -673,9 +756,9 @@ in
       burst_unit = "bytes";
     };
     expected = {
-      statement = "add rule ip t c limit rate 10/minute burst 7 packets";
-      object = "add limit ip t lim { rate 10/minute burst 7 packets; }";
-      create = "create limit ip t lim rate 10/minute burst 7 packets";
+      statement = "add rule ip t c limit rate 10/minute burst 7 packets\n";
+      object = "add limit ip t lim { rate 10/minute burst 7 packets; }\n";
+      create = "create limit ip t lim rate 10/minute burst 7 packets\n";
     };
   };
 
@@ -688,9 +771,9 @@ in
       burst = 5;
     };
     expected = {
-      statement = "add rule ip t c limit rate 10 kbytes/second burst 5 bytes";
-      object = "add limit ip t lim { rate 10 kbytes/second burst 5 bytes; }";
-      create = "create limit ip t lim rate 10 kbytes/second burst 5 bytes";
+      statement = "add rule ip t c limit rate 10 kbytes/second burst 5 bytes\n";
+      object = "add limit ip t lim { rate 10 kbytes/second burst 5 bytes; }\n";
+      create = "create limit ip t lim rate 10 kbytes/second burst 5 bytes\n";
     };
   };
 
@@ -734,7 +817,8 @@ in
         comment "packet budget";
       }
       add rule ip t c limit name "lim"
-      create limit ip t fast rate 20/second burst 10 packets'';
+      create limit ip t fast rate 20/second burst 10 packets
+    '';
   };
 
   testRejectIcmp = {
@@ -753,7 +837,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c reject with icmp host-unreachable";
+    expected = "add rule ip t c reject with icmp host-unreachable\n";
   };
 
   testLogPrefix = {
@@ -772,7 +856,7 @@ in
         ];
       };
     };
-    expected = ''add rule ip t c log prefix "DROP " level info'';
+    expected = "add rule ip t c log prefix \"DROP \" level info\n";
   };
 
   # nft loads a log prefix of 1 to 127 bytes.
@@ -786,8 +870,8 @@ in
         inherit maxLength;
       };
       expected = {
-        oneByte = ''add rule ip t c log prefix "a"'';
-        maxLength = ''add rule ip t c log prefix "${maxLength}"'';
+        oneByte = "add rule ip t c log prefix \"a\"\n";
+        maxLength = "add rule ip t c log prefix \"${maxLength}\"\n";
       };
     };
 
@@ -806,7 +890,7 @@ in
       }
       { log.flags = "all"; }
     ];
-    expected = "add rule ip t c log flags tcp sequence,options flags ip options flags skuid flags ether log flags all";
+    expected = "add rule ip t c log flags tcp sequence,options flags ip options flags skuid flags ether log flags all\n";
   };
 
   testLogFlagUnknown = {
@@ -839,7 +923,7 @@ in
         };
       }
     ];
-    expected = "add rule ip t c osf ttl loose version == \"Linux:3.0\" osf name != { \"Linux\", \"Windows\" }";
+    expected = "add rule ip t c osf ttl loose version == \"Linux:3.0\" osf name != { \"Linux\", \"Windows\" }\n";
   };
 
   testOsfMatchRefusesUnsafeString = {
@@ -863,7 +947,7 @@ in
       { last.used = 0; }
       { last.used = 86400000; }
     ];
-    expected = "add rule ip t c last last used never last used 0ms last used 86400000ms";
+    expected = "add rule ip t c last last used never last used 0ms last used 86400000ms\n";
   };
 
   # JSON loads any other negative time as a huge one.
@@ -883,7 +967,7 @@ in
         ];
       };
     };
-    expected = ''add rule ip t c ct helper set "ftp-helper"'';
+    expected = "add rule ip t c ct helper set \"ftp-helper\"\n";
   };
 
   # nft's text spells a tunnel assignment `tunnel name`, not `meta tunnel
@@ -897,7 +981,7 @@ in
         expr = [ { tunnel = "vxlan0"; } ];
       };
     };
-    expected = ''add rule netdev t c tunnel name "vxlan0"'';
+    expected = "add rule netdev t c tunnel name \"vxlan0\"\n";
   };
 
   # ---- objects --------------------------------------------------------
@@ -908,7 +992,7 @@ in
         name = "main";
       };
     };
-    expected = "add table inet main";
+    expected = "add table inet main\n";
   };
 
   testBaseChain = {
@@ -923,7 +1007,7 @@ in
         policy = "drop";
       };
     };
-    expected = "add chain inet main input { type filter hook input priority 0; policy drop; }";
+    expected = "add chain inet main input { type filter hook input priority 0; policy drop; }\n";
   };
 
   testRegularChain = {
@@ -934,7 +1018,7 @@ in
         name = "tcp_in";
       };
     };
-    expected = "add chain inet main tcp_in";
+    expected = "add chain inet main tcp_in\n";
   };
 
   # A raw chain without all of type, hook and prio is a regular chain, as
@@ -962,9 +1046,9 @@ in
           };
         };
     expected = {
-      prio = "add chain ip t c";
-      type = "add chain ip t c";
-      typeAndHook = "add chain ip t c";
+      prio = "add chain ip t c\n";
+      type = "add chain ip t c\n";
+      typeAndHook = "add chain ip t c\n";
     };
   };
 
@@ -980,7 +1064,7 @@ in
         dev = "eth0";
       };
     };
-    expected = "add chain netdev filter ingress { type filter hook ingress device \"eth0\" priority -100; }";
+    expected = "add chain netdev filter ingress { type filter hook ingress device \"eth0\" priority -100; }\n";
   };
 
   testSetWithFlagsAndElems = {
@@ -1001,7 +1085,7 @@ in
         ];
       };
     };
-    expected = "add set inet main trusted { type ipv4_addr; flags interval; elements = { 10.0.0.0/8 }; }";
+    expected = "add set inet main trusted { type ipv4_addr; flags interval; elements = { 10.0.0.0/8 }; }\n";
   };
 
   # A typeof declaration replaces the `type` keyword.
@@ -1014,7 +1098,7 @@ in
         type.typeof.meta.key = "iifname";
       };
     };
-    expected = "add set inet t s { typeof meta iifname; }";
+    expected = "add set inet t s { typeof meta iifname; }\n";
   };
 
   testTypeofConcatSet = {
@@ -1039,7 +1123,7 @@ in
         ];
       };
     };
-    expected = "add set inet t s { typeof ip saddr . tcp dport; }";
+    expected = "add set inet t s { typeof ip saddr . tcp dport; }\n";
   };
 
   # nft's text grammar declares both sides of a typeof map with one
@@ -1057,7 +1141,7 @@ in
         map.typeof.meta.key = "mark";
       };
     };
-    expected = "add map inet t m { typeof ip saddr : meta mark; }";
+    expected = "add map inet t m { typeof ip saddr : meta mark; }\n";
   };
 
   testTypeofMapNamedValueType = {
@@ -1086,11 +1170,11 @@ in
           "ct expectation"
         ];
     expected = [
-      "add map inet t m { typeof ip saddr : verdict; }"
-      "add map inet t m { typeof ip saddr : counter; }"
-      "add map inet t m { typeof ip saddr : ct helper; }"
-      "add map inet t m { typeof ip saddr : ct timeout; }"
-      "add map inet t m { typeof ip saddr : ct expectation; }"
+      "add map inet t m { typeof ip saddr : verdict; }\n"
+      "add map inet t m { typeof ip saddr : counter; }\n"
+      "add map inet t m { typeof ip saddr : ct helper; }\n"
+      "add map inet t m { typeof ip saddr : ct timeout; }\n"
+      "add map inet t m { typeof ip saddr : ct expectation; }\n"
     ];
   };
 
@@ -1130,7 +1214,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c add @blocked { ip saddr }";
+    expected = "add rule ip t c add @blocked { ip saddr }\n";
   };
 
   testMapStatementNamedReference = {
@@ -1154,7 +1238,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c update @cache { ip saddr : 1 }";
+    expected = "add rule ip t c update @cache { ip saddr : 1 }\n";
   };
 
   testFlowNamedReference = {
@@ -1173,7 +1257,7 @@ in
         ];
       };
     };
-    expected = "add rule inet t c flow add @ft";
+    expected = "add rule inet t c flow add @ft\n";
   };
 
   # Without its `@`, a reference is refused rather than printed bare.
@@ -1220,7 +1304,7 @@ in
         ];
       };
     };
-    expected = "add map inet main ports { type inet_service : inet_service; elements = { 80 : 8080, 443 : 8443 }; }";
+    expected = "add map inet main ports { type inet_service : inet_service; elements = { 80 : 8080, 443 : 8443 }; }\n";
   };
 
   # nft's JSON parser ignores a set or map comment, so text would load a
@@ -1264,7 +1348,7 @@ in
         ];
       };
     };
-    expected = "add element inet main trusted { 8.8.8.8, 1.1.1.1 }";
+    expected = "add element inet main trusted { 8.8.8.8, 1.1.1.1 }\n";
   };
 
   testSetElementStatementRefused = {
@@ -1308,7 +1392,7 @@ in
         ];
       };
     };
-    expected = "add element ip t s { 10.0.0.1 }";
+    expected = "add element ip t s { 10.0.0.1 }\n";
   };
 
   # Set-level statements give every element its own instance.
@@ -1323,7 +1407,7 @@ in
         elem = [ "10.0.0.1" ];
       };
     };
-    expected = "add set ip t s { type ipv4_addr; counter; elements = { 10.0.0.1 }; }";
+    expected = "add set ip t s { type ipv4_addr; counter; elements = { 10.0.0.1 }; }\n";
   };
 
   testFlowtable = {
@@ -1340,7 +1424,7 @@ in
         ];
       };
     };
-    expected = "add flowtable inet main ft1 { hook ingress priority 0; devices = { \"eth0\", \"eth1\" }; }";
+    expected = "add flowtable inet main ft1 { hook ingress priority 0; devices = { \"eth0\", \"eth1\" }; }\n";
   };
 
   testCounterObject = {
@@ -1353,7 +1437,7 @@ in
         bytes = 5000;
       };
     };
-    expected = "add counter ip filter ctr { packets 100 bytes 5000; }";
+    expected = "add counter ip filter ctr { packets 100 bytes 5000; }\n";
   };
 
   # nft's text takes `packets N bytes N` only as a pair; JSON loads a
@@ -1379,8 +1463,8 @@ in
       }
     ];
     expected = [
-      "add counter ip filter ctr { packets 100 bytes 0; }"
-      "add counter ip filter ctr { packets 0 bytes 5000; comment \"bytes only\"; }"
+      "add counter ip filter ctr { packets 100 bytes 0; }\n"
+      "add counter ip filter ctr { packets 0 bytes 5000; comment \"bytes only\"; }\n"
     ];
   };
 
@@ -1405,8 +1489,8 @@ in
       }
     ];
     expected = [
-      "create counter ip filter ctr packets 100 bytes 0"
-      "create counter ip filter ctr"
+      "create counter ip filter ctr packets 100 bytes 0\n"
+      "create counter ip filter ctr\n"
     ];
   };
 
@@ -1437,7 +1521,7 @@ in
         context = "system_u:object_r:ssh_server_packet_t:s0";
       };
     };
-    expected = "create secmark inet t s \"system_u:object_r:ssh_server_packet_t:s0\"";
+    expected = "create secmark inet t s \"system_u:object_r:ssh_server_packet_t:s0\"\n";
   };
 
   testCreateSecmarkCommentRefused = createCommentRefused "secmark" {
@@ -1466,7 +1550,7 @@ in
         inv = true;
       };
     };
-    expected = "add quota ip filter q { over 1000000 bytes; }";
+    expected = "add quota ip filter q { over 1000000 bytes; }\n";
   };
 
   # JSON's quota units default to bytes; text needs one written.
@@ -1482,7 +1566,7 @@ in
         };
       }
     ];
-    expected = "add rule ip t c quota 100 bytes quota over 2 mbytes used 1 bytes";
+    expected = "add rule ip t c quota 100 bytes quota over 2 mbytes used 1 bytes\n";
   };
 
   # JSON's quota object `bytes` defaults to 0.
@@ -1505,8 +1589,8 @@ in
       }
     ];
     expected = [
-      "add quota ip t q { 0 bytes; }"
-      "create quota ip t q 0 bytes used 0 bytes"
+      "add quota ip t q { 0 bytes; }\n"
+      "create quota ip t q 0 bytes used 0 bytes\n"
     ];
   };
 
@@ -1521,7 +1605,7 @@ in
         comment = "over five";
       };
     };
-    expected = ''add ct count ip t c1 { over 5; comment "over five"; }'';
+    expected = "add ct count ip t c1 { over 5; comment \"over five\"; }\n";
   };
 
   # Without `inv` the grammar still needs a keyword: `until`.
@@ -1534,7 +1618,7 @@ in
         val = 4;
       };
     };
-    expected = "create ct count ip t c2 { until 4; }";
+    expected = "create ct count ip t c2 { until 4; }\n";
   };
 
   testCtCountNamedReference = {
@@ -1546,7 +1630,7 @@ in
         expr = [ { "ct count" = "c1"; } ];
       };
     };
-    expected = ''add rule ip t c ct count name "c1"'';
+    expected = "add rule ip t c ct count name \"c1\"\n";
   };
 
   # Every stateful statement renders a map reference as
@@ -1582,7 +1666,7 @@ in
         };
       }
     ) statefulTags;
-    expected = map (tag: "add rule ip t c ${tag} name tcp dport map { 22 : a, 80 : b }") statefulTags;
+    expected = map (tag: "add rule ip t c ${tag} name tcp dport map { 22 : a, 80 : b }\n") statefulTags;
   };
 
   testCtTimeoutPolicy = {
@@ -1599,7 +1683,7 @@ in
         };
       };
     };
-    expected = "add ct timeout ip t fast_tcp { protocol tcp; l3proto ip; policy = { close: 5, established: 300 }; }";
+    expected = "add ct timeout ip t fast_tcp { protocol tcp; l3proto ip; policy = { close: 5, established: 300 }; }\n";
   };
 
   testCtHelperInetL3proto = {
@@ -1613,7 +1697,7 @@ in
         l3proto = "inet";
       };
     };
-    expected = "add ct helper inet t h { type \"ftp\" protocol tcp; l3proto inet; }";
+    expected = "add ct helper inet t h { type \"ftp\" protocol tcp; l3proto inet; }\n";
   };
 
   /*
@@ -1636,7 +1720,7 @@ in
         ];
       };
     };
-    expected = "add synproxy inet t sp { mss 1460; wscale 7; timestamp sack-perm; }";
+    expected = "add synproxy inet t sp { mss 1460; wscale 7; timestamp sack-perm; }\n";
   };
 
   testSynproxyObjectWithoutFlags = {
@@ -1650,7 +1734,7 @@ in
         comment = "no flags";
       };
     };
-    expected = "add synproxy inet t sp { mss 1460; wscale 7; comment \"no flags\"; }";
+    expected = "add synproxy inet t sp { mss 1460; wscale 7; comment \"no flags\"; }\n";
   };
 
   # `create synproxy` takes the values positionally, separated the same way.
@@ -1677,8 +1761,8 @@ in
       }
     ];
     expected = [
-      "create synproxy inet t sp mss 1460; wscale 7; sack-perm;"
-      "create synproxy inet t sp mss 1460; wscale 7;"
+      "create synproxy inet t sp mss 1460; wscale 7; sack-perm;\n"
+      "create synproxy inet t sp mss 1460; wscale 7;\n"
     ];
   };
 
@@ -1696,7 +1780,7 @@ in
         protocol = "tcp";
       };
     };
-    expected = "add ct timeout ip t minimal { protocol tcp; }";
+    expected = "add ct timeout ip t minimal { protocol tcp; }\n";
   };
 
   testCtExpectationMinimal = {
@@ -1711,7 +1795,7 @@ in
         size = 1;
       };
     };
-    expected = "add ct expectation ip t minimal { protocol tcp; dport 21; timeout 1000ms; size 1; }";
+    expected = "add ct expectation ip t minimal { protocol tcp; dport 21; timeout 1000ms; size 1; }\n";
   };
 
   # JSON's ct expectation timeout is milliseconds, so text must say so;
@@ -1730,7 +1814,7 @@ in
         comment = "tftp";
       };
     };
-    expected = "add ct expectation ip t e { protocol udp; dport 69; timeout 60ms; size 2; l3proto ip; comment \"tftp\"; }";
+    expected = "add ct expectation ip t e { protocol udp; dport 69; timeout 60ms; size 2; l3proto ip; comment \"tftp\"; }\n";
   };
 
   # nft's JSON parser loads a tunnel's ports wrongly, so text refuses a
@@ -1802,7 +1886,7 @@ in
         }
       ];
     };
-    expected = "table inet t";
+    expected = "table inet t\n";
   };
 
   # nft has no command that takes a metainfo: text and JSON both reject
@@ -1835,7 +1919,7 @@ in
         name = "rate_meter";
       };
     };
-    expected = "flush meter inet filter rate_meter";
+    expected = "flush meter inet filter rate_meter\n";
   };
 
   # Hyphenated identifier — the bare-identifier regex must accept `-`
@@ -1849,7 +1933,7 @@ in
         name = "my-chain";
       };
     };
-    expected = "add chain inet my-table my-chain";
+    expected = "add chain inet my-table my-chain\n";
   };
 
   # Match with `in` operator over a set: nft text elides the operator
@@ -1881,7 +1965,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c meta iifname { \"lo\", \"eth0\" }";
+    expected = "add rule ip t c meta iifname { \"lo\", \"eth0\" }\n";
   };
 
   # A bitmask is where the two ops differ: implicit `tcp flags syn` is
@@ -1909,7 +1993,7 @@ in
         ];
       };
     };
-    expected = "add rule inet t c tcp flags == syn";
+    expected = "add rule inet t c tcp flags == syn\n";
   };
 
   testMatchBitmaskInIsImplicit = {
@@ -1934,7 +2018,7 @@ in
         ];
       };
     };
-    expected = "add rule inet t c tcp flags syn";
+    expected = "add rule inet t c tcp flags syn\n";
   };
 
   # Binop precedence where the child binds tighter than the parent —
@@ -1966,7 +2050,7 @@ in
         ];
       };
     };
-    expected = "add rule ip t c meta mark & 1 | 2 == 1";
+    expected = "add rule ip t c meta mark & 1 | 2 == 1\n";
   };
 
   # nft's grammar is left-associative, and it folds a JSON operand list
@@ -1984,7 +2068,7 @@ in
         }
       ];
     };
-    expected = "add rule inet t c meta mark set meta mark << (1 << 2)";
+    expected = "add rule inet t c meta mark set meta mark << (1 << 2)\n";
   };
 
   testBinopRightNestedMixedShifts = {
@@ -1999,7 +2083,7 @@ in
         }
       ];
     };
-    expected = "add rule inet t c meta mark set meta mark << (4 >> 2)";
+    expected = "add rule inet t c meta mark set meta mark << (4 >> 2)\n";
   };
 
   testBinopLeftNestedSamePrecedence = {
@@ -2014,7 +2098,7 @@ in
         2
       ];
     };
-    expected = "add rule inet t c meta mark set meta mark << 4 >> 2";
+    expected = "add rule inet t c meta mark set meta mark << 4 >> 2\n";
   };
 
   testBinopOperandListFoldsLeft = {
@@ -2030,7 +2114,7 @@ in
         }
       ];
     };
-    expected = "add rule inet t c meta mark set meta mark << 1 << (4 >> 1)";
+    expected = "add rule inet t c meta mark set meta mark << 1 << (4 >> 1)\n";
   };
 
   # A next hop is `fwd <family> to <addr> device <dev>`. JSON ignores an
@@ -2059,10 +2143,10 @@ in
       }
     ];
     expected = [
-      "add rule netdev t c fwd to \"eth0\""
-      "add rule netdev t c fwd ip to 192.0.2.1 device \"eth0\""
-      "add rule netdev t c fwd to \"eth0\""
-      "add rule netdev t c fwd to \"eth0\""
+      "add rule netdev t c fwd to \"eth0\"\n"
+      "add rule netdev t c fwd ip to 192.0.2.1 device \"eth0\"\n"
+      "add rule netdev t c fwd to \"eth0\"\n"
+      "add rule netdev t c fwd to \"eth0\"\n"
     ];
   };
 
@@ -2099,12 +2183,12 @@ in
       { queue.flags = "bypass"; }
     ];
     expected = [
-      "add rule ip t c queue"
-      "add rule ip t c queue num 3"
-      "add rule ip t c queue flags bypass,fanout num 1-3"
-      "add rule ip t c queue to symhash mod 2 offset 1"
-      "add rule ip t c queue flags bypass to symhash mod 2"
-      "add rule ip t c queue bypass"
+      "add rule ip t c queue\n"
+      "add rule ip t c queue num 3\n"
+      "add rule ip t c queue flags bypass,fanout num 1-3\n"
+      "add rule ip t c queue to symhash mod 2 offset 1\n"
+      "add rule ip t c queue flags bypass to symhash mod 2\n"
+      "add rule ip t c queue bypass\n"
     ];
   };
 
@@ -2127,7 +2211,6 @@ in
           };
         }
       ]
-      + "\n"
       + ruleIn "ip6" (
         map
           (name: {
@@ -2145,7 +2228,8 @@ in
       );
     expected = ''
       add rule ip6 t c exthdr frag == 1 exthdr hbh != 0
-      add rule ip6 t c exthdr rt == 1 exthdr dst == 1 exthdr mh == 1'';
+      add rule ip6 t c exthdr rt == 1 exthdr dst == 1 exthdr mh == 1
+    '';
   };
 
   # nft's text checks only hbh, rt, frag, dst and mh for existence.
@@ -2183,7 +2267,7 @@ in
         };
       }
     ];
-    expected = ''add rule ip t c meta mark == { "-1", 2 } meta mark set "-5"'';
+    expected = "add rule ip t c meta mark == { \"-1\", 2 } meta mark set \"-5\"\n";
   };
 
   # ---- NAT targets ----------------------------------------------------
@@ -2196,12 +2280,12 @@ in
         port = 80;
       };
     };
-    expected = "add rule ip6 t c meta l4proto == tcp dnat to [2001:db8::1]:80";
+    expected = "add rule ip6 t c meta l4proto == tcp dnat to [2001:db8::1]:80\n";
   };
 
   testDnatIpv6AddrOnly = {
     expr = ip6Rule { dnat.addr = "2001:db8::1"; };
-    expected = "add rule ip6 t c dnat to 2001:db8::1";
+    expected = "add rule ip6 t c dnat to 2001:db8::1\n";
   };
 
   testSnatIpv6RangePort = {
@@ -2214,7 +2298,7 @@ in
         port = 1024;
       };
     };
-    expected = "add rule ip6 t c meta l4proto == tcp snat to [2001:db8::1]-[2001:db8::5]:1024";
+    expected = "add rule ip6 t c meta l4proto == tcp snat to [2001:db8::1]-[2001:db8::5]:1024\n";
   };
 
   testTproxyIpv6AddrPort = {
@@ -2225,7 +2309,7 @@ in
         port = 80;
       };
     };
-    expected = "add rule ip6 t c meta l4proto == tcp tproxy ip6 to [2001:db8::1]:80";
+    expected = "add rule ip6 t c meta l4proto == tcp tproxy ip6 to [2001:db8::1]:80\n";
   };
 
   # nft would lex `/24:80` as a string, so a space ends the prefix.
@@ -2239,7 +2323,7 @@ in
         port = 80;
       };
     };
-    expected = "add rule ip6 t c meta l4proto == tcp dnat to 2001:db8::/64 :80";
+    expected = "add rule ip6 t c meta l4proto == tcp dnat to 2001:db8::/64 :80\n";
   };
 
   /*
@@ -2259,7 +2343,7 @@ in
         };
       }
     ];
-    expected = "add rule inet t c meta l4proto == tcp snat to :1024";
+    expected = "add rule inet t c meta l4proto == tcp snat to :1024\n";
   };
 
   testSnatOtherFamilyPortOnlyRefused = {
@@ -2292,7 +2376,7 @@ in
         port = 1024;
       };
     };
-    expected = "add rule ip6 t c meta l4proto == tcp snat to :1024";
+    expected = "add rule ip6 t c meta l4proto == tcp snat to :1024\n";
   };
 
   testDnatFamilyPortOnly = {
@@ -2302,7 +2386,7 @@ in
         port = 8080;
       };
     };
-    expected = "add rule ip6 t c meta l4proto == tcp dnat to :8080";
+    expected = "add rule ip6 t c meta l4proto == tcp dnat to :8080\n";
   };
 
   # The `netmap` flag is what nft's text spells `prefix to`; the `prefix`
@@ -2321,7 +2405,7 @@ in
         };
       }
     ];
-    expected = "add rule ip t c snat ip prefix to 10.0.0.0/24";
+    expected = "add rule ip t c snat ip prefix to 10.0.0.0/24\n";
   };
 
   testSnatPrefixTypeFlagAlone = {
@@ -2337,7 +2421,7 @@ in
         };
       }
     ];
-    expected = "add rule ip t c snat ip to 10.0.0.0/24";
+    expected = "add rule ip t c snat ip to 10.0.0.0/24\n";
   };
 
   # nft's text sets the flags after `prefix to` in place of `netmap`.
@@ -2401,7 +2485,7 @@ in
         };
       }
     ];
-    expected = "add rule ip t c meta l4proto == tcp snat ip addr . port to ip saddr map { 10.141.11.4 : 192.168.2.3 . 80 } persistent";
+    expected = "add rule ip t c meta l4proto == tcp snat ip addr . port to ip saddr map { 10.141.11.4 : 192.168.2.3 . 80 } persistent\n";
   };
 
   testSnatConcatWithoutFamily = {
@@ -2455,13 +2539,13 @@ in
         };
       }
     ];
-    expected = "add rule ip t c meta l4proto == tcp dnat ip to ip saddr map { 10.0.0.1 : 192.168.0.1 }:80";
+    expected = "add rule ip t c meta l4proto == tcp dnat ip to ip saddr map { 10.0.0.1 : 192.168.0.1 }:80\n";
   };
 
   # ---- commands -------------------------------------------------------
   testFlushRuleset = {
     expr = one { flush.ruleset = null; };
-    expected = "flush ruleset";
+    expected = "flush ruleset\n";
   };
 
   testFlushRulesetByFamily = {
@@ -2470,13 +2554,13 @@ in
         family = "ip";
       };
     };
-    expected = "flush ruleset ip";
+    expected = "flush ruleset ip\n";
   };
 
   # An empty raw body flushes every family, like a null one.
   testFlushRulesetEmptyBody = {
     expr = one { flush.ruleset = { }; };
-    expected = "flush ruleset";
+    expected = "flush ruleset\n";
   };
 
   testDeleteByHandle = {
@@ -2492,7 +2576,7 @@ in
     # Empty-statement-list rule renders as just the header with handle —
     # the trailing space from the empty `expr` join is stripped by
     # renderObject.
-    expected = "delete rule ip t c handle 42";
+    expected = "delete rule ip t c handle 42\n";
   };
 
   testRename = {
@@ -2504,7 +2588,7 @@ in
         newname = "new";
       };
     };
-    expected = "rename chain ip t old new";
+    expected = "rename chain ip t old new\n";
   };
 
   testReplaceRule = {
@@ -2517,7 +2601,7 @@ in
         expr = [ { drop = null; } ];
       };
     };
-    expected = "replace rule ip t c handle 7 drop";
+    expected = "replace rule ip t c handle 7 drop\n";
   };
 
   # `insert` places the rule before the rule with the handle.
@@ -2531,7 +2615,7 @@ in
         expr = [ { drop = null; } ];
       };
     };
-    expected = "insert rule ip t c handle 7 drop";
+    expected = "insert rule ip t c handle 7 drop\n";
   };
 
   # nft's JSON parser ignores a listed rule's handle, while text reads it
@@ -2546,7 +2630,7 @@ in
         expr = [ { drop = null; } ];
       };
     };
-    expected = "rule ip t c drop";
+    expected = "rule ip t c drop\n";
   };
 
   # nft 1.1.6's JSON parser ignores a handle on `add rule`, while 1.1.7's
@@ -2591,7 +2675,7 @@ in
         ];
       };
     };
-    expected = "add rule inet t c meta iifname == @trusted";
+    expected = "add rule inet t c meta iifname == @trusted\n";
   };
 
   # A non-`@`-prefixed string body is the footgun: the renderer used to
@@ -2644,7 +2728,7 @@ in
         }
       ];
     };
-    expected = "flush ruleset\nadd table ip t\nadd chain ip t c";
+    expected = "flush ruleset\nadd table ip t\nadd chain ip t c\n";
   };
 }
 // typeKeyCtObjectMapRefusals

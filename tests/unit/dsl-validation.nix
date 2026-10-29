@@ -1349,7 +1349,7 @@ in
     expr = nftlib.toText (
       dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.rules = [ [ dsl.drop ] ]; }) ]
     );
-    expected = "add table inet fw\nadd chain inet fw input\nadd rule inet fw input drop";
+    expected = "add table inet fw\nadd chain inet fw input\nadd rule inet fw input drop\n";
   };
 
   testTableTypeMarkerAccepted = {

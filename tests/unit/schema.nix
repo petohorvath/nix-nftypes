@@ -2708,7 +2708,7 @@ textDriftTests
 
   testCleanKeepsMarkedVerdictInText = {
     expr = nftlib.toText markedVerdictRuleset;
-    expected = "add rule inet t c drop";
+    expected = "add rule inet t c drop\n";
   };
 
   # ------------------------------------------------------------------

@@ -706,11 +706,7 @@ let
 
   # Block pins are the contents of a `table inet t { … }` wrapper.
   blockChecks = lib.mapAttrs (name: pin: {
-    subject = ''
-      table inet t {
-      ${pin}
-      }
-    '';
+    subject = "table inet t {\n${pin}}\n";
     state = checkContexts.${name}.state or "";
   }) (expectedValues "textBlockParity" textValues);
 

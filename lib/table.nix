@@ -201,7 +201,7 @@ let
     Render one `dsl.table` node's contents in block form. `api` names the
     renderer in errors, `pretty` selects multi-line output, and `node` is
     the table node. Returns the table's `flags` and `comment`, then the
-    chain and object declarations, joined by newlines, without the
+    chain and object declarations, each ending with a newline, without the
     `table <family> <name> { … }` wrapper. Throws when `node` is not a
     table node; text refuses what block grammar cannot spell, such as a
     rule `index`.
