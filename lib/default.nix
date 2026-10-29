@@ -101,10 +101,6 @@ in
       and bare lists are not included).
     */
     inherit (expressions) expression expressionOf;
-    # The tagged forms of `expression`, without its scalar and bare-list
-    # branches: the type `expressionOf` restricts, and whose
-    # `.functor.payload.tags` lists every expression tag.
-    inherit (expressions) taggedExpression;
     expressionBodies = expressions.all;
 
     /*

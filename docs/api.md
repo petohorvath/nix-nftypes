@@ -35,7 +35,10 @@ nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 value leaves unset stays absent. `validate` forces the whole value, so every
 check runs before it returns, however deep. A mismatch throws the module
 system's error, whose option path starts with `validate`, such as
-`validate.nftables."[definition 1-entry 2]".add.chain.policy`.
+`validate.nftables."[definition 1-entry 2]".add.chain.policy`. Swapped
+arguments, a first argument that is not a schema type, and a table tree as
+the value throw a `nix-nftypes: validate:` error instead; expand a table tree
+with `dsl.ruleset [ … ]`.
 
 `dsl.ruleset` takes a list of Table trees, rulesets, raw command attrsets, and
 nested lists of these. Table trees are expanded and validated, and a ruleset's
@@ -59,8 +62,9 @@ Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
 `dsl.table inet.t` followed by the field's path, a renderer such as `toText` or
 `toTextBlock`, `types.statementOf`, or a helper such as
-`compatibility.priorityValue`. A text Refusal ends with `Field: <label>.`
-([ADR 0004](adr/0004-refuse-unsafe-text.md)).
+`compatibility.priorityValue`. A text Refusal is never hard-wrapped: one line
+explains it, an `Offending value: <JSON>` line follows when it has a value, and
+it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ## Schema types
 
@@ -68,23 +72,22 @@ called: a builder such as `dsl.create.ctCount`, a table tree as
 
 ### Main types
 
-| Type               | Shape                                                                                                                                            |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ruleset`          | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                        |
-| `command`          | one command wrapper such as `add`, `delete`, or `flush`                                                                                          |
-| `expression`       | scalar, list, or tagged expression                                                                                                               |
-| `taggedExpression` | tagged-expression forms only                                                                                                                     |
-| `statement`        | one tagged rule statement                                                                                                                        |
-| `addObject`        | the 16 add-object tags; no body takes a `handle`                                                                                                 |
-| `createObject`     | add-object tags except `rule`                                                                                                                    |
-| `deleteObject`     | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                            |
-| `listObject`       | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                      |
-| `readBackObject`   | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; each keeps its `handle` |
-| `flushObject`      | table, chain, set, map, meter, or ruleset                                                                                                        |
-| `resetObject`      | counter, quota, rule, set, map, or element                                                                                                       |
-| `insertObject`     | a rule                                                                                                                                           |
-| `replaceObject`    | a rule with the `handle` of the rule it replaces                                                                                                 |
-| `renameObject`     | a chain with its `newname`                                                                                                                       |
+| Type             | Shape                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ruleset`        | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                        |
+| `command`        | one command wrapper such as `add`, `delete`, or `flush`                                                                                          |
+| `expression`     | scalar, list, or tagged expression                                                                                                               |
+| `statement`      | one tagged rule statement                                                                                                                        |
+| `addObject`      | the 16 add-object tags; no body takes a `handle`                                                                                                 |
+| `createObject`   | add-object tags except `rule`                                                                                                                    |
+| `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                            |
+| `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                      |
+| `readBackObject` | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; each keeps its `handle` |
+| `flushObject`    | table, chain, set, map, meter, or ruleset                                                                                                        |
+| `resetObject`    | counter, quota, rule, set, map, or element                                                                                                       |
+| `insertObject`   | a rule                                                                                                                                           |
+| `replaceObject`  | a rule with the `handle` of the rule it replaces                                                                                                 |
+| `renameObject`   | a chain with its `newname`                                                                                                                       |
 
 Per-variant bodies are grouped under:
 
@@ -122,6 +125,23 @@ Primitive types include `family`, `hook`, `chainType`, `chainPolicy`,
 (`"@name"`), `nullLiteral` (the JSON `null` of a body such as
 `{ counter = null; }`), and the enum-backed types listed in `nftlib.enums`.
 
+Type names spell their words out, even where the field they type keeps nft's
+abbreviation:
+
+| Type                    | Types                                                    | Name in 0.1.0 |
+| ----------------------- | -------------------------------------------------------- | ------------- |
+| `matchOperator`         | a match statement's `op`                                 | `operator`    |
+| `setOperator`           | a set or map statement's `op`                            | `setOp`       |
+| `flowOperator`          | a flow statement's `op`                                  | `flowOp`      |
+| `ctL3Protocol`          | a ct helper, timeout, or expectation object's `l3proto`  | none          |
+| `tcpUdpProtocol`        | a ct helper, timeout, or expectation object's `protocol` | `tcpUdpProto` |
+| `tunnelErspanDirection` | an ERSPAN version 2 tunnel's `dir`                       | none          |
+
+A tunnel object's `tunnel` field takes
+`types.objectBodies.tunnelEncapsulationBody`, which was `tunnelNestedBody`.
+There is no `types.taggedExpression`: use `expression`, or `expressionOf` for
+selected tags.
+
 ### Restricted tag sets
 
 Use `statementOf` and `expressionOf` when a downstream option should accept
@@ -156,7 +176,11 @@ type = lib.types.oneOf [
 ];
 ```
 
-Unknown tag names fail while constructing the restricted type.
+An unknown tag, an empty list, or a tag that is not a string fails while
+constructing the restricted type, with a `nix-nftypes: types.statementOf:` or
+`nix-nftypes: types.expressionOf:` error. A value outside the restricted type
+fails with the type's description, which names its tags, such as
+`statement (one of: "match")`.
 
 ## DSL
 
@@ -238,11 +262,16 @@ reference such as `"@trusted"`. A string without `@` throws and points to
 
 `expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` returns the
 reference string `"@name"`, the shape nft lists, for the right side of a
-match. The map lookup is `expr.map key data`, and its data is an anonymous map
-body or a named map's name, with or without its `@`:
+match. The map lookup is `expr.map key data`. Its data is a named map's name,
+with or without its `@`, or an anonymous map. A list of key-value pairs
+becomes the anonymous map `{ set = [ ... ]; }`, as `inSet` wraps a list in an
+anonymous set, because nft rejects a bare list there. `vmap key data` takes
+its data the same way:
 
 ```nix
 expr.map fields.tcp.dport "ports"
+expr.map fields.tcp.dport [ [ 22 1 ] [ 80 2 ] ]
+vmap fields.tcp.dport [ [ 22 accept ] [ 80 drop ] ]
 ```
 
 #### References to named objects
@@ -359,10 +388,13 @@ so their DSL names are `setStmt`, `mapStmt`, and `resetStmt`. `resetStmt expr`
 resets the stateful data an expression selects, such as a TCP option:
 `resetStmt (expr.tcpOption { name = "sack"; })`. Like `flow`, `setStmt` and
 `mapStmt` take the set, map, or flowtable name with or without its leading `@`.
-`flow` takes the flowtable alone, because nft's only flow operation is `add`:
+`setStmt` takes the `element` it adds, and `mapStmt` takes the `key` and `data`
+it writes. `flow` takes the flowtable alone, because nft's only flow operation
+is `add`:
 
 ```nix
-setStmt { op = "add"; elem = fields.ip.saddr; set = "blocked"; }
+setStmt { op = "add"; element = fields.ip.saddr; set = "blocked"; }
+mapStmt { op = "update"; key = fields.ip.saddr; data = 1; map = "marks"; }
 flow "ft"
 ```
 
@@ -430,12 +462,21 @@ Every DSL field name is camelCase, and each field has one spelling. The DSL
 renames it where JSON uses hyphens or underscores or runs words together, for
 example `queueThreshold` to `queue-threshold`, `gcInterval` to `gc-interval`,
 `rateUnit` to `rate_unit`, `typeFlags` to `type_flags`, and `newName` to
-`newname`. A field that holds elements or statements is plural: named sets and
-maps take `elements` and `statements` for the JSON `elem` and `stmt`, `setStmt`
-and `mapStmt` take `statements`, and a rule takes `statements` for `expr`.
-`meter` takes one `statement` for `stmt`, and `reject` takes `code` for `expr`,
-which holds the ICMP code. Other fields keep nft's word: a chain or flowtable's
-`dev` takes one device or a list. The same renames apply to statements,
+`newname`. A field that holds statements, elements, or a key takes the DSL word
+for what it holds:
+
+- Named sets and maps take `elements` and `statements` for the JSON `elem` and
+  `stmt`.
+- `setStmt` takes `element` and `mapStmt` takes `key` for the JSON `elem`, and
+  both take `statements` for `stmt`.
+- A rule takes `statements` for `expr`, and `meter` takes one `statement` for
+  `stmt`.
+
+A field whose JSON key names something other than what it holds also takes the
+DSL word: `reject` takes `code` for `expr`, which holds the ICMP code, and a
+map takes `dataType` for `map`, which holds the data type of its values, as in
+`maps.m = { type = "ifname"; dataType = "verdict"; }`. Other fields keep nft's
+word: a chain or flowtable's `dev` takes one device or a list. The same renames apply to statements,
 table-tree objects, and command builders, and in each a JSON spelling throws,
 pointing to the DSL name:
 
@@ -603,8 +644,8 @@ Cleaning is not validation.
 ## Reference data
 
 `nftlib.enums.<name>` exposes the same value list used by each enum type.
-Examples include `family`, `hook`, `operator`, `metaKey`, `ctKey`, `rtKey`,
-`fibResult`, `setFlag`, and `tunnelType`. `byteUnit` holds nft's byte units,
+Examples include `family`, `hook`, `matchOperator`, `metaKey`, `ctKey`,
+`rtKey`, `fibResult`, `setFlag`, and `tunnelType`. `byteUnit` holds nft's byte units,
 `bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
 quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
 `rate_unit`, adds `packets`.

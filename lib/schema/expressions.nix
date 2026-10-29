@@ -18,6 +18,7 @@ let
     discriminatedSubmodule
     listOfLen
     listOfMinLen
+    restrictedUnion
     submodule
     taggedUnion
     ;
@@ -95,7 +96,7 @@ let
           description = "map key expression";
         };
         data = mkOption {
-          type = expression;
+          type = mapDataExpression;
           description = "map data expression";
         };
       };
@@ -584,6 +585,19 @@ let
         description = "nft expression (string, integer, boolean, list of expressions, or tagged expression)";
       };
 
+    # The data of a map lookup or a vmap: an expression, but not a bare
+    # list, which nft rejects there ("invalid mapping expression list").
+    mapDataExpression =
+      types.oneOf [
+        types.str
+        types.int
+        types.bool
+        taggedExpression
+      ]
+      // {
+        description = "map data expression (a named map's \"@name\" or an anonymous map { set = [ … ]; }, not a bare list)";
+      };
+
     /*
       `expressionOf : [ String ] -> Type` — restrict an
       `expression`-typed field to a subset of the *tagged* expression
@@ -602,27 +616,12 @@ let
       names them. Throws at *type construction* time on unknown kinds so
       typos surface immediately rather than at module evaluation.
     */
-    expressionOf =
-      kinds:
-      let
-        valid = lib.attrNames bodiesByTag;
-        invalid = lib.subtractLists valid kinds;
-        renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
-      in
-      if !(builtins.isList kinds) then
-        throw "nix-nftypes: types.expressionOf: argument must be a list of strings"
-      else if kinds == [ ] then
-        throw "nix-nftypes: types.expressionOf: kinds list must be non-empty"
-      else if invalid != [ ] then
-        throw (
-          "nix-nftypes: types.expressionOf: unknown expression kind(s): "
-          + "${renderList invalid}. Valid kinds: ${renderList valid}."
-        )
-      else
-        taggedUnion (lib.getAttrs kinds bodiesByTag)
-        // {
-          description = "tagged expression (one of: ${renderList kinds})";
-        };
+    expressionOf = restrictedUnion {
+      api = "types.expressionOf";
+      noun = "expression";
+      label = "tagged expression";
+      inherit bodiesByTag;
+    };
   };
 in
 {
@@ -631,7 +630,7 @@ in
     elemInputBody
     expression
     expressionOf
-    taggedExpression
+    mapDataExpression
     verdictTargetBody
     ;
   all = removeAttrs exprs [
@@ -640,6 +639,7 @@ in
     "elemInputOptions"
     "expression"
     "expressionOf"
+    "mapDataExpression"
     "taggedExpression"
   ];
 }

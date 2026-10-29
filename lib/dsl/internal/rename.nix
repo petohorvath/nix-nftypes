@@ -9,21 +9,23 @@
        → `queue-threshold`, `gcInterval` → `gc-interval`, `rateUnit` →
        `rate_unit`, `typeFlags` → `type_flags`, `newName` → `newname`, …).
        Every DSL key is camelCase, whatever separator the JSON key uses.
-    2. DSL-idiom renames where the JSON key names a list of elements or
-       statements in the singular (`elements` → `elem`, `statements` →
-       `expr` or `stmt`), abbreviates a word (`statement` → `stmt`), or
-       names something other than what it holds (`code` → `expr` in `reject`).
-       These are deliberate divergences from the JSON spec — chosen so
-       that list-valued body keys match the rest of the DSL (`rules`,
-       `flags`, `chains`, `sets`, …), and so that a rule's statements
-       don't read like the `dsl.expr` namespace.
+    2. The field-word rule (ADR 0009): a field that holds statements,
+       elements, or a key takes the DSL word for what it holds, whatever
+       the JSON key is (`elements` → `elem`, `element` and `key` → `elem`
+       in `setStmt` and `mapStmt`, `statements` → `expr` or `stmt`,
+       `statement` → `stmt`), and a field whose JSON key names something
+       other than what it holds takes the DSL word (`code` → `expr` in
+       `reject`, `dataType` → `map` in a map body). These are deliberate
+       divergences from the JSON spec, so that a field's name says what
+       it holds and a rule's statements don't read like the `dsl.expr`
+       namespace.
 
   A JSON spelling throws, pointing to the DSL name, so the DSL spelling
   never leaks into evalModules and the JSON spelling never leaks into user
   code.
 
-  - `<body> location attrs`, for `set`, `element`, `limit`, `rule`, and
-    `renameChain`: check `attrs`, then rename its DSL keys to their JSON
+  - `<body> location attrs`, for `set`, `map`, `element`, `limit`, `rule`,
+    and `renameChain`: check `attrs`, then rename its DSL keys to their JSON
     keys. `location` is the body's location (./location.nix), such as a
     table tree's `sets.s`, for its errors. Keys without a rename pass
     through unchanged.
@@ -44,8 +46,16 @@ let
     typeFlags = "type_flags";
   };
 
-  # `setStmt` and `mapStmt` apply a list of statements to the element.
-  elementStatementRenames = {
+  /*
+    Shared by named-set and named-map bodies. The JSON schema
+    (parser_json.c) uses the singular `elem` whether the value is one
+    element or a list, and the singular `stmt` for a list of statements;
+    the DSL names both lists in the plural.
+  */
+  setRenames = {
+    gcInterval = "gc-interval";
+    autoMerge = "auto-merge";
+    elements = "elem";
     statements = "stmt";
   };
 
@@ -69,17 +79,11 @@ let
     snat = natRenames;
     dnat = natRenames;
 
-    /*
-      Shared by named-set and named-map bodies. The JSON schema
-      (parser_json.c) uses the singular `elem` whether the value is one
-      element or a list, and the singular `stmt` for a list of statements;
-      the DSL names both lists in the plural.
-    */
-    set = {
-      gcInterval = "gc-interval";
-      autoMerge = "auto-merge";
-      elements = "elem";
-      statements = "stmt";
+    set = setRenames;
+
+    # A map's JSON `map` holds the data type of its values.
+    map = setRenames // {
+      dataType = "map";
     };
 
     # The standalone `element` object kind, which adds elements to an
@@ -103,8 +107,16 @@ let
       code = "expr";
     };
 
-    setStmt = elementStatementRenames;
-    mapStmt = elementStatementRenames;
+    # `setStmt` and `mapStmt` apply a list of statements to the element.
+    # The JSON `elem` holds the element of a set and the key of a map.
+    setStmt = {
+      element = "elem";
+      statements = "stmt";
+    };
+    mapStmt = {
+      key = "elem";
+      statements = "stmt";
+    };
 
     # `meter` applies one statement, not a list.
     meter = {
@@ -153,6 +165,7 @@ in
   inherit (bodyRenames)
     element
     limit
+    map
     renameChain
     rule
     set

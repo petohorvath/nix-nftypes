@@ -44,7 +44,7 @@ rec {
       (dsl.table "inet" "fw" {
         maps.iif_marks = {
           type = "ifname";
-          map = "mark";
+          dataType = "mark";
           elements = [
             [
               key

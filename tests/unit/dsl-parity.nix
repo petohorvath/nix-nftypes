@@ -529,6 +529,68 @@ in
       data = "@pf";
     };
   };
+  # A list of key-value pairs is an anonymous map, as for `vmap`.
+  testExprMapListIsAnonymousMap =
+    pe
+      (dsl.expr.map dsl.fields.tcp.dport [
+        [
+          22
+          1
+        ]
+        [
+          80
+          2
+        ]
+      ])
+      {
+        map = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data = {
+            set = [
+              [
+                22
+                1
+              ]
+              [
+                80
+                2
+              ]
+            ];
+          };
+        };
+      };
+  # An expression as data passes through unchanged.
+  testExprMapExpressionUnchanged =
+    pe
+      (dsl.expr.map dsl.fields.tcp.dport (
+        dsl.expr.set [
+          [
+            22
+            1
+          ]
+        ]
+      ))
+      {
+        map = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data.set = [
+            [
+              22
+              1
+            ]
+          ];
+        };
+      };
   testExprPrefix = pe (dsl.expr.prefix "10.0.0.0" 8) {
     prefix = {
       addr = "10.0.0.0";
@@ -1435,6 +1497,69 @@ in
       data = "@v";
     };
   };
+  # A list of key-verdict pairs is an anonymous map, as `inSet` wraps a
+  # list in an anonymous set; nft rejects the bare list.
+  testVmapListIsAnonymousMap =
+    ps
+      (dsl.vmap dsl.fields.tcp.dport [
+        [
+          22
+          dsl.accept
+        ]
+        [
+          80
+          dsl.drop
+        ]
+      ])
+      {
+        vmap = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data = {
+            set = [
+              [
+                22
+                { accept = null; }
+              ]
+              [
+                80
+                { drop = null; }
+              ]
+            ];
+          };
+        };
+      };
+
+  testVmapExpressionUnchanged =
+    ps
+      (dsl.vmap dsl.fields.tcp.dport (
+        dsl.expr.set [
+          [
+            22
+            dsl.accept
+          ]
+        ]
+      ))
+      {
+        vmap = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data.set = [
+            [
+              22
+              { accept = null; }
+            ]
+          ];
+        };
+      };
 
   # mangle / dynamic set/map / misc
   testMangle = ps (dsl.mangle dsl.fields.meta.mark 42) {
@@ -1451,7 +1576,7 @@ in
     ps
       (dsl.setStmt {
         op = "add";
-        elem = "10.0.0.1";
+        element = "10.0.0.1";
         set = "@blocked";
       })
       {
@@ -1465,7 +1590,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = "10.0.0.1";
+        key = "10.0.0.1";
         data = 42;
         map = "@cache";
       })
@@ -1482,7 +1607,7 @@ in
     ps
       (dsl.setStmt {
         op = "update";
-        elem = dsl.fields.ip.saddr;
+        element = dsl.fields.ip.saddr;
         set = "@blocked";
         statements = [ dsl.counter.auto ];
       })
@@ -1503,7 +1628,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = dsl.fields.ip.saddr;
+        key = dsl.fields.ip.saddr;
         data = 42;
         map = "@cache";
         statements = [ dsl.counter.auto ];
@@ -1526,7 +1651,7 @@ in
     ps
       (dsl.setStmt {
         op = "add";
-        elem = "10.0.0.1";
+        element = "10.0.0.1";
         set = "blocked";
       })
       {
@@ -1540,7 +1665,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = "10.0.0.1";
+        key = "10.0.0.1";
         data = 42;
         map = "cache";
       })
@@ -1555,7 +1680,7 @@ in
   testStatementReferencesRejectNonString = {
     expr = dsl.setStmt {
       op = "add";
-      elem = "10.0.0.1";
+      element = "10.0.0.1";
       set = dsl.expr.set [ "blocked" ];
     };
     expectedError.msg = "setStmt: expected a name string, got set";
@@ -1835,7 +1960,7 @@ in
         (dsl.table "inet" "t" {
           maps.c = {
             type = "inet_service";
-            map = "inet_service";
+            dataType = "inet_service";
             gcInterval = 60;
             flags = [ "timeout" ];
           };
@@ -2260,7 +2385,7 @@ in
                 };
                 maps.m = {
                   type = "ipv4_addr";
-                  map = "quota";
+                  dataType = "quota";
                   elements = [
                     [
                       "192.0.2.1"
@@ -2662,7 +2787,7 @@ in
         (dsl.table "inet" "t" {
           maps.iif_dispatch = {
             type = "ifname";
-            map = "verdict";
+            dataType = "verdict";
             elements = [
               [
                 "eth0"
@@ -2925,7 +3050,7 @@ in
               "ipv4_addr"
               "inet_service"
             ];
-            map = [
+            dataType = [
               "ipv4_addr"
               "inet_service"
             ];
@@ -3654,7 +3779,7 @@ in
         table = "t";
         name = "m";
         type = "ipv4_addr";
-        map = "verdict";
+        dataType = "verdict";
         comment = "per-host verdicts";
       })
       {
@@ -4077,7 +4202,7 @@ in
         table = "t";
         name = "m";
         type = "ipv4_addr";
-        map = "mark";
+        dataType = "mark";
       })
       {
         reset = {
@@ -4220,7 +4345,7 @@ in
         table = "nat";
         name = "port_forward";
         type = "inet_service";
-        map = "inet_service";
+        dataType = "inet_service";
       })
       {
         flush = {

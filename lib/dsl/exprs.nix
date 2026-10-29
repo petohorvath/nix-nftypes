@@ -66,15 +66,16 @@ in
   setRef = reference.atReference (exprBuilder "setRef");
 
   /*
-    Build a map lookup. `key` is the lookup expression and `data` the
-    anonymous map body, or a named map's name with or without its leading
-    `@`. Returns a map expression whose named map is `"@<name>"`.
+    Build a map lookup. `key` is the lookup expression and `data` a list
+    of key-value pairs, another map expression, or a named map's name with
+    or without its leading `@`. Returns a map expression whose data is the
+    anonymous map `{ set = data; }` for a list and `"@<name>"` for a name.
   */
   map =
     key: data:
     expression.tagged { name = "map"; } {
       inherit key;
-      data = if builtins.isString data then reference.atReference (exprBuilder "map") data else data;
+      data = reference.mapData (exprBuilder "map") data;
     };
 
   /*

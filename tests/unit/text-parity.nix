@@ -1889,6 +1889,13 @@ in
     expected = "table inet t\n";
   };
 
+  # A key that is neither a verb nor an object kind is no command, nor a
+  # listed object such as `nft -j list` emits.
+  testUnknownCommandThrows = {
+    expr = one { ad.table = { }; };
+    expectedError.msg = "^nix-nftypes: toText: unknown command or listed object 'ad'$";
+  };
+
   # nft has no command that takes a metainfo: text and JSON both reject
   # `list metainfo`.
   testListMetainfoRefused = {

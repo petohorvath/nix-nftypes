@@ -148,7 +148,7 @@ let
         table = "t";
         name = "m";
         type = "ipv4_addr";
-        map = "mark";
+        dataType = "mark";
         elem = [ ];
       };
       msg = "nix-nftypes: dsl\\.add\\.map: elem: is the JSON spelling; write `elements`";
@@ -245,7 +245,7 @@ let
         statements = [
           (dsl.setStmt {
             op = "add";
-            elem = dsl.fields.ip.saddr;
+            element = dsl.fields.ip.saddr;
             set = "s";
             stmt = [ dsl.counter.auto ];
           })
@@ -261,7 +261,7 @@ let
         statements = [
           (dsl.mapStmt {
             op = "add";
-            elem = dsl.fields.ip.saddr;
+            key = dsl.fields.ip.saddr;
             data = 1;
             map = "m";
             stmt = [ dsl.counter.auto ];
@@ -269,6 +269,58 @@ let
         ];
       };
       msg = "nix-nftypes: dsl\\.mapStmt: stmt: is the JSON spelling; write `statements`";
+    };
+    setStmtElemJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.setStmt {
+            op = "add";
+            elem = dsl.fields.ip.saddr;
+            set = "s";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.setStmt: elem: is the JSON spelling; write `element`";
+    };
+    mapStmtElemJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.mapStmt {
+            op = "add";
+            elem = dsl.fields.ip.saddr;
+            data = 1;
+            map = "m";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.mapStmt: elem: is the JSON spelling; write `key`";
+    };
+    addMapMapJsonSpelling = {
+      value = dsl.add.map {
+        family = "inet";
+        table = "t";
+        name = "m";
+        type = "ipv4_addr";
+        map = "mark";
+      };
+      msg = "nix-nftypes: dsl\\.add\\.map: map: is the JSON spelling; write `dataType`";
+    };
+    treeMapMapJsonSpelling = {
+      value = dsl.ruleset [
+        (dsl.table "inet" "t" {
+          maps.m = {
+            type = "ipv4_addr";
+            map = "verdict";
+          };
+        })
+      ];
+      msg = "nix-nftypes: dsl\\.table inet\\.t: maps\\.m\\.map: is the JSON spelling; write `dataType`";
     };
     rejectExprJsonSpelling = {
       value = dsl.add.rule {
@@ -459,6 +511,72 @@ let
       };
     }
   ) malformedRuleEntries;
+
+  /*
+    A builder left uncalled among a rule's statements, such as the bare
+    `dsl.last` that was a statement in 0.1.0, throws naming the statement's
+    path. A Variant namespace with a null form points to its `.auto`.
+  */
+  uncalledStatements = {
+    last = {
+      statement = dsl.last;
+      msg = "expected a statement, got the Variant namespace `last`; write `last\\.auto` for its null form, or call it with a body$";
+    };
+    counter = {
+      statement = dsl.counter;
+      msg = "expected a statement, got the Variant namespace `counter`; write `counter\\.auto` for its null form, or call it with a body$";
+    };
+    limit = {
+      statement = dsl.limit;
+      msg = "expected a statement, got a function, such as a builder not yet called; call it to build the statement$";
+    };
+    jump = {
+      statement = dsl.jump;
+      msg = "expected a statement, got a function, such as a builder not yet called; call it to build the statement$";
+    };
+  };
+  uncalledStatementTests = lib.concatMapAttrs (
+    name: case:
+    lib.mapAttrs' (
+      form: render:
+      lib.nameValuePair "testUncalledStatementThrows_${name}_tableTree_${form}" {
+        expr = render (
+          dsl.table "inet" "fw" {
+            chains.input.rules = [
+              [
+                dsl.accept
+                case.statement
+              ]
+            ];
+          }
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.0\\.1: ${case.msg}";
+      }
+    ) tableRenderers
+    // {
+      "testUncalledStatementThrows_${name}_ruleBodyEntry" = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "fw" { chains.input.rules = [ { statements = [ case.statement ]; } ]; })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.0\\.statements\\.0: ${case.msg}";
+      };
+      "testUncalledStatementThrows_${name}_addRule" = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.add.rule {
+              family = "inet";
+              table = "t";
+              chain = "c";
+              statements = [ case.statement ];
+            })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.rule: statements\\.0: ${case.msg}";
+      };
+    }
+  ) uncalledStatements;
 
   # A rule command needs its statements in `statements`: without them, `add`,
   # `insert`, and `replace` rendered a rule with no statement. Each must
@@ -692,12 +810,12 @@ let
       setStmt = {
         unknown = dsl.setStmt (withBogus {
           op = "add";
-          elem = expression;
+          element = expression;
           set = "s";
         });
         wrong = dsl.setStmt {
           op = "bogus";
-          elem = expression;
+          element = expression;
           set = "s";
         };
         field = "op";
@@ -705,13 +823,13 @@ let
       mapStmt = {
         unknown = dsl.mapStmt (withBogus {
           op = "add";
-          elem = expression;
+          key = expression;
           data = 1;
           map = "m";
         });
         wrong = dsl.mapStmt {
           op = "bogus";
-          elem = expression;
+          key = expression;
           data = 1;
           map = "m";
         };
@@ -1293,7 +1411,7 @@ let
         };
         map = named // {
           type = "ipv4_addr";
-          map = "verdict";
+          dataType = "verdict";
         };
         element = named // {
           elements = [ "10.0.0.1" ];
@@ -1639,7 +1757,7 @@ in
         table = "t";
         name = "m";
         type = 123;
-        map = "mark";
+        dataType = "mark";
       }
     );
     expectedError.msg = "list\\.map\\.type.*is not of type";
@@ -2327,7 +2445,7 @@ in
       (dsl.snat { port = 80; })
       (dsl.setStmt {
         op = "add";
-        elem = dsl.fields.ip.saddr;
+        element = dsl.fields.ip.saddr;
         set = "s";
       })
     ];
@@ -2377,6 +2495,7 @@ in
 // handleTests
 // droppedInputTests
 // malformedRuleEntryTests
+// uncalledStatementTests
 // ruleCommandTests
 // statementBuilderTests
 // expressionBuilderTests

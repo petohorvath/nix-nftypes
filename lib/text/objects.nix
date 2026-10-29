@@ -109,7 +109,12 @@ let
     if !(builtins.isString name) || nftSafeScalar.isSafe name then
       true
     else
-      fail "refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}. Field: ${field}.\n";
+      primitives.refuse
+        {
+          inherit field;
+          value = name;
+        }
+        "refusing to render a set/map datatype that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly.";
 
   # Render a datatype: string → "ipv4_addr"; list → "ipv4_addr . port".
   renderDatatype =
@@ -164,14 +169,13 @@ let
     else if isCtObjectKind then
       primitives.refuseNoTextSpelling "map type" "nft's text declares a map of ${body.map} objects only with a typeof key, as in `typeof tcp dport : ${body.map}`."
     else if isTypeof body.map then
-      fail ''
-        refusing to render a map with a datatype key and a
-        typeof value. nft's text grammar declares both sides with `type` or both
-        with `typeof`; give the key as `{ typeof = …; }` too, or the value as a
-        datatype.
-        Offending map: ${builtins.toJSON (body.name or null)}
-        Field: map type.
-      ''
+      primitives.refuse
+        {
+          field = "map type";
+        }
+        "refusing to render a map with a datatype key and a typeof value: map ${
+          builtins.toJSON (body.name or null)
+        }. nft's text grammar declares both sides with `type` or both with `typeof`; give the key as `{ typeof = …; }` too, or the value as a datatype."
     else
       "type ${renderDatatype "map type" body.type} : ${renderDatatype "map value type" body.map}";
 
@@ -650,12 +654,11 @@ let
   */
   refuseTunnel =
     _ctx: _body:
-    fail ''
-      refusing to render a tunnel object. nft's JSON parser
-      loads a tunnel's ports wrongly, so text and JSON would load different
-      tunnels. Load the tunnel with nft's own text syntax instead.
-      Field: tunnel.
-    '';
+    primitives.refuse
+      {
+        field = "tunnel";
+      }
+      "refusing to render a tunnel object. nft's JSON parser loads a tunnel's ports wrongly, so text and JSON would load different tunnels. Load the tunnel with nft's own text syntax instead.";
 
   # A listed metainfo is listing metadata, which nft's JSON parser
   # ignores, so text drops it and loads what the JSON form loads.

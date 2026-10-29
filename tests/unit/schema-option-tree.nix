@@ -178,7 +178,7 @@ generatedTests
       highest = 9;
       aboveHighest = 9;
       member = 597;
-      enum = 193;
+      enum = 195;
     };
   };
 

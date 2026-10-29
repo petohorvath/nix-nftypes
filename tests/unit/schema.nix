@@ -56,7 +56,7 @@ let
     builtins.deepSeq ruleset ruleset;
 
   # Schema↔text drift: every tag in the schema's `statement`,
-  # `taggedExpression`, and `addObject`/`readBackObject` unions must have a
+  # `expression` (its tagged forms), and `addObject`/`readBackObject` unions must have a
   # matching entry in the corresponding text/* dispatch table —
   # otherwise the renderer throws at *render time* (`no renderer for
   # tag '…'`) instead of failing eval-time. Catches the regression class
@@ -70,7 +70,7 @@ let
       # self-explanatory.
       missing = xs: ys: lib.subtractLists ys xs;
       statementTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
-      expressionTags = builtins.attrNames nftlib.types.taggedExpression.functor.payload.tags;
+      expressionTags = helpers.tagsOf nftlib.types.expression;
       # Renderable object kinds: every union tag in addObject ∪
       # readBackObject (the latter adds `metainfo`, `meter`, and the
       # Read-back-only `tunnel`) plus `ruleset`, which appears only as a
@@ -949,6 +949,38 @@ textDriftTests
       };
     };
     expected = "{\"vmap\":{\"data\":\"@iifname_vmap\",\"key\":{\"meta\":{\"key\":\"iifname\"}}}}";
+  };
+
+  # nft rejects a bare list as the data of a vmap or a map lookup
+  # ("invalid mapping expression list"); it takes the anonymous map
+  # `{ set = [ … ]; }`.
+  testVmapListDataRejected = {
+    expr = roundtrip nftlib.types.statement {
+      vmap = {
+        key.meta.key = "mark";
+        data = [
+          [
+            1
+            { accept = null; }
+          ]
+        ];
+      };
+    };
+    expectedError.msg = "validate\\.vmap\\.data.*is not of type";
+  };
+  testMapLookupListDataRejected = {
+    expr = roundtrip nftlib.types.expression {
+      map = {
+        key.meta.key = "mark";
+        data = [
+          [
+            1
+            2
+          ]
+        ];
+      };
+    };
+    expectedError.msg = "validate\\.map\\.data.*is not of type";
   };
 
   # ------------------------------------------------------------------

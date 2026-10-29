@@ -21,6 +21,7 @@ let
   rejectHandle = import ./dsl/internal/reject-handle.nix { inherit lib; };
   tableTreeMarker = import ./table-tree-marker.nix { };
   fail = import ./fail.nix { };
+  inherit (import ./describe.nix { inherit lib; }) describe;
   objectKindRegistry = import ./dsl/structure/object-kinds.nix { inherit lib objects; };
   objectKinds = lib.mapAttrs' (
     _: cfg: lib.nameValuePair cfg.plural (removeAttrs cfg [ "plural" ])
@@ -205,7 +206,7 @@ let
     the table node. Returns the table's `flags` and `comment`, then the
     chain and object declarations, each ending with a newline, without the
     `table <family> <name> { … }` wrapper. Throws when `node` is not a
-    table node; text refuses what block grammar cannot spell, such as a
+    Table tree, saying what it got; text refuses what block grammar cannot spell, such as a
     rule `index`.
   */
   renderTableBlock =
@@ -216,7 +217,7 @@ let
     in
     node:
     if !(tableTreeMarker.isTableTree node) then
-      fail api "block-form text rendering expects one dsl.table node"
+      fail api "expected one Table tree from `dsl.table`, got ${describe node}; render a ruleset with `toText`"
     else
       let
         table = prepareTable node;

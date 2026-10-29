@@ -20,7 +20,7 @@ let
     chainPolicy
     chainType
     comment
-    ctL3Proto
+    ctL3Protocol
     family
     hook
     ifname
@@ -31,8 +31,9 @@ let
     setPolicy
     synproxyFlag
     tableFlag
-    tcpUdpProto
+    tcpUdpProtocol
     timeUnit
+    tunnelErspanDirection
     tunnelType
     ;
   expr = expressions.expression;
@@ -574,12 +575,12 @@ let
           description = "helper type (e.g. ftp, tftp)";
         };
         protocol = mkOption {
-          type = types.nullOr tcpUdpProto;
+          type = types.nullOr tcpUdpProtocol;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr ctL3Proto;
+          type = types.nullOr ctL3Protocol;
           default = null;
           description = "layer-3 protocol";
         };
@@ -595,12 +596,12 @@ let
     ctTimeoutBody = inputBody "ct timeout" {
       options = commonObjectOptions // {
         protocol = mkOption {
-          type = types.nullOr tcpUdpProto;
+          type = types.nullOr tcpUdpProtocol;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr ctL3Proto;
+          type = types.nullOr ctL3Protocol;
           default = null;
           description = "layer-3 protocol";
         };
@@ -619,14 +620,14 @@ let
     ctExpectationBody = inputBody "ct expectation" {
       options = commonObjectOptions // {
         l3proto = mkOption {
-          type = types.nullOr ctL3Proto;
+          type = types.nullOr ctL3Protocol;
           default = null;
           # Recent kernels refuse `inet`, and an omitted l3proto in an inet
           # table, with "Address family not supported by protocol".
           description = "layer-3 protocol";
         };
         protocol = mkOption {
-          type = types.nullOr tcpUdpProto;
+          type = types.nullOr tcpUdpProtocol;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
@@ -680,7 +681,7 @@ let
       options = synproxyOptions;
     };
 
-    # --- Tunnel nested encapsulation variants ---
+    # --- Tunnel encapsulation variants, the shapes of a tunnel's `tunnel` ---
     # VXLAN: { gbp: <uint> }
     tunnelVxlanBody = discriminatedSubmodule {
       requireKeys = [ "gbp" ];
@@ -715,10 +716,7 @@ let
           description = "ERSPAN version (2)";
         };
         dir = mkOption {
-          type = types.enum [
-            "ingress"
-            "egress"
-          ];
+          type = tunnelErspanDirection;
           description = "capture direction";
         };
         hwid = mkOption {
@@ -746,7 +744,7 @@ let
       };
     };
 
-    tunnelNestedBody = types.oneOf [
+    tunnelEncapsulationBody = types.oneOf [
       tunnelVxlanBody
       tunnelErspanV1Body
       tunnelErspanV2Body
@@ -806,7 +804,7 @@ let
           description = "tunnel encapsulation (vxlan/erspan/geneve)";
         };
         tunnel = mkOption {
-          type = types.nullOr tunnelNestedBody;
+          type = types.nullOr tunnelEncapsulationBody;
           default = null;
           description = ''
             encapsulation-specific nested parameters (shape depends on `type`)

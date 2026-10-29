@@ -167,7 +167,7 @@ let
     };
     testStatementOfNonListThrows = {
       expr = types.statementOf "match";
-      expectedError.msg = "nix-nftypes: types\\.statementOf: argument must be a list of strings";
+      expectedError.msg = "^nix-nftypes: types\\.statementOf: expected a list of statement tags \\(strings\\), got a string$";
     };
     testExpressionOfUnknownKindThrows = {
       expr = types.expressionOf [ "no-such-kind" ];
@@ -176,6 +176,40 @@ let
     testExpressionOfEmptyListThrows = {
       expr = types.expressionOf [ ];
       expectedError.msg = "nix-nftypes: types\\.expressionOf: kinds list must be non-empty";
+    };
+    # A tag that is not a string throws the helper's own error, not Nix's
+    # "cannot coerce an integer to a string".
+    testStatementOfNonStringKindThrows = {
+      expr = types.statementOf [ 1 ];
+      expectedError.msg = "^nix-nftypes: types\\.statementOf: expected a list of statement tags \\(strings\\), got a list holding an int$";
+    };
+    testExpressionOfNonStringKindThrows = {
+      expr = types.expressionOf [
+        "meta"
+        null
+      ];
+      expectedError.msg = "^nix-nftypes: types\\.expressionOf: expected a list of expression tags \\(strings\\), got a list holding null$";
+    };
+  };
+
+  # ---------------------------------------------------------------------
+  # Section 2b — descriptions in errors
+  # ---------------------------------------------------------------------
+
+  # The module system rebuilds a type an option declares
+  # (`substSubModules`); the restricted type's description must survive
+  # that, so a mismatch names the allowed tags.
+  descriptionTests = {
+    testStatementOfMismatchNamesAllowedTags = {
+      expr = validate (types.statementOf [ "match" ]) acceptValue;
+      expectedError.msg = "is not of type `statement \\(one of: \"match\"\\)'";
+    };
+    testExpressionOfMismatchNamesAllowedTags = {
+      expr = validate (types.expressionOf [
+        "payload"
+        "meta"
+      ]) ctValue;
+      expectedError.msg = "is not of type `tagged expression \\(one of: \"payload\", \"meta\"\\)'";
     };
   };
 
@@ -327,4 +361,4 @@ let
     };
   };
 in
-semanticsTests // constructionTests // driftTests // roundTripTests
+semanticsTests // constructionTests // descriptionTests // driftTests // roundTripTests
