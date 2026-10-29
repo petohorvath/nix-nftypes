@@ -78,7 +78,9 @@ an anonymous map or a named map's name, and wrap a list of key-value pairs in
 an anonymous map. Every builder that names an
 object takes the name with or without its `@`, and emits `"@name"` for a set,
 map, or flowtable and the bare name for a stateful object
-([API reference](api.md#references-to-named-objects)).
+([API reference](api.md#references-to-named-objects)). A name that declares
+or selects an object, such as `add.element`'s, a Selector's, or `meter`'s,
+drops a leading `@`.
 
 ### Statements
 
