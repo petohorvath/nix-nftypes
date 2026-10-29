@@ -16,22 +16,8 @@
 
 let
   inherit (import ./table-tree-marker.nix { }) isTableTree;
+  inherit (import ./describe.nix { inherit lib; }) describe isRuleset;
   fail = import ./fail.nix { };
-
-  # The keys a ruleset may have; cleaning strips a library's `_type` tag.
-  rulesetKeys = [
-    "_type"
-    "nftables"
-  ];
-
-  describe =
-    value:
-    if value == { } then
-      "an empty attribute set"
-    else if builtins.isAttrs value then
-      "an attribute set with ${lib.concatStringsSep ", " (builtins.attrNames value)}"
-    else
-      "a ${builtins.typeOf value}";
 
   withExpr = body: if builtins.isAttrs body && !(body ? expr) then body // { expr = [ ]; } else body;
 
@@ -60,15 +46,9 @@ in
   commands, it points to `dsl.ruleset`, which turns one into commands.
 */
 api: value:
-let
-  isRuleset =
-    builtins.isAttrs value
-    && builtins.isList (value.nftables or null)
-    && lib.subtractLists rulesetKeys (builtins.attrNames value) == [ ];
-in
-if isTableTree value || isRuleset && builtins.any isTableTree value.nftables then
+if isTableTree value || isRuleset value && builtins.any isTableTree value.nftables then
   fail api "got a dsl.table tree where a ruleset belongs; wrap it in dsl.ruleset [ … ]"
-else if !isRuleset then
+else if !(isRuleset value) then
   fail api "expected a ruleset { nftables = [ … ]; }, got ${describe value}; build one with dsl.ruleset [ … ]"
 else
   let

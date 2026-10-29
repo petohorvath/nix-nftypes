@@ -35,7 +35,10 @@ nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 value leaves unset stays absent. `validate` forces the whole value, so every
 check runs before it returns, however deep. A mismatch throws the module
 system's error, whose option path starts with `validate`, such as
-`validate.nftables."[definition 1-entry 2]".add.chain.policy`.
+`validate.nftables."[definition 1-entry 2]".add.chain.policy`. Swapped
+arguments, a first argument that is not a schema type, and a table tree as
+the value throw a `nix-nftypes: validate:` error instead; expand a table tree
+with `dsl.ruleset [ … ]`.
 
 `dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
 nodes are expanded and validated; raw command attrsets are deliberately passed
@@ -56,8 +59,9 @@ Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
 `dsl.table inet.t` followed by the field's path, a renderer such as `toText` or
 `toTextBlock`, `types.statementOf`, or a helper such as
-`compatibility.priorityValue`. A text Refusal ends with `Field: <label>.`
-([ADR 0004](adr/0004-refuse-unsafe-text.md)).
+`compatibility.priorityValue`. A text Refusal is never hard-wrapped: one line
+explains it, an `Offending value: <JSON>` line follows when it has a value, and
+it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ## Schema types
 
