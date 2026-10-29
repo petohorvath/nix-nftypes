@@ -4,6 +4,7 @@
   primitives,
   expressions,
   statements,
+  readBackStatements,
 }:
 
 let
@@ -55,6 +56,11 @@ let
 
   # A set element is either a bare expression or a list of expressions.
   setElem = types.either expr (types.listOf expr);
+
+  # A set element as Read-back lists it: an element there takes the
+  # statements nft lists beside its value (`elemReadBackBody`).
+  readBackExpr = expressions.readBack.expression;
+  readBackSetElem = types.either readBackExpr (types.listOf readBackExpr);
 
   # ----- Identity-options fragments -----
   # Composable building blocks for the family/table/name/handle/comment fields
@@ -456,7 +462,8 @@ let
       };
     };
 
-    # A listed rule, as Read-back emits it, with the `handle` nft assigned.
+    # A listed rule, with the `handle` nft assigned, whose elements take
+    # no statements; `readBackObject` lists a rule's elements with theirs.
     ruleBody = submodule {
       options = ruleOptions;
     };
@@ -944,7 +951,10 @@ let
   addObject = taggedUnion addObjectBodies;
 
   # Each add-object kind as Read-back lists it, with the handle nft
-  # assigned. A listed rule is `ruleBody`, and an element has no handle.
+  # assigned, but with input elements, which the selecting verbs take. A
+  # listed rule is `ruleBody`, and an element has no handle.
+  # `readBackObjectBodies` gives the kinds that hold elements their
+  # Read-back statements.
   listedObjectBodies =
     lib.mapAttrs (kind: listedBody (if kind == "chain" then chainPlacementDescription else null)) (
       removeAttrs addObjectBodies [
@@ -1021,6 +1031,51 @@ let
   );
 
   /*
+    The listed bodies of the kinds that hold elements, as Read-back lists
+    them: their elements, in a set's or map's `elem` or in a rule's
+    anonymous sets, take the statements nft lists beside each value, which
+    its JSON parser ignores on input.
+  */
+  readBackHolderBodies =
+    let
+      withReadBackElements =
+        options:
+        options
+        // {
+          elem = options.elem // {
+            type = types.nullOr readBackSetElem;
+          };
+        };
+    in
+    {
+      set = listedBody null (
+        inputBody "set" {
+          options = withReadBackElements setMapCommonOptions;
+        }
+      );
+      map = listedBody null (
+        inputBody "map" {
+          options = withReadBackElements mapOptions;
+        }
+      );
+      element = submodule {
+        options = elementContainerOptions // {
+          elem = mkOption {
+            type = readBackSetElem;
+            description = "element(s)";
+          };
+        };
+      };
+      rule = submodule {
+        options = ruleOptions // {
+          expr = ruleOptions.expr // {
+            type = types.listOf readBackStatements.statement;
+          };
+        };
+      };
+    };
+
+  /*
     A bare listed object, the shape `nft -j list` emits: every add-object
     kind plus `metainfo`, `meter`, and `tunnel`. A listed rule keeps its
     `handle`, which nft's JSON parser ignores. A tunnel is Read-back only:
@@ -1029,11 +1084,14 @@ let
     and list of one, so no command union accepts it (Known differences,
     ADR 0010).
   */
-  readBackObjectBodies = listedObjectBodies // {
-    metainfo = bodies.metainfoBody;
-    meter = bodies.meterBody;
-    tunnel = bodies.tunnelBody;
-  };
+  readBackObjectBodies =
+    listedObjectBodies
+    // readBackHolderBodies
+    // {
+      metainfo = bodies.metainfoBody;
+      meter = bodies.meterBody;
+      tunnel = bodies.tunnelBody;
+    };
 
   readBackObject = taggedUnion readBackObjectBodies;
 

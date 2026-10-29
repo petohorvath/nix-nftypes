@@ -1195,6 +1195,66 @@ let
         ];
       };
 
+  /*
+    A chain's Symbolic priority resolves for its family and hook. A symbol
+    nft rejects at the hook throws `compatibility.priorityValue`'s message
+    at the chain's `prio`; a symbol without a hook has nothing to resolve
+    for. A flowtable keeps an integer priority.
+  */
+  symbolicPriorityTests =
+    let
+      chain = {
+        type = "filter";
+        hook = "input";
+        prio = "dstnat";
+      };
+      command = chain // {
+        family = "ip";
+        table = "t";
+        name = "c";
+      };
+      rejectedAtInput = "family 'ip' has no priority 'dstnat' at hook 'input'\\. Valid priorities: any int, filter, mangle, raw, security, srcnat\\.$";
+      needsHook = "a Symbolic priority resolves for the chain's family and hook; give both, or an int priority$";
+    in
+    {
+      testTreeSymbolicPriorityRejectedAtHook = {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" { chains.c = chain; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${rejectedAtInput}";
+      };
+      testAddChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.add.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${rejectedAtInput}";
+      };
+      testCreateChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.create.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.create\\.chain: prio: ${rejectedAtInput}";
+      };
+      testTreeSymbolicPriorityNeedsHook = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.table "ip" "t" { chains.c = removeAttrs (chain // { prio = "filter"; }) [ "hook" ]; })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${needsHook}";
+      };
+      testAddChainSymbolicPriorityNeedsFamily = {
+        expr = commandJson (dsl.add.chain (removeAttrs (command // { prio = "filter"; }) [ "family" ]));
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${needsHook}";
+      };
+      testFlowtableSymbolicPriorityRejected = {
+        expr = commandJson (
+          dsl.add.flowtable {
+            family = "ip";
+            table = "t";
+            name = "ft";
+            hook = "ingress";
+            prio = "filter";
+          }
+        );
+        expectedError.msg = "dsl\\.add\\.flowtable\\.prio' is not of type `signed integer'";
+      };
+    };
+
   # A `.ref` takes a name or a map expression, never an inline body.
   referenceBodyTests = lib.listToAttrs (
     map (
@@ -1204,6 +1264,17 @@ let
         expectedError.msg = "nix-nftypes: dsl\\.${name}\\.ref: expected an object name or a map expression, got an attribute set without the one key `map`";
       }
     ) referencingStatements
+  );
+
+  # nft's parser takes `l4proto` on these protocols but loads a header
+  # field at offset 0 instead, a Known difference, so `expr.payload`
+  # rejects it.
+  payloadL4protoTests = lib.genAttrs' [ "ip" "ip6" "gre" ] (
+    protocol:
+    lib.nameValuePair "testExprPayloadL4protoThrows_${protocol}" {
+      expr = force (dsl.expr.payload protocol "l4proto");
+      expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown ${protocol} field 'l4proto'";
+    }
   );
 
   # The match operators, which build a match statement from its sides.
@@ -1257,7 +1328,9 @@ let
   # nft's JSON parser requires a rule's `expr` even where it ignores it, as
   # for destroy, so each imperative renderer fills the empty list: a rule
   # command without `expr` renders as it does with `expr = [ ]`, in a raw
-  # ruleset or through `dsl.ruleset`.
+  # ruleset or through `dsl.ruleset`. nft's JSON loads an added, inserted,
+  # or replaced rule with no statements, but its text grammar has no
+  # spelling for one, so text refuses it (#96).
   rawRuleCommands = {
     add = body: { add.rule = body; };
     insert = body: { insert.rule = body; };
@@ -1272,6 +1345,11 @@ let
       };
     };
   };
+  verbsNeedingStatements = [
+    "add"
+    "insert"
+    "replace"
+  ];
   rulesets = {
     raw = command: { nftables = [ command ]; };
     dsl = command: dsl.ruleset [ command ];
@@ -1282,10 +1360,16 @@ let
       built: ruleset:
       lib.genAttrs' imperativeRenderers (
         renderer:
-        lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
-          expr = nftlib.${renderer} (ruleset (command ruleScope));
-          expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
-        }
+        if renderer != "toJson" && builtins.elem verb verbsNeedingStatements then
+          lib.nameValuePair "testRuleWithoutExprRefused_${verb}_${built}_${renderer}" {
+            expr = nftlib.${renderer} (ruleset (command ruleScope));
+            expectedError.msg = helpers.refusals.ruleWithoutStatements;
+          }
+        else
+          lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
+            expr = nftlib.${renderer} (ruleset (command ruleScope));
+            expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
+          }
       )
       // {
         "testRuleWithoutExprHasAnEmptyExprInJson_${verb}_${built}" = {
@@ -1627,7 +1711,8 @@ let
           chains.input = {
             type = "filter";
             hook = "input";
-            prio = "x";
+            # A string is a Symbolic priority, which the DSL resolves first.
+            prio = true;
           };
         });
         expectedError.msg = "^A definition for option `\"?dsl\\.table inet\\.fw\"?\\.chains\\.input\\.prio' is not of type";
@@ -1718,7 +1803,7 @@ in
   };
 
   testRenderingValidatesLazyTable = {
-    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = "invalid"; }) ]);
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = true; }) ]);
     expectedError.msg = "chains\\.input\\.prio.*is not of type";
   };
 
@@ -1794,21 +1879,43 @@ in
 
   # The user's bug. Schema `chainBody.prio` is `nullOr int`; passing a
   # symbolic priority like "filter" used to render to `"prio":"filter"`
-  # and the kernel silently dropped the base-chain attrs.
-  testChainsCPrioStringRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "inet" "t" {
-          chains.c = {
-            type = "filter";
-            hook = "input";
-            policy = "drop";
-            prio = "filter";
-          };
-        })
-      ]
-    );
-    expectedError.msg = "chains\\.c\\.prio";
+  # and the kernel silently dropped the base-chain attrs. The DSL now
+  # resolves the symbol, so the JSON holds the int.
+  testChainsCPrioSymbolRendersInt = {
+    expr =
+      (builtins.fromJSON (
+        toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "t" {
+              chains.c = {
+                type = "filter";
+                hook = "input";
+                policy = "drop";
+                prio = "filter";
+              };
+            })
+          ]
+        )
+      )).nftables;
+    expected = [
+      {
+        add.table = {
+          family = "inet";
+          name = "t";
+        };
+      }
+      {
+        add.chain = {
+          family = "inet";
+          table = "t";
+          name = "c";
+          type = "filter";
+          hook = "input";
+          policy = "drop";
+          prio = 0;
+        };
+      }
+    ];
   };
 
   # ----- command-builder constructors (commands.nix) --------------------
@@ -1901,13 +2008,13 @@ in
     };
   };
 
-  testCreateChainPrioStringRejected = {
+  testCreateChainPrioBoolRejected = {
     expr = commandJson (
       dsl.create.chain {
         family = "ip";
         table = "t";
         name = "c";
-        prio = "filter";
+        prio = true;
       }
     );
     expectedError.msg = "create\\.chain\\.prio";
@@ -2511,6 +2618,53 @@ in
     };
   };
 
+  # ----- expr.payload: nft's protocol and field table -----------------
+
+  # A protocol nft's JSON parser does not know fails at evaluation, and
+  # the error lists the ones it does.
+  testExprPayloadUnknownProtocolThrows = {
+    expr = force (dsl.expr.payload "ipv4" "saddr");
+    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown protocol 'ipv4'. Valid protocols: ah, arp, comp, dccp, esp, ether, gre, icmp, icmpv6, igmp, ip, ip6, sctp, tcp, th, udp, udplite, vlan.";
+  };
+
+  # A field the protocol lacks, such as a Field leaf's camelCase name,
+  # fails at evaluation, and the error lists the protocol's fields in
+  # nft's spelling.
+  testExprPayloadUnknownFieldThrows = {
+    expr = force (dsl.expr.payload "ip" "fragOff");
+    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.";
+  };
+
+  # A tunnel header loads only through `expr.payloadTunnel`; nft fails
+  # its named form.
+  testExprPayloadTunnelHeaderThrows = {
+    expr = force (dsl.expr.payload "vxlan" "vni");
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown protocol 'vxlan'";
+  };
+
+  # A protocol or field that is not a string still fails the payload
+  # body's type, at the field's option.
+  testExprPayloadNonStringFieldThrows = {
+    expr = force (dsl.expr.payload "tcp" 1);
+    expectedError.msg = "`dsl\\.expr\\.payload\\.field' is not of type";
+  };
+
+  # Every payload Field leaf is a protocol and field in the table, so
+  # `expr.payload` rebuilds it.
+  testEveryPayloadFieldLeafBuilds = {
+    expr =
+      lib.filterAttrs (_: leaf: dsl.expr.payload leaf.payload.protocol leaf.payload.field != leaf)
+        (
+          lib.concatMapAttrs (
+            protocol: leaves:
+            lib.mapAttrs' (name: leaf: lib.nameValuePair "${protocol}.${name}" leaf) (
+              lib.filterAttrs (_: leaf: leaf ? payload) leaves
+            )
+          ) dsl.fields
+        );
+    expected = { };
+  };
+
   # ----- the flat namespace --------------------------------------------
 
   # The DSL's flat namespace merges its layers; a name two layers define
@@ -2650,8 +2804,8 @@ in
   };
 
   # nft's JSON parser ignores an element's statements on input, so
-  # `expr.elem` takes none; nft lists them, and `types.expression` keeps
-  # them for Read-back.
+  # `expr.elem` takes none, as `elemBody` does; nft lists them, and
+  # `elemReadBackBody` keeps them for Read-back.
   testExprElemTakesNoStatements = {
     expr = map (
       tag:
@@ -2680,11 +2834,9 @@ in
   testExprElemReadBackKeepsStatements = {
     expr = map (
       tag:
-      helpers.validates nftlib.types.expression {
-        elem = {
-          val = "10.0.0.1";
-          ${tag} = elemStatements.${tag};
-        };
+      helpers.validates nftlib.types.expressionBodies.elemReadBackBody {
+        val = "10.0.0.1";
+        ${tag} = elemStatements.${tag};
       }
     ) elemStatementKeys;
     expected = map (_: true) elemStatementKeys;
@@ -2830,6 +2982,8 @@ in
 // expressionBuilderTests
 // ctDirectionTests
 // unrefinedConstructorTests
+// symbolicPriorityTests
+// payloadL4protoTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests

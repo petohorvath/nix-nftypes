@@ -64,6 +64,7 @@
   "statement-bodies"
   "statement-references"
   "statement-spellings"
+  "symbolic-priority-chains"
   "tproxy-ipv6-targets"
   "tunnel-expressions"
   "tunnel-statement"

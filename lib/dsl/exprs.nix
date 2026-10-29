@@ -120,10 +120,11 @@ in
 
   /*
     Build a set element with per-element options. Takes `val`, the element
-    value, and the optional `timeout`, `expires`, and `comment`. The
-    statements nft lists beside an element's value are Read-back only: its
-    JSON parser ignores them, so `elem` takes none, and there is no element
-    statement either. Returns an elem expression.
+    value, and the optional `timeout`, `expires`, and `comment`, the fields
+    of `elemBody`. The statements nft lists beside an element's value are
+    Read-back only (`elemReadBackBody`): its JSON parser ignores them, so
+    `elem` takes none, and there is no element statement either. Returns
+    an elem expression.
   */
   elem = expression.fromFields { name = "elem"; };
 

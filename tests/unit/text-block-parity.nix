@@ -123,8 +123,10 @@ in
     expectedError.msg = helpers.refusals.noTextSpelling "nat family";
   };
 
-  # nft's JSON parser also ignores element statements.
-  testElementStatementRefused = {
+  # nft's JSON parser also ignores element statements, so a Table tree,
+  # which validates its elements as input, rejects them before the
+  # renderer's Refusal is reached.
+  testElementStatementRejected = {
     expr = toTextBlock (
       dsl.table "ip" "t" {
         sets.s = {
@@ -144,7 +146,7 @@ in
         };
       }
     );
-    expectedError.msg = helpers.refusals.jsonIgnored "element counter";
+    expectedError.msg = "sets\\.s\\.elem.*is not of type `element body without counter, quota, limit, or last";
   };
 
   # ---- empty input ---------------------------------------------------
@@ -259,15 +261,16 @@ in
     '';
   };
 
+  # A Symbolic priority nft rejects at the chain's hook throws.
   testInvalidChainPriorityRejected = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         chains.input = baseChain // {
-          prio = "filter";
+          prio = "dstnat";
         };
       }
     );
-    expectedError.msg = "chains\\.input\\.prio";
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.prio: family 'inet' has no priority 'dstnat' at hook 'input'";
   };
 
   # A Table tree lists a chain's rules in order and takes no rule
@@ -356,6 +359,19 @@ in
         type filter hook input priority 0;
       }
     '';
+  };
+
+  # A Symbolic priority renders as the int it resolves to for the chain's
+  # family and hook: a bridge chain's `filter` is -200.
+  testSymbolicPriorityRendersInt = {
+    expr = toTextBlock (
+      dsl.table "bridge" "br" {
+        chains.input = baseChain // {
+          prio = "filter";
+        };
+      }
+    );
+    expected = "chain input { type filter hook input priority -200; }\n";
   };
 
   # ---- chain with rules (rules become inline statements) -------------

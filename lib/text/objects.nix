@@ -805,7 +805,23 @@ let
   # its own `render` because its body is a bare comma-separated value
   # list rather than the `;`-separated statement body the block helper
   # produces. A listed `metainfo` renders as null.
-  renderObject = renderObjectGeneric true;
+  renderObject =
+    ctx: kind: body:
+    renderObjectGeneric true ctx kind (if kind == "rule" then requireStatements body else body);
+
+  # nft's JSON loads an added, inserted, replaced, or listed rule with no
+  # statements as an empty rule, while its text grammar requires one
+  # (#96). A selected rule, as `delete` takes, needs none.
+  requireStatements =
+    body:
+    if builtins.isAttrs body && (body.expr or [ ]) == [ ] then
+      primitives.refuse
+        {
+          field = "rule expr";
+        }
+        "refusing to render a rule without statements: nft's JSON loads an added, inserted, replaced, or listed rule with no statements as an empty rule, while nft's text grammar requires a statement, so the text form would fail to load. Give the rule a statement, or load the ruleset as JSON."
+    else
+      body;
 
   # Render only the header — used for `delete`/`destroy`/`flush`/`reset`/
   # `list`/`create` verbs, which the text grammar does not accept with a

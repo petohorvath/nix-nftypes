@@ -120,6 +120,17 @@ strips. `jump` and `goto` take `verdictTargetBody`, the same type as
 `return`, and `notrack` take only `null`, so they have no body there; type
 their body with `types.nullLiteral`.
 
+`types.expressionBodies` holds two element bodies. nft lists an element's
+`counter`, `quota`, `limit`, or `last` statement as a key beside its `val`, in
+a set's or map's elements and in a rule's anonymous set alike, but its JSON
+parser reads only `val`, `timeout`, `expires`, and `comment`:
+
+- `elemBody` takes those four fields. Input commands, and `types.expression`,
+  take it, so an `add set` whose element carries a counter fails `validate`.
+- `elemReadBackBody` adds the four statement keys. `types.readBackObject`
+  takes it for a listed set, map, element, or rule, so the Read-back of a set
+  with counters validates.
+
 Each submodule takes only an attrset of its fields. Unlike `lib.types.submodule`,
 it rejects a module function, a path, and a `_module` key, so a string in a
 union with a body, such as the synproxy reference `"/sp1"`, is a name rather
@@ -239,7 +250,18 @@ so `validate` takes them as raw input.
 names its family. The text renderer refuses a raw ct `family`.
 
 Use `expr.payload protocol field`, `expr.payloadRaw`, and
-`expr.payloadTunnel` when no pre-built leaf exists. The other structural and
+`expr.payloadTunnel` when no pre-built leaf exists. `expr.payload` takes a
+protocol and field from `enums.payloadFieldsByProtocol`, in nft's spelling
+(`expr.payload "ip" "frag-off"`), and throws for any other, listing the valid
+ones:
+
+```text
+nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.
+```
+
+The table leaves out `l4proto`, which nft loads as other header bits, and the
+`vxlan` and `geneve` fields, which load only through `expr.payloadTunnel`.
+`expr.payloadRaw` reaches any bits. The other structural and
 generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
 `range`, `set`, `setRef`, `map`, `numgen`, `jhash`, and `symhash`.
 The binary operators sit there too: `expr.bitAnd`, `bitOr`, `bitXor`,
@@ -256,10 +278,10 @@ that build one form of a body take that form only: `expr.payloadRaw`,
 `expr.payloadTunnel`, `expr.tcpOption`, and `expr.tcpOptionRaw`. `setRef`
 checks its name itself.
 
-`expr.elem` takes `val`, `timeout`, `expires`, and `comment`. nft lists an
-element's `counter`, `quota`, `limit`, or `last` beside its value, but its JSON
-parser ignores them, so `expr.elem` rejects them as unknown options, while
-`types.expressionBodies.elemBody` keeps them for Read-back.
+`expr.elem` takes `val`, `timeout`, `expires`, and `comment`, the fields of
+`types.expressionBodies.elemBody`. nft lists an element's `counter`, `quota`,
+`limit`, or `last` beside its value, but its JSON parser ignores them, so
+`expr.elem` rejects them as unknown options.
 
 Top-level match helpers include:
 
@@ -483,6 +505,22 @@ a chain's rules in order, so a rule takes no `index`; …``. To place a rule,
 use `add.rule` or `insert.rule` with its `index`. Any other entry throws, naming its path, such as `chains.input.rules.0`: write a single
 statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`.
 
+A chain's `prio` takes an int or a Symbolic priority, such as `"filter"`, in
+a table tree's `chains` and in `add.chain` and `create.chain`. The DSL resolves
+a symbol with `compatibility.priorityValue` for the chain's family and hook,
+and emits the int, because nft's JSON `prio` is an integer only. A bridge
+chain's `prio = "filter"` emits `-200` in JSON and `priority -200` in text. A
+symbol nft rejects at the hook throws the helper's message at the chain's
+`prio`, and a symbol without a `hook` throws too:
+
+```text
+nix-nftypes: dsl.table ip.t: chains.input.prio: family 'ip' has no priority 'dstnat' at hook 'input'. Valid priorities: any int, filter, mangle, raw, security, srcnat.
+```
+
+A flowtable's `prio` takes an int only: nft resolves a flowtable's symbol as
+netdev's at `ingress`, whatever its table's family, and the compatibility
+tables cover only chains.
+
 A Table tree adds its objects, so no body in it takes a `handle`: not the
 table, a chain, a rule entry, or a named object. Each throws at the handle, as
 in `nix-nftypes: dsl.table inet.t: chains.input.handle: nft ignores a handle on
@@ -669,7 +707,10 @@ ruleset's commands in place.
 
 These three renderers give a rule without `expr` the empty list: nft's JSON
 parser requires the key on a rule even where it ignores it, as for
-`destroy.rule`, so a raw rule command may leave it out.
+`destroy.rule`, so a raw rule command may leave it out. nft's text grammar
+has no spelling for an added, inserted, replaced, or listed rule with no
+statements, so `toText` and `toTextPretty` refuse one, while `toJson` renders
+it as the empty rule nft's JSON loads.
 
 ### `toJson ruleset`
 
@@ -720,6 +761,11 @@ one hook nft accepts for a flowtable, `ingress`. `byteUnit` holds nft's byte
 units, `bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
 quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
 `rate_unit`, adds `packets`.
+
+`enums.payloadFieldsByProtocol` is a table rather than a list: it maps each
+payload protocol nft's JSON parser knows to the fields it loads as written, in
+nft's spelling, such as `payloadFieldsByProtocol.ip`, which holds `"frag-off"`.
+`dsl.expr.payload` checks against it, and no type reads it.
 
 `nftlib.compatibility` holds the static tables and the helpers that look
 placements and priorities up in them. It holds only what nft accepts on load;

@@ -44,6 +44,7 @@ let
     fibResult = "check";
     limitRateUnit = "kbytes";
     metaKey = "secmark";
+    payloadField = "igmp mrt";
     rtKey = "ipsec";
     statementTag = "tproxy";
   };
@@ -78,6 +79,15 @@ lib.mapAttrs' (
       name: _: (editedModelDrift name (tokens: tokens ++ [ "wug" ])).missingFromSource
     ) models;
     expected = lib.mapAttrs (_: _: [ "wug" ]) models;
+  };
+
+  # A source-only token that leaves the source is stale.
+  testEnumDriftFindsStaleSourceOnly = {
+    expr =
+      (helpers.tokenDrift.drift models (
+        extracted // { payloadField = lib.remove "vxlan vni" extracted.payloadField; }
+      )).payloadField.staleSourceOnly;
+    expected = [ "vxlan vni" ];
   };
 
   # Every table has a run that drops one of its entries.
@@ -117,6 +127,7 @@ lib.mapAttrs' (
       "missingEntry_family"
       "missingEntry_fibResult"
       "missingEntry_metaKey"
+      "missingEntry_payloadField"
       "missingEntry_rtKey"
       "missingEntry_statementTag"
       "renamedTable"

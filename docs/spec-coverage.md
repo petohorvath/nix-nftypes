@@ -237,7 +237,15 @@ supported`. The reach check names the `dccp option` expression as a Named
   nft's object cache, which nftables 1.1.6 and 1.1.7 fill for one of them.
   Depending on the order, a set or map lists without its elements, as after
   `list chain`, or a `list set` before a `list map` fails with `No such file
-or directory`. Give each `list` whose output matters a ruleset of its own.
+or directory`. Give each `list` whose output matters a ruleset of its own;
+- a named payload body takes any protocol and field string. `expr.payload`
+  takes only those of `enums.payloadFieldsByProtocol`, which leaves out two
+  forms nft's parser takes: `l4proto` on `ip`, `ip6`, `gre`, and `gretap`,
+  which loads as the header bits at offset 0, so `ip l4proto 6` loads as
+  `ip version 0 ip hdrlength 6`, and the `vxlan` and `geneve` fields, which
+  load only in the tunnel form. The `payload-l4proto-loads-header-field` case
+  of `integration-nft-misbehaviour` asserts that nft still loads `ip l4proto`
+  so.
 
 A schema-successful value is therefore not proof that a particular kernel will
 accept the resulting ruleset. Live-parser and real-load tests remain necessary.
@@ -259,10 +267,11 @@ Element statements are a Read-back shape too: nft lists each element's stateful
 statement as a `counter`, `quota`, `limit`, or `last` key beside its `val`, but
 its JSON parser reads only `val`, `timeout`, `expires`, and `comment`, in
 nftables 1.1.6 and 1.1.7. JSON input drops the statements, both those keys and a
-`stmt` list, while text loads them when the set declares the same statement. The
-schema accepts the listed keys and no `stmt` list, and the text renderer refuses
-them. Set-level statements load identically through JSON and text, and give each
-element its own instance. The `element-statements-ignored-on-json` case of
+`stmt` list, while text loads them when the set declares the same statement.
+Read-back accepts the listed keys through `elemReadBackBody`, input commands
+reject them through `elemBody`, no element takes a `stmt` list, and the text
+renderer refuses them. Set-level statements load identically through JSON and
+text, and give each element its own instance. The `element-statements-ignored-on-json` case of
 `integration-nft-misbehaviour` asserts that nft still ignores them.
 
 A ct expression's `family` is not a Read-back shape: nft's JSON parser
@@ -287,6 +296,10 @@ serializer output has been observed.
 A schema value can be valid JSON input while lacking a usable text spelling.
 Text support and exclusions are tracked separately in
 [`text-coverage.md`](text-coverage.md).
+
+An added, inserted, or replaced rule with no statements is one such value. nft's
+JSON parser loads it as an empty rule, so the schema accepts it, while nft's text
+grammar has no spelling for it, so the text renderer refuses it.
 
 ## Validation boundaries
 
