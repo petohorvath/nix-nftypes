@@ -123,8 +123,10 @@ in
     expectedError.msg = helpers.refusals.noTextSpelling "nat family";
   };
 
-  # nft's JSON parser also ignores element statements.
-  testElementStatementRefused = {
+  # nft's JSON parser also ignores element statements, so a Table tree,
+  # which validates its elements as input, rejects them before the
+  # renderer's Refusal is reached.
+  testElementStatementRejected = {
     expr = toTextBlock (
       dsl.table "ip" "t" {
         sets.s = {
@@ -144,7 +146,7 @@ in
         };
       }
     );
-    expectedError.msg = helpers.refusals.jsonIgnored "element counter";
+    expectedError.msg = "sets\\.s\\.elem.*is not of type `element body without counter, quota, limit, or last";
   };
 
   # ---- empty input ---------------------------------------------------

@@ -136,9 +136,9 @@ ruleset loaded through text:
   nft lists beside an element's `val`, or a raw `stmt` list.
 
 The schema accepts the comment and the listed element keys as Read-back
-shapes. Text would load them while JSON drops them, so the text renderer
-refuses them and names the field (`set comment`, `map comment`, or `element
-counter`). Set-level statements, such as `counter;`, render as before.
+shapes, and input commands reject the element keys. Text would load them while
+JSON drops them, so the text renderer refuses them and names the field (`set
+comment`, `map comment`, or `element counter`). Set-level statements, such as `counter;`, render as before.
 
 nft's JSON parser ignores a listed rule's `handle` too, while text reads it as
 a position: `rule … handle 7` loads after rule 7, or fails with `No such file

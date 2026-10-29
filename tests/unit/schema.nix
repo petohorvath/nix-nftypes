@@ -704,6 +704,162 @@ let
         };
       };
     };
+
+  /*
+    Element statements: nft lists an element's `counter`, `quota`,
+    `limit`, or `last` beside its value (json.c set_elem_expr_json), in a
+    set's or map's elements and in a rule's anonymous set alike. Its JSON
+    parser reads only `val`, `timeout`, `expires`, and `comment`
+    (json_parse_set_elem_expr), so an input command takes `elemBody`,
+    which rejects them, and Read-back takes `elemReadBackBody`.
+  */
+  elementStatementTests =
+    let
+      scope = {
+        family = "ip";
+        table = "t";
+      };
+      statementsByKey = {
+        counter = {
+          packets = 1;
+          bytes = 2;
+        };
+        quota = {
+          val = 100;
+          val_unit = "bytes";
+        };
+        limit = {
+          rate = 5;
+          per = "second";
+        };
+        last.used = 1200;
+      };
+      element = key: {
+        elem = {
+          val = "10.0.0.1";
+          ${key} = statementsByKey.${key};
+        };
+      };
+      rule = key: {
+        chain = "c";
+        expr = [
+          {
+            match = {
+              op = "==";
+              left.payload = {
+                protocol = "ip";
+                field = "saddr";
+              };
+              right.set = [
+                (element key)
+                "10.0.0.2"
+              ];
+            };
+          }
+        ];
+      };
+      # The objects that hold elements, as input commands and Read-back
+      # take them.
+      holders = key: {
+        set = scope // {
+          name = "s";
+          type = "ipv4_addr";
+          elem = [ (element key) ];
+        };
+        map = scope // {
+          name = "m";
+          type = "ipv4_addr";
+          map = "mark";
+          elem = [
+            [
+              (element key)
+              5
+            ]
+          ];
+        };
+        element = scope // {
+          name = "s";
+          elem = [ (element key) ];
+        };
+        rule = scope // rule key;
+      };
+      inputCommands = key: {
+        "add set" = {
+          add.set = (holders key).set;
+        };
+        "create map" = {
+          create.map = (holders key).map;
+        };
+        "add element" = {
+          add.element = (holders key).element;
+        };
+        "delete element" = {
+          delete.element = (holders key).element;
+        };
+        "add rule" = {
+          add.rule = (holders key).rule;
+        };
+        "insert rule" = {
+          insert.rule = (holders key).rule;
+        };
+        "replace rule" = {
+          replace.rule = (holders key).rule // {
+            handle = 4;
+          };
+        };
+      };
+      keys = builtins.attrNames statementsByKey;
+      ruleset = command: { nftables = [ command ]; };
+    in
+    lib.listToAttrs (
+      lib.concatMap (
+        key:
+        lib.mapAttrsToList (
+          name: command:
+          lib.nameValuePair
+            "testInputRejectsElementStatement_${lib.replaceStrings [ " " ] [ "_" ] name}_${key}"
+            {
+              expr = builtins.deepSeq (helpers.validate nftlib.types.ruleset (ruleset command)) null;
+              expectedError.msg = "is not of type `element body without counter, quota, limit, or last[^']*Read-back";
+            }
+        ) (inputCommands key)
+      ) keys
+    )
+    // {
+      testReadBackAcceptsElementStatements = {
+        expr = map (
+          key:
+          lib.mapAttrs (
+            kind: body:
+            helpers.validates nftlib.types.ruleset (ruleset {
+              ${kind} = body // lib.optionalAttrs (kind != "element") { handle = 3; };
+            })
+          ) (holders key)
+        ) keys;
+        expected = map (_: {
+          set = true;
+          map = true;
+          element = true;
+          rule = true;
+        }) keys;
+      };
+      testElementBodyRejectsStatements = {
+        expr = map (key: helpers.validates nftlib.types.expressionBodies.elemBody (element key).elem) keys;
+        expected = map (_: false) keys;
+      };
+      testElementReadBackBodyKeepsStatements = {
+        expr = map (
+          key: helpers.validates nftlib.types.expressionBodies.elemReadBackBody (element key).elem
+        ) keys;
+        expected = map (_: true) keys;
+      };
+      # `types.expression` is the input expression: its element takes
+      # `elemBody`.
+      testExpressionElementRejectsStatements = {
+        expr = map (key: helpers.validates nftlib.types.expression (element key)) keys;
+        expected = map (_: false) keys;
+      };
+    };
 in
 textDriftTests
 // blockFieldDriftTests
@@ -711,6 +867,7 @@ textDriftTests
 // tunnelCommandTests
 // commandRequirementTests
 // handleTests
+// elementStatementTests
 // listSelectorTests
 // {
   # ------------------------------------------------------------------
@@ -1995,7 +2152,7 @@ textDriftTests
   # `nft -s` lists a counter and a last statement without state.
   testReadBackStatelessElementStatements = {
     expr = builtins.isAttrs (readBack {
-      add.element = {
+      element = {
         family = "ip";
         name = "s";
         table = "t";
@@ -2017,7 +2174,7 @@ textDriftTests
   # here as in a rule.
   testElementCounterRejectsPartialBody = {
     expr = readBack {
-      add.element = {
+      element = {
         family = "ip";
         name = "s";
         table = "t";

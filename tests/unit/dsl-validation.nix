@@ -2409,8 +2409,8 @@ in
   };
 
   # nft's JSON parser ignores an element's statements on input, so
-  # `expr.elem` takes none; nft lists them, and `types.expression` keeps
-  # them for Read-back.
+  # `expr.elem` takes none, as `elemBody` does; nft lists them, and
+  # `elemReadBackBody` keeps them for Read-back.
   testExprElemTakesNoStatements = {
     expr = map (
       tag:
@@ -2439,11 +2439,9 @@ in
   testExprElemReadBackKeepsStatements = {
     expr = map (
       tag:
-      helpers.validates nftlib.types.expression {
-        elem = {
-          val = "10.0.0.1";
-          ${tag} = elemStatements.${tag};
-        };
+      helpers.validates nftlib.types.expressionBodies.elemReadBackBody {
+        val = "10.0.0.1";
+        ${tag} = elemStatements.${tag};
       }
     ) elemStatementKeys;
     expected = map (_: true) elemStatementKeys;
