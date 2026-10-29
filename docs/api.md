@@ -216,6 +216,19 @@ keys above take one. The error states the rule as the body's type:
 nix-nftypes: dsl.expr.fib: not of type `fib body with saddr or daddr among its flags'.
 ```
 
+Each key has one name: a leaf, or the constructor that takes its refinement.
+`expr.ct`, `expr.rt`, and `expr.osf` build a key with its `dir`, `family`, or
+`ttl`. Given a key that has a leaf and no refinement, they throw and point to
+the leaf:
+
+```text
+nix-nftypes: dsl.expr.ct: `expr.ct` builds a ct expression with a refinement; without one, write the Field leaf `fields.ct.mark`
+```
+
+`fields.meta` has no leaf for `ibriport`, `obriport`, or `secpath`, nft's
+aliases for `ibrname`, `obrname`, and `ipsec`. `types.metaKey` accepts them,
+so `validate` takes them as raw input.
+
 `validate` checks raw input against the same rules. A ct expression has no
 `family` field: nft's JSON parser ignores one, and a key such as `ip saddr`
 names its family. The text renderer refuses a raw ct `family`.

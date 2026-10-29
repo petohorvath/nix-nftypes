@@ -2188,13 +2188,13 @@ rec {
               hook = "output";
               prio = 0;
               rules = map (match: [ match ]) [
-                (dsl.eq (dsl.expr.rt { key = "mtu"; }) 1500)
-                (dsl.eq (dsl.expr.rt { key = "classid"; }) 10)
+                (dsl.eq dsl.fields.rt.mtu 1500)
+                (dsl.eq dsl.fields.rt.classid 10)
                 (dsl.eq (dsl.expr.rt {
                   key = "nexthop";
                   family = "ip";
                 }) "192.0.2.1")
-                (dsl.eq (dsl.expr.rt { key = "ipsec"; }) false)
+                (dsl.eq dsl.fields.rt.ipsec false)
                 (dsl.eq (dsl.expr.ipsec {
                   key = "reqid";
                   dir = "out";
@@ -2226,7 +2226,7 @@ rec {
                   dir = "in";
                   spnum = 1;
                 }) "192.0.2.1")
-                (dsl.eq (dsl.expr.osf { key = "name"; }) "Linux")
+                (dsl.eq dsl.fields.osf.name "Linux")
                 (dsl.eq (dsl.expr.osf {
                   key = "version";
                   ttl = "loose";
