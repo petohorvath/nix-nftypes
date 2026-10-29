@@ -10,7 +10,12 @@ The schema accepts every form that the `nft` parser of a tested package set (the
 ## Consequences
 
 - A form that only a newer tested `nft` accepts stays in the model, and live suites expect its rejection on the older `nft` instead of skipping it.
-- Read-back shapes are accepted even where `nft` ignores them on input, such as element statements; the text renderer refuses those (ADR 0001).
+- Read-back shapes are accepted in Read-back even where `nft` ignores them on input, such as element statements: `elemReadBackBody` takes them, `elemBody`, which input commands use, rejects them, and the text renderer refuses them (ADR 0001).
+- The schema rejects three forms that `nft` loads as something else, each a Known difference with an `nft-misbehaviour` fixture:
+  - a Selector field `nft` ignores for its verb, such as `elem` on `delete set`, which deletes the whole set instead of the elements;
+  - `handle` on an `add`, `create`, or `rename` body, which `nft` ignores;
+  - an element statement, such as a counter, in an input command, which `nft`'s JSON parser drops.
+- Every stateful object Reference is a name or a map expression. `{ "ct helper" = 5; }` is a Known difference: `nft` loads it as a reference to the helper named `5`, but a number in a name position is likelier a mistake than a name, the string `"5"` still names that helper, and `{ quota = 5; }` was already rejected. The schema also rejects forms `nft` refuses on load, which need no fixture: a Reference such as `{ secmark = true; }`, a `reset` of anything but a TCP option, a flowtable hook other than `ingress`, and a bare list as the data of a map lookup or vmap.
 - Raw attrsets still reach `nft` unvalidated (ADR 0003), so these rejections protect validated values only.
 
 ## Evidence
