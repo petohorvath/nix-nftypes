@@ -219,7 +219,7 @@ in
   # including when there are no declarations to render.
   testInvalidEmptyTableFamilyRejected = {
     expr = toTextBlock (dsl.table "invalid" "fw" { });
-    expectedError.msg = "option .family. is not of type";
+    expectedError.msg = "option `\"?dsl\\.table invalid\\.fw\"?\\.family' is not of type";
   };
 
   testInvalidEmptyTableFlagsRejectedPretty = {
@@ -261,20 +261,22 @@ in
     '';
   };
 
+  # A Symbolic priority nft rejects at the chain's hook throws.
   testInvalidChainPriorityRejected = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         chains.input = baseChain // {
-          prio = "filter";
+          prio = "dstnat";
         };
       }
     );
-    expectedError.msg = "chains\\.input\\.prio";
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.prio: family 'inet' has no priority 'dstnat' at hook 'input'";
   };
 
-  # JSON and imperative text add the rule after the rule at its index,
-  # while a chain block lists its rules in order.
-  testRuleIndexRefusedCompact = {
+  # A Table tree lists a chain's rules in order and takes no rule
+  # `index`, so a tree renders in both forms; block form throws as
+  # `dsl.ruleset` does.
+  testRuleIndexRejectedCompact = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         chains.input.rules = [
@@ -287,11 +289,10 @@ in
         ];
       }
     );
-    expectedError.msg = helpers.refusals.noTextSpelling "rule index";
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.2\\.index: a Table tree lists a chain's rules in order, so a rule takes no `index`";
   };
 
-  # The refusal holds for a rule with a comment, which block form renders.
-  testRuleIndexRefusedPretty = {
+  testRuleIndexRejectedPretty = {
     expr = toTextBlockPretty (
       dsl.table "inet" "fw" {
         chains.input.rules = [
@@ -303,7 +304,7 @@ in
         ];
       }
     );
-    expectedError.msg = helpers.refusals.noTextSpelling "rule index";
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.0\\.index: a Table tree lists a chain's rules in order, so a rule takes no `index`";
   };
 
   testInvalidNamedObjectRejected = {
@@ -358,6 +359,19 @@ in
         type filter hook input priority 0;
       }
     '';
+  };
+
+  # A Symbolic priority renders as the int it resolves to for the chain's
+  # family and hook: a bridge chain's `filter` is -200.
+  testSymbolicPriorityRendersInt = {
+    expr = toTextBlock (
+      dsl.table "bridge" "br" {
+        chains.input = baseChain // {
+          prio = "filter";
+        };
+      }
+    );
+    expected = "chain input { type filter hook input priority -200; }\n";
   };
 
   # ---- chain with rules (rules become inline statements) -------------
@@ -423,7 +437,6 @@ in
   testMatchingScopeAndCleanedRule = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
-        _type = "example.table";
         chains.input = {
           family = "inet";
           table = "fw";

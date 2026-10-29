@@ -1195,6 +1195,66 @@ let
         ];
       };
 
+  /*
+    A chain's Symbolic priority resolves for its family and hook. A symbol
+    nft rejects at the hook throws `compatibility.priorityValue`'s message
+    at the chain's `prio`; a symbol without a hook has nothing to resolve
+    for. A flowtable keeps an integer priority.
+  */
+  symbolicPriorityTests =
+    let
+      chain = {
+        type = "filter";
+        hook = "input";
+        prio = "dstnat";
+      };
+      command = chain // {
+        family = "ip";
+        table = "t";
+        name = "c";
+      };
+      rejectedAtInput = "family 'ip' has no priority 'dstnat' at hook 'input'\\. Valid priorities: any int, filter, mangle, raw, security, srcnat\\.$";
+      needsHook = "a Symbolic priority resolves for the chain's family and hook; give both, or an int priority$";
+    in
+    {
+      testTreeSymbolicPriorityRejectedAtHook = {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" { chains.c = chain; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${rejectedAtInput}";
+      };
+      testAddChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.add.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${rejectedAtInput}";
+      };
+      testCreateChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.create.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.create\\.chain: prio: ${rejectedAtInput}";
+      };
+      testTreeSymbolicPriorityNeedsHook = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.table "ip" "t" { chains.c = removeAttrs (chain // { prio = "filter"; }) [ "hook" ]; })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${needsHook}";
+      };
+      testAddChainSymbolicPriorityNeedsFamily = {
+        expr = commandJson (dsl.add.chain (removeAttrs (command // { prio = "filter"; }) [ "family" ]));
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${needsHook}";
+      };
+      testFlowtableSymbolicPriorityRejected = {
+        expr = commandJson (
+          dsl.add.flowtable {
+            family = "ip";
+            table = "t";
+            name = "ft";
+            hook = "ingress";
+            prio = "filter";
+          }
+        );
+        expectedError.msg = "dsl\\.add\\.flowtable\\.prio' is not of type `signed integer'";
+      };
+    };
+
   # A `.ref` takes a name or a map expression, never an inline body.
   referenceBodyTests = lib.listToAttrs (
     map (
@@ -1204,6 +1264,17 @@ let
         expectedError.msg = "nix-nftypes: dsl\\.${name}\\.ref: expected an object name or a map expression, got an attribute set without the one key `map`";
       }
     ) referencingStatements
+  );
+
+  # nft's parser takes `l4proto` on these protocols but loads a header
+  # field at offset 0 instead, a Known difference, so `expr.payload`
+  # rejects it.
+  payloadL4protoTests = lib.genAttrs' [ "ip" "ip6" "gre" ] (
+    protocol:
+    lib.nameValuePair "testExprPayloadL4protoThrows_${protocol}" {
+      expr = force (dsl.expr.payload protocol "l4proto");
+      expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown ${protocol} field 'l4proto'";
+    }
   );
 
   # The match operators, which build a match statement from its sides.
@@ -1554,6 +1625,142 @@ let
         };
       };
     };
+
+  /*
+    A Table tree's own errors: a rule entry takes no `index`, since the
+    tree lists a chain's rules in order, in `dsl.ruleset` and block form
+    alike.
+  */
+  tableTreeTests =
+    let
+      tree = body: dsl.ruleset [ (dsl.table "inet" "fw" body) ];
+      indexed = {
+        chains.input.rules = [
+          [ dsl.accept ]
+          {
+            statements = [ dsl.drop ];
+            index = 0;
+          }
+        ];
+      };
+      marked = dsl.table "inet" "fw" { chains.input.rules = [ [ dsl.accept ] ]; };
+      rendered = [
+        (toJson (dsl.ruleset [ marked ]))
+        (nftlib.toText (dsl.ruleset [ marked ]))
+        (nftlib.toTextBlock marked)
+      ];
+    in
+    {
+      # The nixpkgs convention marks a value's kind with `_type`.
+      testTreeMarkedWithType = {
+        expr = {
+          inherit (marked) _type;
+          oldMarker = marked ? __nftTable;
+        };
+        expected = {
+          _type = "nix-nftypes.tableTree";
+          oldMarker = false;
+        };
+      };
+
+      # Cleaning strips the marker, so no rendering carries it.
+      testTreeMarkerNeverRendered = {
+        expr = builtins.filter (
+          output:
+          lib.hasInfix "tableTree" output || lib.hasInfix "__nft" output || lib.hasInfix "_type" output
+        ) rendered;
+        expected = [ ];
+      };
+
+      # `dsl.table` sets the marker, so a body's own `_type` would be lost.
+      testTreeBodyTypeRejected = {
+        expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { _type = "example.table"; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: _type: is the Table tree's marker, which `dsl\\.table` sets to \"nix-nftypes\\.tableTree\", got \"example\\.table\"; remove it from the body$";
+      };
+
+      # The module system's option path starts with the tree, as a
+      # builder's starts with the builder (`dsl.add.chain.prio`). It
+      # quotes the part `dsl.table inet.fw`, which is no Nix identifier.
+      testTreeModuleErrorTypeNamesTree = {
+        expr = toJson (tree {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            # A string is a Symbolic priority, which the DSL resolves first.
+            prio = true;
+          };
+        });
+        expectedError.msg = "^A definition for option `\"?dsl\\.table inet\\.fw\"?\\.chains\\.input\\.prio' is not of type";
+      };
+      testTreeModuleErrorUnknownNamesTree = {
+        expr = toJson (tree {
+          counters.hits.bogus = 1;
+        });
+        expectedError.msg = "^The option `\"?dsl\\.table inet\\.fw\"?\\.counters\\.hits\\.bogus' does not exist";
+      };
+      testTreeModuleErrorRuleNamesTree = {
+        expr = toJson (tree {
+          chains.input.rules = [
+            {
+              statements = [ dsl.accept ];
+              comment = 5;
+            }
+          ];
+        });
+        expectedError.msg = "^A definition for option `\"?dsl\\.table inet\\.fw\"?\\.chains\\.input\\.rules\\.\"?0\"?\\.comment' is not of type";
+      };
+
+      # An unknown key lists the keys a Table tree takes, and a kind's
+      # singular name points to its plural.
+      testTreeUnknownKeyListsAllowed = {
+        expr = toJson (tree {
+          chians.c = { };
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: unsupported key\\(s\\): chians; a Table tree takes flags, comment, chains, counters, ctCounts, ctExpectations, ctHelpers, ctTimeouts, flowtables, limits, maps, quotas, secmarks, sets, synproxies$";
+      };
+      testTreeSingularKeySuggestsPlural = {
+        expr = toJson (tree {
+          set.s.type = "ipv4_addr";
+          chain.c = { };
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: unsupported key\\(s\\): chain, set; a Table tree takes flags, comment, chains, .*, synproxies; write `chains` for `chain` and `sets` for `set`$";
+      };
+
+      # The quota statement takes `val`, a quota object `bytes`.
+      testTreeQuotaValPointsToBytes = {
+        expr = toJson (tree {
+          quotas.q.val = 100;
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: quotas\\.q\\.val: is the quota statement's spelling; a quota object takes its threshold in `bytes`$";
+      };
+      testAddQuotaValPointsToBytes = {
+        expr = commandJson (
+          dsl.add.quota {
+            family = "inet";
+            table = "fw";
+            name = "q";
+            val = 100;
+          }
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.quota: val: is the quota statement's spelling; a quota object takes its threshold in `bytes`$";
+      };
+      testCreateQuotaValPointsToBytes = {
+        expr = commandJson (
+          dsl.create.quota {
+            family = "inet";
+            table = "fw";
+            name = "q";
+            val = 100;
+          }
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.create\\.quota: val: is the quota statement's spelling; a quota object takes its threshold in `bytes`$";
+      };
+
+      testTreeRuleIndexRejected = {
+        expr = toJson (tree indexed);
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.1\\.index: a Table tree lists a chain's rules in order, so a rule takes no `index`; order the rules in the list, or place one with `add\\.rule` or `insert\\.rule` and its `index`$";
+      };
+    };
 in
 {
   # Building a table or ruleset stays lazy; only rendering validates.
@@ -1571,7 +1778,7 @@ in
   };
 
   testRenderingValidatesLazyTable = {
-    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = "invalid"; }) ]);
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = true; }) ]);
     expectedError.msg = "chains\\.input\\.prio.*is not of type";
   };
 
@@ -1645,36 +1852,45 @@ in
     expected = "add table inet fw\nadd chain inet fw input\nadd rule inet fw input drop\n";
   };
 
-  testTableTypeMarkerAccepted = {
-    expr = builtins.isString (
-      toJson (
-        dsl.ruleset [
-          (dsl.table "inet" "t" {
-            _type = "example.table";
-          })
-        ]
-      )
-    );
-    expected = true;
-  };
-
   # The user's bug. Schema `chainBody.prio` is `nullOr int`; passing a
   # symbolic priority like "filter" used to render to `"prio":"filter"`
-  # and the kernel silently dropped the base-chain attrs.
-  testChainsCPrioStringRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "inet" "t" {
-          chains.c = {
-            type = "filter";
-            hook = "input";
-            policy = "drop";
-            prio = "filter";
-          };
-        })
-      ]
-    );
-    expectedError.msg = "chains\\.c\\.prio";
+  # and the kernel silently dropped the base-chain attrs. The DSL now
+  # resolves the symbol, so the JSON holds the int.
+  testChainsCPrioSymbolRendersInt = {
+    expr =
+      (builtins.fromJSON (
+        toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "t" {
+              chains.c = {
+                type = "filter";
+                hook = "input";
+                policy = "drop";
+                prio = "filter";
+              };
+            })
+          ]
+        )
+      )).nftables;
+    expected = [
+      {
+        add.table = {
+          family = "inet";
+          name = "t";
+        };
+      }
+      {
+        add.chain = {
+          family = "inet";
+          table = "t";
+          name = "c";
+          type = "filter";
+          hook = "input";
+          policy = "drop";
+          prio = 0;
+        };
+      }
+    ];
   };
 
   # ----- command-builder constructors (commands.nix) --------------------
@@ -1767,13 +1983,13 @@ in
     };
   };
 
-  testCreateChainPrioStringRejected = {
+  testCreateChainPrioBoolRejected = {
     expr = commandJson (
       dsl.create.chain {
         family = "ip";
         table = "t";
         name = "c";
-        prio = "filter";
+        prio = true;
       }
     );
     expectedError.msg = "create\\.chain\\.prio";
@@ -2270,6 +2486,53 @@ in
     };
   };
 
+  # ----- expr.payload: nft's protocol and field table -----------------
+
+  # A protocol nft's JSON parser does not know fails at evaluation, and
+  # the error lists the ones it does.
+  testExprPayloadUnknownProtocolThrows = {
+    expr = force (dsl.expr.payload "ipv4" "saddr");
+    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown protocol 'ipv4'. Valid protocols: ah, arp, comp, dccp, esp, ether, gre, icmp, icmpv6, igmp, ip, ip6, sctp, tcp, th, udp, udplite, vlan.";
+  };
+
+  # A field the protocol lacks, such as a Field leaf's camelCase name,
+  # fails at evaluation, and the error lists the protocol's fields in
+  # nft's spelling.
+  testExprPayloadUnknownFieldThrows = {
+    expr = force (dsl.expr.payload "ip" "fragOff");
+    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.";
+  };
+
+  # A tunnel header loads only through `expr.payloadTunnel`; nft fails
+  # its named form.
+  testExprPayloadTunnelHeaderThrows = {
+    expr = force (dsl.expr.payload "vxlan" "vni");
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown protocol 'vxlan'";
+  };
+
+  # A protocol or field that is not a string still fails the payload
+  # body's type, at the field's option.
+  testExprPayloadNonStringFieldThrows = {
+    expr = force (dsl.expr.payload "tcp" 1);
+    expectedError.msg = "`dsl\\.expr\\.payload\\.field' is not of type";
+  };
+
+  # Every payload Field leaf is a protocol and field in the table, so
+  # `expr.payload` rebuilds it.
+  testEveryPayloadFieldLeafBuilds = {
+    expr =
+      lib.filterAttrs (_: leaf: dsl.expr.payload leaf.payload.protocol leaf.payload.field != leaf)
+        (
+          lib.concatMapAttrs (
+            protocol: leaves:
+            lib.mapAttrs' (name: leaf: lib.nameValuePair "${protocol}.${name}" leaf) (
+              lib.filterAttrs (_: leaf: leaf ? payload) leaves
+            )
+          ) dsl.fields
+        );
+    expected = { };
+  };
+
   # ----- the flat namespace --------------------------------------------
 
   # The DSL's flat namespace merges its layers; a name two layers define
@@ -2587,6 +2850,8 @@ in
 // expressionBuilderTests
 // ctDirectionTests
 // unrefinedConstructorTests
+// symbolicPriorityTests
+// payloadL4protoTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests
@@ -2594,3 +2859,4 @@ in
 // nestedRulesetTests
 // notARulesetTests
 // refusalNamesTheRendererTests
+// tableTreeTests

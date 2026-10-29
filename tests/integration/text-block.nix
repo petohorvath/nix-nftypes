@@ -36,6 +36,7 @@ lib.concatMapAttrs (
           "minimal-base-chain"
           "mixed-chain-set-counter"
           "set-with-inline-elements"
+          "symbolic-priority-chains"
         ];
   };
 }

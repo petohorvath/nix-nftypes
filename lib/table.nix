@@ -7,6 +7,7 @@
   pass rules through the text renderer's formatting context.
 */
 {
+  compatibility,
   lib,
   objects,
   text,
@@ -19,6 +20,7 @@ let
   ruleBody = import ./dsl/internal/rule-body.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
   rejectHandle = import ./dsl/internal/reject-handle.nix { inherit lib; };
+  chainPriority = import ./dsl/internal/chain-priority.nix { inherit compatibility lib; };
   tableTreeMarker = import ./table-tree-marker.nix { };
   fail = import ./fail.nix { };
   inherit (import ./describe.nix { inherit lib; }) describe;
@@ -46,6 +48,11 @@ let
   ];
   orderedObjectKindNames =
     statefulObjectKindNames ++ lib.subtractLists statefulObjectKindNames (sortedNames objectKinds);
+
+  # Each Table-tree key holding named entries, by its singular name.
+  treeKeysBySingular = lib.mapAttrs (_: cfg: cfg.plural) objectKindRegistry // {
+    chain = "chains";
+  };
 
   # The tree owns scope. Check after schema validation so ordinary type
   # errors keep their existing paths, and matching explicit scope fields
@@ -126,8 +133,10 @@ let
       );
     in
     {
+      # The tree's family resolves a Symbolic priority; a conflicting
+      # `family` in the body still throws in `prepareBody`.
       body = prepareBody objects.chainBody at (scope // { inherit name; }) (
-        removeAttrs checkedBody [ "rules" ]
+        chainPriority at scope.family (removeAttrs checkedBody [ "rules" ])
       );
       rules = lib.imap0 (prepareRule tree (scope // { chain = name; })) rules;
     };
@@ -139,25 +148,33 @@ let
       tree = location.tableTree family name;
       body = rejectHandle tree (
         removeAttrs node [
-          tableTreeMarker.marker
+          "_type"
           "family"
           "name"
         ]
       );
       allowedBodyKeys = [
-        "_type"
         "flags"
         "comment"
         "chains"
       ]
       ++ sortedNames objectKinds;
       unknownBodyKeys = lib.subtractLists allowedBodyKeys (sortedNames body);
+      # A singular kind name, such as `set`, is a misspelled plural key.
+      misspelledPlurals = builtins.filter (key: treeKeysBySingular ? ${key}) unknownBodyKeys;
       checkedBody =
         if unknownBodyKeys == [ ] then
           body
         else
           location.fail tree (
-            "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}"
+            "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}; a Table tree takes ${lib.concatStringsSep ", " allowedBodyKeys}"
+            +
+              lib.optionalString (misspelledPlurals != [ ])
+                "; write ${
+                  lib.concatMapStringsSep " and " (
+                    key: "`${treeKeysBySingular.${key}}` for `${key}`"
+                  ) misspelledPlurals
+                }"
             + lib.optionalString (builtins.elem "elements" unknownBodyKeys) "; give a set or map its elements in its body, as `sets.<name>.elements` or `maps.<name>.elements`, or add them to a set defined elsewhere with `add.element`"
           );
       tableOptions = builtins.intersectAttrs {

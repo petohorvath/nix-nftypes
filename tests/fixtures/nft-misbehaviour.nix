@@ -664,5 +664,47 @@ in
         {"name":"second","packets":3,"bytes":4}
       '';
     })
+    /*
+      The payload parser looks a field up among all of a protocol's
+      templates, the `meta l4proto` dependency's included, so `ip l4proto`
+      loads as the header bits at offset 0: `ip version` and `ip
+      hdrlength`. `expr.payload` takes only the fields nft loads as
+      written (lib/schema/payload-fields.nix).
+    */
+    {
+      name = "payload-l4proto-loads-header-field";
+      knownDifference = "docs/spec-coverage.md";
+      ruleset.nftables = [
+        { add.table = table; }
+        {
+          add.chain = {
+            family = "inet";
+            table = "t";
+            name = "c";
+          };
+        }
+        {
+          add.rule = {
+            family = "inet";
+            table = "t";
+            chain = "c";
+            expr = [
+              {
+                match = {
+                  op = "==";
+                  left.payload = {
+                    protocol = "ip";
+                    field = "l4proto";
+                  };
+                  right = 6;
+                };
+              }
+            ];
+          };
+        }
+      ];
+      inspect = "nft list chain inet t c";
+      misbehaviour = "table inet t {\n\tchain c {\n\t\tip version 0 ip hdrlength 6\n\t}\n}\n";
+    }
   ];
 }

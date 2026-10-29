@@ -25,14 +25,14 @@ Imperative output contains commands such as `add table`, `add chain`, and
 `add rule`. Block output accepts one `dsl.table` node, omits the table wrapper,
 keeps the table's `flags` and `comment`, and emits named objects and chains in
 block syntax, with rules folded into their parent chains and each set's or
-map's elements in its definition. A Table tree takes no `handle`. A chain
-block lists its rules in order and has no rule position, so block form refuses
-a rule's `index` (`rule index`).
+map's elements in its definition. A Table tree takes no `handle`, and its
+rules take no `index`, since a chain block lists its rules in order and has no
+rule position.
 
 Text's `renderTableBlock` is the one entry point for block form and raises
 every block-form Refusal. Its `blockFields` classifies each field of the
-table, chain, and rule bodies a table tree prepares as rendered, refused, or
-supplied by the tree's scope.
+table, chain, and rule bodies a table tree prepares as rendered, refused,
+supplied by the tree's scope, or rejected by the tree before rendering.
 
 ## Executable evidence
 

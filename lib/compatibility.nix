@@ -212,42 +212,41 @@ let
     else
       "of type ${builtins.typeOf value}";
 
-  # Throws `message` from the helper `caller`, followed by the values
-  # `valid` it accepts.
-  fail =
-    caller: message: validLabel: valid:
-    throw (
-      "nix-nftypes: compatibility.${caller}: ${message}. Valid ${validLabel}: "
-      + builtins.concatStringsSep ", " valid
-      + "."
-    );
+  # Throws `message` from the helper `caller`.
+  helperError = caller: message: throw "nix-nftypes: compatibility.${caller}: ${message}";
 
-  # `value` when it is one of `valid`; otherwise a throw naming `caller`
-  # and `what`, such as `"family"`, with its plural `whats`.
+  # `message`, followed by the values `valid` it accepts.
+  invalid =
+    message: validLabel: valid:
+    "${message}. Valid ${validLabel}: " + builtins.concatStringsSep ", " valid + ".";
+
+  # `value` when it is one of `valid`; otherwise `throwError`, such as
+  # `helperError caller`, called with a message naming `what`, such as
+  # `"family"`, with its plural `whats`.
   knownOrThrow =
-    caller: what: whats: valid: value:
+    throwError: what: whats: valid: value:
     if builtins.isString value && builtins.elem value valid then
       value
     else
-      fail caller "unknown ${what} ${describe value}" whats valid;
+      throwError (invalid "unknown ${what} ${describe value}" whats valid);
 
   /*
     The int of `priority` at `hook` of `family`, and `name`, the symbol
     nft accepts for it there, or null. An int passes through once the
     hook's table is forced, so an unknown family or a hook the family
     lacks throws for it too, as does a symbol nft rejects at the hook;
-    each throw names `caller`. When several symbols share a value (none
-    today), `attrNames` order decides.
+    each throw calls `throwError` with its message. When several symbols
+    share a value (none today), `attrNames` order decides.
   */
   lookupPriority =
-    caller: family: hook: priority:
+    throwError: family: hook: priority:
     let
-      hooks = hooksByFamily.${knownOrThrow caller "family" "families" enums.family family};
+      hooks = hooksByFamily.${knownOrThrow throwError "family" "families" enums.family family};
       priorities =
         if builtins.isString hook && builtins.elem hook hooks then
           prioritiesByFamily.${family}.${hook}
         else
-          fail caller "family '${family}' has no hook ${describe hook}" "hooks" hooks;
+          throwError (invalid "family '${family}' has no hook ${describe hook}" "hooks" hooks);
       symbols = builtins.attrNames priorities;
       value =
         if builtins.isInt priority then
@@ -255,8 +254,11 @@ let
         else if builtins.isString priority && priorities ? ${priority} then
           priorities.${priority}
         else
-          fail caller "family '${family}' has no priority ${describe priority} at hook '${hook}'" "priorities"
-            ([ "any int" ] ++ symbols);
+          throwError (
+            invalid "family '${family}' has no priority ${describe priority} at hook '${hook}'" "priorities" (
+              [ "any int" ] ++ symbols
+            )
+          );
       matching = builtins.filter (symbol: priorities.${symbol} == value) symbols;
     in
     {
@@ -279,7 +281,18 @@ let
   */
   priorityValue =
     family: hook: priority:
-    (lookupPriority "priorityValue" family hook priority).value;
+    (lookupPriority (helperError "priorityValue") family hook priority).value;
+
+  /*
+    resolvePriority :: (string -> never) -> family -> hook -> (int | symbol) -> int
+
+    `priorityValue` with its errors thrown by `throwError`, which takes
+    the message without the helper's prefix. Internal: the DSL resolves a
+    chain's Symbolic priority with it, so the error names the chain.
+  */
+  resolvePriority =
+    throwError: family: hook: priority:
+    (lookupPriority throwError family hook priority).value;
 
   /*
     priorityName :: family -> hook -> (int | symbol) -> (symbol | int)
@@ -300,7 +313,7 @@ let
   priorityName =
     family: hook: priority:
     let
-      found = lookupPriority "priorityName" family hook priority;
+      found = lookupPriority (helperError "priorityName") family hook priority;
     in
     if found.name == null then found.value else found.name;
 
@@ -323,10 +336,10 @@ let
   validChainPlacement =
     family: chainType: hook:
     let
-      caller = "validChainPlacement";
-      knownFamily = knownOrThrow caller "family" "families" enums.family family;
-      knownType = knownOrThrow caller "chain type" "chain types" enums.chainType chainType;
-      knownHook = knownOrThrow caller "hook" "hooks" enums.hook hook;
+      throwError = helperError "validChainPlacement";
+      knownFamily = knownOrThrow throwError "family" "families" enums.family family;
+      knownType = knownOrThrow throwError "chain type" "chain types" enums.chainType chainType;
+      knownHook = knownOrThrow throwError "hook" "hooks" enums.hook hook;
     in
     builtins.elem knownFamily familiesByChainType.${knownType}
     && builtins.elem knownHook hooksByFamily.${knownFamily}
@@ -341,6 +354,7 @@ in
     prioritiesByFamily
     priorityName
     priorityValue
+    resolvePriority
     validChainPlacement
     ;
 }

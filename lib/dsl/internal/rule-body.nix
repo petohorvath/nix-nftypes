@@ -7,8 +7,10 @@
   form. So does `expr`, the JSON spelling, and a builder left uncalled
   among the statements, such as a bare `dsl.last`.
 
-  - `ruleEntry location entry`: a table tree's rule entry, a list of
-    statements or a rule body. Returns the JSON rule body.
+  - `ruleEntry location entry`: a Table tree's rule entry, a list of
+    statements or `{ statements; comment?; }`. The tree lists a chain's
+    rules in order, so an entry's `index` throws. Returns the JSON rule
+    body.
   - `ruleBody location body`: a rule command's body. Returns the JSON rule
     body.
 
@@ -81,11 +83,15 @@ in
 {
   ruleEntry =
     location: entry:
-    check {
-      expected = "a list of statements or a rule body with them in `statements`";
-      example = "[ dsl.drop ]";
-      statementPath = lib.optional (!builtins.isList entry) "statements";
-    } location (if builtins.isList entry then { statements = entry; } else entry);
+    if builtins.isAttrs entry && entry ? index then
+      fail (within location [ "index" ])
+        "a Table tree lists a chain's rules in order, so a rule takes no `index`; order the rules in the list, or place one with `add.rule` or `insert.rule` and its `index`"
+    else
+      check {
+        expected = "a list of statements or a rule body with them in `statements`";
+        example = "[ dsl.drop ]";
+        statementPath = lib.optional (!builtins.isList entry) "statements";
+      } location (if builtins.isList entry then { statements = entry; } else entry);
 
   ruleBody = check {
     expected = "a rule body with a list of statements in `statements`";
