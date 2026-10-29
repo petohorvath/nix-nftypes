@@ -19,6 +19,24 @@ let
   # Wrap a single command in a ruleset so toText's entry contract is met.
   one = cmd: toText { nftables = [ cmd ]; };
 
+  # A rule matching the ct expression `body` against an IPv4 address.
+  ctMatch = body: {
+    add.rule = {
+      family = "ip";
+      table = "t";
+      chain = "c";
+      expr = [
+        {
+          match = {
+            left.ct = body;
+            op = "==";
+            right = "10.0.0.1";
+          };
+        }
+      ];
+    };
+  };
+
   # Statements that reference a named stateful object.
   statefulTags = [
     "counter"
@@ -315,6 +333,26 @@ in
       };
     };
     expected = "add rule ip t c ct state { established, related } accept";
+  };
+
+  # A ct address key carries its family, as nft lists it.
+  testCtFamilyAddressKey = {
+    expr = one (ctMatch {
+      key = "ip saddr";
+      dir = "original";
+    });
+    expected = "add rule ip t c ct original ip saddr == 10.0.0.1";
+  };
+
+  # nft's JSON parser ignores a ct expression's `family`, while text would
+  # load it as part of the key.
+  testCtFamilyRefused = {
+    expr = one (ctMatch {
+      key = "saddr";
+      dir = "original";
+      family = "ip";
+    });
+    expectedError.msg = helpers.refusals.jsonIgnored "ct family";
   };
 
   testPrefix = {

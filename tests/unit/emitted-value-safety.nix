@@ -115,12 +115,6 @@ let
         dir = injection;
       };
     };
-    "ct family" = matchOn {
-      ct = {
-        key = "saddr";
-        family = injection;
-      };
-    };
     "numgen mode" = matchOn {
       numgen = {
         mode = injection;

@@ -43,6 +43,42 @@ let
     tunnelKey
     ;
 
+  # The ct keys nft's JSON parser takes a direction for (ct_dir_keys in
+  # json_parse_ct_expr); it fails any other with a direction ("Direction
+  # not supported by CT key").
+  ctDirKeys = [
+    "l3proto"
+    "saddr"
+    "daddr"
+    "protocol"
+    "proto-src"
+    "proto-dst"
+    "packets"
+    "bytes"
+    "avgpkt"
+    "zone"
+    "ip saddr"
+    "ip daddr"
+    "ip6 saddr"
+    "ip6 daddr"
+  ];
+
+  # The ct keys nft loads only with a direction: `nft -c -j` (1.1.7) fails
+  # each without one ("Invalid argument").
+  ctKeysNeedingDir = [
+    "saddr"
+    "daddr"
+    "proto-src"
+    "proto-dst"
+    "ip saddr"
+    "ip daddr"
+    "ip6 saddr"
+    "ip6 daddr"
+  ];
+
+  # `a, b, and c`, for a type description.
+  listed = keys: "${lib.concatStringsSep ", " (lib.init keys)}, and ${lib.last keys}";
+
   # Fixed-point recursion so bodies and the top-level `expression` type can
   # reference each other. Submodule/oneOf/listOf store their children lazily,
   # so this does not force-evaluate during construction.
@@ -272,23 +308,30 @@ let
       };
     };
 
-    ctBody = submodule {
+    # nft's JSON parser reads no `family` here, and its printer writes
+    # none (json_parse_ct_expr, ct_expr_json), so the body has none.
+    ctBody = discriminatedSubmodule {
       options = {
         key = mkOption {
           type = ctKey;
           description = "conntrack key";
         };
-        family = mkOption {
-          type = types.nullOr ipFamily;
-          default = null;
-          description = "address family; required for l3-specific keys";
-        };
         dir = mkOption {
           type = types.nullOr ctDirection;
           default = null;
-          description = "direction; omit for direction-less keys";
+          description = "direction; required for the keys nft loads only with one";
         };
       };
+      extraCheck =
+        body:
+        let
+          key = body.key or null;
+        in
+        if (body.dir or null) != null then
+          builtins.elem key ctDirKeys
+        else
+          !(builtins.elem key ctKeysNeedingDir);
+      description = "ct body with dir for ${listed ctKeysNeedingDir}, and without dir for a key other than ${listed ctDirKeys}";
     };
 
     numgenBody = submodule {
@@ -346,7 +389,9 @@ let
       };
     };
 
-    fibBody = submodule {
+    # nft fails a FIB lookup without `saddr` or `daddr` among its flags
+    # ("fib: need either saddr or daddr").
+    fibBody = discriminatedSubmodule {
       options = {
         result = mkOption {
           type = fibResult;
@@ -355,9 +400,12 @@ let
         flags = mkOption {
           type = types.nullOr (listOrSingleton fibFlag);
           default = null;
-          description = "FIB lookup flags";
+          description = "FIB lookup flags; saddr or daddr among them";
         };
       };
+      extraCheck =
+        body: builtins.any (flag: flag == "saddr" || flag == "daddr") (lib.toList (body.flags or [ ]));
+      description = "fib body with saddr or daddr among its flags";
     };
 
     socketBody = submodule {
@@ -381,7 +429,8 @@ let
       };
     };
 
-    ipsecBody = submodule {
+    # nft fails every IPsec key without a direction ("Invalid argument").
+    ipsecBody = discriminatedSubmodule {
       options = {
         key = mkOption {
           type = ipsecKey;
@@ -395,7 +444,7 @@ let
         dir = mkOption {
           type = types.nullOr ipsecDirection;
           default = null;
-          description = "policy direction (in/out)";
+          description = "policy direction (in/out); required";
         };
         spnum = mkOption {
           type = types.nullOr (types.ints.between 0 255);
@@ -403,6 +452,8 @@ let
           description = "SA index (0-255)";
         };
       };
+      extraCheck = body: (body.dir or null) != null;
+      description = "ipsec body with dir";
     };
 
     tunnelBody = submodule {
@@ -412,40 +463,50 @@ let
       };
     };
 
+    # The element options nft's JSON parser reads
+    # (json_parse_set_elem_expr).
+    elemInputOptions = {
+      val = mkOption {
+        type = expression;
+        description = "element value";
+      };
+      timeout = mkOption {
+        type = types.nullOr types.ints.unsigned;
+        default = null;
+        description = "element timeout in seconds";
+      };
+      expires = mkOption {
+        type = types.nullOr types.ints.unsigned;
+        default = null;
+        description = "remaining time in seconds";
+      };
+      comment = mkOption {
+        type = types.nullOr comment;
+        default = null;
+        description = "element comment";
+      };
+    };
+
+    # The body `dsl.expr.elem` takes: an element as input, without the
+    # statements `elemBody` adds for Read-back. Private, as `elemBody`
+    # keeps the one public element body.
+    elemInputBody = submodule { options = elemInputOptions; };
+
     elemBody = submodule {
-      options = {
-        val = mkOption {
-          type = expression;
-          description = "element value";
-        };
-        timeout = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "element timeout in seconds";
-        };
-        expires = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "remaining time in seconds";
-        };
-        comment = mkOption {
-          type = types.nullOr comment;
-          default = null;
-          description = "element comment";
-        };
-      }
-      # nft lists an element's stateful statements as keys beside `val`
-      # (json.c set_elem_expr_json). Its JSON parser ignores them on input
-      # (json_parse_set_elem_expr reads only the options above), so they
-      # are Read-back only, and the text renderer refuses them.
-      // lib.genAttrs [ "counter" "quota" "limit" "last" ] (
-        tag:
-        mkOption {
-          type = types.nullOr statements.bodiesByTag.${tag};
-          default = null;
-          description = "element ${tag} statement, as nft lists it";
-        }
-      );
+      options =
+        elemInputOptions
+        # nft lists an element's stateful statements as keys beside `val`
+        # (json.c set_elem_expr_json). Its JSON parser ignores them on input
+        # (json_parse_set_elem_expr reads only the options above), so they
+        # are Read-back only, and the text renderer refuses them.
+        // lib.genAttrs [ "counter" "quota" "limit" "last" ] (
+          tag:
+          mkOption {
+            type = types.nullOr statements.bodiesByTag.${tag};
+            default = null;
+            description = "element ${tag} statement, as nft lists it";
+          }
+        );
     };
 
     verdictTargetBody = submodule {
@@ -566,6 +627,8 @@ let
 in
 {
   inherit (exprs)
+    bodiesByTag
+    elemInputBody
     expression
     expressionOf
     taggedExpression
@@ -573,6 +636,8 @@ in
     ;
   all = removeAttrs exprs [
     "bodiesByTag"
+    "elemInputBody"
+    "elemInputOptions"
     "expression"
     "expressionOf"
     "taggedExpression"

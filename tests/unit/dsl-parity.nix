@@ -31,6 +31,30 @@ let
   pr = parity nftlib.types.ruleset;
   pc = parity nftlib.types.command;
 
+  # The ct keys nft loads only with a direction, by test name suffix. The
+  # parse check loads each (tests/fixtures/parse-check.nix).
+  ctKeysNeedingDir = {
+    Saddr = "saddr";
+    Daddr = "daddr";
+    ProtoSrc = "proto-src";
+    ProtoDst = "proto-dst";
+    IpSaddr = "ip saddr";
+    IpDaddr = "ip daddr";
+    Ip6Saddr = "ip6 saddr";
+    Ip6Daddr = "ip6 daddr";
+  };
+
+  ctDirectionTests = lib.mapAttrs' (
+    name: key:
+    let
+      body = {
+        inherit key;
+        dir = "original";
+      };
+    in
+    lib.nameValuePair "testExprCtDirected${name}" (pe (dsl.expr.ct body) { ct = body; })
+  ) ctKeysNeedingDir;
+
 in
 {
   # =========================================================================
@@ -532,46 +556,16 @@ in
         };
       };
 
-  # nft fails a FIB result without `saddr` or `daddr` among its flags
-  # ("fib: need either saddr or daddr").
-  testExprFibWithoutAddressFlagThrows = {
-    expr = map (flags: (builtins.tryEval (dsl.expr.fib ({ result = "oif"; } // flags))).success) [
-      { }
-      { flags = "iif"; }
-      {
-        flags = [
-          "mark"
-          "iif"
-        ];
-      }
-    ];
-    expected = [
-      false
-      false
-      false
-    ];
-  };
-
-  testExprFibWithoutAddressFlagNamesTheBuilder = {
-    expr = dsl.expr.fib {
-      result = "oif";
-      flags = [ "iif" ];
-    };
-    expectedError.msg = "nix-nftypes: dsl\\.expr\\.fib: .*saddr or daddr";
-  };
-
   testExprCtRefined =
     pe
       (dsl.expr.ct {
         key = "saddr";
         dir = "original";
-        family = "ip";
       })
       {
         ct = {
           key = "saddr";
           dir = "original";
-          family = "ip";
         };
       };
 
@@ -630,12 +624,6 @@ in
         };
       };
 
-  # nft fails every IPsec key without a direction ("Invalid argument").
-  testExprIpsecWithoutDirThrows = {
-    expr = dsl.expr.ipsec { key = "reqid"; };
-    expectedError.msg = "nix-nftypes: dsl\\.expr\\.ipsec: .*direction";
-  };
-
   testExprElem =
     pe
       (dsl.expr.elem {
@@ -669,11 +657,11 @@ in
   # nft's JSON parser ignores element statements, so `expr.elem` takes
   # none.
   testExprElemTakesNoStatement = {
-    expr = dsl.expr.elem {
+    expr = builtins.deepSeq (dsl.expr.elem {
       val = "1.2.3.4";
       stmt = [ { counter = null; } ];
-    };
-    expectedError.msg = "unexpected argument 'stmt'";
+    }) null;
+    expectedError.msg = "`dsl\\.expr\\.elem\\.stmt' does not exist";
   };
 
   testExprBitOr = pe (dsl.expr.bitOr dsl.fields.meta.mark 255) {
@@ -4314,3 +4302,4 @@ in
     };
   }
 ) internal.dslObjectKinds
+// ctDirectionTests

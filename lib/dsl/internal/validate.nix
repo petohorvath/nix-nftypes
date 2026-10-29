@@ -31,7 +31,9 @@
       `dsl.flush.ruleset.family` or `dsl.log.level`. The options alone drop
       a check on the body as a whole (a `discriminatedSubmodule` constraint
       such as a chain's type, hook and prio together), so the type's own
-      check runs too.
+      check runs too, once every field has been checked: its error,
+      "<prefix>: not of type `<description>'", names the rule the type's
+      description states.
     - other types, such as `nullLiteral` or an expression: wrap in a
       top-level `value` option. Errors look like "<prefix>.value: …", as in
       `dsl.resetStmt.value`.
@@ -91,10 +93,11 @@ let
       if target.check body then
         config
       else
-        # A field's own type error names the field, so it goes first.
-        builtins.seq (lib.foldl' (forced: name: builtins.seq (config.${name} or null) forced) null (
-          builtins.attrNames body
-        )) (fail location "not of type `${target.description}'.")
+        # A field's own error names the field, so it goes first: an
+        # unknown field, a wrong value, or a missing required field.
+        builtins.deepSeq (removeAttrs config [ "_module" ]) (
+          fail location "not of type `${target.description}'."
+        )
     else
       (lib.evalModules {
         inherit prefix;

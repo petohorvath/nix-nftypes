@@ -12,7 +12,8 @@ There are three distinct operations:
 
 1. **Validation** through `nftlib.validate` and the `nftlib.types` schema.
 2. **DSL construction**, which validates assembled table objects, chains, rules,
-   statements, and command-builder bodies when evaluation forces them.
+   statements, expressions, and command-builder bodies when evaluation forces
+   them.
 3. **Rendering**, which cleans and serializes a value but does not perform a
    complete schema validation pass on arbitrary raw attrsets.
 
@@ -173,14 +174,24 @@ can need a particular table family or hook: `fields.rt.nexthop` loads in an
 `ip` or `ip6` table, not in an `inet` one. A key that nft loads only with a
 refinement has no leaf; its `expr` constructor builds it:
 
-| Key                                                           | Refinement nft requires          | Example                                                   |
-| ------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------- |
-| every FIB result                                              | `saddr` or `daddr` among `flags` | `expr.fib { result = "oif"; flags = [ "saddr" "iif" ]; }` |
-| the conntrack keys `saddr`, `daddr`, `proto-src`, `proto-dst` | `dir`                            | `expr.ct { key = "saddr"; dir = "original"; }`            |
-| every IPsec key                                               | `dir`                            | `expr.ipsec { key = "reqid"; dir = "in"; }`               |
+| Key                                                                                                                 | Refinement nft requires          | Example                                                   |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------- |
+| every FIB result                                                                                                    | `saddr` or `daddr` among `flags` | `expr.fib { result = "oif"; flags = [ "saddr" "iif" ]; }` |
+| the conntrack keys `saddr`, `daddr`, `proto-src`, `proto-dst`, `ip saddr`, `ip daddr`, `ip6 saddr`, and `ip6 daddr` | `dir`                            | `expr.ct { key = "saddr"; dir = "original"; }`            |
+| every IPsec key                                                                                                     | `dir`                            | `expr.ipsec { key = "reqid"; dir = "in"; }`               |
 
-`expr.fib` and `expr.ipsec` throw, naming the builder, without their
-Refinement.
+`expr.fib`, `expr.ct`, and `expr.ipsec` throw, naming the builder, without
+their Refinement. `expr.ct` also throws for a direction on a key nft reads none
+for: only `l3proto`, `protocol`, `packets`, `bytes`, `avgpkt`, `zone`, and the
+keys above take one. The error states the rule as the body's type:
+
+```text
+nix-nftypes: dsl.expr.fib: not of type `fib body with saddr or daddr among its flags'.
+```
+
+`validate` checks raw input against the same rules. A ct expression has no
+`family` field: nft's JSON parser ignores one, and a key such as `ip saddr`
+names its family. The text renderer refuses a raw ct `family`.
 
 Use `expr.payload protocol field`, `expr.payloadRaw`, and
 `expr.payloadTunnel` when no pre-built leaf exists. The other structural and
@@ -188,6 +199,22 @@ generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
 `range`, `set`, `setRef`, `map`, `numgen`, `jhash`, and `symhash`.
 The binary operators sit there too: `expr.bitAnd`, `bitOr`, `bitXor`,
 `shiftLeft`, and `shiftRight`, as in `expr.bitAnd fields.meta.mark 255`.
+
+Every `dsl.expr` builder but `setRef` validates its body when called, against
+the body `types.expression` takes for its tag, as the statement builders do
+(see [Statements](#statements)). A wrong value, an unknown argument, or a
+missing required one throws with an option path that starts with the builder,
+such as `dsl.expr.ct.key`; a positional builder whose body is a list, such as
+`expr.concat`, names the internal option `value`. A builder that takes one
+attrset takes the fields of its body in `types.expressionBodies`, and builders
+that build one form of a body take that form only: `expr.payloadRaw`,
+`expr.payloadTunnel`, `expr.tcpOption`, and `expr.tcpOptionRaw`. `setRef`
+checks its name itself.
+
+`expr.elem` takes `val`, `timeout`, `expires`, and `comment`. nft lists an
+element's `counter`, `quota`, `limit`, or `last` beside its value, but its JSON
+parser ignores them, so `expr.elem` rejects them as unknown options, while
+`types.expressionBodies.elemBody` keeps them for Read-back.
 
 Top-level match helpers include:
 

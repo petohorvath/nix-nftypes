@@ -73,6 +73,12 @@ let
     inherit lib;
     objects = objects.all;
     statementBodiesByTag = statements.bodiesByTag;
+    # `expr.elem` builds an element as input, without the statements nft
+    # lists beside it.
+    expressionBodiesByTag = expressions.bodiesByTag // {
+      elem = expressions.elemInputBody;
+    };
+    expressionBodies = expressions.all;
     inherit (commands) resetOrder;
     inherit (tables) expandTable;
   };

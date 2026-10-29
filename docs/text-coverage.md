@@ -155,11 +155,11 @@ it, so only raw input reaches the renderer with one (see the
 `replace`, `delete`, and `destroy` keep the handle, which JSON and text use
 alike.
 
-A ct expression's `family` is ignored too, but text still writes it, as in
-`ct original ip saddr 10.0.0.1`: in an inet table that text loads, while the
-JSON form fails with `cannot determine ip protocol version`, in nftables
-1.1.6 and 1.1.7. In an ip or ip6 table both forms load the same rule. See the
-[schema coverage](spec-coverage.md#3-read-backinput-asymmetries).
+A ct expression's `family` is ignored too, and nft never lists one. The schema
+rejects it, and the text renderer refuses it in raw input and names the field
+(`ct family`): text would read it as part of the key. A ct key carries its
+family in its name instead, as `ip saddr` does, and both forms write it, as in
+`ct original ip saddr 10.0.0.1`.
 
 ### Statement spellings
 

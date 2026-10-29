@@ -5,24 +5,34 @@
   constructors for key-string expressions (ct, rt, fib, …) that carry the
   refinements a Field leaf can't. A key-string expression that takes no
   refinement, such as meta or socket, has its leaves only.
+
+  Every constructor but `setRef`, which builds a reference string,
+  validates its body when called (./internal/builder.nix), so a wrong
+  value, an unknown argument, or a missing one throws naming the
+  constructor and the field, as in `dsl.expr.ct.key`. A constructor that
+  takes one attrset takes the fields of its body in
+  `types.expressionBodies`, and omits a null one.
 */
-{ lib }:
+{
+  expression,
+  expressionBodies,
+  lib,
+}:
 
 let
-  compact = import ./internal/compact.nix { inherit lib; };
-  location = import ./internal/location.nix { inherit lib; };
+  inherit (import ./internal/location.nix { inherit lib; }) fail;
   reference = import ./internal/reference.nix { inherit lib; };
 
   # The location of the `expr` constructor `name`.
-  exprBuilder =
-    name:
-    location.builder [
-      "expr"
-      name
-    ];
+  exprBuilder = name: expression.locationOf [ name ];
 
-  # Throw `message` from the `expr` constructor `name`.
-  fail = name: location.fail (exprBuilder name);
+  # The constructor `name` of the binary operator expression `tag`.
+  binaryOperator =
+    name: tag: a: b:
+    expression.tagged { inherit name tag; } [
+      a
+      b
+    ];
 in
 {
   # -- Structural -----------------------------------------------------------
@@ -32,7 +42,7 @@ in
     address-and-port set lookup. `xs` is the list of expressions. Returns a
     concat expression.
   */
-  concat = xs: { concat = xs; };
+  concat = expression.tagged { name = "concat"; };
 
   /*
     Build an anonymous set literal. `xs` is the list of elements. A bare
@@ -43,13 +53,9 @@ in
   set =
     xs:
     if builtins.isString xs then
-      throw ''
-        nix-nftypes: dsl.expr.set: a bare string ("${xs}") is not a valid anonymous-set body —
-        anonymous sets are lists. For a named-set reference, use
-        `expr.setRef "${xs}"` (or pass `"@${xs}"` directly to inSet/notInSet).
-      ''
+      fail (exprBuilder "set") "a bare string (${builtins.toJSON xs}) is not an anonymous-set body, which is a list; reference a named set with `expr.setRef ${builtins.toJSON xs}`, or pass \"@${xs}\" to inSet or notInSet"
     else
-      { set = xs; };
+      expression.tagged { name = "set"; } xs;
 
   /*
     Reference a named set, as the right side of a match. `name` is the set
@@ -64,186 +70,120 @@ in
     anonymous map body, or a named map's name with or without its leading
     `@`. Returns a map expression whose named map is `"@<name>"`.
   */
-  map = key: data: {
-    map = {
+  map =
+    key: data:
+    expression.tagged { name = "map"; } {
       inherit key;
       data = if builtins.isString data then reference.atReference (exprBuilder "map") data else data;
     };
-  };
 
   /*
     Build an address prefix. `addr` is the network address and `len` the
     prefix length. Returns a prefix expression.
   */
-  prefix = addr: len: { prefix = { inherit addr len; }; };
+  prefix = addr: len: expression.tagged { name = "prefix"; } { inherit addr len; };
 
   /*
     Build an inclusive range. `lo` and `hi` are the lower and upper bounds.
     Returns a range expression.
   */
-  range = lo: hi: {
-    range = [
+  range =
+    lo: hi:
+    expression.tagged { name = "range"; } [
       lo
       hi
     ];
-  };
 
   /*
-    Build a set element with per-element options. `val` is the element
-    value; `timeout`, `expires`, and `comment` are optional and omitted
-    when null. There is no element statement: nft's JSON parser ignores
-    one. Returns an elem expression.
+    Build a set element with per-element options. Takes `val`, the element
+    value, and the optional `timeout`, `expires`, and `comment`. The
+    statements nft lists beside an element's value are Read-back only: its
+    JSON parser ignores them, so `elem` takes none, and there is no element
+    statement either. Returns an elem expression.
   */
-  elem =
-    {
-      val,
-      timeout ? null,
-      expires ? null,
-      comment ? null,
-    }:
-    {
-      elem = compact {
-        inherit
-          val
-          timeout
-          expires
-          comment
-          ;
-      };
-    };
+  elem = expression.fromFields { name = "elem"; };
 
   # -- Generators -----------------------------------------------------------
 
   /*
-    Generate a number per packet. `mode` is `"inc"` or `"random"`, `mod`
-    the modulus, and `offset` an optional start value. Returns a numgen
-    expression.
+    Generate a number per packet. Takes `mode`, `"inc"` or `"random"`,
+    `mod`, the modulus, and an optional start value, `offset`. Returns a
+    numgen expression.
   */
-  numgen =
-    {
-      mode,
-      mod,
-      offset ? null,
-    }:
-    {
-      numgen = compact { inherit mode mod offset; };
-    };
+  numgen = expression.fromFields { name = "numgen"; };
 
   /*
-    Hash an expression with jhash. `mod` is the modulus, `expr` the hashed
-    expression, and `offset` and `seed` are optional. Returns a jhash
-    expression.
+    Hash an expression with jhash. Takes `mod`, the modulus, `expr`, the
+    hashed expression, and the optional `offset` and `seed`. Returns a
+    jhash expression.
   */
-  jhash =
-    {
-      mod,
-      expr,
-      offset ? null,
-      seed ? null,
-    }:
-    {
-      jhash = compact {
-        inherit
-          mod
-          expr
-          offset
-          seed
-          ;
-      };
-    };
+  jhash = expression.fromFields { name = "jhash"; };
 
   /*
-    Hash the packet's symmetric flow tuple. `mod` is the modulus and
-    `offset` an optional start value. Returns a symhash expression.
+    Hash the packet's symmetric flow tuple. Takes `mod`, the modulus, and
+    an optional start value, `offset`. Returns a symhash expression.
   */
-  symhash =
-    {
-      mod,
-      offset ? null,
-    }:
-    {
-      symhash = compact { inherit mod offset; };
-    };
+  symhash = expression.fromFields { name = "symhash"; };
 
   # -- Header option / extension escape hatches -----------------------------
 
   /*
-    Reference a TCP option by name. `name` is the option (for example
-    `"maxseg"`) and `field` an optional option field. Returns a
+    Reference a TCP option by name. Takes `name`, the option (for example
+    `"maxseg"`), and an optional option field, `field`. Returns a
     `tcp option` expression.
   */
-  tcpOption =
-    {
-      name,
-      field ? null,
-    }:
-    {
-      "tcp option" = compact { inherit name field; };
-    };
+  tcpOption = expression.fromFields {
+    name = "tcpOption";
+    tag = "tcp option";
+    type = expressionBodies.tcpOptionNamedBody;
+  };
 
   /*
-    Reference raw TCP option bits. `base` is the option kind, and `offset`
-    and `len` locate the bits. Returns a `tcp option` expression.
+    Reference raw TCP option bits. Takes `base`, the option kind, and
+    `offset` and `len`, which locate the bits. Returns a `tcp option`
+    expression.
   */
-  tcpOptionRaw =
-    {
-      base,
-      offset,
-      len,
-    }:
-    {
-      "tcp option" = { inherit base offset len; };
-    };
+  tcpOptionRaw = expression.fromFields {
+    name = "tcpOptionRaw";
+    tag = "tcp option";
+    type = expressionBodies.tcpOptionRawBody;
+  };
 
   /*
-    Reference an IPv4 option by name. `name` is the option and `field` an
-    optional option field. Returns an `ip option` expression.
+    Reference an IPv4 option by name. Takes `name`, the option, and an
+    optional option field, `field`. Returns an `ip option` expression.
   */
-  ipOption =
-    {
-      name,
-      field ? null,
-    }:
-    {
-      "ip option" = compact { inherit name field; };
-    };
+  ipOption = expression.fromFields {
+    name = "ipOption";
+    tag = "ip option";
+  };
 
   /*
-    Reference an SCTP chunk by name. `name` is the chunk type and `field`
-    an optional chunk field. Returns an `sctp chunk` expression.
+    Reference an SCTP chunk by name. Takes `name`, the chunk type, and an
+    optional chunk field, `field`. Returns an `sctp chunk` expression.
   */
-  sctpChunk =
-    {
-      name,
-      field ? null,
-    }:
-    {
-      "sctp chunk" = compact { inherit name field; };
-    };
+  sctpChunk = expression.fromFields {
+    name = "sctpChunk";
+    tag = "sctp chunk";
+  };
 
   /*
     Test for a DCCP option. `type` is the option type number. Returns a
     `dccp option` expression.
   */
-  dccpOption = type: {
-    "dccp option" = {
-      inherit type;
-    };
-  };
+  dccpOption =
+    type:
+    expression.tagged {
+      name = "dccpOption";
+      tag = "dccp option";
+    } { inherit type; };
 
   /*
-    Reference an IPv6 extension header. `name` is the header, and `field`
-    and `offset` are optional refinements. Returns an exthdr expression.
+    Reference an IPv6 extension header. Takes `name`, the header, and the
+    optional refinements `field` and `offset`. Returns an exthdr
+    expression.
   */
-  exthdr =
-    {
-      name,
-      field ? null,
-      offset ? null,
-    }:
-    {
-      exthdr = compact { inherit name field offset; };
-    };
+  exthdr = expression.fromFields { name = "exthdr"; };
 
   # -- Refined key-string expressions ---------------------------------------
   # The pre-built field tree covers the keys nft loads bare; these take a
@@ -251,92 +191,43 @@ in
   # needs.
 
   /*
-    Reference a conntrack key with optional refinements. `key` is the
-    conntrack key, `family` the optional address family, and `dir` the
-    optional direction. Returns a ct expression.
+    Reference a conntrack key with a direction. Takes `key`, the conntrack
+    key, and `dir`, the direction, which nft needs for `saddr`, `daddr`,
+    `proto-src`, `proto-dst`, and the `ip` and `ip6` addresses, and takes
+    only for these and `l3proto`, `protocol`, `packets`, `bytes`,
+    `avgpkt`, and `zone`; the constructor throws otherwise. Returns a ct
+    expression.
   */
-  ct =
-    {
-      key,
-      family ? null,
-      dir ? null,
-    }:
-    {
-      ct = compact { inherit key family dir; };
-    };
+  ct = expression.fromFields { name = "ct"; };
 
   /*
-    Reference routing data. `key` is the routing key and `family` the
-    optional address family. Returns an rt expression.
+    Reference routing data. Takes `key`, the routing key, and an optional
+    address family, `family`. Returns an rt expression.
   */
-  rt =
-    {
-      key,
-      family ? null,
-    }:
-    {
-      rt = compact { inherit key family; };
-    };
+  rt = expression.fromFields { name = "rt"; };
 
   /*
-    Look up the forwarding information base. `result` is the requested
-    result (`"oif"`, `"type"`, …) and `flags` the lookup flags, one or a
+    Look up the forwarding information base. Takes `result`, the requested
+    result (`"oif"`, `"type"`, …), and `flags`, the lookup flags, one or a
     list. nft needs `saddr` or `daddr` among them, so the constructor
     throws without either. Returns a fib expression.
   */
-  fib =
-    {
-      result,
-      # Required; the default lets the throw below carry the
-      # `nix-nftypes: dsl.expr.fib:` prefix (ADR 0009).
-      flags ? null,
-    }:
-    if builtins.any (flag: flag == "saddr" || flag == "daddr") (lib.toList flags) then
-      { fib = { inherit result flags; }; }
-    else
-      fail "fib" "a FIB lookup needs saddr or daddr among its flags";
+  fib = expression.fromFields { name = "fib"; };
 
   /*
-    Reference passive OS fingerprinting data. `key` is `"name"` or
-    `"version"` and `ttl` the optional TTL mode. Returns an osf expression.
+    Reference passive OS fingerprinting data. Takes `key`, `"name"` or
+    `"version"`, and an optional TTL mode, `ttl`. Returns an osf
+    expression.
   */
-  osf =
-    {
-      key,
-      ttl ? null,
-    }:
-    {
-      osf = compact { inherit key ttl; };
-    };
+  osf = expression.fromFields { name = "osf"; };
 
   /*
-    Reference IPsec (xfrm) state. `key` is the ipsec key and `dir` the
-    policy direction, `"in"` or `"out"`, which nft needs for every key, so
-    the constructor throws without it. `family` and `spnum` are optional
-    refinements. Returns an ipsec expression.
+    Reference IPsec (xfrm) state. Takes `key`, the ipsec key, and `dir`,
+    the policy direction, `"in"` or `"out"`, which nft needs for every
+    key, so the constructor throws without it; `family` and `spnum` are
+    optional refinements. Returns an ipsec expression.
   */
-  ipsec =
-    {
-      key,
-      # Required; the default lets the throw below carry the
-      # `nix-nftypes: dsl.expr.ipsec:` prefix (ADR 0009).
-      dir ? null,
-      family ? null,
-      spnum ? null,
-    }:
-    if dir == null then
-      fail "ipsec" "an IPsec key needs a direction, dir = \"in\" or \"out\""
-    else
-      {
-        ipsec = compact {
-          inherit
-            key
-            family
-            dir
-            spnum
-            ;
-        };
-      };
+  ipsec = expression.fromFields { name = "ipsec"; };
 
   # -- Binary operators -----------------------------------------------------
 
@@ -344,54 +235,29 @@ in
     Combine two expressions with bitwise OR. `a` and `b` are the operands.
     Returns a `|` expression.
   */
-  bitOr = a: b: {
-    "|" = [
-      a
-      b
-    ];
-  };
+  bitOr = binaryOperator "bitOr" "|";
 
   /*
     Combine two expressions with bitwise XOR. `a` and `b` are the operands.
     Returns a `^` expression.
   */
-  bitXor = a: b: {
-    "^" = [
-      a
-      b
-    ];
-  };
+  bitXor = binaryOperator "bitXor" "^";
 
   /*
     Combine two expressions with bitwise AND, typically to mask a value.
     `a` and `b` are the operands. Returns a `&` expression.
   */
-  bitAnd = a: b: {
-    "&" = [
-      a
-      b
-    ];
-  };
+  bitAnd = binaryOperator "bitAnd" "&";
 
   /*
     Shift an expression left. `a` is the value and `b` the shift count.
     Returns a `<<` expression.
   */
-  shiftLeft = a: b: {
-    "<<" = [
-      a
-      b
-    ];
-  };
+  shiftLeft = binaryOperator "shiftLeft" "<<";
 
   /*
     Shift an expression right. `a` is the value and `b` the shift count.
     Returns a `>>` expression.
   */
-  shiftRight = a: b: {
-    ">>" = [
-      a
-      b
-    ];
-  };
+  shiftRight = binaryOperator "shiftRight" ">>";
 }

@@ -1,7 +1,7 @@
 /*
   Match operators. Each returns a match statement
   (`{ match = { left; right; op; }; }`), validated when called as every
-  statement builder's is (./internal/statement.nix), and top-level names
+  statement builder's is (./internal/builder.nix), and top-level names
   read naturally: `eq tcp.dport 22`.
 
   `inSet` / `notInSet` wrap a list right-hand side as `{ set = [...]; }` and

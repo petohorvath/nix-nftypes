@@ -188,7 +188,6 @@ Some parser conditions depend on large lookup tables or relationships between
 fields. The schema checks useful local types but leaves the final condition to
 `nft`:
 
-- whether `ct.dir` is legal depends on `ct.key`;
 - FIB flags have parser-level mutual-exclusion rules;
 - tunnel source and destination fields must form one same-family pair;
 - set/map datatypes are strings rather than exhaustive enums;
@@ -245,13 +244,13 @@ them. Set-level statements load identically through JSON and text, and give each
 element its own instance. The `element-statements-ignored-on-json` case of
 `integration-nft-misbehaviour` asserts that nft still ignores them.
 
-A ct expression's `family`, as in `ct original ip saddr`, is a Read-back
-shape too: nft lists it, but its JSON parser ignores it on input, in nftables
-1.1.6 and 1.1.7. In an inet table, JSON input of a ct address match fails
-with `cannot determine ip protocol version`, with or without the family,
-while text, which writes the family, loads it. In an ip or ip6 table both
-forms load. The schema accepts the family, and the text renderer still writes
-it; use an ip or ip6 table, or text, for a ct address match.
+A ct expression's `family` is not a Read-back shape: nft's JSON parser
+ignores it on input and its printer never writes it (`json_parse_ct_expr` and
+`ct_expr_json`, nftables 1.1.6). nft lists `ct original ip saddr` as the key
+`ip saddr` with a direction. The schema has no ct `family`, and the text
+renderer refuses one in raw input. In an inet table nft refuses a ct `saddr`
+or `daddr` match ("use ip saddr or ip6 saddr instead"); the schema can't see the
+table's family, so it leaves that to nft. Write `ip saddr` or `ip6 saddr` there.
 
 A ct helper, timeout, or expectation accepts `l3proto = "inet"`, which nft
 lists for one in an inet table that names none. Recent kernels refuse an inet

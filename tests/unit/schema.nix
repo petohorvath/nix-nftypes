@@ -849,10 +849,9 @@ textDriftTests
       ct = {
         key = "saddr";
         dir = "original";
-        family = "ip";
       };
     };
-    expected = ''{"ct":{"dir":"original","family":"ip","key":"saddr"}}'';
+    expected = ''{"ct":{"dir":"original","key":"saddr"}}'';
   };
 
   # nft's JSON parser looks a ct key up in ct_templates (src/ct.c) and
@@ -885,10 +884,24 @@ textDriftTests
         "secmark"
         "id"
       ];
+      # The keys nft loads only with a direction.
+      directional = [
+        "saddr"
+        "daddr"
+        "proto-src"
+        "proto-dst"
+        "ip saddr"
+        "ip daddr"
+        "ip6 saddr"
+        "ip6 daddr"
+      ];
       inStatement = key: {
         match = {
           op = "==";
-          left.ct = { inherit key; };
+          left.ct = {
+            inherit key;
+          }
+          // lib.optionalAttrs (builtins.elem key directional) { dir = "original"; };
           right = 1;
         };
       };
@@ -903,6 +916,155 @@ textDriftTests
       );
       expected = ctKeys;
     };
+
+  /*
+    A ct key's direction, by ct_dir_keys in nftables' json_parse_ct_expr
+    and `nft -c -j` on 1.1.7: these keys fail ("Invalid argument") without
+    `dir`, and the keys outside ct_dir_keys fail with it ("Direction not
+    supported by CT key"). The other ct_dir_keys load either way.
+  */
+  testCtDirIsRequiredExactlyWhereNftNeedsIt =
+    let
+      requiresDir = [
+        "saddr"
+        "daddr"
+        "proto-src"
+        "proto-dst"
+        "ip saddr"
+        "ip daddr"
+        "ip6 saddr"
+        "ip6 daddr"
+      ];
+      takesDir = [
+        "l3proto"
+        "protocol"
+        "packets"
+        "bytes"
+        "avgpkt"
+        "zone"
+      ];
+      refusesDir = [
+        "state"
+        "direction"
+        "status"
+        "mark"
+        "expiration"
+        "helper"
+        "label"
+        "event"
+        "secmark"
+        "id"
+      ];
+      validates =
+        keys: body:
+        map (
+          key:
+          helpers.validates nftlib.types.expression {
+            ct = {
+              inherit key;
+            }
+            // body;
+          }
+        ) keys;
+    in
+    {
+      expr = {
+        requiresDir = {
+          bare = validates requiresDir { };
+          directed = validates requiresDir { dir = "original"; };
+        };
+        takesDir = {
+          bare = validates takesDir { };
+          directed = validates takesDir { dir = "reply"; };
+        };
+        refusesDir = {
+          bare = validates refusesDir { };
+          directed = validates refusesDir { dir = "original"; };
+        };
+      };
+      expected = {
+        requiresDir = {
+          bare = map (_: false) requiresDir;
+          directed = map (_: true) requiresDir;
+        };
+        takesDir = {
+          bare = map (_: true) takesDir;
+          directed = map (_: true) takesDir;
+        };
+        refusesDir = {
+          bare = map (_: true) refusesDir;
+          directed = map (_: false) refusesDir;
+        };
+      };
+    };
+
+  # nft's JSON parser never reads the ct expression's `family`, and its
+  # printer never writes one, so the ct body has none.
+  testCtHasNoFamily = {
+    expr = helpers.validates nftlib.types.expression {
+      ct = {
+        key = "mark";
+        family = "ip";
+      };
+    };
+    expected = false;
+  };
+
+  # nft fails a FIB result without `saddr` or `daddr` among its flags
+  # ("fib: need either saddr or daddr").
+  testFibNeedsAnAddressFlag = {
+    expr =
+      map
+        (
+          body:
+          helpers.validates nftlib.types.expression {
+            fib = {
+              result = "oif";
+            }
+            // body;
+          }
+        )
+        [
+          { }
+          { flags = "iif"; }
+          {
+            flags = [
+              "mark"
+              "iif"
+            ];
+          }
+          { flags = "daddr"; }
+        ];
+    expected = [
+      false
+      false
+      false
+      true
+    ];
+  };
+
+  # nft fails every IPsec key without a direction ("Invalid argument").
+  testIpsecNeedsDir = {
+    expr =
+      map
+        (
+          body:
+          helpers.validates nftlib.types.expression {
+            ipsec = {
+              key = "reqid";
+            }
+            // body;
+          }
+        )
+        [
+          { }
+          { dir = "in"; }
+        ];
+    expected = [
+      false
+      true
+    ];
+  };
 
   # ------------------------------------------------------------------
   # Binary AND operation (mask)

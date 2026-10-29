@@ -749,7 +749,13 @@ let
       map (
         name:
         lib.nameValuePair "${name}.ref" {
-          wrong = dsl.${name}.ref (dsl.expr.map notAnExpression "m");
+          # A raw map expression: `expr.map` would reject the key itself.
+          wrong = dsl.${name}.ref {
+            map = {
+              key = notAnExpression;
+              data = "@m";
+            };
+          };
           field = "value.map.key";
         }
       ) referencingStatements
@@ -774,6 +780,262 @@ let
       };
     }
   ) statementBuilderCases;
+
+  # ----- expression builders validate when called ----------------------
+
+  /*
+    Every `dsl.expr` builder validates its body when called, against the
+    body `types.expression` takes for its tag, and the module system's
+    error names the builder and the field, as a statement builder's does.
+    `wrong` is the builder called with a value of the wrong type in
+    `field`. A builder that takes one attrset of fields also has
+    `unknown`, called with the argument `bogus` its body lacks, and
+    `missing`, called without the required field `required`. A body that
+    is no submodule, such as a list, is checked as the option `value`.
+  */
+  expressionBuilderCases =
+    let
+      withBogus = body: body // { bogus = 1; };
+      # A builder that takes one attrset of fields: `valid` is a body it
+      # takes, `wrong` that body with `field` set to `value`, and
+      # `missing` the body without `required`.
+      fromFields =
+        name:
+        {
+          valid,
+          field,
+          value,
+          required,
+        }:
+        {
+          unknown = dsl.expr.${name} (withBogus valid);
+          wrong = dsl.expr.${name} (valid // { ${field} = value; });
+          missing = dsl.expr.${name} (removeAttrs valid [ required ]);
+          inherit field required;
+        };
+      binaryOperator = name: {
+        wrong = dsl.expr.${name} notAnExpression 1;
+        field = "value";
+      };
+    in
+    {
+      concat = {
+        wrong = dsl.expr.concat [ notAnExpression ];
+        field = "value";
+      };
+      set = {
+        wrong = dsl.expr.set [ notAnExpression ];
+        field = "value";
+      };
+      map = {
+        wrong = dsl.expr.map notAnExpression "m";
+        field = "key";
+      };
+      prefix = {
+        wrong = dsl.expr.prefix "10.0.0.0" 129;
+        field = "len";
+      };
+      range = {
+        wrong = dsl.expr.range notAnExpression 1;
+        field = "value";
+      };
+      payload = {
+        wrong = dsl.expr.payload 1 "dport";
+        field = "protocol";
+      };
+      dccpOption = {
+        wrong = dsl.expr.dccpOption "x";
+        field = "type";
+      };
+      bitAnd = binaryOperator "bitAnd";
+      bitOr = binaryOperator "bitOr";
+      bitXor = binaryOperator "bitXor";
+      shiftLeft = binaryOperator "shiftLeft";
+      shiftRight = binaryOperator "shiftRight";
+      ct = fromFields "ct" {
+        valid.key = "mark";
+        field = "key";
+        value = "bogus";
+        required = "key";
+      };
+      rt = fromFields "rt" {
+        valid.key = "mtu";
+        field = "family";
+        value = "inet";
+        required = "key";
+      };
+      fib = fromFields "fib" {
+        valid = {
+          result = "oif";
+          flags = [ "saddr" ];
+        };
+        field = "result";
+        value = "bogus";
+        required = "result";
+      };
+      ipsec = fromFields "ipsec" {
+        valid = {
+          key = "reqid";
+          dir = "in";
+        };
+        field = "spnum";
+        value = 256;
+        required = "key";
+      };
+      osf = fromFields "osf" {
+        valid.key = "name";
+        field = "ttl";
+        value = "bogus";
+        required = "key";
+      };
+      numgen = fromFields "numgen" {
+        valid = {
+          mode = "inc";
+          mod = 2;
+        };
+        field = "mode";
+        value = "bogus";
+        required = "mod";
+      };
+      jhash = fromFields "jhash" {
+        valid = {
+          mod = 2;
+          expr = expression;
+        };
+        field = "expr";
+        value = notAnExpression;
+        required = "expr";
+      };
+      symhash = fromFields "symhash" {
+        valid.mod = 2;
+        field = "mod";
+        value = 0;
+        required = "mod";
+      };
+      elem = fromFields "elem" {
+        valid.val = "10.0.0.1";
+        field = "val";
+        value = notAnExpression;
+        required = "val";
+      };
+      exthdr = fromFields "exthdr" {
+        valid.name = "frag";
+        field = "offset";
+        value = -1;
+        required = "name";
+      };
+      tcpOption = fromFields "tcpOption" {
+        valid.name = "maxseg";
+        field = "field";
+        value = 1;
+        required = "name";
+      };
+      tcpOptionRaw = fromFields "tcpOptionRaw" {
+        valid = {
+          base = 2;
+          offset = 16;
+          len = 16;
+        };
+        field = "base";
+        value = 256;
+        required = "len";
+      };
+      ipOption = fromFields "ipOption" {
+        valid.name = "rr";
+        field = "name";
+        value = 1;
+        required = "name";
+      };
+      sctpChunk = fromFields "sctpChunk" {
+        valid.name = "data";
+        field = "field";
+        value = 1;
+        required = "name";
+      };
+      payloadRaw = fromFields "payloadRaw" {
+        valid = {
+          base = "th";
+          offset = 16;
+          len = 16;
+        };
+        field = "base";
+        value = "bogus";
+        required = "len";
+      };
+      payloadTunnel = fromFields "payloadTunnel" {
+        valid = {
+          tunnel = "vxlan";
+          protocol = "ip";
+          field = "saddr";
+        };
+        field = "tunnel";
+        value = 1;
+        required = "field";
+      };
+    };
+
+  expressionBuilderTests = lib.concatMapAttrs (
+    name: case:
+    let
+      # The field, or a path inside it such as a list entry's.
+      option = field: "`${lib.escapeRegex "dsl.expr.${name}.${field}"}(\\.[^']*)?'";
+    in
+    {
+      "testExpressionBuilderWrongValueThrows_${name}" = {
+        expr = force case.wrong;
+        expectedError.msg = "${option case.field} is not of type";
+      };
+    }
+    // lib.optionalAttrs (case ? unknown) {
+      "testExpressionBuilderUnknownArgumentThrows_${name}" = {
+        expr = force case.unknown;
+        expectedError.msg = "${option "bogus"} does not exist";
+      };
+      "testExpressionBuilderMissingArgumentThrows_${name}" = {
+        expr = force case.missing;
+        expectedError.msg = "${option case.required} was accessed but has no value defined";
+      };
+    }
+  ) expressionBuilderCases;
+
+  # The statements nft lists beside an element's value, as it lists them.
+  elemStatements = {
+    counter = {
+      packets = 1;
+      bytes = 64;
+    };
+    quota.val = 1024;
+    limit = {
+      rate = 10;
+      per = "second";
+    };
+    last.used = 1000;
+  };
+  elemStatementKeys = builtins.attrNames elemStatements;
+
+  # The ct keys nft loads only with a direction.
+  ctKeysNeedingDir = [
+    "saddr"
+    "daddr"
+    "proto-src"
+    "proto-dst"
+    "ip saddr"
+    "ip daddr"
+    "ip6 saddr"
+    "ip6 daddr"
+  ];
+
+  # `expr.ct` throws, naming the builder, for one of these keys without a
+  # direction, as nft fails it.
+  ctDirectionTests = lib.listToAttrs (
+    map (
+      key:
+      lib.nameValuePair "testExprCtWithoutDirThrows_${lib.replaceStrings [ " " ] [ "_" ] key}" {
+        expr = force (dsl.expr.ct { inherit key; });
+        expectedError.msg = "nix-nftypes: dsl\\.expr\\.ct: not of type `ct body with dir for";
+      }
+    ) ctKeysNeedingDir
+  );
 
   # A `.ref` takes a name or a map expression, never an inline body.
   referenceBodyTests = lib.listToAttrs (
@@ -1756,6 +2018,121 @@ in
     expectedError.msg = "nix-nftypes: dsl\\.tproxy: not of type `tproxy body with addr or port'";
   };
 
+  # Every `dsl.expr` builder has a case in `expressionBuilderCases`.
+  # `setRef` checks its name itself.
+  testEveryExpressionBuilderHasACase = {
+    expr = lib.subtractLists (builtins.attrNames expressionBuilderCases) (builtins.attrNames dsl.expr);
+    expected = [ "setRef" ];
+  };
+
+  # nft needs `saddr` or `daddr` among a FIB lookup's flags, and a
+  # direction for every IPsec key.
+  testExprFibWithoutAddressFlagThrows = {
+    expr = force (
+      dsl.expr.fib {
+        result = "oif";
+        flags = [ "iif" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.fib: not of type `fib body with saddr or daddr among its flags'";
+  };
+
+  testExprIpsecWithoutDirThrows = {
+    expr = force (dsl.expr.ipsec { key = "reqid"; });
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.ipsec: not of type `ipsec body with dir'";
+  };
+
+  # A ct key nft reads no direction for fails with one.
+  testExprCtDirOnADirectionlessKeyThrows = {
+    expr = force (
+      dsl.expr.ct {
+        key = "state";
+        dir = "original";
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.ct: not of type `ct body with dir for";
+  };
+
+  # nft's JSON parser ignores a ct expression's `family`.
+  testExprCtFamilyThrows = {
+    expr = force (
+      dsl.expr.ct {
+        key = "mark";
+        family = "ip";
+      }
+    );
+    expectedError.msg = "`dsl\\.expr\\.ct\\.family' does not exist";
+  };
+
+  # nft's JSON parser ignores an element's statements on input, so
+  # `expr.elem` takes none; nft lists them, and `types.expression` keeps
+  # them for Read-back.
+  testExprElemTakesNoStatements = {
+    expr = map (
+      tag:
+      (builtins.tryEval (
+        force (
+          dsl.expr.elem {
+            val = "10.0.0.1";
+            ${tag} = elemStatements.${tag};
+          }
+        )
+      )).success
+    ) elemStatementKeys;
+    expected = map (_: false) elemStatementKeys;
+  };
+
+  testExprElemStatementNamesTheBuilder = {
+    expr = force (
+      dsl.expr.elem {
+        val = "10.0.0.1";
+        inherit (elemStatements) counter;
+      }
+    );
+    expectedError.msg = "`dsl\\.expr\\.elem\\.counter' does not exist";
+  };
+
+  testExprElemReadBackKeepsStatements = {
+    expr = map (
+      tag:
+      helpers.validates nftlib.types.expression {
+        elem = {
+          val = "10.0.0.1";
+          ${tag} = elemStatements.${tag};
+        };
+      }
+    ) elemStatementKeys;
+    expected = map (_: true) elemStatementKeys;
+  };
+
+  # An anonymous set is a list; a bare string throws, pointing to setRef.
+  testExprSetBareStringNamesTheBuilder = {
+    expr = force (dsl.expr.set "trusted_v4");
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.set: a bare string";
+  };
+
+  # A builder for one form of its tag's body takes that form only.
+  testExprPayloadRawTakesNoNamedField = {
+    expr = force (
+      dsl.expr.payloadRaw {
+        protocol = "tcp";
+        field = "dport";
+      }
+    );
+    expectedError.msg = "`dsl\\.expr\\.payloadRaw\\.(protocol|field)' does not exist";
+  };
+
+  testExprTcpOptionTakesNoRawBits = {
+    expr = force (
+      dsl.expr.tcpOption {
+        base = 2;
+        offset = 16;
+        len = 16;
+      }
+    );
+    expectedError.msg = "`dsl\\.expr\\.tcpOption\\.base' does not exist";
+  };
+
   testStatementBuilderBodyNotAnAttrsetThrows = {
     expr = force (dsl.log "DROP: ");
     expectedError.msg = "nix-nftypes: dsl\\.log: expected an attribute set of fields, got a string";
@@ -1863,6 +2240,8 @@ in
 // malformedRuleEntryTests
 // ruleCommandTests
 // statementBuilderTests
+// expressionBuilderTests
+// ctDirectionTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests
