@@ -23,6 +23,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `types.statementBodies` holds the body of every statement tag that takes more than `null`, the same type `types.statement` takes for that tag. It adds `objectRefBody`, which `ct helper`, `ct timeout`, `ct expectation`, `secmark`, and `tunnel` share: a Reference, the object's name or a map expression that selects it. It also holds `verdictTargetBody`, the body of `jump` and `goto`, the same type as `types.expressionBodies.verdictTargetBody`. `accept`, `drop`, `continue`, `return`, and `notrack` take only `null`, so they have no body there and keep `types.nullLiteral`.
 - `types.flowtableHook` and `enums.flowtableHook`, which hold the one hook nft accepts for a flowtable, `ingress`, and type a flowtable's `hook`.
 - `fields.th`, nft's transport-header ports `sport` and `dport`, which match whatever the transport protocol, and `fields.igmp`, IGMP's `type`, `mrt`, `checksum`, and `group`.
+- `enums.payloadFieldsByProtocol`, the payload protocols nft's JSON parser knows, each with the fields it loads as written, in nft's spelling: `payloadFieldsByProtocol.ip` holds `"frag-off"`.
 
 ### Changed
 
@@ -146,6 +147,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - A value outside `types.statementOf` or `types.expressionOf` fails with the restricted type's description, such as `statement (one of: "match")`. The module system rebuilds a type an option declares, which dropped the description, so the error read `attribute-tagged union with choices: match`.
 - `types.statementOf` and `types.expressionOf` throw `nix-nftypes: types.statementOf:` or `nix-nftypes: types.expressionOf:` for a tag that is not a string, as in `statementOf [ 1 ]`, which failed with Nix's "cannot coerce an integer to a string". A non-list argument's error now says what it got.
 - `expr.ct`, `expr.rt`, and `expr.osf` take a key with its refinement, `dir`, `family`, or `ttl`. Without one they throw and point to the key's Field leaf: ``nix-nftypes: dsl.expr.ct: `expr.ct` builds a ct expression with a refinement; without one, write the Field leaf `fields.ct.mark` ``. Each key had two names, so `expr.ct { key = "mark"; }` built the same expression as `fields.ct.mark`.
+- `expr.payload protocol field` takes only a protocol and field from `enums.payloadFieldsByProtocol`, and throws for any other, naming the builder and listing the valid ones: `nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, …`. It took any strings, so `expr.payload "ip" "fragOff"` built a value that nft rejects on load. It also rejects `l4proto`, which nft's parser takes on `ip`, `ip6`, `gre`, and `gretap` but loads as other header bits, so `ip l4proto 6` loads as `ip version 0 ip hdrlength 6`; and the `vxlan` and `geneve` fields, which load only through `expr.payloadTunnel`. `expr.payloadRaw` still reaches any bits. The enum-extraction check compares the table with nftables' protocol table and each protocol's templates.
 
 ### Removed
 

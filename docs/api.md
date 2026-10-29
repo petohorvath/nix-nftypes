@@ -237,7 +237,18 @@ so `validate` takes them as raw input.
 names its family. The text renderer refuses a raw ct `family`.
 
 Use `expr.payload protocol field`, `expr.payloadRaw`, and
-`expr.payloadTunnel` when no pre-built leaf exists. The other structural and
+`expr.payloadTunnel` when no pre-built leaf exists. `expr.payload` takes a
+protocol and field from `enums.payloadFieldsByProtocol`, in nft's spelling
+(`expr.payload "ip" "frag-off"`), and throws for any other, listing the valid
+ones:
+
+```text
+nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.
+```
+
+The table leaves out `l4proto`, which nft loads as other header bits, and the
+`vxlan` and `geneve` fields, which load only through `expr.payloadTunnel`.
+`expr.payloadRaw` reaches any bits. The other structural and
 generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
 `range`, `set`, `setRef`, `map`, `numgen`, `jhash`, and `symhash`.
 The binary operators sit there too: `expr.bitAnd`, `bitOr`, `bitXor`,
@@ -688,6 +699,11 @@ one hook nft accepts for a flowtable, `ingress`. `byteUnit` holds nft's byte
 units, `bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
 quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
 `rate_unit`, adds `packets`.
+
+`enums.payloadFieldsByProtocol` is a table rather than a list: it maps each
+payload protocol nft's JSON parser knows to the fields it loads as written, in
+nft's spelling, such as `payloadFieldsByProtocol.ip`, which holds `"frag-off"`.
+`dsl.expr.payload` checks against it, and no type reads it.
 
 `nftlib.compatibility` holds the static tables and the helpers that look
 placements and priorities up in them. It holds only what nft accepts on load;

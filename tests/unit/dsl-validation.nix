@@ -1206,6 +1206,17 @@ let
     ) referencingStatements
   );
 
+  # nft's parser takes `l4proto` on these protocols but loads a header
+  # field at offset 0 instead, a Known difference, so `expr.payload`
+  # rejects it.
+  payloadL4protoTests = lib.genAttrs' [ "ip" "ip6" "gre" ] (
+    protocol:
+    lib.nameValuePair "testExprPayloadL4protoThrows_${protocol}" {
+      expr = force (dsl.expr.payload protocol "l4proto");
+      expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown ${protocol} field 'l4proto'";
+    }
+  );
+
   # The match operators, which build a match statement from its sides.
   matchOperators = [
     "eq"
@@ -2392,6 +2403,53 @@ in
     };
   };
 
+  # ----- expr.payload: nft's protocol and field table -----------------
+
+  # A protocol nft's JSON parser does not know fails at evaluation, and
+  # the error lists the ones it does.
+  testExprPayloadUnknownProtocolThrows = {
+    expr = force (dsl.expr.payload "ipv4" "saddr");
+    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown protocol 'ipv4'. Valid protocols: ah, arp, comp, dccp, esp, ether, gre, icmp, icmpv6, igmp, ip, ip6, sctp, tcp, th, udp, udplite, vlan.";
+  };
+
+  # A field the protocol lacks, such as a Field leaf's camelCase name,
+  # fails at evaluation, and the error lists the protocol's fields in
+  # nft's spelling.
+  testExprPayloadUnknownFieldThrows = {
+    expr = force (dsl.expr.payload "ip" "fragOff");
+    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.";
+  };
+
+  # A tunnel header loads only through `expr.payloadTunnel`; nft fails
+  # its named form.
+  testExprPayloadTunnelHeaderThrows = {
+    expr = force (dsl.expr.payload "vxlan" "vni");
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown protocol 'vxlan'";
+  };
+
+  # A protocol or field that is not a string still fails the payload
+  # body's type, at the field's option.
+  testExprPayloadNonStringFieldThrows = {
+    expr = force (dsl.expr.payload "tcp" 1);
+    expectedError.msg = "`dsl\\.expr\\.payload\\.field' is not of type";
+  };
+
+  # Every payload Field leaf is a protocol and field in the table, so
+  # `expr.payload` rebuilds it.
+  testEveryPayloadFieldLeafBuilds = {
+    expr =
+      lib.filterAttrs (_: leaf: dsl.expr.payload leaf.payload.protocol leaf.payload.field != leaf)
+        (
+          lib.concatMapAttrs (
+            protocol: leaves:
+            lib.mapAttrs' (name: leaf: lib.nameValuePair "${protocol}.${name}" leaf) (
+              lib.filterAttrs (_: leaf: leaf ? payload) leaves
+            )
+          ) dsl.fields
+        );
+    expected = { };
+  };
+
   # ----- the flat namespace --------------------------------------------
 
   # The DSL's flat namespace merges its layers; a name two layers define
@@ -2711,6 +2769,7 @@ in
 // expressionBuilderTests
 // ctDirectionTests
 // unrefinedConstructorTests
+// payloadL4protoTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests

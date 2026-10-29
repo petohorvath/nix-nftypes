@@ -39,9 +39,12 @@ import sys
 #   "macro"   the template macro, for the "template" shape only
 #   "member"  the struct member holding the token, for the "pair" and
 #             "template" shapes; "designated" and "strings" take none
-#   "resolve" for the "enumRefs" shape only, the "template" table that
+#   "resolve" for the "enumRefs" shape, the "template" table that
 #             names each enum constant: its "file", "symbol", "macro",
-#             and "member"
+#             and "member"; for the "protocols" shape, the "file" that
+#             defines each protocol
+#   "within"  optional: the function whose body holds the table, for a
+#             local table whose name another function's table shares
 #   "floor"   the token count at the locked nixpkgs, so losing a single
 #             entry fails the extraction
 #
@@ -66,6 +69,10 @@ import sys
 #   "enumRefs"      an array of enum constants, `{ NFT_CT_SRC, … }`: take
 #                   each constant's token from the "resolve" table, whose
 #                   entries are indexed by the constants. (ct_dir_keys)
+#   "protocols"     an array of protocol descriptions, `{ &proto_eth, … }`:
+#                   take `<name> <field>` for each field of each protocol,
+#                   its `.name` and the first string of each entry of its
+#                   `.templates`, from the "resolve" file. (proto_tbl)
 REGISTRY = {
     "family": {
         "file": "src/parser_json.c",
@@ -142,20 +149,47 @@ REGISTRY = {
         "member": "name",
         "floor": 34,
     },
+    # The protocols a payload expression names, as `<protocol> <field>`:
+    # proto_lookup_byname's local table, which json_parse_payload_expr
+    # looks a protocol up in, and the fields json_parse_payload_field
+    # looks up in each protocol's templates. inner_proto_lookup_byname has
+    # a local table of the same name, for the tunnel form.
+    "payloadField": {
+        "file": "src/parser_json.c",
+        "symbol": "proto_tbl",
+        "within": "proto_lookup_byname",
+        "shape": "protocols",
+        "resolve": {"file": "src/proto.c"},
+        "floor": 107,
+    },
 }
 
 
-def extract_block(text, symbol):
+def extract_block(text, symbol, within=None, pattern=r"\[[^\]]*\]\s*=\s*\{"):
     """Return the brace-delimited body of `<symbol>[…] = { … }` from `text`.
 
-    Brace-matches from the opening `{` so nested braces (struct entries) are
-    handled. Raises if the table can't be found — a renamed/removed table is
-    itself a drift signal worth surfacing loudly.
+    With `within`, the table is the first one after the definition of the
+    function `within`. `pattern` is what follows the symbol up to the
+    opening brace. Brace-matches from the opening `{` so nested braces
+    (struct entries) are handled. Raises if the table can't be found — a
+    renamed/removed table is itself a drift signal worth surfacing loudly.
     """
-    m = re.search(re.escape(symbol) + r"\[[^\]]*\]\s*=\s*\{", text)
+    offset = 0
+    if within:
+        f = re.search(r"\b" + re.escape(within) + r"\s*\([^)]*\)\s*\{", text)
+        if not f:
+            raise LookupError(
+                f"function '{within}' not found (renamed or removed upstream?)"
+            )
+        offset = f.end()
+    m = re.compile(r"\b" + re.escape(symbol) + pattern).search(text, offset)
     if not m:
         raise LookupError(f"table '{symbol}' not found (renamed or removed upstream?)")
-    start = m.end() - 1  # position of the opening brace
+    return brace_body(text, m.end() - 1, symbol)
+
+
+def brace_body(text, start, symbol):
+    """Return the body of the brace block opening at `text[start]`."""
     depth = 0
     for i in range(start, len(text)):
         if text[i] == "{":
@@ -165,6 +199,26 @@ def extract_block(text, symbol):
             if depth == 0:
                 return text[start + 1 : i]
     raise LookupError(f"unbalanced braces in table '{symbol}'")
+
+
+def protocol_fields(text, symbol):
+    """Return `<name> <field>` for each field of the proto_desc `symbol`."""
+    body = extract_block(text, symbol, pattern=r"\s*=\s*\{")
+    name = re.search(r'^\s*\.name\s*=\s*"([^"]*)"', body, re.MULTILINE)
+    if not name:
+        raise LookupError(f"protocol '{symbol}' has no .name")
+    templates = re.search(r"\.templates\s*=\s*\{", body)
+    if not templates:
+        return []
+    entries = brace_body(body, templates.end() - 1, f"{symbol}.templates")
+    entry = re.compile(
+        r'\[[^\]]*\]\s*=\s*(?:[A-Z][A-Z0-9_]*\(\s*"([^"]*)"|\{[^{}]*?'
+        + designated_member("token")
+        + r")"
+    )
+    return [
+        f"{name.group(1)} {m.group(1) or m.group(2)}" for m in entry.finditer(entries)
+    ]
 
 
 def designated_member(member):
@@ -225,6 +279,13 @@ def tokens_from_block(block, spec, read):
                 )
             tokens.append(by_index[constant])
         return tokens
+    if shape == "protocols":
+        # Each `&proto_<x>`, by the fields its definition gives it.
+        text = read(spec["resolve"]["file"])
+        tokens = []
+        for symbol in re.findall(r"&\s*([A-Za-z_][A-Za-z0-9_]*)", block):
+            tokens.extend(protocol_fields(text, symbol))
+        return tokens
     raise ValueError(f"unknown shape '{shape}'")
 
 
@@ -240,7 +301,7 @@ def extract(src_root):
 
     tables = {}
     for name, spec in sorted(REGISTRY.items()):
-        block = extract_block(read(spec["file"]), spec["symbol"])
+        block = extract_block(read(spec["file"]), spec["symbol"], spec.get("within"))
         # Filter empties (placeholder template slots) and dedupe, order-stable.
         tokens = list(
             dict.fromkeys(t for t in tokens_from_block(block, spec, read) if t)

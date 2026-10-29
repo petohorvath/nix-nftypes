@@ -124,22 +124,28 @@ It does not prove that every parser branch appears in the corpus.
 ### Enum and dispatch extraction
 
 `integration-nftables-enum-extraction` runs
-`tooling/extract-upstream-tokens.py`, which reads selected enum tables and the
-statement and expression dispatch tables from the patched C source. Each
+`tooling/extract-upstream-tokens.py`, which reads selected enum tables, the
+statement and expression dispatch tables, and the payload protocols with their
+fields from the patched C source. Each
 `testEnumDrift_<list>` test compares one model token list with its table
 (`tests/helpers/token-drift.nix`) and fails on a token only one side has. The
 byte units and a limit's rate units both check the `data_unit` table. The ct
 keys that take a direction, which the schema's ct body decides, check
-`ct_dir_keys`, the keys nft's JSON parser reads a direction for. The model's
-extra tokens that the parser accepts outside the table, such as the
-`secpath` meta alias, are listed there with their reason.
+`ct_dir_keys`, the keys nft's JSON parser reads a direction for. The payload
+fields, `enums.payloadFieldsByProtocol` as `<protocol> <field>` tokens, check
+the protocols in `proto_lookup_byname`'s table and each protocol's templates in
+`src/proto.c`. The model's extra tokens that the parser accepts outside the
+table, such as the `secpath` meta alias, are listed there with their reason,
+and so are the table's tokens the model leaves out because nft does not load
+them as written, such as `ip l4proto`.
 
 The extractor reads a struct entry written positionally,
 `{ "ip", NFPROTO_IPV4 }`, as a designated initializer, `{ .name = "ip", … }`,
 or as a template macro call, `CT_TEMPLATE("state", …)`. It also reads a plain
 string array, such as the byte units' `data_unit`, and an array of enum
 constants, such as `ct_dir_keys`, by the token another table gives each
-constant. Each table has a floor equal
+constant, and an array of protocol descriptions, `{ &proto_eth, … }`, by the
+fields each description's templates give it. Each table has a floor equal
 to its token count at the locked nixpkgs, so a missing table, or one that lost
 an entry or that the extractor no longer reads, fails the extraction.
 

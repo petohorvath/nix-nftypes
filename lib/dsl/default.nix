@@ -18,6 +18,7 @@
   statementBodiesByTag,
   expressionBodiesByTag,
   expressionBodies,
+  payloadFieldsByProtocol,
 }:
 
 let
@@ -47,7 +48,14 @@ let
       lib
       ;
   };
-  payload = import ./payload.nix { inherit expression expressionBodies; };
+  payload = import ./payload.nix {
+    inherit
+      expression
+      expressionBodies
+      lib
+      payloadFieldsByProtocol
+      ;
+  };
   actions = import ./actions { inherit lib statement; };
   ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetOrder; };
   table = import ./structure/table.nix { inherit lib; };

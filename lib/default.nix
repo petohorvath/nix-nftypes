@@ -80,10 +80,12 @@ let
       elem = expressions.elemInputBody;
     };
     expressionBodies = expressions.all;
+    inherit payloadFieldsByProtocol;
     inherit (commands) resetOrder;
     inherit (tables) expandTable;
   };
   compatibility = import ./compatibility.nix { enums = primitives.enumValues; };
+  payloadFieldsByProtocol = import ./schema/payload-fields.nix { };
 in
 {
   /*
@@ -137,8 +139,12 @@ in
     binding the `types.enum` definitions read. Useful for downstream
     consumers (zone libraries, validators, doc generators) that want
     the raw list without reaching into `types.<x>.functor.payload.values`.
+    `payloadFieldsByProtocol` is the one table among them: the fields
+    `dsl.expr.payload` takes for each protocol.
   */
-  enums = primitives.enumValues;
+  enums = primitives.enumValues // {
+    inherit payloadFieldsByProtocol;
+  };
 
   /*
     Kernel/man reference data — family×hook compatibility, chain-type

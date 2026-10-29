@@ -5,22 +5,61 @@
     2. raw     { base; offset; len; }       — arbitrary bits under a base layer
     3. tunnel  { tunnel; protocol; field; } — inner-header access
   Each validates its form of the payload body when called
-  (./internal/builder.nix).
+  (./internal/builder.nix); the named form also checks its protocol and
+  field against `payloadFieldsByProtocol` (../schema/payload-fields.nix).
 */
-{ expression, expressionBodies }:
+{
+  expression,
+  expressionBodies,
+  lib,
+  payloadFieldsByProtocol,
+}:
 
+let
+  inherit (import ./internal/location.nix { inherit lib; }) fail;
+
+  location = expression.locationOf [ "payload" ];
+
+  # Throws `message`, followed by the `valid` values with their `label`.
+  failListing =
+    message: label: valid:
+    fail location "${message}. Valid ${label}: ${lib.concatStringsSep ", " valid}.";
+
+  # `body` once its string protocol and field are in the table. A
+  # non-string is left to the body's type, which names its option.
+  known =
+    { protocol, field }@body:
+    let
+      fields = payloadFieldsByProtocol.${protocol} or null;
+    in
+    if !builtins.isString protocol || !builtins.isString field then
+      body
+    else if fields == null then
+      failListing "unknown protocol '${protocol}'" "protocols" (
+        builtins.attrNames payloadFieldsByProtocol
+      )
+    else if !builtins.elem field fields then
+      failListing "unknown ${protocol} field '${field}'" "${protocol} fields" fields
+    else
+      body;
+in
 {
   /*
     Reference a protocol header field by name. `protocol` is the header
-    (for example `"tcp"`) and `field` its JSON field name. Returns a payload
-    expression.
+    (for example `"tcp"`) and `field` its JSON field name, in nft's
+    spelling (`"frag-off"`). Both must be in `enums.payloadFieldsByProtocol`.
+    Returns a payload expression.
   */
   payload =
     protocol: field:
-    expression.tagged {
-      name = "payload";
-      type = expressionBodies.payloadNamedBody;
-    } { inherit protocol field; };
+    expression.tagged
+      {
+        name = "payload";
+        type = expressionBodies.payloadNamedBody;
+      }
+      (known {
+        inherit protocol field;
+      });
 
   /*
     Reference raw bits when no named field exists. Takes `base`, the header
