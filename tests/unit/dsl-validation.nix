@@ -1686,7 +1686,8 @@ let
           chains.input = {
             type = "filter";
             hook = "input";
-            prio = "x";
+            # A string is a Symbolic priority, which the DSL resolves first.
+            prio = true;
           };
         });
         expectedError.msg = "^A definition for option `\"?dsl\\.table inet\\.fw\"?\\.chains\\.input\\.prio' is not of type";
