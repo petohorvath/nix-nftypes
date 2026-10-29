@@ -341,8 +341,8 @@ in
     # `comment`, so JSON drops element statements, both the keys nft lists
     # and a `stmt` list: set `c`'s seeded counters load as fresh ones, and
     # set `o`, which declares no statement, loads plain elements. Text
-    # loads them, so the schema accepts the listed keys and text refuses
-    # them.
+    # loads them, so input commands reject the listed keys, Read-back
+    # accepts them, and text refuses them.
     {
       name = "element-statements-ignored-on-json";
       knownDifference = "docs/spec-coverage.md";

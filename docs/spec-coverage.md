@@ -259,10 +259,11 @@ Element statements are a Read-back shape too: nft lists each element's stateful
 statement as a `counter`, `quota`, `limit`, or `last` key beside its `val`, but
 its JSON parser reads only `val`, `timeout`, `expires`, and `comment`, in
 nftables 1.1.6 and 1.1.7. JSON input drops the statements, both those keys and a
-`stmt` list, while text loads them when the set declares the same statement. The
-schema accepts the listed keys and no `stmt` list, and the text renderer refuses
-them. Set-level statements load identically through JSON and text, and give each
-element its own instance. The `element-statements-ignored-on-json` case of
+`stmt` list, while text loads them when the set declares the same statement.
+Read-back accepts the listed keys through `elemReadBackBody`, input commands
+reject them through `elemBody`, no element takes a `stmt` list, and the text
+renderer refuses them. Set-level statements load identically through JSON and
+text, and give each element its own instance. The `element-statements-ignored-on-json` case of
 `integration-nft-misbehaviour` asserts that nft still ignores them.
 
 A ct expression's `family` is not a Read-back shape: nft's JSON parser

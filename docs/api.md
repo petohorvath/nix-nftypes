@@ -118,6 +118,17 @@ strips. `jump` and `goto` take `verdictTargetBody`, the same type as
 `return`, and `notrack` take only `null`, so they have no body there; type
 their body with `types.nullLiteral`.
 
+`types.expressionBodies` holds two element bodies. nft lists an element's
+`counter`, `quota`, `limit`, or `last` statement as a key beside its `val`, in
+a set's or map's elements and in a rule's anonymous set alike, but its JSON
+parser reads only `val`, `timeout`, `expires`, and `comment`:
+
+- `elemBody` takes those four fields. Input commands, and `types.expression`,
+  take it, so an `add set` whose element carries a counter fails `validate`.
+- `elemReadBackBody` adds the four statement keys. `types.readBackObject`
+  takes it for a listed set, map, element, or rule, so the Read-back of a set
+  with counters validates.
+
 Each submodule takes only an attrset of its fields. Unlike `lib.types.submodule`,
 it rejects a module function, a path, and a `_module` key, so a string in a
 union with a body, such as the synproxy reference `"/sp1"`, is a name rather
@@ -265,10 +276,10 @@ that build one form of a body take that form only: `expr.payloadRaw`,
 `expr.payloadTunnel`, `expr.tcpOption`, and `expr.tcpOptionRaw`. `setRef`
 checks its name itself.
 
-`expr.elem` takes `val`, `timeout`, `expires`, and `comment`. nft lists an
-element's `counter`, `quota`, `limit`, or `last` beside its value, but its JSON
-parser ignores them, so `expr.elem` rejects them as unknown options, while
-`types.expressionBodies.elemBody` keeps them for Read-back.
+`expr.elem` takes `val`, `timeout`, `expires`, and `comment`, the fields of
+`types.expressionBodies.elemBody`. nft lists an element's `counter`, `quota`,
+`limit`, or `last` beside its value, but its JSON parser ignores them, so
+`expr.elem` rejects them as unknown options.
 
 Top-level match helpers include:
 
