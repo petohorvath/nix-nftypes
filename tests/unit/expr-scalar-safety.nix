@@ -296,7 +296,7 @@ let
             len = 24;
           };
         });
-        expected = "add rule inet t c ip saddr == 198.51.100.0/24";
+        expected = "add rule inet t c ip saddr == 198.51.100.0/24\n";
       };
     };
 

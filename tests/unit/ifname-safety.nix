@@ -325,7 +325,7 @@ let
     # here.
     testMatchQuotesSafeIfname = {
       expr = toText (rawMatchRule "iifname" "eth0");
-      expected = "add rule inet t c meta iifname == \"eth0\"";
+      expected = "add rule inet t c meta iifname == \"eth0\"\n";
     };
 
     # `@`-prefixed string is the named-set reference form; must stay
@@ -333,7 +333,7 @@ let
     # literal.
     testMatchPreservesSetRefBare = {
       expr = toText (rawMatchRule "iifname" "@trusted");
-      expected = "add rule inet t c meta iifname == @trusted";
+      expected = "add rule inet t c meta iifname == @trusted\n";
     };
 
     testMatchQuotesAnonymousSetElements = {
@@ -345,7 +345,7 @@ let
           ];
         }
       );
-      expected = "add rule inet t c meta iifname == { \"lo\", \"eth*\" }";
+      expected = "add rule inet t c meta iifname == { \"lo\", \"eth*\" }\n";
     };
 
     testMatchQuotesConcatenationComponents = {
@@ -368,7 +368,7 @@ let
           };
         }
       ]);
-      expected = "add rule inet t c meta iifname . ip saddr == { \"010\" . 10.0.0.1 }";
+      expected = "add rule inet t c meta iifname . ip saddr == { \"010\" . 10.0.0.1 }\n";
     };
 
     testMatchQuotesFibOifname = {
@@ -387,7 +387,7 @@ let
           };
         }
       ]);
-      expected = "add rule inet t c fib daddr . iif oifname != \"0x10\"";
+      expected = "add rule inet t c fib daddr . iif oifname != \"0x10\"\n";
     };
 
     testVmapQuotesKeys = {
@@ -404,7 +404,7 @@ let
           };
         }
       ]);
-      expected = "add rule inet t c meta iifname vmap { \"010\" : accept }";
+      expected = "add rule inet t c meta iifname vmap { \"010\" : accept }\n";
     };
 
     testMapLookupQuotesKeys = {
@@ -424,7 +424,7 @@ let
           };
         }
       ]);
-      expected = "add rule inet t c meta mark set meta iifname map { \"$lan\" : 3 }";
+      expected = "add rule inet t c meta mark set meta iifname map { \"$lan\" : 3 }\n";
     };
   };
 
@@ -439,7 +439,7 @@ let
           "$lan"
         ];
       });
-      expected = "add set inet t s { type ifname; elements = { \"eth0\", \"010\", \"$lan\" }; }";
+      expected = "add set inet t s { type ifname; elements = { \"eth0\", \"010\", \"$lan\" }; }\n";
     };
 
     testQuotesMapKeysAndValues = {
@@ -462,7 +462,7 @@ let
           }
         ];
       };
-      expected = "add map inet t m { type ifname : ifname; elements = { \"010\" : \"0x10\" }; }";
+      expected = "add map inet t m { type ifname : ifname; elements = { \"010\" : \"0x10\" }; }\n";
     };
 
     testQuotesElementWithOptions = {
@@ -477,7 +477,7 @@ let
           }
         ];
       });
-      expected = "add set inet t s { type ifname; elements = { \"a|b\" comment \"c\" }; }";
+      expected = "add set inet t s { type ifname; elements = { \"a|b\" comment \"c\" }; }\n";
     };
 
     testQuotesConcatenationComponents = {
@@ -495,7 +495,7 @@ let
           }
         ];
       });
-      expected = "add set inet t s { type ipv4_addr . ifname; elements = { 10.0.0.1 . \"1e5\" }; }";
+      expected = "add set inet t s { type ipv4_addr . ifname; elements = { 10.0.0.1 . \"1e5\" }; }\n";
     };
 
     # The type line belongs to #34; only the elements are pinned here.
@@ -545,7 +545,7 @@ let
         type = "ifname";
         elem = [ "*" ];
       });
-      expected = "add set inet t s { type ifname; elements = { * }; }";
+      expected = "add set inet t s { type ifname; elements = { * }; }\n";
     };
   };
 
@@ -609,14 +609,14 @@ let
       name: value:
       lib.nameValuePair "testElementCommandRendersBare_${name}" {
         expr = toText (rawElementCommand [ value ]);
-        expected = "add element inet t s { ${value} }";
+        expected = "add element inet t s { ${value} }\n";
       }
     ) writtenElements;
 
   unidentifiedTests = elementTests // {
     testElementCommandRendersInteger = {
       expr = toText (rawElementCommand [ 8 ]);
-      expected = "add element inet t s { 8 }";
+      expected = "add element inet t s { 8 }\n";
     };
     testElementCommandRefusesConcatPart = {
       expr = toText (rawElementCommand [

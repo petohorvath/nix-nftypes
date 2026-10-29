@@ -80,7 +80,7 @@ in
       expected = {
         validated = selection;
         json = "{\"nftables\":[{\"destroy\":{\"rule\":{\"chain\":\"c\",\"expr\":[],\"family\":\"ip\",\"handle\":4,\"table\":\"t\"}}}]}";
-        text = "destroy rule ip t c handle 4";
+        text = "destroy rule ip t c handle 4\n";
       };
     };
 

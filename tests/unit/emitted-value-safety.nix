@@ -392,7 +392,7 @@ let
       expr = toText (chain {
         policy = "drop";
       });
-      expected = "add chain inet t o { type filter hook input priority 0; policy drop; }";
+      expected = "add chain inet t o { type filter hook input priority 0; policy drop; }\n";
     };
     testRejectTcpResetRendersTwoWords = {
       expr = toText (rule {
@@ -400,7 +400,7 @@ let
           type = "tcp reset";
         };
       });
-      expected = "add rule inet t c reject with tcp reset";
+      expected = "add rule inet t c reject with tcp reset\n";
     };
   };
 in

@@ -1227,6 +1227,43 @@ let
       )
     ) placements;
 
+  # Each imperative renderer throws for a raw `nftables` command among a
+  # ruleset's commands, which nft rejects, and points to `dsl.ruleset`,
+  # which splices one in place.
+  nestedRulesetTests =
+    let
+      values = {
+        empty.nftables = [ { nftables = [ ]; } ];
+        withCommands.nftables = [
+          {
+            nftables = [
+              (dsl.add.table {
+                family = "inet";
+                name = "t";
+              })
+            ];
+          }
+        ];
+        # A key beside `nftables` doesn't make it a command nft loads.
+        besideAVerb.nftables = [
+          {
+            nftables = [ ];
+            flush.ruleset = null;
+          }
+        ];
+      };
+    in
+    lib.concatMapAttrs (
+      shape: value:
+      lib.genAttrs' imperativeRenderers (
+        renderer:
+        lib.nameValuePair "testNestedRulesetThrows_${renderer}_${shape}" {
+          expr = nftlib.${renderer} value;
+          expectedError.msg = "nix-nftypes: ${renderer}: got a ruleset \\{ nftables = \\[ … \\]; \\} nested among a ruleset's commands, which nft rejects; splice it in with dsl\\.ruleset \\[ … \\]";
+        }
+      )
+    ) values;
+
   # An imperative renderer takes only a ruleset: a lone command, which nft
   # would reject as a bare `{"add":…}`, or any other value throws.
   notARulesetTests =
@@ -1378,7 +1415,7 @@ in
     expr = nftlib.toText (
       dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.rules = [ [ dsl.drop ] ]; }) ]
     );
-    expected = "add table inet fw\nadd chain inet fw input\nadd rule inet fw input drop";
+    expected = "add table inet fw\nadd chain inet fw input\nadd rule inet fw input drop\n";
   };
 
   testTableTypeMarkerAccepted = {
@@ -2313,5 +2350,6 @@ in
 // matchOperatorTests
 // missingRuleExprTests
 // bareTableTests
+// nestedRulesetTests
 // notARulesetTests
 // refusalNamesTheRendererTests

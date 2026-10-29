@@ -63,6 +63,7 @@ This flake renders a ruleset with one input chain as nftables text:
 ```console
 $ nix build .#rules && cat result
 flush ruleset
+
 add table inet filter
 add chain inet filter input {
   type filter hook input priority 0;

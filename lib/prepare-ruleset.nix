@@ -15,8 +15,9 @@
 { lib, clean }:
 
 let
+  inherit (import ./ruleset-shape.nix { }) isRuleset;
   inherit (import ./table-tree-marker.nix { }) isTableTree;
-  inherit (import ./describe.nix { inherit lib; }) describe isRuleset;
+  inherit (import ./describe.nix { inherit lib; }) describe;
   fail = import ./fail.nix { };
 
   withExpr = body: if builtins.isAttrs body && !(body ? expr) then body // { expr = [ ]; } else body;
@@ -43,13 +44,17 @@ in
   `value` is its argument. Returns the cleaned ruleset, each rule body with
   an `expr`, when `value` is a ruleset, an attrset whose `nftables` list
   holds commands. Throws otherwise: for a table tree, alone or among the
-  commands, it points to `dsl.ruleset`, which turns one into commands.
+  commands, it points to `dsl.ruleset`, which turns one into commands, and
+  for a raw `nftables` command, which nft rejects, to `dsl.ruleset`, which
+  splices a ruleset's commands in place.
 */
 api: value:
 if isTableTree value || isRuleset value && builtins.any isTableTree value.nftables then
   fail api "got a dsl.table tree where a ruleset belongs; wrap it in dsl.ruleset [ … ]"
 else if !(isRuleset value) then
   fail api "expected a ruleset { nftables = [ … ]; }, got ${describe value}; build one with dsl.ruleset [ … ]"
+else if builtins.any (command: builtins.isAttrs command && command ? nftables) value.nftables then
+  fail api "got a ruleset { nftables = [ … ]; } nested among a ruleset's commands, which nft rejects; splice it in with dsl.ruleset [ … ]"
 else
   let
     cleaned = clean value;

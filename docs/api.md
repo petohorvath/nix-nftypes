@@ -40,11 +40,14 @@ arguments, a first argument that is not a schema type, and a table tree as
 the value throw a `nix-nftypes: validate:` error instead; expand a table tree
 with `dsl.ruleset [ … ]`.
 
-`dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
-nodes are expanded and validated; raw command attrsets are deliberately passed
-through as an escape hatch. Only the order of the commands is checked: a reset
-that nft would ignore throws (see [Commands](#commands)). A statement that a
-builder or match operator made is validated by it, inside a raw command too.
+`dsl.ruleset` takes a list of Table trees, rulesets, raw command attrsets, and
+nested lists of these. Table trees are expanded and validated, and a ruleset's
+commands are spliced in place, so `dsl.ruleset [ base extra ]` composes two
+rulesets; raw command attrsets are deliberately passed through as an escape
+hatch. A non-list argument or any other child throws, naming what it got. Only
+the order of the commands is checked: a reset that nft would ignore throws (see
+[Commands](#commands)). A statement that a builder or match operator made is
+validated by it, inside a raw command too.
 
 Table trees derive scope from nesting. Explicit `family` and `name` fields in a
 `dsl.table` body must match its positional arguments; `family`, `table`, and
@@ -541,9 +544,11 @@ and names itself in its errors, as in `nix-nftypes: toTextBlock: `.
 
 `toJson`, `toText`, and `toTextPretty` take only a ruleset,
 `{ nftables = [ … ]; }`, and throw on anything else. A lone command throws, and
-so does a `dsl.table` value passed alone or among the `nftables` commands; each
-error asks for `dsl.ruleset`. Build a ruleset with `dsl.ruleset [ … ]`, which
-takes commands and table trees and expands each tree into commands.
+so does a `dsl.table` value passed alone or among the `nftables` commands, and
+a ruleset nested among them, which nft rejects; each error asks for
+`dsl.ruleset`. Build a ruleset with `dsl.ruleset [ … ]`, which takes commands,
+Table trees, and rulesets, expands each tree into commands, and splices each
+ruleset's commands in place.
 
 These three renderers give a rule without `expr` the empty list: nft's JSON
 parser requires the key on a rule even where it ignores it, as for
@@ -556,7 +561,12 @@ Returns compact JSON via `builtins.toJSON`. Use the result with `nft -j -f`.
 ### `toText ruleset` and `toTextPretty ruleset`
 
 Render imperative nftables commands. The compact form minimizes whitespace;
-the pretty form uses readable multi-line blocks. Both are pure Nix.
+the pretty form uses readable multi-line blocks and puts a blank line where
+the commands move to another table. Both are pure Nix.
+
+Every line ends with a newline, the last included, so renders concatenate:
+`toText a + toText b` loads as both rulesets. An empty ruleset renders as
+`""`.
 
 ### `toTextBlock tableNode` and `toTextBlockPretty tableNode`
 
@@ -567,6 +577,9 @@ no block-form spelling and is omitted. A chain block lists its rules in order,
 so a rule `index` has no block-form spelling either, and is refused
 (`rule index`); order the rules in the list instead. Passing a full ruleset or
 a raw command is an error.
+
+Every declaration ends with a newline, the last included, and a table with no
+declarations renders as `""`.
 
 The JSON renderer is authoritative when JSON and text grammar capabilities
 differ. See [`text-coverage.md`](text-coverage.md).
