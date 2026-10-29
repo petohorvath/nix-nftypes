@@ -2662,21 +2662,21 @@ textDriftTests
   };
 
   testPriorityValueNatHooks = {
-    expr = map (hook: nftlib.compatibility.priorityValue "inet" hook.name hook.symbol) [
+    expr = map (placement: nftlib.compatibility.priorityValue "inet" placement.hook placement.symbol) [
       {
-        name = "prerouting";
+        hook = "prerouting";
         symbol = "dstnat";
       }
       {
-        name = "output";
+        hook = "output";
         symbol = "dstnat";
       }
       {
-        name = "input";
+        hook = "input";
         symbol = "srcnat";
       }
       {
-        name = "postrouting";
+        hook = "postrouting";
         symbol = "srcnat";
       }
     ];

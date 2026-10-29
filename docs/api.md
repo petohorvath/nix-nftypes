@@ -422,7 +422,8 @@ data`, `expr.payload protocol field`, `expr.prefix addr len`, and
 `table inet filter { … }` syntax. The rule covers `dsl` builders: the
 compatibility helpers look values up in the compatibility tables and take
 their three keys positionally, as in
-`compatibility.priorityValue family hook priority`. See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
+`compatibility.priorityValue family hook priority`.
+See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 
 ### Commands
 
@@ -571,8 +572,8 @@ placements and priorities up in them. The tables are:
   is `{ filter = -200; }`;
 - `hooksWithOifname`.
 
-`prioritiesByFamily` holds only what nft accepts, as `std_prio_family_hook_compat`
-in nftables' `src/rule.c` decides:
+`prioritiesByFamily` holds only what nft accepts, as
+`std_prio_family_hook_compat` in nftables' `src/rule.c` decides:
 
 | Family        | Symbols                                                                                                                       |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------- |

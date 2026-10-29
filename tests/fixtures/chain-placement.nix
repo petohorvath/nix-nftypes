@@ -42,7 +42,7 @@ let
 
   # The symbols of `std_prios` and `bridge_std_prios` in nftables
   # `src/rule.c`, written out so a symbol the tables miss is still probed.
-  prioritySymbolNames = [
+  nftPrioritySymbols = [
     "raw"
     "mangle"
     "dstnat"
@@ -52,7 +52,7 @@ let
     "out"
   ];
 
-  prioritySymbol = family: hook: symbol: {
+  prioritySymbolCase = family: hook: symbol: {
     name = "${family}-${hook}-${symbol}";
     inherit family hook symbol;
     text = ''
@@ -72,7 +72,7 @@ in
 
   prioritySymbols = lib.concatLists (
     lib.mapAttrsToList (
-      family: hooks: lib.concatMap (hook: map (prioritySymbol family hook) prioritySymbolNames) hooks
+      family: hooks: lib.concatMap (hook: map (prioritySymbolCase family hook) nftPrioritySymbols) hooks
     ) compatibility.hooksByFamily
   );
 }

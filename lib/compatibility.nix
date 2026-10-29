@@ -118,6 +118,17 @@ let
     ];
   };
 
+  # Every hook a family can expose, the hooks of `enums.hook`.
+  knownHooks = [
+    "prerouting"
+    "input"
+    "forward"
+    "output"
+    "postrouting"
+    "ingress"
+    "egress"
+  ];
+
   /*
     Per-chain-type kernel hook restriction. `filter` may attach at
     any hook the family exposes, so it lists every hook; `nat` is the
@@ -133,15 +144,7 @@ let
     registrations in `net/netfilter/nf_tables_api.c`.
   */
   hooksByChainType = {
-    filter = [
-      "prerouting"
-      "input"
-      "forward"
-      "output"
-      "postrouting"
-      "ingress"
-      "egress"
-    ];
+    filter = knownHooks;
     nat = [
       "prerouting"
       "input"
@@ -197,7 +200,7 @@ let
   */
   prioritiesByFamily =
     let
-      prioritiesAt = {
+      prioritiesAtByFamily = {
         ip = inetPrioritiesAt;
         ip6 = inetPrioritiesAt;
         inet = inetPrioritiesAt;
@@ -211,7 +214,7 @@ let
       builtins.listToAttrs (
         map (hook: {
           name = hook;
-          value = prioritiesAt.${family} hook;
+          value = prioritiesAtByFamily.${family} hook;
         }) hooks
       )
     ) hooksByFamily;
@@ -248,50 +251,47 @@ let
 
   # `value` when it is one of `valid`; otherwise a throw naming `caller`
   # and `what`, such as `"family"`, with its plural `whats`.
-  checkKnown =
+  knownOrThrow =
     caller: what: whats: valid: value:
     if builtins.isString value && builtins.elem value valid then
       value
     else
       fail caller "unknown ${what} ${describe value}" whats valid;
 
-  checkFamily = caller: checkKnown caller "family" "families" (builtins.attrNames hooksByFamily);
+  knownFamilies = builtins.attrNames hooksByFamily;
 
-  # The priority table of `hook` in `family`; a hook the family lacks
-  # throws, as nft rejects it.
-  prioritiesAt =
-    caller: family: hook:
+  /*
+    The int of `priority` at `hook` of `family`, and `name`, the symbol
+    nft accepts for it there, or null. An int passes through once the
+    hook's table is forced, so an unknown family or a hook the family
+    lacks throws for it too, as does a symbol nft rejects at the hook;
+    each throw names `caller`. When several symbols share a value (none
+    today), `attrNames` order decides.
+  */
+  lookupPriority =
+    caller: family: hook: priority:
     let
-      hooks = hooksByFamily.${checkFamily caller family};
+      hooks = hooksByFamily.${knownOrThrow caller "family" "families" knownFamilies family};
+      priorities =
+        if builtins.isString hook && builtins.elem hook hooks then
+          prioritiesByFamily.${family}.${hook}
+        else
+          fail caller "family '${family}' has no hook ${describe hook}" "hooks" hooks;
+      symbols = builtins.attrNames priorities;
+      value =
+        if builtins.isInt priority then
+          builtins.seq priorities priority
+        else if builtins.isString priority && priorities ? ${priority} then
+          priorities.${priority}
+        else
+          fail caller "family '${family}' has no priority ${describe priority} at hook '${hook}'" "priorities"
+            ([ "any int" ] ++ symbols);
+      matching = builtins.filter (symbol: priorities.${symbol} == value) symbols;
     in
-    if builtins.isString hook && builtins.elem hook hooks then
-      prioritiesByFamily.${family}.${hook}
-    else
-      fail caller "family '${family}' has no hook ${describe hook}" "hooks" hooks;
-
-  # The int of `priority` in `priorities`, the table of `hook` in
-  # `family`: an int passes through once `priorities` is forced, so an
-  # unknown family or hook throws for it too, and a symbol nft rejects
-  # there throws.
-  valueIn =
-    caller: family: hook: priorities: priority:
-    if builtins.isInt priority then
-      builtins.seq priorities priority
-    else if builtins.isString priority && priorities ? ${priority} then
-      priorities.${priority}
-    else
-      fail caller "family '${family}' has no priority ${describe priority} at hook '${hook}'" "priorities"
-        ([ "any int" ] ++ builtins.attrNames priorities);
-
-  # The symbol of `value` in `priorities`, or null if it has none. When
-  # several symbols share a value (none today), `attrNames` order
-  # decides.
-  nameIn =
-    priorities: value:
-    let
-      matching = builtins.filter (symbol: priorities.${symbol} == value) (builtins.attrNames priorities);
-    in
-    if matching == [ ] then null else builtins.head matching;
+    {
+      inherit value;
+      name = if matching == [ ] then null else builtins.head matching;
+    };
 
   /*
     priorityValue :: family -> hook -> (int | symbol) -> int
@@ -308,7 +308,7 @@ let
   */
   priorityValue =
     family: hook: priority:
-    valueIn "priorityValue" family hook (prioritiesAt "priorityValue" family hook) priority;
+    (lookupPriority "priorityValue" family hook priority).value;
 
   /*
     priorityName :: family -> hook -> (int | symbol) -> (symbol | int)
@@ -329,11 +329,9 @@ let
   priorityName =
     family: hook: priority:
     let
-      priorities = prioritiesAt "priorityName" family hook;
-      value = valueIn "priorityName" family hook priorities priority;
-      name = nameIn priorities value;
+      found = lookupPriority "priorityName" family hook priority;
     in
-    if name == null then value else name;
+    if found.name == null then found.value else found.name;
 
   /*
     validChainPlacement :: family -> chainType -> hook -> bool
@@ -355,11 +353,11 @@ let
     family: chainType: hook:
     let
       caller = "validChainPlacement";
-      knownFamily = checkFamily caller family;
+      knownFamily = knownOrThrow caller "family" "families" knownFamilies family;
       knownType =
-        checkKnown caller "chain type" "chain types" (builtins.attrNames familiesByChainType)
+        knownOrThrow caller "chain type" "chain types" (builtins.attrNames familiesByChainType)
           chainType;
-      knownHook = checkKnown caller "hook" "hooks" hooksByChainType.filter hook;
+      knownHook = knownOrThrow caller "hook" "hooks" knownHooks hook;
     in
     builtins.elem knownFamily familiesByChainType.${knownType}
     && builtins.elem knownHook hooksByFamily.${knownFamily}
@@ -392,8 +390,7 @@ let
   chainTypeFor =
     family: hook: priority:
     let
-      priorities = prioritiesAt "chainTypeFor" family hook;
-      name = nameIn priorities (valueIn "chainTypeFor" family hook priorities priority);
+      inherit (lookupPriority "chainTypeFor" family hook priority) name;
       classified =
         if name == "srcnat" || name == "dstnat" then
           "nat"
