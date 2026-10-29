@@ -15,21 +15,31 @@
   expandTable,
   resetOrder,
   statementBodiesByTag,
+  expressionBodiesByTag,
+  expressionBodies,
 }:
 
 let
   validate = import ./internal/validate.nix { inherit lib; };
-  # Statement builders validate each statement against its tag's body.
-  statement = import ./internal/statement.nix {
+  rename = import ./internal/rename.nix { inherit lib; };
+  # Statement and expression builders validate each value against its
+  # tag's body.
+  statement = import ./internal/builder.nix {
     inherit lib;
     bodiesByTag = statementBodiesByTag;
+    renames = rename.statement;
+  };
+  expression = import ./internal/builder.nix {
+    inherit lib;
+    bodiesByTag = expressionBodiesByTag;
+    namespace = [ "expr" ];
   };
 
   fields = import ./fields { inherit lib; };
   ops = import ./ops.nix { inherit lib statement; };
   verdicts = import ./verdicts.nix { inherit statement; };
-  exprs = import ./exprs.nix { inherit lib; };
-  payload = import ./payload.nix { inherit lib; };
+  exprs = import ./exprs.nix { inherit expression expressionBodies lib; };
+  payload = import ./payload.nix { inherit expression expressionBodies; };
   actions = import ./actions { inherit lib statement; };
   ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetOrder; };
   table = import ./structure/table.nix { inherit lib; };

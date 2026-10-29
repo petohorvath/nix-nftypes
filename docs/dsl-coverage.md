@@ -25,7 +25,7 @@ rendering `dsl.ruleset [...]` or calling `toTextBlock*`. Both paths share
 command expansion needs a flat list. Its prepared table shape stays private;
 block emission passes each chain's rules directly to the text spelling helper.
 Command builders validate their own bodies before wrapping them in commands,
-and statement builders validate the statements they build.
+and statement and expression builders validate the values they build.
 
 ## Covered surfaces
 
@@ -188,14 +188,17 @@ The mapping and the JSON-spelling check are centralized in
 ## Validation boundaries
 
 Not every value under `dsl` is validated at constructor call time. Nix is lazy,
-and expression constructors and Field leaves build attrsets unchecked.
-Validation occurs when a statement builder, a match operator, a command
-builder, or table preparation applies the matching schema body and the result
-is forced. A statement builder or match operator validates its statement, and
-the expressions in it, against the body `types.statement` takes for its tag.
-Its field errors are the module system's, whose option path starts with the
-builder, as in `dsl.log.level` or `dsl.eq.left`, and may name a field by its
-JSON spelling.
+and Field leaves are fixed attrsets, which the enum-extraction and parse
+checks cover. Validation occurs when a statement builder, a match operator, an
+expression builder, a command builder, or table preparation applies the
+matching schema body and the result is forced. A statement builder or match
+operator validates its statement, and the expressions in it, against the body
+`types.statement` takes for its tag, and an `expr` builder its expression
+against the body `types.expression` takes, so a nested expression is checked
+by each builder that holds it. `expr.setRef` checks its name itself. Field
+errors are the module system's, whose option path starts with the builder, as
+in `dsl.log.level`, `dsl.eq.left`, or `dsl.expr.ct.key`, and may name a field
+by its JSON spelling.
 
 `dsl.ruleset` also accepts raw command attrsets so callers can use parser forms
 not covered by the convenience API. Those raw children are passed through and

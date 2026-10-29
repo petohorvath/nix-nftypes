@@ -116,6 +116,7 @@ let
   # each table.
   missingEntryEdits = {
     byteUnit."statement.c" = "/^\t\"kbytes\",$/d";
+    ctDirKey."parser_json.c" = "/^\t\tNFT_CT_ZONE,$/d";
     ctKey."ct.c" = "/CT_TEMPLATE(\"secmark\",/d";
     expressionTag."parser_json.c" = "/{ \"osf\", json_parse_osf_expr,/d";
     family."parser_json.c" = "/{ \"netdev\", NFPROTO_NETDEV }/d";

@@ -2,8 +2,10 @@
   Token drift (docs/upstream-sync.md): tooling/extract-upstream-tokens.py
   reads the package set's patched nftables source and extracts its enum
   tables (family_tbl, rt_key_tbl, fib_result_tbl, meta_templates,
-  ct_templates, and data_unit, the byte units) and JSON dispatch tables
-  (stmt_parser_tbl, cb_tbl). Each `testEnumDrift_*` test compares one
+  ct_templates, and data_unit, the byte units), the ct keys
+  json_parse_ct_expr takes a direction for (ct_dir_keys, by their
+  ct_templates tokens), and JSON dispatch tables (stmt_parser_tbl,
+  cb_tbl). Each `testEnumDrift_*` test compares one
   model list with its table (tests/helpers/token-drift.nix; the byte
   units and a limit's rate units both check data_unit) and fails on a
   token only one side has. A token the parser accepts but the model lacks

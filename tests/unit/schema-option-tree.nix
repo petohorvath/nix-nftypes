@@ -81,6 +81,32 @@ let
     ];
   };
 
+  # Optional fields the body's own check needs: nft fails a FIB lookup
+  # without `saddr` or `daddr` among its flags, and an IPsec key without
+  # a direction.
+  requiredByCheck = [
+    "expressionBodies.fibBody.flags"
+    "expressionBodies.ipsecBody.dir"
+  ];
+
+  # For a field whose members the body's check accepts only beside
+  # another value, the body each member is tested in.
+  memberBodies = {
+    # A direction needs a key that takes one.
+    "expressionBodies.ctBody.dir" = dir: {
+      key = "saddr";
+      inherit dir;
+    };
+    # Any flag, beside the `saddr` a FIB lookup needs.
+    "expressionBodies.fibBody.flags" = flag: {
+      result = "oif";
+      flags = lib.unique [
+        flag
+        "saddr"
+      ];
+    };
+  };
+
   # Fields the generator can't handle, each with its reason.
   notGenerated = { };
 
@@ -89,14 +115,20 @@ let
   testsByField = map (
     field:
     lib.mapAttrs' (kind: test: lib.nameValuePair "test_${kind}_${field.path}" test) (
-      optionTree.fieldTests (field // { range = expectedRanges.${field.path} or null; })
+      optionTree.fieldTests (
+        field
+        // {
+          range = expectedRanges.${field.path} or null;
+          requiredByCheck = builtins.elem field.path requiredByCheck;
+        }
+      )
     )
   ) fields;
 
   memberTests = map (
     field:
     lib.mapAttrs' (member: test: lib.nameValuePair "test_member_${field.path}.${member}" test) (
-      optionTree.memberTests field
+      optionTree.memberTests (field // { memberBody = memberBodies.${field.path} or null; })
     )
   ) fields;
 
@@ -131,16 +163,16 @@ generatedTests
       fields = builtins.length fields;
     };
     expected = {
-      fields = 547;
+      fields = 546;
       body = 81;
-      wrongType = 547;
+      wrongType = 546;
       accepted = 170;
-      omitted = 197;
+      omitted = 196;
       lowest = 99;
       belowLowest = 99;
       highest = 8;
       aboveHighest = 8;
-      member = 452;
+      member = 450;
       enum = 193;
     };
   };

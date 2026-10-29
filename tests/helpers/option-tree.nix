@@ -322,11 +322,13 @@ in
     nix-unit tests for one field. `range` is the expected
     `[ lowest highest ]` of a `types.ints.between` field, from the
     caller's hand-written list, so a changed bound fails a test.
+    `requiredByCheck` is whether the body's own check needs the optional
+    field, as a FIB lookup needs its flags, also from a hand-written list.
 
     - wrongType: the body with the field set to a wrong value is
       rejected (for a tag: the tag with a wrong body).
-    - omitted: an optional field left out still validates, and the
-      field declares a null default.
+    - omitted: an optional field left out still validates, or fails
+      where `requiredByCheck`, and the field declares a null default.
     - lowest/highest/belowLowest/aboveHighest: the integer range.
   */
   fieldTests =
@@ -334,6 +336,7 @@ in
       field,
       option,
       range ? null,
+      requiredByCheck ? false,
       type,
       ...
     }:
@@ -364,11 +367,15 @@ in
       # default is what the option's documentation shows.
       omitted = {
         expr = {
-          validates = validates type (bodyWithout type field);
+          validates =
+            if requiredByCheck then
+              validates type (removeAttrs (bodyWithout type null) [ field ])
+            else
+              validates type (bodyWithout type field);
           default = option.default or "no default";
         };
         expected = {
-          validates = true;
+          validates = !requiredByCheck;
           default = null;
         };
       };
@@ -388,13 +395,17 @@ in
     nix-unit tests that a field accepts each member of the enums its type
     holds (under `nullOr`, `listOf`, `attrsOf` and `oneOf`), keyed by the
     member: `{ <member> = test; }`. Deleting a member drops its test, which
-    the caller's count pin sees.
+    the caller's count pin sees. `memberBody`, from the caller's
+    hand-written list, takes a member and returns the body to test it in,
+    for a field whose members the body's check accepts only beside another
+    value, as a ct direction needs a key that takes one.
   */
   memberTests =
     {
       field,
       option,
       type,
+      memberBody ? null,
       ...
     }:
     let
@@ -425,7 +436,9 @@ in
       map (member: {
         name = toString member.value;
         value = {
-          expr = validates type (withValue member.wrapped);
+          expr = validates type (
+            if memberBody == null then withValue member.wrapped else memberBody member.value
+          );
           expected = true;
         };
       }) (enumMembers 3 option.type)

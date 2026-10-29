@@ -380,19 +380,30 @@ let
     + lib.optionalString ((body.family or null) != null) "${safeToken "rt family" body.family} "
     + safeToken "rt key" body.key;
 
-  # Conntrack: `ct [<dir>] [<family>] <key>`. The dir/family clauses are
-  # optional and non-exclusive.
+  # The ct keys whose token holds a space: nft's text reads the family and
+  # the address key as one key (ct_templates).
+  ctFamilyAddressKeys = [
+    "ip saddr"
+    "ip daddr"
+    "ip6 saddr"
+    "ip6 daddr"
+  ];
+
+  # Conntrack: `ct [<dir>] <key>`. A key such as `ip saddr` carries its
+  # family. nft's JSON parser ignores a `family` field, while text would
+  # load it as part of the key, so it is refused (ADR 0010).
   renderCt =
     _ctx: body:
-    let
-      parts = [
-        "ct"
-      ]
-      ++ lib.optional ((body.dir or null) != null) (safeToken "ct dir" body.dir)
-      ++ lib.optional ((body.family or null) != null) (safeToken "ct family" body.family)
-      ++ [ (safeToken "ct key" body.key) ];
-    in
-    lib.concatStringsSep " " parts;
+    if (body.family or null) != null then
+      primitives.refuseJsonIgnored "ct family"
+    else
+      lib.concatStringsSep " " (
+        [ "ct" ]
+        ++ lib.optional ((body.dir or null) != null) (safeToken "ct dir" body.dir)
+        ++ [
+          (if builtins.elem body.key ctFamilyAddressKeys then body.key else safeToken "ct key" body.key)
+        ]
+      );
 
   renderNumgen =
     _ctx: body:

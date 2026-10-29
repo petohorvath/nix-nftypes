@@ -37,6 +37,7 @@ let
   # docs/spec-coverage.md for rtKey and fibResult.
   modelTokens = {
     byteUnit = "kbytes";
+    ctDirKey = "zone";
     ctKey = "secmark";
     expressionTag = "osf";
     family = "netdev";
@@ -110,6 +111,7 @@ lib.mapAttrs' (
       "control"
       "designatedEntries"
       "missingEntry_byteUnit"
+      "missingEntry_ctDirKey"
       "missingEntry_ctKey"
       "missingEntry_expressionTag"
       "missingEntry_family"

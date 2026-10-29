@@ -142,12 +142,23 @@ let
         family = "ip";
       };
       ip6Address.statement = matchWith "2001:db8::1";
+      ip6TableAddress = ip6Address // {
+        family = "ip6";
+      };
     in
     {
       "ct.event".statement = setOnly "new";
-      # nft's JSON parser ignores a ct expression's `family`, so the
-      # table's family sets the address type.
+      # A ct address key without a family in its name takes the table's;
+      # nft refuses one in an inet table ("use ip saddr or ip6 saddr
+      # instead").
       "ct.saddr" = ip4TableAddress;
+      "ct.daddr" = ip4TableAddress;
+      "ct.ip saddr" = ip4TableAddress;
+      "ct.ip daddr" = ip4TableAddress;
+      "ct.ip6 saddr" = ip6TableAddress;
+      "ct.ip6 daddr" = ip6TableAddress;
+      "ct.proto-src".family = "ip";
+      "ct.proto-dst".family = "ip";
       # A secmark is copied between the packet and its connection.
       "ct.secmark".statement = dsl.mangle { meta.key = "secmark"; };
       "ipsec.saddr" = ip4Address;

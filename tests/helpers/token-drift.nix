@@ -1,7 +1,7 @@
 /*
   Compares the tokens tooling/extract-upstream-tokens.py reads from the
-  patched nftables source with the model's token lists: the enums and the
-  statement and expression tags. Takes the model lists and the extracted
+  patched nftables source with the model's token lists: the enums, the
+  ct keys that take a direction, and the statement and expression tags. Takes the model lists and the extracted
   tables, `{ <table> = [ <token> … ]; }`, and returns per model list the
   tokens only one side has, beyond the documented `modelOnly` extras.
   Every list is empty when the model and the source agree.
@@ -9,6 +9,17 @@
 { lib, nftlib }:
 let
   tagsOf = union: builtins.attrNames union.functor.payload.tags;
+
+  # The ct keys the ct body takes a direction for, as the schema decides.
+  ctDirKeys = builtins.filter (
+    key:
+    (builtins.tryEval (
+      nftlib.validate nftlib.types.expressionBodies.ctBody {
+        inherit key;
+        dir = "original";
+      }
+    )).success
+  ) nftlib.enums.ctKey;
 
   # The model's token list for each source-checked table.
   models = {
@@ -21,6 +32,7 @@ let
       metaKey
       rtKey
       ;
+    ctDirKey = ctDirKeys;
     expressionTag = tagsOf nftlib.types.taggedExpression;
     statementTag = tagsOf nftlib.types.statement;
   };

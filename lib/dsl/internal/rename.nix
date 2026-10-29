@@ -32,7 +32,7 @@
     which ./rule-body.nix checks further before renaming it.
   - `statement name location attrs`: check and rename the body of the
     statement builder `dsl.<name>`, such as `log` or `snat`
-    (./statement.nix). A builder without renames takes `attrs` unchanged.
+    (./builder.nix). A builder without renames takes `attrs` unchanged.
 */
 { lib }:
 

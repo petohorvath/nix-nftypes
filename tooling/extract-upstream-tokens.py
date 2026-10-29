@@ -6,8 +6,9 @@ from the patched nftables source.
 Token drift check in the nixpkgs-source pipeline (see
 docs/upstream-sync.md). Extracts the accepted tokens of the cleanly
 structured C tables in the selected package set's patched nftables source
-tree: the primitive enums the JSON parser reads from a table, and the
-statement and expression dispatch tables. The enum extraction suite
+tree: the primitive enums the JSON parser reads from a table, the ct keys
+it takes a direction for, and the statement and expression dispatch
+tables. The enum extraction suite
 (tests/integration/nftables-enum-extraction.nix) compares each table with the
 model's list; this script only reads the source. The byte units come from
 `data_unit`, the table nft lists them from; the JSON parser's
@@ -38,6 +39,9 @@ import sys
 #   "macro"   the template macro, for the "template" shape only
 #   "member"  the struct member holding the token, for the "pair" and
 #             "template" shapes; "designated" and "strings" take none
+#   "resolve" for the "enumRefs" shape only, the "template" table that
+#             names each enum constant: its "file", "symbol", "macro",
+#             and "member"
 #   "floor"   the token count at the locked nixpkgs, so losing a single
 #             entry fails the extraction
 #
@@ -59,6 +63,9 @@ import sys
 #                   ct_templates)
 #   "strings"       a string array, `{ "name", …, NULL }`: take each string
 #                   literal. (data_unit)
+#   "enumRefs"      an array of enum constants, `{ NFT_CT_SRC, … }`: take
+#                   each constant's token from the "resolve" table, whose
+#                   entries are indexed by the constants. (ct_dir_keys)
 REGISTRY = {
     "family": {
         "file": "src/parser_json.c",
@@ -95,6 +102,20 @@ REGISTRY = {
         "macro": "CT_TEMPLATE",
         "member": "token",
         "floor": 24,
+    },
+    # The ct keys json_parse_ct_expr takes a direction for: the enum
+    # constants of ct_key_is_dir's local table, by their ct_templates token.
+    "ctDirKey": {
+        "file": "src/parser_json.c",
+        "symbol": "ct_dir_keys",
+        "shape": "enumRefs",
+        "resolve": {
+            "file": "src/ct.c",
+            "symbol": "ct_templates",
+            "macro": "CT_TEMPLATE",
+            "member": "token",
+        },
+        "floor": 14,
     },
     # The byte units, which also check the model's limit rate units:
     # those add `packets`, which the parsers test for by name
@@ -150,7 +171,19 @@ def designated_member(member):
     return r"\." + re.escape(member) + r'\s*=\s*"([^"]*)"'
 
 
-def tokens_from_block(block, spec):
+def template_tokens_by_index(block, spec):
+    """Map each `[ENUM]` index of a "template" table to its token."""
+    entry = re.compile(
+        r"\[\s*([A-Z][A-Z0-9_]*)\s*\]\s*=\s*(?:"
+        + re.escape(spec["macro"])
+        + r'\(\s*"([^"]*)"|\{[^{}]*?'
+        + designated_member(spec["member"])
+        + r")"
+    )
+    return {m.group(1): m.group(2) or m.group(3) for m in entry.finditer(block)}
+
+
+def tokens_from_block(block, spec, read):
     shape = spec["shape"]
     if shape == "pair":
         # Each `{ … }` entry: its leading string, else its designated member.
@@ -177,6 +210,21 @@ def tokens_from_block(block, spec):
     if shape == "strings":
         # Each string literal; the closing NULL has none.
         return re.findall(r'"([^"]*)"', block)
+    if shape == "enumRefs":
+        # Each enum constant, by the token its "resolve" table gives it.
+        resolve = spec["resolve"]
+        by_index = template_tokens_by_index(
+            extract_block(read(resolve["file"]), resolve["symbol"]), resolve
+        )
+        tokens = []
+        for constant in re.findall(r"\b([A-Z][A-Z0-9_]*)\b", block):
+            if constant not in by_index:
+                raise LookupError(
+                    f"{spec['symbol']} names {constant}, which "
+                    f"{resolve['symbol']} gives no token"
+                )
+            tokens.append(by_index[constant])
+        return tokens
     raise ValueError(f"unknown shape '{shape}'")
 
 
@@ -194,7 +242,9 @@ def extract(src_root):
     for name, spec in sorted(REGISTRY.items()):
         block = extract_block(read(spec["file"]), spec["symbol"])
         # Filter empties (placeholder template slots) and dedupe, order-stable.
-        tokens = list(dict.fromkeys(t for t in tokens_from_block(block, spec) if t))
+        tokens = list(
+            dict.fromkeys(t for t in tokens_from_block(block, spec, read) if t)
+        )
         if len(tokens) < spec["floor"]:
             raise LookupError(
                 f"{spec['symbol']} yielded {len(tokens)} token(s), below its "
