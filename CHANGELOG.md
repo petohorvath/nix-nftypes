@@ -4,9 +4,126 @@ All notable changes to nix-nftypes will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0]
+## [0.2.0] - 2026-10-29
 
 The schema accepts what nft loads as written and rejects what it loads as something else ([ADR 0010](docs/adr/0010-accept-what-nft-loads-as-written.md)), the text renderer writes text that loads the same ruleset as the JSON form, or raises a Refusal, and the DSL follows one set of naming and argument conventions ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). Many of these changes break callers of the DSL, the schema types, and the text renderer.
+
+### Upgrading from 0.1.0
+
+Each row gives a 0.1.0 name or form and what replaces it in 0.2.0. The entries under Changed and Removed give the reasons. Names removed without a replacement, such as the builders of commands nft rejects or mishandles, are listed under Removed only.
+
+DSL builders:
+
+| 0.1.0                                                                                | 0.2.0                                                                  |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| `flushRuleset`, the bare `flush`                                                     | `flush.ruleset { }`                                                    |
+| `flushTable`, `flushChain`, `flushSet`, `flushMap`, `flushMeter`                     | `flush.table`, `flush.chain`, `flush.set`, `flush.map`, `flush.meter`  |
+| `rule body`                                                                          | `add.rule body`                                                        |
+| `insert body`, `replace body`                                                        | `insert.rule body`, `replace.rule body`                                |
+| `reset expression`, the statement                                                    | `resetStmt expression`                                                 |
+| `last`                                                                               | `last.auto`                                                            |
+| `lastUsed used`                                                                      | `last { used = …; }`                                                   |
+| `within`                                                                             | `inSet`                                                                |
+| `match.eq`, `match.ne`, `match.lt`, `match.gt`, `match.le`, `match.ge`               | `eq`, `ne`, `lt`, `gt`, `le`, `ge`                                     |
+| `match.in_`                                                                          | `hasAnyFlag`                                                           |
+| `match.raw`                                                                          | the raw `{ match = { op; left; right; }; }`                            |
+| `payload`, `payloadRaw`, `payloadTunnel`                                             | `expr.payload`, `expr.payloadRaw`, `expr.payloadTunnel`                |
+| `expr.map { key; data; }`                                                            | `expr.map key data`                                                    |
+| `expr.mapRef "m"`                                                                    | `"m"`, in `expr.map` and `vmap`                                        |
+| `expr.bitand`, `bitor`, `bitxor`, `lshift`, `rshift`                                 | `expr.bitAnd`, `bitOr`, `bitXor`, `shiftLeft`, `shiftRight`            |
+| `expr.meta "mark"`, `expr.socket "mark"`                                             | `fields.meta.mark`, `fields.socket.mark`                               |
+| `expr.ct { key = "mark"; }`, and `expr.rt` or `expr.osf` with only a `key`           | `fields.ct.mark`, and the `fields.rt` or `fields.osf` leaf             |
+| `log.plain`, `queue.plain`, `reject.plain`, `masquerade.plain`, `redirect.plain`     | `log { }`, `queue { }`, `reject { }`, `masquerade { }`, `redirect { }` |
+| `reject.icmpx "admin-prohibited"`, and likewise `reject.icmp` and `reject.icmpv6`    | `reject { type = "icmpx"; code = "admin-prohibited"; }`                |
+| `reject.tcpReset`                                                                    | `reject { type = "tcp reset"; }`                                       |
+| `flow { flowtable = "ft"; }`                                                         | `flow "ft"`                                                            |
+| `ctHelper "ftp"`, and likewise `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` | `ctHelper.ref "ftp"`                                                   |
+| `stmt` in `expr.elem` and in an element                                              | `statements` in the set or map body                                    |
+
+DSL field names:
+
+| 0.1.0                                                                                      | 0.2.0                   |
+| ------------------------------------------------------------------------------------------ | ----------------------- |
+| `rate_unit`, `burst_unit` in `limit`                                                       | `rateUnit`, `burstUnit` |
+| `val_unit`, `used_unit` in `quota`                                                         | `valUnit`, `usedUnit`   |
+| `type_flags` in `snat` and `dnat`                                                          | `typeFlags`             |
+| a rule's `expr`, in `add.rule`, `insert.rule`, `replace.rule`, and a Table-tree rule entry | `statements`            |
+| `stmt` in `setStmt`, `mapStmt`, and a set or map body                                      | `statements`            |
+| `stmt` in `meter`                                                                          | `statement`             |
+| `elem` in `setStmt`                                                                        | `element`               |
+| `elem` in `mapStmt`                                                                        | `key`                   |
+| `map` in a map body                                                                        | `dataType`              |
+| `newname` in `rename.chain`                                                                | `newName`               |
+| `expr` in `reject`                                                                         | `code`                  |
+
+Table trees:
+
+| 0.1.0                                    | 0.2.0                                                                        |
+| ---------------------------------------- | ---------------------------------------------------------------------------- |
+| `elements.s = { elements = [ … ]; }`     | `sets.s.elements = [ … ]`, or `add.element` for a set defined elsewhere      |
+| a rule entry's `index`                   | the entry's position in `rules`, or `add.rule` or `insert.rule` with `index` |
+| `prio = resolvePriority "inet" "filter"` | `prio = "filter"`, which the DSL resolves for the chain's family and hook    |
+| the `__nftTable = true` marker           | `_type = "nix-nftypes.tableTree"`, which `dsl.table` sets                    |
+
+Field leaves:
+
+| 0.1.0                                                                        | 0.2.0                                                                      |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `fields.tunnelMeta`                                                          | `fields.tunnel`                                                            |
+| `fields.udplite.cksumcov`                                                    | `fields.udplite.csumcov`                                                   |
+| `fields.arp.saddr`, `fields.arp.daddr`                                       | `fields.arp.saddrEther` or `saddrIp`, `fields.arp.daddrEther` or `daddrIp` |
+| `fields.icmpv6.packetTooBig`                                                 | `fields.icmpv6.mtu`                                                        |
+| `fields.meta.ibriport`, `obriport`, `secpath`                                | `fields.meta.ibrname`, `obrname`, `ipsec`                                  |
+| `fields.ct.count`                                                            | the `ctCount` statement                                                    |
+| `fields.ct.saddr`, `daddr`, `proto-src`, `proto-dst`, `protoSrc`, `protoDst` | `expr.ct { key = "saddr"; dir = "original"; }`                             |
+| `fields.fib.*`                                                               | `expr.fib { result = "oif"; flags = [ "saddr" "iif" ]; }`                  |
+| `fields.ipsec.*`                                                             | `expr.ipsec { key = "reqid"; dir = "in"; }`                                |
+
+Compatibility helpers:
+
+| 0.1.0                                                                                    | 0.2.0                                                                                                            |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `resolvePriority family priority`                                                        | `compatibility.priorityValue family hook priority`                                                               |
+| `priorityNameOf family priority`                                                         | `compatibility.priorityName family hook priority`                                                                |
+| `validChainPlacement`                                                                    | `compatibility.validChainPlacement`                                                                              |
+| `compatibility.priorityIntsByFamily family`, `priorityIntsDefault`, `priorityIntsBridge` | `compatibility.prioritiesByFamily.<family>.<hook>`                                                               |
+| `chainTypeFor`, `compatibility.hooksWithOifname`                                         | a copy in the caller's code, built on `compatibility.prioritiesByFamily` and `compatibility.validChainPlacement` |
+
+Schema types, in `types` and, for an enum, in `enums` too:
+
+| 0.1.0                                                                                                                    | 0.2.0                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.expressions`, `types.statements`, `types.objects`                                                                 | `types.expressionBodies`, `types.statementBodies`, `types.objectBodies`                                                               |
+| `types.objects.<kind>ObjectBody`, such as `setObjectBody`                                                                | `types.objectBodies.<kind>Body`, such as `setBody`                                                                                    |
+| `types.objects.tunnelVxlanNested`, `tunnelErspanV1Nested`, `tunnelErspanV2Nested`, `tunnelGeneveOpt`, `tunnelNestedBody` | `types.objectBodies.tunnelVxlanBody`, `tunnelErspanV1Body`, `tunnelErspanV2Body`, `tunnelGeneveOptionBody`, `tunnelEncapsulationBody` |
+| `types.objects.rulesetBody`                                                                                              | `types.objectBodies.flushRulesetBody`                                                                                                 |
+| `types.objects.table`, `chain`, and the other single-tag object types                                                    | a command's object union, such as `types.addObject` or `types.readBackObject`                                                         |
+| `types.statements.counterRefOrBody`, `quotaRefOrBody`, `limitRefOrBody`, `ctCountRefOrBody`                              | `types.statementBodies.counterBody`, `quotaBody`, `limitBody`, `ctCountBody`                                                          |
+| `types.statements.synproxyStatementBody`, `synproxyAnonBody`                                                             | `types.statementBodies.synproxyBody`                                                                                                  |
+| `types.statements.setStatementBody`, `mapStatementBody`                                                                  | `types.statementBodies.setBody`, `mapBody`                                                                                            |
+| `types.expressions.tunnelExprBody`                                                                                       | `types.expressionBodies.tunnelBody`                                                                                                   |
+| `types.expressions.rawPayloadBody`, `namedPayloadBody`, `tunnelPayloadBody`                                              | `types.expressionBodies.payloadRawBody`, `payloadNamedBody`, `payloadTunnelBody`                                                      |
+| `types.expressions.rawTcpOptionBody`, `namedTcpOptionBody`                                                               | `types.expressionBodies.tcpOptionRawBody`, `tcpOptionNamedBody`                                                                       |
+| `types.matchStatement`                                                                                                   | `types.statementOf [ "match" ]`                                                                                                       |
+| `types.taggedExpression`                                                                                                 | `types.expression`                                                                                                                    |
+| `types.nftQuotedString`                                                                                                  | `types.comment`                                                                                                                       |
+| `xfrmKey`, `xfrmDir`                                                                                                     | `ipsecKey`, `ipsecDirection`                                                                                                          |
+| `ngMode`                                                                                                                 | `numgenMode`                                                                                                                          |
+| `perUnit`                                                                                                                | `timeUnit`                                                                                                                            |
+| `policy`                                                                                                                 | `chainPolicy`                                                                                                                         |
+| `operator`                                                                                                               | `matchOperator`                                                                                                                       |
+| `setOp`, `flowOp`                                                                                                        | `setOperator`, `flowOperator`                                                                                                         |
+| `tcpUdpProto`                                                                                                            | `tcpUdpProtocol`                                                                                                                      |
+| `limitUnit`                                                                                                              | `limitRateUnit` for a limit's rate, `byteUnit` for the other unit fields                                                              |
+
+Renderers and validation:
+
+| 0.1.0                                | 0.2.0                                                 |
+| ------------------------------------ | ----------------------------------------------------- |
+| `toJson command`, a lone command     | `toJson (dsl.ruleset [ command ])`                    |
+| `toNix value`                        | `lib.generators.toPretty { multiline = true; } value` |
+| `cleanValue value`                   | the renderers, which clean their input                |
+| `lib.evalModules` over a schema type | `validate type value`                                 |
 
 ### Added
 
@@ -15,7 +132,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Sets and maps accept a `comment`, so `types.ruleset` validates the Read-back of a commented set or map. nft's JSON parser ignores it on input.
 - ct helper, timeout, and expectation objects accept `l3proto = "inet"`, which nft lists for one in an inet table. Their `l3proto` has its own type, `types.ctL3Protocol`, with values under `enums.ctL3Protocol`.
 - `types.deleteObject` and `types.destroyObject`, the object unions of `delete` and `destroy` commands, and `types.readBackObject`, a bare listed object in a ruleset, as `nft -j list` emits.
-- `types.insertObject`, `types.replaceObject`, and `types.renameObject`, the object unions of `insert`, `replace`, and `rename` commands.
+- `types.insertObject`, `types.replaceObject`, and `types.renameObject`, the object unions of `insert`, `replace`, and `rename` commands, and the bodies they take, `types.objectBodies.insertRuleBody`, `replaceRuleBody`, and `renameChainBody`.
 - `list.ruleset`, beside `flush.ruleset`: `list.ruleset { }` lists every table, and `list.ruleset { family = "ip"; }` one family's. `types.listObject` takes `ruleset`, whose body is `types.objectBodies.listRulesetBody`.
 - `types.tunnelErspanDirection` and `enums.tunnelErspanDirection`, the capture directions `ingress` and `egress` of an ERSPAN version 2 tunnel's `dir`, which took an unnamed enum.
 - `types.expressionBodies.elemReadBackBody`, an element as Read-back lists it, with the statement keys nft lists beside `val`: `counter`, `quota`, `limit`, and `last`. `types.readBackObject` takes it for the elements of a listed set, map, element, or rule, anonymous sets included, so `types.ruleset` validates the Read-back of a set whose elements carry stateful statements. Input commands and `types.expression` take `elemBody`, which rejects those keys, since nft's JSON parser ignores them on input and loads the element without its counter.
@@ -137,6 +254,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - The `tests` flake output comes from nix-unit's flake-parts module: the evaluation-only suites are `tests.systems.<system>.unit`, with kebab-case suite names, instead of top-level suites. Run `nix-unit --flake .#tests.systems.<system>.unit`.
 - The repo formats and lints itself through `nix fmt` and the `treefmt` check, from treefmt-nix's flake-parts module.
 - The development-only inputs, `nix-unit` and `treefmt-nix`, are in `dev/flake.nix`, with their own lock file, so consumers' lock files record neither.
+- The MIT license names the nix-nftypes contributors as the copyright holder, as every devnix-labs repository names its own contributors. It named Peter Horvath and the nix-nftypes contributors.
 - Command builders return only the fields they were given, renamed to JSON keys, as table trees and statement builders do: `add.limit { family = "inet"; table = "t"; name = "l"; rate = 10; per = "second"; }` returns those five fields under `add.limit`. They returned every unset field as `null`, such as `burst = null;` and `comment = null;`, and a rule's unset `expr` as `[ ]`, so `delete.rule` and `destroy.rule` now hold no `expr`; the renderers fill it. Rendered output is unchanged; code that reads a builder's value sees no `null` fields.
 - `toJson`, `toText`, and `toTextPretty` take only a ruleset, `{ nftables = [ … ]; }`, and throw on anything else, naming the renderer: wrap a lone command in `dsl.ruleset`, as in `toJson (dsl.ruleset [ (add.table { family = "inet"; name = "t"; }) ])`. `toJson` rendered a lone command as a bare `{"add":…}`, which `nft -j -f` rejects, and the text renderers threw only without an `nftables` key. `{ }` is not a ruleset either, and `validate types.ruleset { }` returns it unchanged: write `dsl.ruleset [ ]` or `{ nftables = [ ]; }` for an empty ruleset.
 - The data of a map lookup and of a vmap rejects a bare list, in `types.expression`, `types.statement`, `types.expressionBodies.mapBody`, and `types.statementBodies.vmapBody`. nft rejects the bare list with "invalid mapping expression list"; write the anonymous map `{ set = [ … ]; }`.
@@ -144,9 +262,8 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `toTextPretty` puts a blank line where its commands move to another table, and between a command outside any table, such as `flush ruleset`, and a table's commands.
 - A body takes `handle` only where nft reads it: in Read-back, a Selector, `insert.rule`, and `replace.rule` ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). Every `add` and `create` body, `rename.chain`, and every Table-tree body, the table's own included, rejects one, in `validate`, the command builders, and `dsl.table` alike, and the error points to Read-back: `nix-nftypes: dsl.add.table: handle: nft ignores a handle on add, create, and rename, …`. nft ignores a handle there, so `add.table { family = "inet"; name = "t"; handle = 4; }` validated, kept its handle in JSON, and lost it in text. The add and create bodies in `types.objectBodies`, such as `tableBody` and `chainBody`, and `renameChainBody` declare no `handle`; `types.readBackObject` keeps it on every kind.
 - Every stateful object Reference, of `counter`, `quota`, `limit`, `ct count`, `synproxy`, `ct helper`, `ct timeout`, `ct expectation`, `secmark`, and `tunnel`, takes only a name or a map expression, in `types.statement` and `types.statementBodies.objectRefBody` and `synproxyBody`. The last six took any expression, so `{ "ct helper" = 5; }`, `{ synproxy = 5; }`, and `{ secmark = true; }` validated, as `{ quota = 5; }` did not. nft rejects a boolean and loads a number as the name of an object, `"5"`, so write the name as a string ([ADR 0010](docs/adr/0010-accept-what-nft-loads-as-written.md)).
-- The reset statement takes only a TCP option, the one expression nft's parser strips: `types.statementBodies.resetBody` is `expressionOf [ "tcp option" ]`, and `resetStmt (expr.ct { key = "mark"; })` throws, naming `dsl.resetStmt.ct`. It took any expression, which nft rejects with "Illegal TCP optstrip argument". Its errors name the expression's tag, such as `dsl.resetStmt."tcp option"`, instead of `dsl.resetStmt.value`.
+- The reset statement takes only a TCP option, the one expression nft's parser strips: `types.statementBodies.resetBody` is `expressionOf [ "tcp option" ]`, and `resetStmt fields.ct.mark` throws, naming `dsl.resetStmt.ct`. It took any expression, which nft rejects with "Illegal TCP optstrip argument". Its errors name the expression's tag, such as `dsl.resetStmt."tcp option"`, instead of `dsl.resetStmt.value`.
 - A flowtable's `hook` takes only `ingress`, typed by `types.flowtableHook`, in `types.objectBodies.flowtableBody`, `add.flowtable`, `create.flowtable`, and a table tree's `flowtables`. It took any chain hook, and nft rejects every other with "invalid hook", whatever the table's family.
-
 - Type names spell their words out, as ADR 0009 requires, in `types` and `enums` alike: `operator` is `matchOperator`, `setOp` is `setOperator`, `flowOp` is `flowOperator`, and `tcpUdpProto` is `tcpUdpProtocol`. The fields they type keep nft's words, such as `op` and `protocol`.
 - `types.objectBodies.tunnelNestedBody` is `tunnelEncapsulationBody`, named for what a tunnel's `tunnel` field holds.
 - A value outside `types.statementOf` or `types.expressionOf` fails with the restricted type's description, such as `statement (one of: "match")`. The module system rebuilds a type an option declares, which dropped the description, so the error read `attribute-tagged union with choices: match`.
@@ -184,7 +301,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - The `.plain` variants of `log`, `queue`, `reject`, `masquerade`, and `redirect`. Use the empty body, for example `log { }`.
 - Command builders for commands nft rejects: `list.rule`, `list.element`, `list.flowtable`, `list.synproxy`, `list.metainfo`, `list.ctCount`, and `reset.rule`, whose JSON form fails with "Operation not supported".
 - Command builders for commands nft mishandles: `delete.ctExpectation` and `destroy.ctExpectation` (they delete the whole table), `list.ctExpectation` (it lists the table), `delete.ctTimeout`, `destroy.ctTimeout`, and `list.ctTimeout`, and `delete.ctCount` and `destroy.ctCount` (nftables 1.1.7 aborts). The [schema coverage](docs/spec-coverage.md#commands-nft-mishandles) lists each misbehaviour.
-- Tunnel builders: `add.tunnel`, `create.tunnel`, `delete.tunnel`, `destroy.tunnel`, `list.tunnel`, and the table-tree `tunnels` kind. nft mishandles each tunnel command; see the [schema coverage](docs/spec-coverage.md#commands-nft-mishandles).
+- Tunnel builders: `create.tunnel`, `delete.tunnel`, `destroy.tunnel`, `list.tunnel`, and the table-tree `tunnels` kind. nft mishandles each tunnel command; see the [schema coverage](docs/spec-coverage.md#commands-nft-mishandles).
 
 ### Fixed
 
@@ -263,5 +380,5 @@ Known limits:
 - Text output cannot represent every value that JSON can; [`docs/text-coverage.md`](docs/text-coverage.md) records the gaps.
 - The compatibility helpers check only the static tables. They do not inspect kernel versions, modules, devices, or runtime state, so an `inet` or `netdev` ingress chain that `validChainPlacement` accepts can still require `dev`.
 
-[0.2.0]: https://github.com/petohorvath/nix-nftypes/compare/v0.1.0...HEAD
+[0.2.0]: https://github.com/petohorvath/nix-nftypes/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/petohorvath/nix-nftypes/releases/tag/v0.1.0
