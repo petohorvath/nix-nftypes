@@ -281,12 +281,12 @@ let
     the `table <family> <name> { … }` wrapper. `table` is the table
     module's cleaned `{ body, chains, objects }`, with each chain's rules
     beside its body. Returns the table's options, then its chain blocks
-    with their rules, then its objects, joined by newlines. Every block
-    form Refusal is raised here or in the renderers it calls.
+    with their rules, then its objects, each ending with a newline. Every
+    block form Refusal is raised here or in the renderers it calls.
   */
   renderTableBlock =
     ctx: table:
-    lib.concatStringsSep "\n" (
+    lib.concatMapStrings (declaration: "${declaration}\n") (
       map (line: "${line};") (renderTableBody ctx table.body)
       ++ map (chain: renderChainBlock ctx chain.body chain.rules) table.chains
       ++ map (object: renderObject ctx object.kind object.body) table.objects

@@ -94,7 +94,7 @@ let
     name = name: "testTextQuotes_${name}";
     value = prefix: {
       expr = toText (rawRule prefix);
-      expected = ''add rule inet t c log prefix "${prefix}"'';
+      expected = "add rule inet t c log prefix \"${prefix}\"\n";
     };
   };
 in

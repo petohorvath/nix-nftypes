@@ -193,7 +193,7 @@ in
         handle = 7;
       }
     );
-    expected = "flags dormant;\ncomment \"table\";";
+    expected = "flags dormant;\ncomment \"table\";\n";
   };
 
   testTableFlagsAndCommentStayInBlockPretty = {
@@ -209,7 +209,8 @@ in
       comment "table";
       chain input {
         type filter hook input priority 0;
-      }'';
+      }
+    '';
   };
 
   testInvalidChainPriorityRejected = {
@@ -295,7 +296,8 @@ in
       set interfaces {
         type ifname;
         elements = { "eth0,eth1", "010" };
-      }'';
+      }
+    '';
   };
 
   testUnsafeIfnameElementRefusedPretty = {
@@ -313,7 +315,7 @@ in
   # ---- chain only (base chain, no rules) -----------------------------
   testBaseChainNoRulesCompact = {
     expr = toTextBlock (dsl.table "inet" "fw" { chains.input = baseChain; });
-    expected = "chain input { type filter hook input priority 0; }";
+    expected = "chain input { type filter hook input priority 0; }\n";
   };
 
   testBaseChainNoRulesPretty = {
@@ -321,7 +323,8 @@ in
     expected = ''
       chain input {
         type filter hook input priority 0;
-      }'';
+      }
+    '';
   };
 
   # ---- chain with rules (rules become inline statements) -------------
@@ -337,7 +340,7 @@ in
         };
       }
     );
-    expected = "chain input { type filter hook input priority 0; policy drop; accept; drop; }";
+    expected = "chain input { type filter hook input priority 0; policy drop; accept; drop; }\n";
   };
 
   testChainWithRulesPretty = {
@@ -358,7 +361,8 @@ in
         policy drop;
         accept;
         drop;
-      }'';
+      }
+    '';
   };
 
   # ---- rule with comment ---------------------------------------------
@@ -379,7 +383,8 @@ in
       chain input {
         type filter hook input priority 0;
         accept comment "allow";
-      }'';
+      }
+    '';
   };
 
   testMatchingScopeAndCleanedRule = {
@@ -409,7 +414,7 @@ in
         };
       }
     );
-    expected = "chain input { counter packets 1 bytes 2 accept comment \"allow\"; }";
+    expected = "chain input { counter packets 1 bytes 2 accept comment \"allow\"; }\n";
   };
 
   # ---- set / map / counter (block-form decls, no add prefix) ---------
@@ -422,7 +427,7 @@ in
         };
       }
     );
-    expected = "set lan_v4 { type ipv4_addr; flags interval; }";
+    expected = "set lan_v4 { type ipv4_addr; flags interval; }\n";
   };
 
   testSetBlockPretty = {
@@ -438,7 +443,8 @@ in
       set lan_v4 {
         type ipv4_addr;
         flags interval;
-      }'';
+      }
+    '';
   };
 
   testCounterBlockCompact = {
@@ -447,7 +453,7 @@ in
         counters.hits = { };
       }
     );
-    expected = "counter hits { }";
+    expected = "counter hits { }\n";
   };
 
   # Regression: pre-fix emitted `accept; accept }`, which `nft -f`
@@ -463,7 +469,7 @@ in
         };
       }
     );
-    expected = "chain forward { type filter hook forward priority 0; accept; accept; }";
+    expected = "chain forward { type filter hook forward priority 0; accept; accept; }\n";
   };
 
   # Same regression for sibling decls inside the table block.
@@ -479,7 +485,7 @@ in
         };
       }
     );
-    expected = "chain input { type filter hook input priority 0; accept; }\nset lan_v4 { type ipv4_addr; flags interval; }";
+    expected = "chain input { type filter hook input priority 0; accept; }\nset lan_v4 { type ipv4_addr; flags interval; }\n";
   };
 
   # ---- mixed children at the same indent level -----------------------
@@ -503,7 +509,8 @@ in
       set lan_v4 {
         type ipv4_addr;
         flags interval;
-      }'';
+      }
+    '';
   };
 
   # ---- multiple chains, rules grouped by chain -----------------------
@@ -526,17 +533,18 @@ in
       chain output {
         type filter hook output priority 0;
         drop;
-      }'';
+      }
+    '';
   };
 
   testReferencesAndOrderingCompact = {
     expr = toTextBlock referencedTable;
-    expected = lib.concatStringsSep "\n" [
-      "chain input { type filter hook input priority 0; tcp dport vmap @dispatch; }"
-      "chain service { ip saddr == @trusted counter name \"hits\" accept; drop; }"
-      "counter hits { }"
-      "map dispatch { type inet_service : verdict; elements = { 22 : jump service }; }"
-      "set trusted { type ipv4_addr; elements = { 192.0.2.1 }; }"
+    expected = lib.concatStrings [
+      "chain input { type filter hook input priority 0; tcp dport vmap @dispatch; }\n"
+      "chain service { ip saddr == @trusted counter name \"hits\" accept; drop; }\n"
+      "counter hits { }\n"
+      "map dispatch { type inet_service : verdict; elements = { 22 : jump service }; }\n"
+      "set trusted { type ipv4_addr; elements = { 192.0.2.1 }; }\n"
     ];
   };
 
@@ -559,14 +567,15 @@ in
       set trusted {
         type ipv4_addr;
         elements = { 192.0.2.1 };
-      }'';
+      }
+    '';
   };
 
   testLimitsCompact = {
     expr = toTextBlock limitTable;
-    expected = lib.concatStringsSep "\n" [
-      "chain input { limit rate over 10 kbytes/minute burst 5 bytes; limit name \"slow\" accept; }"
-      "limit slow { rate 5/second burst 10 packets; comment \"packet budget\"; }"
+    expected = lib.concatStrings [
+      "chain input { limit rate over 10 kbytes/minute burst 5 bytes; limit name \"slow\" accept; }\n"
+      "limit slow { rate 5/second burst 10 packets; comment \"packet budget\"; }\n"
     ];
   };
 
@@ -580,7 +589,8 @@ in
       limit slow {
         rate 5/second burst 10 packets;
         comment "packet budget";
-      }'';
+      }
+    '';
   };
 }
 # A kind's wrongly shaped named objects name the table and the kind's key
