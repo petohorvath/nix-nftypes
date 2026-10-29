@@ -42,12 +42,18 @@ The schema accepts what nft loads as written and rejects what it loads as someth
   - `limit` takes `rateUnit` and `burstUnit`, and so do named limits in a table tree and `create.limit`.
   - `quota` takes `valUnit` and `usedUnit`.
   - `snat` and `dnat` take `typeFlags`.
-  - A rule's statement list is `statements`, in `add.rule`, `insert.rule`, `replace.rule`, and a table-tree rule entry, `{ statements; index?; comment?; }`: write `statements = [ … ]` for `expr = [ … ]`. The bare-list entry, `rules = [ [ accept ] ]`, is unchanged.
+  - A rule's statement list is `statements`, in `add.rule`, `insert.rule`, `replace.rule`, and a table-tree rule entry, `{ statements; comment?; }`: write `statements = [ … ]` for `expr = [ … ]`. The bare-list entry, `rules = [ [ accept ] ]`, is unchanged.
   - `setStmt`, `mapStmt`, and a set or map body take `statements` for `stmt`, and `meter` takes `statement`.
   - `rename.chain` takes `newName` for `newname`.
   - `reject` takes `code` for `expr`, the ICMP code: write `reject { type = "icmpx"; code = "admin-prohibited"; }`.
   - A JSON spelling, such as `rate_unit`, `gc-interval`, `expr`, `newname`, or `elem` in a set or map body, throws in a statement, a command builder, and a table tree alike, and points to the DSL name: ``rate_unit: is the JSON spelling; write `rateUnit` ``. An object body passed it through, so a body with both spellings dropped one value, and a statement rejected it as an unexpected argument.
 - A field takes the DSL word for what it holds ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)): `setStmt` takes `element` and `mapStmt` takes `key` for the JSON `elem`, so `mapStmt { op; key; data; map; }` reads like `expr.map key data`. A map body takes `dataType` for the JSON `map`, which holds the data type of the map's values, in a table tree and in the `<verb>.map` command builders alike: write `maps.m = { type = "ifname"; dataType = "verdict"; }` for `map = "verdict"`. `elem` in `setStmt` and `mapStmt` and `map` in a map body throw and point to the DSL name.
+- A Table tree is stricter, and its errors say more:
+  - A rule entry is `{ statements; comment?; }` or a bare list. Its `index` throws, as in ``nix-nftypes: dsl.table inet.fw: chains.input.rules.1.index: a Table tree lists a chain's rules in order, so a rule takes no `index`; …``, so every tree renders in `toText` and block form alike. Block form refused an `index` with the `rule index` Refusal, which is gone. `add.rule` and `insert.rule` keep `index`.
+  - `dsl.table` marks the tree with `_type = "nix-nftypes.tableTree"`, the nixpkgs convention, for `__nftTable = true`. Cleaning strips it, so it never reaches JSON. A `_type` in the body throws, since the marker replaces it; it was accepted and dropped.
+  - A module-system error inside a tree starts its option path with the tree, as in ``A definition for option `"dsl.table inet.fw".chains.input.prio' is not of type …``. It started `chains.input.prio`, which named no table.
+  - An unknown key lists the keys a tree takes, and a kind's singular name points to its plural: ``unsupported key(s): set; a Table tree takes flags, comment, chains, …; write `sets` for `set` ``.
+  - A quota object's `val`, the quota statement's word, throws and points to `bytes`, in a tree's `quotas` and in `add.quota` and `create.quota`. It failed as an option that does not exist.
 - `expr.map key data` and `expr.payload protocol field` take positional arguments, like `vmap key data`.
 - `flow` takes the flowtable name alone, with or without its `@`: write `flow "ft"` for `flow { flowtable = "ft"; }`. Its `op` had one legal value, `add`, which the statement still emits.
 - `payload`, `payloadRaw`, and `payloadTunnel` sit under `expr` with the other expression constructors: write `expr.payload "tcp" "dport"` for `payload "tcp" "dport"`.

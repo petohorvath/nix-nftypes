@@ -453,9 +453,19 @@ A set or map takes its elements in its own body, as `sets.<name>.elements`.
 To add elements to a set defined elsewhere, put `add.element` in a
 `dsl.ruleset` after the set.
 
-Unknown keys fail evaluation. The internal `_type` marker remains accepted for
-libraries that layer their own boundary tags on nftypes values; it is not
-emitted. Expansion order is table, chains, named objects, then rules. Among
+A quota object takes its threshold in `bytes`. `val`, the quota statement's
+word, throws and points to `bytes`, in a Table tree's `quotas` and in
+`add.quota` and `create.quota` alike.
+
+An unknown key throws, listing the keys a Table tree takes, and a kind's
+singular name points to its plural, as in ``unsupported key(s): set; a Table
+tree takes flags, comment, chains, …; write `sets` for `set` ``.
+
+`dsl.table` marks the tree with `_type = "nix-nftypes.tableTree"`, the nixpkgs
+convention for a value's kind. Cleaning strips the marker, so it never reaches
+JSON or text. A body's own `_type` throws, since the marker would replace it.
+
+Expansion order is table, chains, named objects, then rules. Among
 named objects, stateful objects come first, so a set or map element can name
 one: counters, quotas, limits, ct helpers, ct timeouts, ct expectations,
 secmarks, synproxies, and ct counts. The other kinds follow alphabetically.
@@ -464,14 +474,24 @@ source-list order. This covers dependencies made explicit by the table tree;
 dependencies hidden in raw nested bodies remain the caller's responsibility.
 
 A rule entry is either a non-empty statement list or an attrset with a
-non-empty `statements` list plus optional `index` and `comment`. Any other
-entry throws, naming its path, such as `chains.input.rules.0`: write a single
+non-empty `statements` list and an optional `comment`. The list order is the
+rule order, so an entry's `index` throws, as in
+``nix-nftypes: dsl.table inet.t: chains.input.rules.1.index: a Table tree lists
+a chain's rules in order, so a rule takes no `index`; …``. To place a rule,
+use `add.rule` or `insert.rule` with its `index`. Any other entry throws, naming its path, such as `chains.input.rules.0`: write a single
 statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`.
 
 A Table tree adds its objects, so no body in it takes a `handle`: not the
 table, a chain, a rule entry, or a named object. Each throws at the handle, as
 in `nix-nftypes: dsl.table inet.t: chains.input.handle: nft ignores a handle on
 add, create, and rename, …`.
+
+A field's error inside a Table tree is the module system's, and its option
+path starts with the tree, which the module system quotes:
+
+```text
+A definition for option `"dsl.table inet.fw".chains.input.prio' is not of type `null or signed integer'.
+```
 
 ### Naming and argument conventions
 
@@ -637,10 +657,9 @@ Every line ends with a newline, the last included, so renders concatenate:
 
 Render only the contents of one `dsl.table` node. These functions omit the
 outer table declaration, keep the table's `flags` and `comment` as the first
-declarations, and place rules inside their chain blocks. A chain block lists
-its rules in order, so a rule `index` has no block-form spelling, and is
-refused (`rule index`); order the rules in the list instead. Passing a full
-ruleset or a raw command is an error.
+declarations, and place rules inside their chain blocks. A Table tree's rules
+take no `index`, so every tree renders in both forms. Passing a full ruleset or
+a raw command is an error.
 
 Every declaration ends with a newline, the last included, and a table with no
 declarations renders as `""`.

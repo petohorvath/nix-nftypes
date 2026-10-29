@@ -5,7 +5,7 @@
 { lib }:
 
 let
-  inherit (import ../../table-tree-marker.nix { }) marker;
+  inherit (import ../../table-tree-marker.nix { }) type;
   requireBody = import ../internal/require-body.nix { inherit lib; };
   location = import ../internal/location.nix { inherit lib; };
 in
@@ -24,7 +24,8 @@ in
     Chains (name → chainBody), where chainBody may contain:
       type, hook, prio, dev, policy, comment, rules
     rules is a list (order-preserving); each element is either a bare list
-    of statements or an attrset `{ statements = [...]; index?; comment?; }`.
+    of statements or an attrset `{ statements = [...]; comment?; }`. The
+    list order is the rule order, so a rule takes no `index`.
     No body in the tree takes a `handle`, which nft ignores on add.
 
   Nesting owns family/table/name/chain. Explicit matching fields in child
@@ -32,8 +33,9 @@ in
   during expansion. Use standalone commands to choose scope independently
   of the tree.
 
-  Returns `body` tagged with the table marker, `family`, and `name`. Keys
-  are checked lazily, when the node is expanded or rendered.
+  Returns `body` marked with `_type = "nix-nftypes.tableTree"`, `family`,
+  and `name`. Keys are checked lazily, when the node is expanded or
+  rendered.
 */
 family: name: body:
 let
@@ -50,7 +52,13 @@ let
 in
 requireBody tree body
 // {
-  "${marker}" = true;
+  # The body's own `_type` would be lost to the marker.
+  _type =
+    if body ? _type && body._type != type then
+      location.fail (location.within tree [ "_type" ])
+        "is the Table tree's marker, which `dsl.table` sets to ${builtins.toJSON type}, got ${builtins.toJSON body._type}; remove it from the body"
+    else
+      type;
   family = scoped "family" family;
   name = scoped "name" name;
 }
