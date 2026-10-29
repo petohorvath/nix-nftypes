@@ -19,6 +19,7 @@
     flags          — render a flag value that the schema accepts as either a
                      bare string or a list (listOrSingleton), each flag a
                      safe bare token. Joined with `, ` by default.
+    refuse         — raise a Refusal; every other refusing helper calls it.
     refuseBarePrefix
                    — refuse a bare expression string containing `/`,
                      which text would load as a prefix.
@@ -63,6 +64,20 @@ let
 
   isBareIdent = s: builtins.match bareIdentRegex s != null;
 
+  /*
+    Raise a Refusal. Every Refusal reads the same way: `message`, one line
+    that is never hard-wrapped and starts `refusing to render`, then an
+    `Offending value: <JSON>` line when `args` has a `value`, then
+    `Field: <label>.` for `args.field`.
+  */
+  refuse =
+    args: message:
+    fail (
+      message
+      + lib.optionalString (args ? value) "\nOffending value: ${builtins.toJSON args.value}"
+      + "\nField: ${args.field}."
+    );
+
   # SECURITY-CRITICAL: nft has NO string-escape grammar. The lexer ends a
   # quoted token at the next bare `"`, treating any preceding `\` as a
   # literal byte. A string containing `"` therefore terminates early and
@@ -82,15 +97,12 @@ let
   assertSafeString =
     field: s:
     if !nftSafeString.isSafe s then
-      fail ''
-        refusing to render a string containing a character
-        unsafe for nft's quoted-string syntax (any of: '"', '\', control
-        character). nft has no string-escape grammar — these characters either
-        terminate the token early (allowing statement injection) or corrupt the
-        parser.
-        Offending value: ${builtins.toJSON s}
-        Field: ${field}.
-      ''
+      refuse
+        {
+          inherit field;
+          value = s;
+        }
+        "refusing to render a string containing a character unsafe for nft's quoted-string syntax (any of: '\"', '\\', control character). nft has no string-escape grammar — these characters either terminate the token early (allowing statement injection) or corrupt the parser."
     else
       s;
 
@@ -108,15 +120,12 @@ let
     if nftSafeLogPrefix.isSafe s then
       ''"${s}"''
     else
-      fail ''
-        refusing to render a log prefix that nft's text
-        would not load as written: it must be a string of 1 to 127 bytes,
-        free of '$' (nft expands `$name` from a `define` there and has no
-        escape for it), '"', '\', and control characters. JSON loads a '$'
-        literally.
-        Offending value: ${builtins.toJSON s}
-        Field: ${field}.
-      '';
+      refuse
+        {
+          inherit field;
+          value = s;
+        }
+        "refusing to render a log prefix that nft's text would not load as written: it must be a string of 1 to 127 bytes, free of '$' (nft expands `$name` from a `define` there and has no escape for it), '\"', '\\', and control characters. JSON loads a '$' literally.";
 
   /*
     Quoted, an interface name loads as exactly its string: bare, `010`
@@ -129,14 +138,12 @@ let
     if nftSafeIfname.isSafe s then
       ''"${s}"''
     else
-      fail ''
-        refusing to render an interface name that is not
-        one: it must be 1 to 15 bytes, not `.` or `..`, and free of '/', ':',
-        whitespace (byte 0xA0 included), '"', '\', and control characters. nft
-        has no string-escape grammar, and the kernel rejects such a device name.
-        Offending value: ${builtins.toJSON s}
-        Field: ${field}.
-      '';
+      refuse
+        {
+          inherit field;
+          value = s;
+        }
+        "refusing to render an interface name that is not one: it must be 1 to 15 bytes, not `.` or `..`, and free of '/', ':', whitespace (byte 0xA0 included), '\"', '\\', and control characters. nft has no string-escape grammar, and the kernel rejects such a device name.";
 
   identQuote = field: s: if isBareIdent s then s else quoteString field s;
 
@@ -158,20 +165,24 @@ let
     else if builtins.isString s && nftSafeScalar.isSafe s then
       s
     else
-      fail "refusing to render a bare nft token ${builtins.toJSON s} that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', control characters, and bytes above 0x7F, which nft's lexer reads as junk; legitimate field/key names are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON s}. Field: ${field}.\n";
+      refuse
+        {
+          inherit field;
+          value = s;
+        }
+        "refusing to render a bare nft token that contains a character unsafe for the surrounding expression context. The renderer emits the value verbatim into a `tcp <field>` / `meta <key>` / `ct <key>` / `ip option <name>` / similar clause, so an unsafe byte either truncates the clause and lets the trailing input parse as fresh nft commands, or splits the token. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', control characters, and bytes above 0x7F, which nft's lexer reads as junk; legitimate field/key names are identifier-shaped and pass cleanly.";
 
   # A stored named reference (`@blocked`) prints as is. Without its `@`
   # nft would read the name as something else, so it is refused.
   namedReference =
     field: s:
     if !(builtins.isString s && lib.hasPrefix "@" s) then
-      fail ''
-        refusing to render a named reference without its
-        `@`. A set, map or flowtable reference is stored as `@<name>`, as
-        nft's JSON requires; build it with the DSL, which adds the `@`.
-        Offending value: ${builtins.toJSON s}
-        Field: ${field}.
-      ''
+      refuse
+        {
+          inherit field;
+          value = s;
+        }
+        "refusing to render a named reference without its `@`. A set, map or flowtable reference is stored as `@<name>`, as nft's JSON requires; build it with the DSL, which adds the `@`."
     else
       "@${safeToken field (lib.removePrefix "@" s)}";
 
@@ -189,13 +200,11 @@ let
   # comment: text would load it while JSON drops it (ADR 0001, ADR 0010).
   refuseJsonIgnored =
     field:
-    fail ''
-      refusing to render a field that nft's JSON parser
-      ignores. Text would load it, while the JSON form of the same ruleset drops
-      it, so the two forms would load different rulesets. Remove the field, or
-      load the ruleset as JSON.
-      Field: ${field}.
-    '';
+    refuse
+      {
+        inherit field;
+      }
+      "refusing to render a field that nft's JSON parser ignores. Text would load it, while the JSON form of the same ruleset drops it, so the two forms would load different rulesets. Remove the field, or load the ruleset as JSON.";
 
   /*
     A bare string containing `/`. nft's JSON parser reads `10.0.0.0/8` as
@@ -205,15 +214,12 @@ let
   */
   refuseBarePrefix =
     field: s:
-    fail ''
-      refusing to render a bare string containing `/` at
-      expression position. nft's text loads it as a prefix, while its JSON
-      parser rejects it as a hostname. Write a prefix as a prefix expression, `{
-      prefix = { addr = …; len = …; }; }`, which `exprs.prefix`
-      (`dsl.expr.prefix`) builds.
-      Offending value: ${builtins.toJSON s}
-      Field: ${field}.
-    '';
+    refuse
+      {
+        inherit field;
+        value = s;
+      }
+      "refusing to render a bare string containing `/` at expression position. nft's text loads it as a prefix, while its JSON parser rejects it as a hostname. Write a prefix as a prefix expression, `{ prefix = { addr = …; len = …; }; }`, which `dsl.expr.prefix` builds.";
 
   /*
     Whether nft's lexer (scanner.l) reads the bare string `s` as one token
@@ -259,27 +265,22 @@ let
   # and nft's text would read the bare string as something else.
   refuseUnidentified =
     field: s:
-    fail ''
-      refusing to render a string that nft's text would
-      misread. The renderer can't tell this value's type here (an `add element`
-      command carries no set type), and nft's lexer reads the bare string as a
-      number, a variable, a range or several tokens, so `010` would load as `8`.
-      Give a number as an integer, or declare the elements in the set or map,
-      whose type lets the renderer quote them.
-      Offending value: ${builtins.toJSON s}
-      Field: ${field}.
-    '';
+    refuse
+      {
+        inherit field;
+        value = s;
+      }
+      "refusing to render a string that nft's text would misread. The renderer can't tell this value's type here (an `add element` command carries no set type), and nft's lexer reads the bare string as a number, a variable, a range or several tokens, so `010` would load as `8`. Give a number as an integer, or declare the elements in the set or map, whose type lets the renderer quote them.";
 
   # A value whose JSON meaning nft's text grammar can't spell: text would
   # fail to load, or load something else (ADR 0001). `detail` says why.
   refuseNoTextSpelling =
     field: detail:
-    fail ''
-      refusing to render a value that nft's text has no
-      spelling for with the meaning nft's JSON parser gives it, so the text form
-      would fail to load or load a different ruleset. ${detail}
-      Field: ${field}.
-    '';
+    refuse
+      {
+        inherit field;
+      }
+      "refusing to render a value that nft's text has no spelling for with the meaning nft's JSON parser gives it, so the text form would fail to load or load a different ruleset. ${detail}";
 
   # Chain priority. The schema types `prio` as `types.nullOr types.int`
   # (chainBody / flowtableBody), so the renderer mirrors that contract
@@ -296,7 +297,12 @@ let
     if builtins.isInt v then
       toString v
     else
-      fail "refusing to render a non-integer chain/flowtable priority ${builtins.toJSON v}. The schema types `prio` as `nullOr int`; resolve a symbolic priority such as \"filter\" with `nftlib.compatibility.priorityValue` and add any offset with Nix arithmetic. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements. Field: ${field}.\n";
+      refuse
+        {
+          inherit field;
+          value = v;
+        }
+        "refusing to render a non-integer chain/flowtable priority. The schema types `prio` as `nullOr int`; resolve a symbolic priority such as \"filter\" with `nftlib.compatibility.priorityValue` and add any offset with Nix arithmetic. A bare string here would land in the `priority <X>` clause unchecked and let a parser-meta byte split the clause into separate statements.";
 in
 {
   inherit
@@ -310,6 +316,7 @@ in
     quoteIfname
     quoteLogPrefix
     quoteString
+    refuse
     refuseBarePrefix
     refuseJsonIgnored
     refuseNoTextSpelling

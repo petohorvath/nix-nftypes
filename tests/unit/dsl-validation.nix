@@ -460,6 +460,72 @@ let
     }
   ) malformedRuleEntries;
 
+  /*
+    A builder left uncalled among a rule's statements, such as the bare
+    `dsl.last` that was a statement in 0.1.0, throws naming the statement's
+    path. A Variant namespace with a null form points to its `.auto`.
+  */
+  uncalledStatements = {
+    last = {
+      statement = dsl.last;
+      msg = "expected a statement, got the Variant namespace `last`; write `last\\.auto` for its null form, or call it with a body$";
+    };
+    counter = {
+      statement = dsl.counter;
+      msg = "expected a statement, got the Variant namespace `counter`; write `counter\\.auto` for its null form, or call it with a body$";
+    };
+    limit = {
+      statement = dsl.limit;
+      msg = "expected a statement, got a function, such as a builder not yet called; call it to build the statement$";
+    };
+    jump = {
+      statement = dsl.jump;
+      msg = "expected a statement, got a function, such as a builder not yet called; call it to build the statement$";
+    };
+  };
+  uncalledStatementTests = lib.concatMapAttrs (
+    name: case:
+    lib.mapAttrs' (
+      form: render:
+      lib.nameValuePair "testUncalledStatementThrows_${name}_tableTree_${form}" {
+        expr = render (
+          dsl.table "inet" "fw" {
+            chains.input.rules = [
+              [
+                dsl.accept
+                case.statement
+              ]
+            ];
+          }
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.0\\.1: ${case.msg}";
+      }
+    ) tableRenderers
+    // {
+      "testUncalledStatementThrows_${name}_ruleBodyEntry" = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "fw" { chains.input.rules = [ { statements = [ case.statement ]; } ]; })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.0\\.statements\\.0: ${case.msg}";
+      };
+      "testUncalledStatementThrows_${name}_addRule" = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.add.rule {
+              family = "inet";
+              table = "t";
+              chain = "c";
+              statements = [ case.statement ];
+            })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.rule: statements\\.0: ${case.msg}";
+      };
+    }
+  ) uncalledStatements;
+
   # A rule command needs its statements in `statements`: without them, `add`,
   # `insert`, and `replace` rendered a rule with no statement. Each must
   # throw in JSON and text, naming the command and showing the list form.
@@ -2275,6 +2341,7 @@ in
 // scopeTests
 // droppedInputTests
 // malformedRuleEntryTests
+// uncalledStatementTests
 // ruleCommandTests
 // statementBuilderTests
 // expressionBuilderTests

@@ -176,7 +176,7 @@ let
     A bare string containing `/`: nft's JSON parser reads `10.0.0.0/8` as
     a hostname and rejects it, while text loads it as a prefix, so a typo
     such as `198.51.100.7/0` would match every address. Text refuses it
-    and points to `exprs.prefix`.
+    and points to `dsl.expr.prefix`.
   */
   rawRule = expr: {
     nftables = [
