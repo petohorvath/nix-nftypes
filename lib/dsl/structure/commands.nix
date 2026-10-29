@@ -42,6 +42,7 @@ let
   keyRenames = import ../internal/rename.nix { inherit lib; };
   ruleBody = import ../internal/rule-body.nix { inherit lib; };
   compact = import ../internal/compact.nix { inherit lib; };
+  rejectHandle = import ../internal/reject-handle.nix { inherit lib; };
   inherit (import ../internal/location.nix { inherit lib; }) builder fail;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
@@ -274,6 +275,7 @@ let
   /*
     Build one command namespace. `command` is the command tag (`"create"`,
     `"delete"`, …) and `kinds` the registry of object kinds it accepts.
+    `add`, `create`, and `rename` bodies take no handle (../internal/reject-handle.nix).
 
     Returns `{ <dslKey> = body: { <command> = { <jsonTag> = validated; }; };
     … }`. Each builder takes the object body with DSL spellings, renames it,
@@ -293,7 +295,18 @@ let
         ];
         renamed =
           let
-            checked = cfg.renameBody location userBody;
+            input =
+              if
+                builtins.elem command [
+                  "add"
+                  "create"
+                  "rename"
+                ]
+              then
+                rejectHandle location userBody
+              else
+                userBody;
+            checked = cfg.renameBody location input;
           in
           # A JSON spelling throws first, pointing to the DSL name.
           if cfg.selector or false then

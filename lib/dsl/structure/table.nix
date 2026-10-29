@@ -15,16 +15,17 @@ in
 
   `family` is the table family, `name` the table name, and `body` the tree.
   Recognized keys in `body`:
-    Table-level options: handle, flags, comment
+    Table-level options: flags, comment
     Object kinds (each: name → body attrset):
       sets, maps, flowtables, counters, quotas, limits, ctHelpers,
       ctTimeouts, ctExpectations, ctCounts, secmarks, synproxies
     A set or map takes its elements in its own body; `add.element` adds
     elements to one defined elsewhere.
     Chains (name → chainBody), where chainBody may contain:
-      type, hook, prio, dev, policy, handle, comment, rules
+      type, hook, prio, dev, policy, comment, rules
     rules is a list (order-preserving); each element is either a bare list
     of statements or an attrset `{ statements = [...]; index?; comment?; }`.
+    No body in the tree takes a `handle`, which nft ignores on add.
 
   Nesting owns family/table/name/chain. Explicit matching fields in child
   bodies, and in `body` itself, are accepted, but conflicting values fail

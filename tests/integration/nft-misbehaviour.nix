@@ -39,6 +39,7 @@ lib.listToAttrs (
   testCaseNames = {
     expr = builtins.attrNames (helpers.caseRuns record);
     expected = [
+      "add-handle-ignored"
       "add-rule-handle-ignored-on-json"
       "chain-hook-without-type"
       "chain-prio-without-hook"

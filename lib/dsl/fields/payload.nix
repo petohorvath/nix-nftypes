@@ -83,6 +83,14 @@ in
     "cpi"
   ];
 
+  # nft's transport header, whatever the transport protocol (proto_th in
+  # src/proto.c): the ports at the offsets TCP, UDP, UDP-Lite, SCTP, and
+  # DCCP share.
+  th = mkProtocol "th" [
+    "sport"
+    "dport"
+  ];
+
   gre = mkProtocol "gre" [
     "flags"
     "version"
@@ -129,6 +137,13 @@ in
     "sequence"
     "mtu"
     "gateway"
+  ];
+
+  igmp = mkProtocol "igmp" [
+    "type"
+    "mrt"
+    "checksum"
+    "group"
   ];
 
   icmpv6 =

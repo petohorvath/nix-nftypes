@@ -47,7 +47,7 @@ ruleset [
 
     maps.port_forward = {
       type = "inet_service";
-      map = "inet_service";
+      dataType = "inet_service";
       elements = [
         [
           80

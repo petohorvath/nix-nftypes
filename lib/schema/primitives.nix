@@ -113,6 +113,10 @@ let
       "egress"
     ];
 
+    # A flowtable's hook: nft evaluates it as a netdev hook and accepts only
+    # ingress (flowtable_evaluate, "invalid hook").
+    flowtableHook = [ "ingress" ];
+
     chainPolicy = [
       "accept"
       "drop"
@@ -124,7 +128,7 @@ let
       "route"
     ];
 
-    operator = [
+    matchOperator = [
       "=="
       "!="
       "<"
@@ -192,7 +196,7 @@ let
       "sack-perm"
     ];
 
-    flowOp = [ "add" ];
+    flowOperator = [ "add" ];
 
     ipsecDirection = [
       "in"
@@ -218,6 +222,12 @@ let
       "geneve"
     ];
 
+    # The capture direction (`dir`) of an ERSPAN version 2 tunnel.
+    tunnelErspanDirection = [
+      "ingress"
+      "egress"
+    ];
+
     queueFlag = [
       "bypass"
       "fanout"
@@ -231,7 +241,7 @@ let
     ];
 
     # parser_json.c:2494-2502 accepts add/update/delete.
-    setOp = [
+    setOperator = [
       "add"
       "update"
       "delete"
@@ -304,7 +314,7 @@ let
     # `l3proto` of the ct helper, timeout and expectation objects. nft
     # lists an object in an inet table with `inet` when none was given,
     # and accepts it on input (parser_json.c parse_family).
-    ctL3Proto = [
+    ctL3Protocol = [
       "ip"
       "ip6"
       "inet"
@@ -395,7 +405,7 @@ let
     # (parser_json.c:3795-3802), ct timeout (parser_json.c:3815-3823), and ct
     # expectation (parser_json.c:3844-3852) `protocol` fields. Adoc lists more
     # protocols for ct timeout but those aren't honoured by the JSON path.
-    tcpUdpProto = [
+    tcpUdpProtocol = [
       "tcp"
       "udp"
     ];

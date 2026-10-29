@@ -7,6 +7,7 @@
 */
 [
   "add-rule-via-tree-and-standalone"
+  "anonymous-maps-from-lists"
   "binop-precedence"
   "chain-object-references"
   "chain-with-rules"

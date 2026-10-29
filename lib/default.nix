@@ -82,7 +82,7 @@ let
     inherit (commands) resetOrder;
     inherit (tables) expandTable;
   };
-  compatibility = import ./compatibility.nix;
+  compatibility = import ./compatibility.nix { enums = primitives.enumValues; };
 in
 {
   /*
@@ -100,10 +100,6 @@ in
       and bare lists are not included).
     */
     inherit (expressions) expression expressionOf;
-    # The tagged forms of `expression`, without its scalar and bare-list
-    # branches: the type `expressionOf` restricts, and whose
-    # `.functor.payload.tags` lists every expression tag.
-    inherit (expressions) taggedExpression;
     expressionBodies = expressions.all;
 
     /*
@@ -145,19 +141,17 @@ in
 
   /*
     Kernel/man reference data — family×hook compatibility, chain-type
-    families, the symbolic chain priorities of each family and hook,
-    oifname-bearing hooks — and the helpers that look placements and
-    priorities up in it. See
+    families, the symbolic chain priorities of each family and hook —
+    and the helpers that look placements and priorities up in it, scoped
+    to what nft accepts on load. See
     `lib/compatibility.nix` for source-of-truth comments tying each
     table back to `man nft` Tables 6/7 and the relevant kernel headers.
   */
   compatibility = {
     inherit (compatibility)
-      chainTypeFor
       familiesByChainType
       hooksByChainType
       hooksByFamily
-      hooksWithOifname
       prioritiesByFamily
       priorityName
       priorityValue

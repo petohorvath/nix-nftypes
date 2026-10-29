@@ -39,15 +39,24 @@ The DSL provides:
 - comparison and membership helpers at the top level.
 
 Pre-built leaves cover common payload, metadata, routing, connection-tracking,
-socket, OS fingerprint, and tunnel metadata fields. `expr.payload`,
-`expr.payloadRaw`, `expr.payloadTunnel`, and raw expression attrsets cover
-less common parser fields.
+socket, OS fingerprint, and tunnel metadata fields, nft's transport-header
+ports (`th.sport`, `th.dport`), and IGMP's fields (`igmp.type`, `mrt`,
+`checksum`, and `group`). `expr.payload`, `expr.payloadRaw`,
+`expr.payloadTunnel`, and raw expression attrsets cover less common parser
+fields.
 
 Each leaf names a field nft knows and loads as written in some rule: the
 `integration-parse-check` check sends every leaf, unchanged, through `nft -c`.
 A key that nft loads only with a refinement, such as a FIB result or an IPsec
 key, has no leaf; [`api.md`](api.md#fields-and-expressions) lists these keys and
 the `expr` constructors that build them.
+
+Each key has one name in the DSL: its leaf, or the constructor that takes its
+refinement. `expr.ct`, `expr.rt`, and `expr.osf` build a key with its `dir`,
+`family`, or `ttl`, and throw without one, pointing to the leaf, such as
+`fields.ct.mark`. `fields.meta` has no leaf for `ibriport`, `obriport`, or
+`secpath`, nft's aliases for `ibrname`, `obrname`, and `ipsec`;
+`types.metaKey` still accepts them as raw input.
 
 Where nft's field name differs from a plain word, the leaf follows nft:
 
@@ -64,8 +73,9 @@ There is no `icmpv6.packetTooBig` leaf, because nft has no such field;
 key.
 
 `expr.set` is the anonymous-set constructor; `expr.setRef` is the named-set
-reference, the `"@name"` string `inSet` requires. `expr.map` takes an
-anonymous map body or a named map's name. Every builder that names an
+reference, the `"@name"` string `inSet` requires. `expr.map` and `vmap` take
+an anonymous map or a named map's name, and wrap a list of key-value pairs in
+an anonymous map. Every builder that names an
 object takes the name with or without its `@`, and emits `"@name"` for a set,
 map, or flowtable and the bare name for a stateful object
 ([API reference](api.md#references-to-named-objects)).
@@ -164,8 +174,9 @@ remains.
 ## Key renaming
 
 Every DSL field and object-kind name is camel case. The DSL translates it where
-nftables uses spaces, hyphens, or underscores, runs words together, or names a
-list of elements or statements in the singular. Examples:
+nftables uses spaces, hyphens, or underscores, runs words together, names a
+list of elements or statements in the singular, or names a field for something
+other than what it holds. Examples:
 
 | DSL              | JSON                                                            |
 | ---------------- | --------------------------------------------------------------- |
@@ -176,6 +187,9 @@ list of elements or statements in the singular. Examples:
 | `typeFlags`      | `type_flags`                                                    |
 | `newName`        | `newname`                                                       |
 | `elements`       | `elem`, in a set, map, or element body                          |
+| `element`        | `elem`, in `setStmt`                                            |
+| `key`            | `elem`, in `mapStmt`                                            |
+| `dataType`       | `map`, in a map body                                            |
 | `statements`     | `expr` in a rule; `stmt` in a set, map, `setStmt`, or `mapStmt` |
 | `statement`      | `stmt`, in `meter`                                              |
 | `code`           | `expr`, in `reject`                                             |

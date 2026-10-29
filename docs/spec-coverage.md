@@ -146,11 +146,24 @@ is stricter than the parser (ADR 0010). The six `chain-*` cases of
 `integration-nft-misbehaviour`, one for each partial placement, assert that nft
 still loads a regular chain.
 
+#### Handles on `add`, `create`, and `rename`
+
+nft's JSON parser ignores a `handle` on `add` and `create` of every kind but a
+rule, and `rename chain` reads only the family, table, name, and new name. The
+object loads with the handle the kernel assigns, and text has no spelling for
+one, so JSON kept the handle and text dropped it. The schema rejects a handle
+in these bodies and in every Table-tree body (ADR 0009, ADR 0010), and the
+error points to Read-back, where nft lists the handle. The `add-handle-ignored`
+case of `integration-nft-misbehaviour` asserts that nftables 1.1.6 and 1.1.7
+still ignore the handle on an added table, chain, set, counter, and flowtable,
+and on a created quota. A handle stays in Read-back, in a Selector, and in
+`insert rule` and `replace rule`, which nft reads it in.
+
 #### Rule handles on `add rule`
 
 `add rule` takes no `handle`. nftables 1.1.6's JSON parser ignores one and
 appends the rule, so the schema rejects the field there (ADR 0010), and
-`add.rule` and table-tree rules throw naming it. Place a rule with `index`, or
+`add.rule` and table-tree rules throw at it. Place a rule with `index`, or
 with `insert`. Measured on nftables 1.1.6 and 1.1.7, with rules 2, 3, and 4 in
 a chain:
 

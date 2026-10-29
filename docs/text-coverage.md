@@ -25,14 +25,14 @@ Imperative output contains commands such as `add table`, `add chain`, and
 `add rule`. Block output accepts one `dsl.table` node, omits the table wrapper,
 keeps the table's `flags` and `comment`, and emits named objects and chains in
 block syntax, with rules folded into their parent chains and each set's or
-map's elements in its definition. It omits the table's and each chain's
-`handle`. A chain block lists its rules in order and has no rule position, so
-block form refuses a rule's `index` (`rule index`).
+map's elements in its definition. A Table tree takes no `handle`. A chain
+block lists its rules in order and has no rule position, so block form refuses
+a rule's `index` (`rule index`).
 
 Text's `renderTableBlock` is the one entry point for block form and raises
 every block-form Refusal. Its `blockFields` classifies each field of the
-table, chain, and rule bodies a table tree prepares as rendered, refused,
-supplied by the tree's scope, or omitted as `toText` omits it.
+table, chain, and rule bodies a table tree prepares as rendered, refused, or
+supplied by the tree's scope.
 
 ## Executable evidence
 
@@ -317,9 +317,9 @@ refuse a log prefix containing `$` or outside that length. Give a literal `$`
 through a raw JSON attrset.
 
 A bare expression string containing `/`, such as `"198.51.100.7/0"`, is
-refused, and the Refusal points to `exprs.prefix` (`dsl.expr.prefix`). nft's
-JSON parser rejects such a string as a hostname, while text would load it as
-a prefix, so a typo could widen a match to every address.
+refused, and the Refusal points to `dsl.expr.prefix`. nft's JSON parser
+rejects such a string as a hostname, while text would load it as a prefix, so
+a typo could widen a match to every address.
 
 Each of these Refusals names the field, such as `chain policy`, `match
 right`, or `element`.

@@ -14,7 +14,7 @@
 
   The extractor fails when a table is missing or yields fewer tokens than
   its floor, the count at the locked nixpkgs. Enums parsed via strcmp
-  ladders (`operator`, `socketKey`, `osfKey`) are out of its reach.
+  ladders (`matchOperator`, `socketKey`, `osfKey`) are out of its reach.
 */
 {
   helpers,
