@@ -3,9 +3,11 @@
   with the builder the caller called (ADR 0009), followed by the field's
   path inside that call, if any. A location is `{ api; path; optionPrefix;
   }`: `api` the public path (`dsl.create.ctCount`, or `dsl.table inet.t`
-  for a table tree), `path` the names inside the call (`[ "chains" "input"
+  for a Table tree), `path` the names inside the call (`[ "chains" "input"
   ]`), and `optionPrefix` the option path the module system prints in its
-  own errors.
+  own errors, which starts with `api` too: `dsl.create.ctCount.name`, or
+  `"dsl.table inet.t".chains.input.prio`, where the module system quotes
+  the Table tree's part.
 
   - `builder names`: a builder under `dsl`, such as `[ "create" "ctCount" ]`.
   - `tableTree family name`: the body of `dsl.table family name`.
@@ -24,11 +26,16 @@ in
     optionPrefix = [ "dsl" ] ++ names;
   };
 
-  tableTree = family: name: {
-    api = "dsl.table ${family}.${name}";
-    path = [ ];
-    optionPrefix = [ ];
-  };
+  tableTree =
+    family: name:
+    let
+      api = "dsl.table ${family}.${name}";
+    in
+    {
+      inherit api;
+      path = [ ];
+      optionPrefix = [ api ];
+    };
 
   within =
     location: names:

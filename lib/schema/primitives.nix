@@ -113,6 +113,10 @@ let
       "egress"
     ];
 
+    # A flowtable's hook: nft evaluates it as a netdev hook and accepts only
+    # ingress (flowtable_evaluate, "invalid hook").
+    flowtableHook = [ "ingress" ];
+
     chainPolicy = [
       "accept"
       "drop"

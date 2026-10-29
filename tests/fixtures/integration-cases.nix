@@ -2188,13 +2188,13 @@ rec {
               hook = "output";
               prio = 0;
               rules = map (match: [ match ]) [
-                (dsl.eq (dsl.expr.rt { key = "mtu"; }) 1500)
-                (dsl.eq (dsl.expr.rt { key = "classid"; }) 10)
+                (dsl.eq dsl.fields.rt.mtu 1500)
+                (dsl.eq dsl.fields.rt.classid 10)
                 (dsl.eq (dsl.expr.rt {
                   key = "nexthop";
                   family = "ip";
                 }) "192.0.2.1")
-                (dsl.eq (dsl.expr.rt { key = "ipsec"; }) false)
+                (dsl.eq dsl.fields.rt.ipsec false)
                 (dsl.eq (dsl.expr.ipsec {
                   key = "reqid";
                   dir = "out";
@@ -2226,7 +2226,7 @@ rec {
                   dir = "in";
                   spnum = 1;
                 }) "192.0.2.1")
-                (dsl.eq (dsl.expr.osf { key = "name"; }) "Linux")
+                (dsl.eq dsl.fields.osf.name "Linux")
                 (dsl.eq (dsl.expr.osf {
                   key = "version";
                   ttl = "loose";
@@ -2793,6 +2793,55 @@ rec {
           ];
         rejected = 65536;
         accepted = 65535;
+      }
+      # A Reference is a name or a map expression (ADR 0010).
+      {
+        name = "boolean-object-reference";
+        expectedError = "Boolean values not allowed in this context";
+        withValue =
+          secmark:
+          commands [
+            { add.table = table; }
+            { add.chain = baseChain; }
+            (rule [ { inherit secmark; } ])
+          ];
+        rejected = true;
+        accepted = "s";
+      }
+      {
+        name = "reset-other-than-tcp-option";
+        expectedError = "Illegal TCP optstrip argument";
+        withValue =
+          reset:
+          commands [
+            { add.table = table; }
+            { add.chain = baseChain; }
+            (rule [ { inherit reset; } ])
+          ];
+        rejected.ct.key = "mark";
+        accepted."tcp option".name = "maxseg";
+      }
+      # nft evaluates a flowtable's hook as a netdev hook, whatever the
+      # table's family.
+      {
+        name = "flowtable-hook-other-than-ingress";
+        expectedError = "invalid hook";
+        withValue =
+          hook:
+          commands [
+            { add.table = table; }
+            {
+              add.flowtable = {
+                family = "inet";
+                table = "filter";
+                name = "ft";
+                inherit hook;
+                prio = 0;
+              };
+            }
+          ];
+        rejected = "input";
+        accepted = "ingress";
       }
     ];
 

@@ -162,6 +162,10 @@ let
       # A secmark is copied between the packet and its connection.
       "ct.secmark".statement = dsl.mangle { meta.key = "secmark"; };
       "ipsec.saddr" = ip4Address;
+      # nft types a map lookup's values from where they go; compared with
+      # a constant they have no type ("Implicit map expression without
+      # known datatype" for an anonymous map), so the lookup sets the mark.
+      map.statement = dsl.mangle { meta.key = "mark"; };
       "meta.broute" = bridge // {
         chain = inputChain // {
           hook = "prerouting";
@@ -169,12 +173,10 @@ let
         statement = setOnly 1;
       };
       "meta.ibrhwaddr" = bridge;
-      "meta.ibriport" = bridge;
       "meta.ibrname" = bridge;
       "meta.ibrpvid" = bridge;
       "meta.ibrvproto" = bridge;
       "meta.nftrace".statement = setOnly 1;
-      "meta.obriport" = bridge;
       "meta.obrname" = bridge;
       "meta.secmark".statement = dsl.mangle { ct.key = "secmark"; };
       "payload.arp".family = "arp";
@@ -368,13 +370,10 @@ let
     # Elements belong to a set.
     "dslParity.testExprElem" = elementContext;
     "dslParity.testExprElemOmitsUnsetOptions" = elementContext;
-    "dslParity.testExprMap" = {
-      state = ''
-        add table inet t
-        add map inet t pf { type inet_service : mark; }
-      '';
-      statement = dsl.mangle { meta.key = "mark"; };
-    };
+    "dslParity.testExprMap".state = ''
+      add table inet t
+      add map inet t pf { type inet_service : mark; }
+    '';
     # Its `family` selects the nexthop's address family, which an ip table
     # would contradict.
     "dslParity.testExprRtRefined" = {

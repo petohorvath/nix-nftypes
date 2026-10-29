@@ -46,6 +46,20 @@ let
   };
   portMapReferenceJson = "{\"map\":{\"data\":{\"set\":[[22,\"a\"],[80,\"b\"]]},\"key\":{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}}}}";
 
+  # The statements that name a stateful object, by a Reference.
+  objectReferenceTags = [
+    "counter"
+    "quota"
+    "limit"
+    "ct count"
+    "synproxy"
+    "ct helper"
+    "ct timeout"
+    "ct expectation"
+    "secmark"
+    "tunnel"
+  ];
+
   # A listed command validated as a singleton ruleset, deep-forced so
   # lazy submodule checks run.
   readBack =
@@ -118,9 +132,9 @@ let
     };
 
   /*
-    Block-form field drift: block form must render, refuse, take from the
-    table tree's scope, or omit (as `toText` does) every field of the
-    bodies a table tree prepares. A field added to one of these bodies
+    Block-form field drift: block form must render, refuse, or take from
+    the table tree's scope every field of the bodies a table tree
+    prepares, or the tree must reject it before rendering. A field added to one of these bodies
     fails here until text classifies it, so block form cannot drop it
     silently, as it once dropped a rule's `index`.
   */
@@ -995,6 +1009,21 @@ textDriftTests
     expected = ''{"meta":{"key":"mark"}}'';
   };
 
+  # nft's aliases for `ibrname`, `obrname`, and `ipsec` have no Field leaf
+  # but stay valid raw input, since nft loads them.
+  testMetaAliasKeysValidate = {
+    expr = map (key: roundtrip nftlib.types.expression { meta = { inherit key; }; }) [
+      "ibriport"
+      "obriport"
+      "secpath"
+    ];
+    expected = [
+      ''{"meta":{"key":"ibriport"}}''
+      ''{"meta":{"key":"obriport"}}''
+      ''{"meta":{"key":"secpath"}}''
+    ];
+  };
+
   # ------------------------------------------------------------------
   # CT expression with direction
   # ------------------------------------------------------------------
@@ -1559,6 +1588,52 @@ textDriftTests
       };
     };
     expectedError.msg = "validate\\.flush.*is not of type";
+  };
+
+  # nft evaluates a flowtable's hook as a netdev hook and refuses any but
+  # `ingress` ("invalid hook"), whatever the table's family.
+  testFlowtableHookIsIngressOnly = {
+    expr =
+      map
+        (
+          hook:
+          helpers.validates nftlib.types.addObject {
+            flowtable = {
+              family = "inet";
+              table = "t";
+              name = "ft";
+              inherit hook;
+              prio = 0;
+            };
+          }
+        )
+        [
+          "ingress"
+          "input"
+          "egress"
+        ];
+    expected = [
+      true
+      false
+      false
+    ];
+  };
+
+  testFlowtableHookEnum = {
+    expr = {
+      enum = nftlib.enums.flowtableHook;
+      type = map nftlib.types.flowtableHook.check [
+        "ingress"
+        "input"
+      ];
+    };
+    expected = {
+      enum = [ "ingress" ];
+      type = [
+        true
+        false
+      ];
+    };
   };
 
   # nftables rejects `create rule` explicitly. `create` must not reuse the
@@ -2209,6 +2284,17 @@ textDriftTests
     expected = ''{"reset":{"tcp option":{"name":"sack-perm"}}}'';
   };
 
+  # nft's reset statement strips a TCP option and refuses anything else
+  # ("Illegal TCP optstrip argument").
+  testResetStmtRejectsOtherExpressions = {
+    expr = builtins.filter (helpers.validates nftlib.types.statement) [
+      { reset.ct.key = "mark"; }
+      { reset = "sack-perm"; }
+      { reset = 1; }
+    ];
+    expected = [ ];
+  };
+
   # ------------------------------------------------------------------
   # `secmark` and `tunnel` statements (reference forms)
   # ------------------------------------------------------------------
@@ -2344,6 +2430,40 @@ textDriftTests
       };
     };
     expectedError.msg = "validate\\.\"ct count\"\\.payload.*does not exist";
+  };
+
+  /*
+    Every stateful object Reference takes the one name-or-map type, so a
+    number or a boolean fails for each tag as for a quota. nft refuses a
+    boolean ("Boolean values not allowed in this context") and loads a
+    number as the name "5", a Known difference (ADR 0010).
+  */
+  testObjectReferencesRejectNumbersAndBooleans = {
+    expr = lib.concatMap (
+      tag:
+      lib.optional (helpers.validates nftlib.types.statement { ${tag} = 5; }) "${tag} = 5"
+      ++ lib.optional (helpers.validates nftlib.types.statement { ${tag} = true; }) "${tag} = true"
+    ) objectReferenceTags;
+    expected = [ ];
+  };
+
+  # A Reference is a name or a map, never another expression.
+  testObjectReferencesRejectNonMapExpressions = {
+    expr = builtins.filter (
+      tag: helpers.validates nftlib.types.statement { ${tag}.meta.key = "mark"; }
+    ) objectReferenceTags;
+    expected = [ ];
+  };
+
+  testObjectReferencesTakeNamesAndMaps = {
+    expr = lib.concatMap (tag: [
+      (roundtrip nftlib.types.statement { ${tag} = "o"; })
+      (roundtrip nftlib.types.statement { ${tag} = portMapReference; })
+    ]) objectReferenceTags;
+    expected = lib.concatMap (tag: [
+      ''{"${tag}":"o"}''
+      ''{"${tag}":${portMapReferenceJson}}''
+    ]) objectReferenceTags;
   };
 
   # ------------------------------------------------------------------

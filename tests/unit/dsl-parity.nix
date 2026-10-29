@@ -277,6 +277,19 @@ in
       field = "id";
     };
   };
+  # nft's transport-header fields, whatever the transport protocol.
+  testFieldThDport = pe dsl.fields.th.dport {
+    payload = {
+      protocol = "th";
+      field = "dport";
+    };
+  };
+  testFieldIgmpGroup = pe dsl.fields.igmp.group {
+    payload = {
+      protocol = "igmp";
+      field = "group";
+    };
+  };
 
   # -- Field trees — meta / ct / rt / socket / osf / tunnel ----------------
 

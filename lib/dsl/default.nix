@@ -40,7 +40,14 @@ let
   fields = import ./fields { inherit lib; };
   ops = import ./ops.nix { inherit lib statement; };
   verdicts = import ./verdicts.nix { inherit statement; };
-  exprs = import ./exprs.nix { inherit expression expressionBodies lib; };
+  exprs = import ./exprs.nix {
+    inherit
+      expression
+      expressionBodies
+      fields
+      lib
+      ;
+  };
   payload = import ./payload.nix {
     inherit
       expression
