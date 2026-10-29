@@ -856,11 +856,10 @@ let
         wrong = dsl.goto 1;
         field = "target";
       };
-      # A body that is no submodule, such as an expression, is checked as
-      # the option `value`.
+      # The body is the TCP option expression itself.
       resetStmt = {
-        wrong = dsl.resetStmt notAnExpression;
-        field = "value";
+        wrong = dsl.resetStmt { "tcp option" = 1; };
+        field = ''"tcp option"'';
       };
     }
     // lib.listToAttrs (
@@ -1838,6 +1837,54 @@ in
       }
     );
     expectedError.msg = "create\\.flowtable\\.prio' was accessed but has no value defined";
+  };
+
+  # nft refuses a flowtable at any hook but `ingress` ("invalid hook").
+  testAddFlowtableHookOtherThanIngressRejected = {
+    expr = commandJson (
+      dsl.add.flowtable {
+        family = "inet";
+        table = "t";
+        name = "ft";
+        hook = "input";
+        prio = 0;
+      }
+    );
+    expectedError.msg = "add\\.flowtable\\.hook' is not of type";
+  };
+
+  testTreeFlowtableHookOtherThanIngressRejected = {
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "inet" "t" {
+          flowtables.ft = {
+            hook = "input";
+            prio = 0;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "flowtables\\.ft\\.hook' is not of type";
+  };
+
+  # Every `.ref` takes a name or a map expression only, as the schema's
+  # Reference does: a number or a boolean throws.
+  testObjectReferenceBuildersRejectNumbersAndBooleans = {
+    expr = lib.concatMap (
+      name:
+      builtins.filter (value: (builtins.tryEval (force (dsl.${name}.ref value))).success) [
+        5
+        true
+      ]
+    ) referencingStatements;
+    expected = [ ];
+  };
+
+  # nft's reset statement strips a TCP option and refuses any other
+  # expression ("Illegal TCP optstrip argument").
+  testResetStmtOtherThanTcpOptionRejected = {
+    expr = force (dsl.resetStmt (dsl.expr.ct { key = "mark"; }));
+    expectedError.msg = "`dsl\\.resetStmt\\.ct' does not exist";
   };
 
   testTreeFlowtableMissingHookRejected = {
