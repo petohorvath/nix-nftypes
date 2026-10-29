@@ -16,6 +16,7 @@
   "create-supported-kinds"
   "ct-count-objects"
   "ct-expectation-timeout"
+  "delete-by-handle"
   "delete-supported-kinds"
   "destroy-idempotent"
   "dormant-table-with-comment"

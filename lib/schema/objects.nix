@@ -125,6 +125,35 @@ let
   # A Selector's fields for a kind selected by name in a table.
   selectorOptions = elementContainerOptions;
 
+  /*
+    `deleteSelector kind scope`: the Selector of `delete` for a kind nft
+    deletes by name or by handle, with the options `scope` (`family`, and
+    `table` but for a table). nft's JSON parser reads the handle only
+    without a name, so the Selector takes exactly one of `name` and
+    `handle`. nft takes handle 0 as no handle: `delete table` with handle
+    0 deletes every table of the family, so the handle is positive.
+  */
+  deleteSelector =
+    kind: scope:
+    discriminatedSubmodule {
+      options = scope // {
+        name = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "${kind} name, or null to select it by handle";
+        };
+        handle = mkOption {
+          type = types.nullOr types.ints.positive;
+          default = null;
+          description = "${kind} handle, or null to select it by name";
+        };
+      };
+      extraCheck = v: ((v.name or null) != null) != ((v.handle or null) != null);
+      description = "${kind} Selector with exactly one of name and handle";
+    };
+  # The scope a delete Selector of a kind in a table names it in.
+  inTableScope = removeAttrs inTableOptions [ "handle" ];
+
   # The elements to add, delete, or reset, and the set or map they're in.
   elementOptions = elementContainerOptions // {
     elem = mkOption {
@@ -482,8 +511,10 @@ let
       parser_json.c in nftables 1.1.6 and 1.1.7, which agree:
 
       - table (json_parse_cmd_add_table): `family`, then `name`. delete
-        reads `handle` only without a name; destroy, list, and flush
-        require the name, and read `comment` and `flags` but use neither.
+        reads `handle` only without a name, and fails without either
+        ("Either name or handle required"); destroy, list, and flush
+        require the name ("Object item not found: name"), and read
+        `comment` and `flags` but use neither.
       - chain (json_parse_cmd_add_chain): `family`, `table`, and `name`,
         with `handle` as for a table. destroy reads a base chain's `type`,
         `hook`, `prio`, `dev`, and `policy`, and nft deletes the chain
@@ -510,9 +541,12 @@ let
         (../prepare-ruleset.nix).
       - ruleset (json_parse_cmd_list_multiple): an optional `family`.
 
-      With a name, nft never reads `handle`, so a Selector names its object
-      and takes no handle; only a rule, which has no name, is selected by
-      handle.
+      With a name, nft never reads `handle`, so no Selector takes both.
+      delete of a table, chain, set, map, flowtable, counter, quota,
+      limit, secmark, or synproxy takes exactly one of `name` and
+      `handle`, a `delete<Kind>Body` (`deleteSelector`); the other
+      Selectors name the object, but a rule's, which has no name and is
+      selected by handle.
     */
     selectTableBody = submodule {
       options = removeAttrs tableContainerOptions [ "handle" ];
@@ -553,6 +587,16 @@ let
     selectElementBody = submodule {
       options = elementOptions;
     };
+    deleteTableBody = deleteSelector "table" { inherit (identityCore) family; };
+    deleteChainBody = deleteSelector "chain" inTableScope;
+    deleteSetBody = deleteSelector "set" inTableScope;
+    deleteMapBody = deleteSelector "map" inTableScope;
+    deleteFlowtableBody = deleteSelector "flowtable" inTableScope;
+    deleteCounterBody = deleteSelector "counter" inTableScope;
+    deleteQuotaBody = deleteSelector "quota" inTableScope;
+    deleteLimitBody = deleteSelector "limit" inTableScope;
+    deleteSecmarkBody = deleteSelector "secmark" inTableScope;
+    deleteSynproxyBody = deleteSelector "synproxy" inTableScope;
     selectRuleBody = submodule {
       options = removeAttrs ruleContainerOptions [ "handle" ] // {
         handle = mkOption {
@@ -947,15 +991,33 @@ let
     ct timeout (7) becomes a chain, so delete fails and list aborts. nft
     1.1.7 aborts on delete and destroy of a ct count (1.1.6 has no ct count
     object).
+
+    `destroy` takes the Selector of each kind, and `delete` the same but
+    for a kind nft deletes by name or by handle, whose Selector takes
+    either (`deleteSelector`).
   */
+  destroyObjectBodies = selecting (
+    lib.subtractLists [
+      "ct count"
+      "ct expectation"
+      "ct timeout"
+    ] (builtins.attrNames addObjectBodies)
+  );
+  destroyObject = taggedUnion destroyObjectBodies;
   deleteObject = taggedUnion (
-    selecting (
-      lib.subtractLists [
-        "ct count"
-        "ct expectation"
-        "ct timeout"
-      ] (builtins.attrNames addObjectBodies)
-    )
+    destroyObjectBodies
+    // {
+      table = bodies.deleteTableBody;
+      chain = bodies.deleteChainBody;
+      set = bodies.deleteSetBody;
+      map = bodies.deleteMapBody;
+      flowtable = bodies.deleteFlowtableBody;
+      counter = bodies.deleteCounterBody;
+      quota = bodies.deleteQuotaBody;
+      limit = bodies.deleteLimitBody;
+      secmark = bodies.deleteSecmarkBody;
+      synproxy = bodies.deleteSynproxyBody;
+    }
   );
 
   /*
@@ -1045,6 +1107,7 @@ in
     addObject
     createObject
     deleteObject
+    destroyObject
     flushObject
     insertObject
     listObject

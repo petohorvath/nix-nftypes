@@ -83,7 +83,9 @@ let
     `lib/schema/objects.nix` records per kind. A table, chain, set, map,
     meter, flowtable, or stateful object is selected by family, table, and
     name, a rule by its chain and positive handle, and elements by their
-    set and values. `selecting kinds` gives each of the kinds in `kinds`
+    set and values. `delete` selects a table, chain, set, map, flowtable,
+    or stateful object but a ct helper by name or by handle
+    (`deleteBodies`). `selecting kinds` gives each of the kinds in `kinds`
     its Selector.
   */
   selectBodies = {
@@ -102,27 +104,42 @@ let
     secmark = objects.selectSecmarkBody;
     synproxy = objects.selectSynproxyBody;
   };
-  selecting = lib.mapAttrs (
-    kind: cfg:
-    cfg
-    // {
-      body = selectBodies.${kind};
-      # Only an element's Selector has a field the DSL spells differently.
-      renameBody = if kind == "element" then keyRenames.element else keyRenames.none;
-      selector = true;
-    }
-  );
+  deleteBodies = {
+    table = objects.deleteTableBody;
+    chain = objects.deleteChainBody;
+    set = objects.deleteSetBody;
+    map = objects.deleteMapBody;
+    flowtable = objects.deleteFlowtableBody;
+    counter = objects.deleteCounterBody;
+    quota = objects.deleteQuotaBody;
+    limit = objects.deleteLimitBody;
+    secmark = objects.deleteSecmarkBody;
+    synproxy = objects.deleteSynproxyBody;
+  };
+  selecting = selectingWith { };
+  # `selecting`, with the Selectors of `bodies` in place of those kinds'.
+  selectingWith =
+    bodies:
+    lib.mapAttrs (
+      kind: cfg:
+      cfg
+      // {
+        body = bodies.${kind} or selectBodies.${kind};
+        # Only an element's Selector has a field the DSL spells differently.
+        renameBody = if kind == "element" then keyRenames.element else keyRenames.none;
+        selector = true;
+      }
+    );
 
   # "`a`", "`a` and `b`", or "`a`, `b`, and `c`".
-  prose =
-    names:
-    let
-      quoted = map (name: "`${name}`") names;
-    in
-    if builtins.length quoted <= 2 then
-      lib.concatStringsSep " and " quoted
+  prose = names: proseOf (map (name: "`${name}`") names);
+  # "a", "a and b", or "a, b, and c".
+  proseOf =
+    items:
+    if builtins.length items <= 2 then
+      lib.concatStringsSep " and " items
     else
-      "${lib.concatStringsSep ", " (lib.init quoted)}, and ${lib.last quoted}";
+      "${lib.concatStringsSep ", " (lib.init items)}, and ${lib.last items}";
 
   # A Selector's fields in the order a message lists them, by their DSL
   # names: an element's `elem` is `elements`.
@@ -141,9 +158,11 @@ let
     gives a field the Selector doesn't take: one nft ignores for the verb,
     or a handle where a name selects the object. A set or map given
     elements points to the verb's element builder, where there is one:
-    `delete set` with elements deletes the whole set. Returns `userBody`
-    otherwise, and a value that isn't an attrset, for the schema to
-    reject.
+    `delete set` with elements deletes the whole set. A destroy given a
+    handle points to delete, which selects by one. A Selector that takes
+    both `name` and `handle` throws unless given exactly one: nft ignores
+    a handle beside a name. Returns `userBody` otherwise, and a value that
+    isn't an attrset, for the schema to reject.
   */
   checkSelector =
     location: verb: kind: body: userBody:
@@ -152,6 +171,11 @@ let
       ordered =
         builtins.filter (field: builtins.elem field fields) selectorFieldOrder
         ++ lib.subtractLists selectorFieldOrder fields;
+      # A Selector with both takes `name` or `handle`.
+      eitherNameOrHandle = builtins.elem "name" fields && builtins.elem "handle" fields;
+      listed = map (
+        field: if eitherNameOrHandle && field == "name" then "`name` or `handle`" else "`${field}`"
+      ) (if eitherNameOrHandle then lib.remove "handle" ordered else ordered);
       extra = lib.subtractLists fields (builtins.attrNames userBody);
       elementHint = lib.optionalString (
         builtins.elem kind [
@@ -165,9 +189,19 @@ let
           "reset"
         ]
       ) " To ${verb} elements, use dsl.${verb}.element.";
+      handleHint = lib.optionalString (
+        verb == "destroy" && deleteBodies ? ${kind} && builtins.elem "handle" extra
+      ) " nft destroys by name only; dsl.delete.${kind} selects by handle.";
+      given = field: (userBody.${field} or null) != null;
     in
-    if builtins.isAttrs userBody && extra != [ ] then
-      fail location "takes a Selector, with only ${prose ordered}; got ${prose extra}.${elementHint}"
+    if !builtins.isAttrs userBody then
+      userBody
+    else if extra != [ ] then
+      fail location "takes a Selector, with only ${proseOf listed}; got ${prose extra}.${elementHint}${handleHint}"
+    else if eitherNameOrHandle && given "name" == given "handle" then
+      fail location "selects by `name` or by `handle`; got ${
+        if given "name" then "both, and nft ignores a handle beside a name" else "neither"
+      }."
     else
       userBody;
 
@@ -177,14 +211,15 @@ let
     number as the command object type, so deleting a ct expectation deletes
     its whole table. nft 1.1.7 aborts on delete and destroy of a ct count,
     which 1.1.6 has no object for. The schema rejects all six commands.
+    `delete` takes the same kinds, and selects some by handle
+    (`deleteBodies`).
   */
-  deleteObjectKinds = selecting (
-    removeAttrs addObjectKinds [
-      "ctCount"
-      "ctExpectation"
-      "ctTimeout"
-    ]
-  );
+  destroyObjectKinds = removeAttrs addObjectKinds [
+    "ctCount"
+    "ctExpectation"
+    "ctTimeout"
+  ];
+  deleteObjectKinds = selectingWith deleteBodies destroyObjectKinds;
 
   /*
     nft's JSON `list` command has no singular rule, element, flowtable,
@@ -340,7 +375,7 @@ in
   add = mkNamespace "add" (addObjectKinds // { rule = ruleCommandKind objects.addRuleBody; });
   create = mkNamespace "create" createObjectKinds;
   delete = mkNamespace "delete" deleteObjectKinds;
-  destroy = mkNamespace "destroy" deleteObjectKinds;
+  destroy = mkNamespace "destroy" (selecting destroyObjectKinds);
   flush = mkNamespace "flush" flushObjectKinds;
   list = mkNamespace "list" listObjectKinds;
   reset = mkNamespace "reset" resetObjectKinds;

@@ -20,19 +20,19 @@ reference material but is not complete enough to be the sole authority.
 
 ## Modelled surfaces
 
-| Surface                    | Current schema                                                                                                                                                                      |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Commands                   | `add`, `replace`, `create`, `insert`, `delete`, `destroy`, `list`, `reset`, `flush`, `rename`                                                                                       |
-| Add objects                | 16 singular object kinds; `tunnel` is excluded because nftables mishandles it                                                                                                       |
-| Create objects             | 15 kinds; `rule` is excluded because nftables rejects `create rule`                                                                                                                 |
-| Delete and destroy objects | 13 kinds; `ct count`, `ct timeout`, and `ct expectation` are excluded because nftables mishandles them. A set, map, limit, or flowtable needs only its name                         |
-| Replace and rename objects | a rule with its `handle`; a chain with its `newname`                                                                                                                                |
-| List objects               | table, chain, set, map, counter, quota, limit, ct helper, secmark, and meter; nftables has no singular `list` of the other kinds, and mishandles a `ct timeout` or `ct expectation` |
-| Listed objects             | bare objects in a ruleset, as `nft -j list` emits: 16 add objects plus `metainfo`, `meter`, and `tunnel`                                                                            |
-| Flush objects              | table, chain, set, map, meter, ruleset                                                                                                                                              |
-| Reset objects              | counter, quota, rule, set, map, element                                                                                                                                             |
-| Statements                 | 37 tagged forms                                                                                                                                                                     |
-| Tagged expressions         | 34 tags, plus scalar and bare-list branches in the full `expression` type                                                                                                           |
+| Surface                    | Current schema                                                                                                                                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commands                   | `add`, `replace`, `create`, `insert`, `delete`, `destroy`, `list`, `reset`, `flush`, `rename`                                                                                                                                               |
+| Add objects                | 16 singular object kinds; `tunnel` is excluded because nftables mishandles it                                                                                                                                                               |
+| Create objects             | 15 kinds; `rule` is excluded because nftables rejects `create rule`                                                                                                                                                                         |
+| Delete and destroy objects | 13 kinds; `ct count`, `ct timeout`, and `ct expectation` are excluded because nftables mishandles them. A set, map, limit, or flowtable needs only its name; `delete` takes a named object's handle in place of its name, but a ct helper's |
+| Replace and rename objects | a rule with its `handle`; a chain with its `newname`                                                                                                                                                                                        |
+| List objects               | table, chain, set, map, counter, quota, limit, ct helper, secmark, and meter; nftables has no singular `list` of the other kinds, and mishandles a `ct timeout` or `ct expectation`                                                         |
+| Listed objects             | bare objects in a ruleset, as `nft -j list` emits: 16 add objects plus `metainfo`, `meter`, and `tunnel`                                                                                                                                    |
+| Flush objects              | table, chain, set, map, meter, ruleset                                                                                                                                                                                                      |
+| Reset objects              | counter, quota, rule, set, map, element                                                                                                                                                                                                     |
+| Statements                 | 37 tagged forms                                                                                                                                                                                                                             |
+| Tagged expressions         | 34 tags, plus scalar and bare-list branches in the full `expression` type                                                                                                                                                                   |
 
 The schema also includes parser behavior missing or incomplete in the manual,
 including:
@@ -89,9 +89,14 @@ Additional command and selector differences are not statement-corpus shapes:
 - nftables has plural `list` selector forms such as `tables`, `chains`, and
   `sets`, plus plural `reset` selector forms; these parser-accepted command
   forms are not modelled;
-- a Selector requires `name` on delete and takes no `handle`, though the
-  parser also deletes most kinds by `handle` alone; with a name, the parser
-  never reads the handle, and a destroy needs `name` in both;
+- a Selector takes `name` or `handle` exactly where the parser reads one:
+  `delete` of a table, chain, set, map, flowtable, or stateful object but a
+  ct helper takes exactly one of them, and every other Selector but a rule's
+  requires the name, as the parser does; with a name, the parser never reads
+  the handle, so the schema rejects both. The schema requires the handle to
+  be positive, though the parser takes handle 0 as no handle: `delete table`
+  with handle 0 deletes every table of the family (nftables 1.1.6). The
+  `delete-by-handle` Integration case deletes each kind by handle;
 - a Selector rejects every field the parser ignores for its verb, such as a
   set's `elem` on `delete set`, which deletes the whole set instead of the
   elements, a Known difference that the `delete-set-elem-deletes-whole-set`

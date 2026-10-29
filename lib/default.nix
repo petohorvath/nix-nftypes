@@ -118,6 +118,7 @@ in
       addObject
       createObject
       deleteObject
+      destroyObject
       flushObject
       insertObject
       listObject

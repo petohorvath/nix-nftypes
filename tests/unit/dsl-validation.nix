@@ -1528,13 +1528,18 @@ let
         ];
       };
       # `insert.rule` places a rule and `replace.rule` replaces one by its
-      # handle, and a rule's Selector selects by it. A named object's
-      # Selector takes no handle: with a name, nft never reads one.
+      # handle, a rule's Selector selects by it, and `delete` selects a
+      # named object by it in place of the name.
       testHandleKeptWhereNftReadsIt = {
         expr = lib.mapAttrs (_: command: builtins.fromJSON (commandJson command)) {
           insert = dsl.insert.rule (withHandle addBodies.rule);
           replace = dsl.replace.rule (withHandle addBodies.rule);
           deleteRule = dsl.delete.rule (withHandle ruleScope);
+          deleteTable = dsl.delete.table (withHandle {
+            family = "ip";
+          });
+          deleteCounter = dsl.delete.counter (withHandle scope);
+          deleteFlowtable = dsl.delete.flowtable (withHandle scope);
         };
         expected = lib.mapAttrs (_: command: { nftables = [ command ]; }) {
           insert.insert.rule = withHandle ruleScope // {
@@ -1546,11 +1551,19 @@ let
           deleteRule.delete.rule = withHandle ruleScope // {
             expr = [ ];
           };
+          deleteTable.delete.table = withHandle { family = "ip"; };
+          deleteCounter.delete.counter = withHandle scope;
+          deleteFlowtable.delete.flowtable = withHandle scope;
         };
       };
+      # With a name, nft never reads a handle: no Selector takes both.
       testNamedSelectorHandleRejected = {
         expr = commandJson (dsl.delete.counter (withHandle named));
-        expectedError.msg = "^nix-nftypes: dsl\\.delete\\.counter: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
+        expectedError.msg = "^nix-nftypes: dsl\\.delete\\.counter: selects by `name` or by `handle`; got both, and nft ignores a handle beside a name\\.$";
+      };
+      testListSelectorHandleRejected = {
+        expr = commandJson (dsl.list.set (withHandle scope));
+        expectedError.msg = "^nix-nftypes: dsl\\.list\\.set: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
       };
     };
 
@@ -2054,7 +2067,41 @@ in
         handle = 4;
       }
     );
-    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.counter: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.counter: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\. nft destroys by name only; dsl\\.delete\\.counter selects by handle\\.$";
+  };
+
+  # nft deletes a table, chain, set, map, flowtable, or stateful object
+  # but a ct helper by name or by handle, and reads the handle only
+  # without a name.
+  testDeleteSelectorWithNameAndHandleThrows = {
+    expr = commandJson (
+      dsl.delete.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        handle = 4;
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.set: selects by `name` or by `handle`; got both, and nft ignores a handle beside a name\\.$";
+  };
+  testDeleteSelectorWithoutNameOrHandleThrows = {
+    expr = commandJson (
+      dsl.delete.table {
+        family = "inet";
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.table: selects by `name` or by `handle`; got neither\\.$";
+  };
+  # nft reads a ct helper's name on delete, never its handle.
+  testDeleteCtHelperByHandleThrows = {
+    expr = commandJson (
+      dsl.delete.ctHelper {
+        family = "inet";
+        table = "t";
+        handle = 4;
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.ctHelper: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
   };
 
   testRenameChainMissingNewNameRejected = {
@@ -2144,7 +2191,7 @@ in
         elements = [ "10.0.0.1" ];
       }
     );
-    expectedError.msg = "nix-nftypes: dsl\\.delete\\.set: takes a Selector, with only `family`, `table`, and `name`; got `elements`\\. To delete elements, use dsl\\.delete\\.element\\.";
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.set: takes a Selector, with only `family`, `table`, and `name` or `handle`; got `elements`\\. To delete elements, use dsl\\.delete\\.element\\.";
   };
   testSelectorIgnoredFieldThrows = {
     expr = force (

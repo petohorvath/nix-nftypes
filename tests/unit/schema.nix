@@ -617,7 +617,7 @@ let
         );
         expected = every;
       };
-      # With a name, nft never reads a handle, so a Selector takes none.
+      # With a name, nft never reads a handle, so no Selector takes both.
       testNamedSelectorsRejectAHandle = {
         expr = rejected (
           kind:
@@ -630,6 +630,81 @@ let
             }
         );
         expected = builtins.filter (command: !(lib.hasSuffix ".rule" command)) every;
+      };
+      # nft's JSON parser reads the handle without a name only on delete,
+      # and never of a ct helper, an element, or a ruleset; destroy, list,
+      # flush, and reset require the name ("Object item not found: name").
+      testOnlyDeleteSelectsByHandle = {
+        expr =
+          let
+            byHandle =
+              kind:
+              if kind == "rule" then
+                selectorOf kind
+              else if kind == "ruleset" then
+                ignoredOf.ruleset
+              else
+                removeAttrs (selectorOf kind) [ "name" ] // { handle = 2; };
+          in
+          lib.subtractLists (rejected byHandle) every;
+        expected = [
+          "delete.table"
+          "delete.chain"
+          "delete.rule"
+          "delete.set"
+          "delete.map"
+          "delete.flowtable"
+          "delete.counter"
+          "delete.quota"
+          "delete.limit"
+          "delete.secmark"
+          "delete.synproxy"
+          "destroy.rule"
+          "reset.rule"
+        ];
+      };
+      testDeleteTableByHandle = {
+        expr = roundtrip nftlib.types.command {
+          delete.table = {
+            family = "ip";
+            handle = 2;
+          };
+        };
+        expected = ''{"delete":{"table":{"family":"ip","handle":2}}}'';
+      };
+      testDeleteCounterByHandle = {
+        expr = roundtrip nftlib.types.command {
+          delete.counter = inTable // {
+            handle = 2;
+          };
+        };
+        expected = ''{"delete":{"counter":{"family":"inet","handle":2,"table":"t"}}}'';
+      };
+      # A delete Selector takes the name or the handle: not neither, and not
+      # both.
+      testDeleteSelectorRequiresNameOrHandle = {
+        expr = roundtrip nftlib.types.command { delete.counter = inTable; };
+        expectedError.msg = "validate\\.delete\\.counter' is not of type `counter Selector with exactly one of name and handle'";
+      };
+      testDeleteSelectorRejectsBothNameAndHandle = {
+        expr = roundtrip nftlib.types.command {
+          delete.set = named // {
+            handle = 2;
+          };
+        };
+        expectedError.msg = "validate\\.delete\\.set' is not of type `set Selector with exactly one of name and handle'";
+      };
+      # nft takes handle 0 as no handle, and the kernel then deletes every
+      # table of the family (measured on nft 1.1.6), so the handle is
+      # positive.
+      testDeleteRejectsHandleZero = {
+        expr = roundtrip nftlib.types.command {
+          delete.table = {
+            family = "ip";
+            handle = 0;
+          };
+        };
+        expectedError.msg = "validate\\.delete\\.table\\.handle' is not of type `null or \\(positive integer";
       };
       testListRuleset = {
         expr = map (body: roundtrip nftlib.types.command { list.ruleset = body; }) [
@@ -842,19 +917,35 @@ let
         ) addBodies;
         expected = lib.mapAttrs (_: _: true) addBodies;
       };
-      # A rule's Selector selects by handle. A named object's Selector
-      # takes none: with a name, nft never reads one
-      # (`testNamedSelectorsRejectAHandle`).
-      testRuleSelectorsKeepHandle = {
+      # A Selector selects by handle where nft reads one: a rule's always,
+      # and a named object's on delete, in place of its name. With a name,
+      # nft never reads a handle (`testNamedSelectorsRejectAHandle`).
+      testSelectorsSelectByHandle = {
         expr = lib.mapAttrs (_: helpers.validates nftlib.types.command) {
           deleteRule.delete.rule = removeAttrs rule [ "expr" ];
           destroyRule.destroy.rule = removeAttrs rule [ "expr" ];
           resetRule.reset.rule = removeAttrs rule [ "expr" ];
+          deleteTable.delete.table = withHandle (removeAttrs addBodies.table [ "name" ]);
+          deleteChain.delete.chain = withHandle (removeAttrs addBodies.chain [ "name" ]);
+          deleteCounter.delete.counter = withHandle (removeAttrs addBodies.counter [ "name" ]);
+          deleteSet.delete.set = withHandle scope;
+          destroyChain.destroy.chain = withHandle scope;
+          flushChain.flush.chain = withHandle scope;
+          listTable.list.table = withHandle (removeAttrs addBodies.table [ "name" ]);
+          resetQuota.reset.quota = withHandle scope;
         };
         expected = {
           deleteRule = true;
           destroyRule = true;
           resetRule = true;
+          deleteTable = true;
+          deleteChain = true;
+          deleteCounter = true;
+          deleteSet = true;
+          destroyChain = false;
+          flushChain = false;
+          listTable = false;
+          resetQuota = false;
         };
       };
     };
