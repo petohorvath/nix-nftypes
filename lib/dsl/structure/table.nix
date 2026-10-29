@@ -1,5 +1,5 @@
 /*
-  Declarative table builder. `dsl.table` returns a table node that ruleset
+  Table tree builder. `dsl.table` returns a Table tree that ruleset
   expansion or block rendering turns into nftables commands.
 */
 { lib }:
@@ -36,7 +36,7 @@ in
   of the tree.
 
   Returns `body` marked with `_type = "nix-nftypes.tableTree"`, `family`,
-  and `name`. Keys are checked lazily, when the node is expanded or
+  and `name`. Keys are checked lazily, when the tree is expanded or
   rendered.
 */
 family: name: body:

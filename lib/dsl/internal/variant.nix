@@ -1,5 +1,6 @@
 /*
-  Build a callable attrset that also carries named variants.
+  Build a Variant namespace: a value called for its common form that also
+  carries named variants as attributes.
 
     variant base extras
       `base`   is the function called when the result is invoked:

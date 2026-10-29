@@ -516,8 +516,8 @@ let
 
     /*
       Map of tag → body type. Single source of truth for the full
-      `statement` attrTag union and the `statementOf` subset helper —
-      adding a new statement kind here participates in both without
+      `statement` attrTag union and the `statementOf` Restricted type
+      helper — adding a new statement tag here participates in both without
       drift. Kept inside `bodies` (rather than alongside it) so the
       body submodules above are in scope without qualification.
     */
@@ -568,18 +568,18 @@ let
 
     /*
       `statementOf : [ String ] -> Type` — restrict a `statement`-typed
-      field to a subset of statement kinds, validated at `evalModules`
-      time. Each element of `kinds` names a tag in the `statement`
-      union (see `attrNames` of the statement attrTag).
+      field to chosen statement tags, a Restricted type, validated at
+      `evalModules` time. Each element of `tags` names a tag in the
+      `statement` union (see `attrNames` of the statement attrTag).
 
       Use cases: a downstream "match-only" slot
       (`statementOf [ "match" ]`) or a verdict-only slot
       (`statementOf [ "accept" "drop" "jump" "goto" "return" "continue" ]`).
-      Throws at *type construction* time on unknown kinds so typos
+      Throws at *type construction* time on unknown tags so typos
       surface immediately rather than at module evaluation.
 
-      The result is `types.attrTag` of the requested subset, with
-      `description` overridden to name the allowed kinds so error
+      The result is `types.attrTag` of the requested tags, with
+      `description` overridden to name the allowed tags so error
       messages read "value is not of type 'statement (one of: match)'"
       instead of the generic "attribute-tagged union".
     */

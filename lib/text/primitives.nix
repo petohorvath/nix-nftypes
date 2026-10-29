@@ -54,12 +54,12 @@
 }:
 
 let
-  # Matches the subset of nftables scanner.l string-token rule that's safe
+  # Matches the part of nftables scanner.l's string-token rule that's safe
   # to emit unquoted in scope (table/chain/set/object name) positions.
   # Names in those positions are *required* to be bare — `nft -c -f -`
   # rejects `add table inet "main"` with `unexpected quoted string`.
-  # nft accepts hyphens and underscores; this regex is a conservative
-  # subset that covers names typically used in rulesets.
+  # nft accepts hyphens and underscores; this regex conservatively
+  # covers the names typically used in rulesets.
   bareIdentRegex = "[A-Za-z_][A-Za-z0-9_-]*";
 
   isBareIdent = s: builtins.match bareIdentRegex s != null;

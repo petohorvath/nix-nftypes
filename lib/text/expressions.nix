@@ -646,6 +646,6 @@ in
     ;
   # The tag set this renderer's dispatch table accepts. Read by the
   # schema↔text drift test (tests/unit/schema.nix) to assert every tagged
-  # expression kind has a renderer entry.
+  # expression tag has a renderer entry.
   tags = builtins.attrNames taggedRenderers;
 }

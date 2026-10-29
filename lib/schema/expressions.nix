@@ -547,7 +547,7 @@ let
         Map of tag → body type. Single source of truth for the private
         `taggedExpression` union (the discriminated `{ <key>: <body> }`
         shape embedded in `expression`) and the public `expressionOf`
-        subset helper. Adding a new tag here participates in both.
+        Restricted type helper. Adding a new tag here participates in both.
       */
       bodiesByTag = {
         # Compound/structural
@@ -624,20 +624,20 @@ let
 
       /*
         `expressionOf : [ String ] -> Type` — restrict an
-        `expression`-typed field to a subset of the *tagged* expression
-        kinds. Scalars (`str` / `int` / `bool`) and bare expression
-        lists, which `expression` accepts as their own oneOf branches,
-        are **not** part of the result; consumers that want them on top
-        of a tag subset can compose:
+        `expression`-typed field to chosen *tagged* expression tags, a
+        Restricted type. Scalars (`str` / `int` / `bool`) and bare
+        expression lists, which `expression` accepts as their own oneOf
+        branches, are **not** part of the result; consumers that want them
+        on top of the chosen tags can compose:
 
           types.oneOf [
             types.str
             (nftlib.types.expressionOf [ "payload" "meta" ])
           ]
 
-        `kinds` is a non-empty list of tag names from the `expression`
-        union. Returns a `types.attrTag` of those kinds whose description
-        names them. Throws at *type construction* time on unknown kinds so
+        `tags` is a non-empty list of tag names from the `expression`
+        union. Returns a `types.attrTag` of those tags whose description
+        names them. Throws at *type construction* time on unknown tags so
         typos surface immediately rather than at module evaluation.
       */
       expressionOf = restrictedUnion {

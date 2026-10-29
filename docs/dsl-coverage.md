@@ -19,7 +19,7 @@ table preparation (schema validation and scope checks)
     └── block emission    → table contents with rules inside chains
 ```
 
-The table node is lazy. Validation runs when output is forced, either by
+A Table tree is lazy. Validation runs when output is forced, either by
 rendering `dsl.ruleset [...]` or calling `toTextBlock*`. Both paths share
 [`lib/table.nix`](../lib/table.nix), which keeps rules with their chains until
 command expansion needs a flat list. Its prepared table shape stays private;
@@ -124,13 +124,13 @@ A set or map takes its elements in its own body. The tree has no top-level
 `elements` key; `add.element` in a `dsl.ruleset` adds elements to a set
 defined elsewhere.
 
-Nesting owns scope. A `dsl.table` body's explicit `family` and `name` must
-match its positional arguments. A named object's or chain's explicit `family`,
-`table`, and `name` must match the enclosing table and collection key. A rule's explicit
-`family`, `table`, and `chain` must match its parent table and chain. Matching
-fields are accepted for composition; conflicting fields fail with their tree
-path in both command and block output. Use standalone commands for scope that
-differs from the tree, including rules intended for another chain.
+Nesting owns scope. A `dsl.table` body's explicit `family` and `name` must match
+its positional arguments. A named object's or chain's explicit `family`,
+`table`, and `name` must match the enclosing table and collection key. A rule's
+explicit `family`, `table`, and `chain` must match its parent table and chain.
+Matching fields are accepted for composition; conflicting fields fail with their
+tree path in both the imperative and the block form. Use standalone commands for
+scope that differs from the tree, including rules intended for another chain.
 
 Each emitted body is validated with a path such as
 `chains.input.rules.0` or `sets.trusted`. A field's module-system error names

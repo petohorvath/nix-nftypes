@@ -112,7 +112,7 @@ let
   # or splits the token in ways that corrupt the parse. The legitimate
   # datatype set is identifier-shaped (`ipv4_addr`, `inet_service`,
   # `ifname`, …), so the shared `nft-safe-scalar` predicate captures
-  # exactly the safe subset.
+  # exactly the safe datatypes.
   assertSafeDatatype =
     field: name:
     if !(builtins.isString name) || nftSafeScalar.isSafe name then

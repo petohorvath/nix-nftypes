@@ -1,5 +1,5 @@
 /*
-  One table tree, two renderings: `expandTable` turns a `dsl.table` node into
+  One table tree, two renderings: `expandTable` turns a Table tree into
   imperative commands, and `toTextBlock` / `toTextBlockPretty` render it in
   block form. Preparation keeps validated rules with their chains; only
   command expansion flattens them. The prepared shape is private to this
@@ -142,12 +142,12 @@ let
     };
 
   prepareTable =
-    node:
+    value:
     let
-      inherit (node) family name;
+      inherit (value) family name;
       tree = location.tableTree family name;
       body = rejectHandle tree (
-        removeAttrs node [
+        removeAttrs value [
           "_type"
           "family"
           "name"
@@ -207,9 +207,9 @@ let
   # then objects before rules (rules can reference both). Rules keep source
   # order within each chain. Dependencies inside raw bodies are caller-owned.
   expandTable =
-    node:
+    tree:
     let
-      table = prepareTable node;
+      table = prepareTable tree;
       add = kind: body: { add.${kind} = body; };
     in
     [ (add "table" table.body) ]
@@ -218,26 +218,26 @@ let
     ++ lib.concatMap (chain: map (add "rule") chain.rules) table.chains;
 
   /*
-    Render one `dsl.table` node's contents in block form. `api` names the
-    renderer in errors, `pretty` selects multi-line output, and `node` is
-    the table node. Returns the table's `flags` and `comment`, then the
+    Render one Table tree's contents in block form. `api` names the
+    renderer in errors, `pretty` selects multi-line output, and `tree` is
+    the Table tree. Returns the table's `flags` and `comment`, then the
     chain and object declarations, each ending with a newline, without the
-    `table <family> <name> { … }` wrapper. Throws when `node` is not a
-    Table tree, saying what it got; text refuses what block grammar cannot spell, such as a
-    rule `index`.
+    `table <family> <name> { … }` wrapper. Throws when `tree` is not a
+    Table tree, saying what it got; text refuses what block grammar cannot
+    spell.
   */
   renderTableBlock =
     api: pretty:
     let
-      # Bound before `node`, so each renderer builds its text modules once.
+      # Bound before `tree`, so each renderer builds its text modules once.
       render = text.renderTableBlock api pretty;
     in
-    node:
-    if !(tableTreeMarker.isTableTree node) then
-      fail api "expected one Table tree from `dsl.table`, got ${describe node}; render a ruleset with `toText`"
+    tree:
+    if !(tableTreeMarker.isTableTree tree) then
+      fail api "expected one Table tree from `dsl.table`, got ${describe tree}; render a ruleset with `toText`"
     else
       let
-        table = prepareTable node;
+        table = prepareTable tree;
       in
       # Validate even an empty table's omitted wrapper fields. Construction
       # stays lazy; validation is forced when the rendered string is needed.
@@ -247,16 +247,16 @@ in
   inherit expandTable;
 
   /*
-    Render a `dsl.table` node for a host module that supplies the
+    Render a Table tree for a host module that supplies the
     `table <family> <name> { … }` wrapper itself, such as nixpkgs'
-    `networking.nftables.tables.<name>.content`. Takes the table node and
+    `networking.nftables.tables.<name>.content`. Takes the Table tree and
     returns compact block-form text; see `renderTableBlock` for failures.
   */
   toTextBlock = renderTableBlock "toTextBlock" false;
 
   /*
     Multi-line variant of `toTextBlock`, for readable generated
-    configuration. Takes the table node and returns block-form text with
+    configuration. Takes the Table tree and returns block-form text with
     each statement on its own indented line; see `renderTableBlock` for
     failures.
   */

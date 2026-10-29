@@ -130,7 +130,7 @@ in
     line, with statements separated by `; ` inside braces.
 
     The argument is a ruleset (`{ nftables = [ … ]; }`), as `dsl.ruleset`
-    builds it. It is cleaned first but not fully type-checked; anything
+    builds it. It is cleaned first but not validated as a whole; anything
     else throws, a lone command or a table tree included.
 
     Returns the `.nft` text as a string, every line ending with a newline,

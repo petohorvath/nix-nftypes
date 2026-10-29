@@ -12,12 +12,12 @@
 let
   mkLeaf = protocol: field: { payload = { inherit protocol field; }; };
 
-  # Build `field → mkLeaf protocol field` for fields whose attribute and
-  # JSON names coincide.
+  # Build `field → mkLeaf protocol field` for fields whose leaf name is
+  # nft's field name.
   mkProtocol = protocol: fields: lib.genAttrs fields (mkLeaf protocol);
 
-  # As above, plus explicit camelCase → JSON renames for fields whose JSON
-  # name contains hyphens or spaces.
+  # As above, plus explicit camelCase leaf names for fields whose nft name
+  # contains hyphens or spaces.
   mkProtocolWithRenames =
     protocol: fields: renames:
     (mkProtocol protocol fields) // lib.mapAttrs (_: mkLeaf protocol) renames;

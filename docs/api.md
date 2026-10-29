@@ -261,11 +261,17 @@ nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: vers
 
 The table leaves out `l4proto`, which nft loads as other header bits, and the
 `vxlan` and `geneve` fields, which load only through `expr.payloadTunnel`.
-`expr.payloadRaw` reaches any bits. The other structural and
-generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
-`range`, `set`, `setRef`, `map`, `numgen`, `jhash`, and `symhash`.
-The binary operators sit there too: `expr.bitAnd`, `bitOr`, `bitXor`,
-`shiftLeft`, and `shiftRight`, as in `expr.bitAnd fields.meta.mark 255`.
+`expr.payloadRaw` reaches any bits. The other `dsl.expr` builders are:
+
+- header options and extension headers: `expr.tcpOption`, `expr.tcpOptionRaw`,
+  `expr.ipOption`, `expr.sctpChunk`, `expr.dccpOption`, which takes the option
+  type number, and `expr.exthdr`, for an IPv6 extension header;
+- structure: `expr.concat`, `expr.prefix`, `expr.range`, `expr.set`,
+  `expr.setRef`, `expr.map`, and `expr.elem`;
+- generated values: `expr.numgen`, `expr.jhash`, and `expr.symhash`;
+- the binary operators: `expr.bitAnd`, `expr.bitOr`, `expr.bitXor`,
+  `expr.shiftLeft`, and `expr.shiftRight`, as in
+  `expr.bitAnd fields.meta.mark 255`.
 
 Every `dsl.expr` builder but `setRef` validates its body when called, against
 the body `types.expression` takes for its tag, as the statement builders do
@@ -343,7 +349,8 @@ return
 `jump target` and `goto target` carry a chain target. A verdict is also the
 data of a `vmap`.
 
-Most statement families are callable attrsets with named variants. Examples:
+Most statement builders are Variant namespaces: callable for the common form,
+with named variants for the others. Examples:
 
 ```nix
 counter { packets = 0; bytes = 0; }
@@ -373,6 +380,19 @@ are all optional takes `{ }` for its empty form, for example `log { }` or
 `last` has no `{ }` form either: nft rejects an empty body, so `last { }`
 throws. `last { used = …; }` seeds the last-used time, and `last.auto` is the
 unseeded form.
+
+The quota statement and the quota object name their threshold differently, as
+nft's JSON does:
+
+| Form            | Threshold                | Bytes already used         | Builder                      |
+| --------------- | ------------------------ | -------------------------- | ---------------------------- |
+| quota statement | `val`, unit in `valUnit` | `used`, unit in `usedUnit` | `quota { val; … }`           |
+| quota object    | `bytes`                  | `used`, in bytes           | `quotas.<name>`, `add.quota` |
+
+`valUnit` and `usedUnit` take `enums.byteUnit` and default to bytes. Both
+forms take `inv` to match once the quota is exceeded. A quota object given
+`val` throws and points to `bytes` (see
+[Declarative table tree](#declarative-table-tree)).
 
 `reject` takes `{ type?; code?; }`: `type` is the answer, such as `"icmp"`,
 `"icmpv6"`, the family-independent `"icmpx"`, or `"tcp reset"`, and `code` the
@@ -726,11 +746,11 @@ Every line ends with a newline, the last included, so renders concatenate:
 `toText a + toText b` loads as both rulesets. An empty ruleset renders as
 `""`.
 
-### `toTextBlock tableNode` and `toTextBlockPretty tableNode`
+### `toTextBlock tableTree` and `toTextBlockPretty tableTree`
 
-Render only the contents of one `dsl.table` node. These functions omit the
-outer table declaration, keep the table's `flags` and `comment` as the first
-declarations, and place rules inside their chain blocks. A Table tree's rules
+Render only the contents of one Table tree from `dsl.table`. These functions
+omit the outer table declaration, keep the table's `flags` and `comment` as the
+first declarations, and place rules inside their chain blocks. A Table tree's rules
 take no `index`, so every tree renders in both forms. Passing a full ruleset or
 a raw command is an error.
 

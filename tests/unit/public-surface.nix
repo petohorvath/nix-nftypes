@@ -1,16 +1,111 @@
 /*
-  The public surface docs/api.md documents, pinned as literal name lists:
-  the top level, `types` and its per-variant namespaces, `enums`,
-  `compatibility`, and the DSL's top level and `expr`. Removing,
-  renaming or adding an export fails here until the list (and api.md)
-  follows. The verb namespaces and `dsl.fields` are pinned in dsl-parity
-  and parse-check-inputs.
+  The public surface, pinned as literal name lists: the top level, `types`
+  and its per-variant namespaces, `enums`, `compatibility`, and the DSL's
+  top level and `expr`. Removing, renaming or adding an export fails here
+  until the list follows. The verb namespaces and `dsl.fields` are pinned
+  in dsl-parity and parse-check-inputs.
+
+  docs/api.md names every top-level, `dsl`, `dsl.expr`, and
+  `compatibility` export, and the `testApiDocs*` tests fail on a name it
+  leaves out. It documents bodies and enums by pattern, so their names are
+  not checked there.
 */
-{ nftlib, ... }:
+{ lib, nftlib, ... }:
 let
   inherit (nftlib) dsl types;
+
+  # The text of every code span and code block in docs/api.md. A run of
+  # backticks opens code, and only a run of the same length closes it, so
+  # the backticks inside a code block or a double-backtick span stay code.
+  apiDocCode =
+    (lib.foldl'
+      (
+        state: part:
+        if builtins.isList part then
+          let
+            run = builtins.head part;
+          in
+          if state.fence == 0 then
+            state // { fence = builtins.stringLength run; }
+          else if builtins.stringLength run == state.fence then
+            state // { fence = 0; }
+          else
+            state // { code = state.code ++ [ run ]; }
+        else if state.fence > 0 then
+          state // { code = state.code ++ [ part ]; }
+        else
+          state
+      )
+      {
+        fence = 0;
+        code = [ ];
+      }
+      (builtins.split "(`+)" (builtins.readFile ../../docs/api.md))
+    ).code;
+
+  # Every leading part of each dotted path in the doc's code, as a set:
+  # `dsl.expr.ct { … }` gives `dsl`, `dsl.expr`, and `dsl.expr.ct`.
+  apiDocPaths = lib.pipe apiDocCode [
+    (lib.concatMap (builtins.split "[^A-Za-z0-9_.]+"))
+    (builtins.filter (token: builtins.isString token && token != ""))
+    (lib.concatMap (
+      token:
+      let
+        segments = lib.splitString "." token;
+      in
+      lib.genList (count: lib.concatStringsSep "." (lib.take (count + 1) segments)) (
+        builtins.length segments
+      )
+    ))
+    (map (path: lib.nameValuePair path true))
+    builtins.listToAttrs
+  ];
+
+  # `unmentionedIn qualifiers names`: the names the doc's code never writes
+  # after one of the qualifiers, such as `""` for the name alone or `dsl.`
+  # for `dsl.ruleset`.
+  unmentionedIn =
+    qualifiers:
+    builtins.filter (name: !builtins.any (qualifier: apiDocPaths ? "${qualifier}${name}") qualifiers);
 in
 {
+  testApiDocsNameTopLevelExports = {
+    expr = unmentionedIn [
+      ""
+      "nftlib."
+    ] (builtins.attrNames nftlib);
+    expected = [ ];
+  };
+
+  testApiDocsNameDslExports = {
+    expr = unmentionedIn [
+      ""
+      "dsl."
+      "nftlib.dsl."
+    ] (builtins.attrNames dsl);
+    expected = [ ];
+  };
+
+  # An `expr` name, such as `set` or `ct`, is also a statement's or a
+  # field's, so the doc names it as `expr.<name>`.
+  testApiDocsNameDslExprExports = {
+    expr = unmentionedIn [
+      "expr."
+      "dsl.expr."
+      "nftlib.dsl.expr."
+    ] (builtins.attrNames dsl.expr);
+    expected = [ ];
+  };
+
+  testApiDocsNameCompatibilityExports = {
+    expr = unmentionedIn [
+      ""
+      "compatibility."
+      "nftlib.compatibility."
+    ] (builtins.attrNames nftlib.compatibility);
+    expected = [ ];
+  };
+
   testTopLevelExports = {
     expr = builtins.attrNames nftlib;
     expected = [

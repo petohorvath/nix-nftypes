@@ -32,10 +32,10 @@ let
     };
 
   /*
-    The type that `types.statementOf` and `types.expressionOf` build:
-    the tagged union of `bodiesByTag` restricted to `kinds`, described
-    as `<label> (one of: "<tag>", …)`. `api` names the helper in its
-    errors, and `noun` the layer whose tags it takes. Throws when the
+    The Restricted type that `types.statementOf` and `types.expressionOf`
+    build: the tagged union of `bodiesByTag` restricted to `tags`,
+    described as `<label> (one of: "<tag>", …)`. `api` names the helper in
+    its errors, and `noun` the layer whose tags it takes. Throws when the
     type is built, so a typo surfaces before any value is checked.
   */
   restrictedUnion =
@@ -45,26 +45,26 @@ let
       label,
       bodiesByTag,
     }:
-    kinds:
+    tags:
     let
       fail = message: throw "nix-nftypes: ${api}: ${message}";
       expected = "expected a list of ${noun} tags (strings)";
       valid = lib.attrNames bodiesByTag;
-      nonStrings = builtins.filter (kind: !builtins.isString kind) kinds;
-      invalid = lib.subtractLists valid kinds;
-      renderList = lib.concatMapStringsSep ", " (kind: ''"${kind}"'');
+      nonStrings = builtins.filter (tag: !builtins.isString tag) tags;
+      invalid = lib.subtractLists valid tags;
+      renderList = lib.concatMapStringsSep ", " (tag: ''"${tag}"'');
     in
-    if !builtins.isList kinds then
-      fail "${expected}, got ${describe kinds}"
-    else if kinds == [ ] then
-      fail "kinds list must be non-empty"
+    if !builtins.isList tags then
+      fail "${expected}, got ${describe tags}"
+    else if tags == [ ] then
+      fail "expected a non-empty list of ${noun} tags, got an empty list"
     else if nonStrings != [ ] then
       fail "${expected}, got a list holding ${describe (builtins.head nonStrings)}"
     else if invalid != [ ] then
-      fail "unknown ${noun} kind(s): ${renderList invalid}. Valid kinds: ${renderList valid}."
+      fail "unknown ${noun} tag(s): ${renderList invalid}. Valid tags: ${renderList valid}."
     else
-      withDescription "${label} (one of: ${renderList kinds})" (
-        taggedUnion (lib.getAttrs kinds bodiesByTag)
+      withDescription "${label} (one of: ${renderList tags})" (
+        taggedUnion (lib.getAttrs tags bodiesByTag)
       );
 
   /*
