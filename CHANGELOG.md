@@ -79,6 +79,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - Text refuses a tunnel object. Its spellings didn't load, and a text form that did would load different ports from the JSON form.
 - Text refuses a listed `meter` object, naming the field (`meter`). It wrote `meter <family> <table> <name>`, which nft rejects; nft's JSON parser rejects one too, and nft lists a meter's dynamic set as a `set`.
 - Text refuses a `handle` on `add rule`, naming the field (`add rule handle`). It wrote `add rule … handle 7`, which loads the rule after rule 7, as nftables 1.1.7's JSON parser does, while 1.1.6's ignores the handle and appends the rule.
+- Text refuses an `add`, `insert`, `replace`, or listed rule with no statements, naming the field (`rule expr`). It wrote `add rule inet fw input`, which nft rejects, while JSON loads an empty rule. The schema still accepts one, as nft's JSON loads it, and the DSL never builds one.
 - Text refuses a command that names a `metainfo`, such as `list metainfo`, naming the field (`list metainfo`). It wrote `list metainfo`, which nft rejects in text and JSON.
 - Text refuses a set or map `comment`. It rendered one, which nft loads, while JSON input drops it, so the two forms loaded different sets.
 - Text refuses an element statement, naming the field (`element counter`). It rendered a `stmt` list, which nft's text loads when the set declares the same statement, while JSON input drops it. Set-level statements, such as `counter;`, render as before.

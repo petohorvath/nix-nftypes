@@ -1328,7 +1328,9 @@ let
   # nft's JSON parser requires a rule's `expr` even where it ignores it, as
   # for destroy, so each imperative renderer fills the empty list: a rule
   # command without `expr` renders as it does with `expr = [ ]`, in a raw
-  # ruleset or through `dsl.ruleset`.
+  # ruleset or through `dsl.ruleset`. nft's JSON loads an added, inserted,
+  # or replaced rule with no statements, but its text grammar has no
+  # spelling for one, so text refuses it (#96).
   rawRuleCommands = {
     add = body: { add.rule = body; };
     insert = body: { insert.rule = body; };
@@ -1343,6 +1345,11 @@ let
       };
     };
   };
+  verbsNeedingStatements = [
+    "add"
+    "insert"
+    "replace"
+  ];
   rulesets = {
     raw = command: { nftables = [ command ]; };
     dsl = command: dsl.ruleset [ command ];
@@ -1353,10 +1360,16 @@ let
       built: ruleset:
       lib.genAttrs' imperativeRenderers (
         renderer:
-        lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
-          expr = nftlib.${renderer} (ruleset (command ruleScope));
-          expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
-        }
+        if renderer != "toJson" && builtins.elem verb verbsNeedingStatements then
+          lib.nameValuePair "testRuleWithoutExprRefused_${verb}_${built}_${renderer}" {
+            expr = nftlib.${renderer} (ruleset (command ruleScope));
+            expectedError.msg = helpers.refusals.ruleWithoutStatements;
+          }
+        else
+          lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
+            expr = nftlib.${renderer} (ruleset (command ruleScope));
+            expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
+          }
       )
       // {
         "testRuleWithoutExprHasAnEmptyExprInJson_${verb}_${built}" = {

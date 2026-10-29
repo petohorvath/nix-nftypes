@@ -45,6 +45,7 @@ in
       datatype = refusal "refusing to render a set/map datatype";
       priority = refusal "refusing to render a non-integer chain/flowtable priority";
       setExpression = refusal "refusing to render a `\\{ set = …; \\}` body" "set expression";
+      ruleWithoutStatements = refusal "refusing to render a rule without statements" "rule expr";
     };
 
   # The JSON of `value` once it validates as `valueType`, cleaned as the
