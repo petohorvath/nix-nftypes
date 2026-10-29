@@ -1460,17 +1460,15 @@ in
     expectedError.msg = "delete\\.counter\\.family.*is not of type";
   };
 
-  testListMapBadTypeRejected = {
+  testListMapBadNameRejected = {
     expr = commandJson (
       dsl.list.map {
         family = "ip";
         table = "t";
-        name = "m";
-        type = 123;
-        map = "mark";
+        name = 123;
       }
     );
-    expectedError.msg = "list\\.map\\.type.*is not of type";
+    expectedError.msg = "list\\.map\\.name.*is not of type";
   };
 
   testRenameChainBadNewNameRejected = {
@@ -1557,7 +1555,7 @@ in
         handle = 4;
       }
     );
-    expectedError.msg = "destroy\\.counter\\.name' was accessed but has no value defined";
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.counter: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
   };
 
   testRenameChainMissingNewNameRejected = {
@@ -1621,16 +1619,92 @@ in
     expectedError.msg = "flush\\.table\\.family";
   };
 
-  testFlushChainBadHandleRejected = {
+  testFlushChainBadNameRejected = {
     expr = commandJson (
       dsl.flush.chain {
         family = "ip";
         table = "t";
-        name = "c";
-        handle = "not-a-number";
+        name = 4;
       }
     );
-    expectedError.msg = "flush\\.chain\\.handle.*is not of type";
+    expectedError.msg = "flush\\.chain\\.name.*is not of type";
+  };
+
+  /*
+    A selecting builder takes a Selector, which accepts no field nft
+    ignores for the verb (ADR 0009): `delete set` with elements deletes
+    the whole set, so `dsl.delete.set` throws, naming the builder and
+    pointing to `delete.element`.
+  */
+  testDeleteSetElementsThrows = {
+    expr = force (
+      dsl.delete.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.set: takes a Selector, with only `family`, `table`, and `name`; got `elements`\\. To delete elements, use dsl\\.delete\\.element\\.";
+  };
+  testSelectorIgnoredFieldThrows = {
+    expr = force (
+      dsl.flush.chain {
+        family = "inet";
+        table = "t";
+        name = "c";
+        policy = "accept";
+        comment = "x";
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.flush\\.chain: takes a Selector, with only `family`, `table`, and `name`; got `comment` and `policy`\\.$";
+  };
+  # An element's Selector names the elements in the DSL spelling.
+  testDeleteElementSelectorNamesElements = {
+    expr = force (
+      dsl.reset.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+        timeout = 5;
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.reset\\.element: takes a Selector, with only `family`, `table`, `name`, and `elements`; got `timeout`";
+  };
+  # A JSON spelling points to the DSL name before the Selector check.
+  testSelectorJsonSpellingThrows = {
+    expr = force (
+      dsl.delete.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elem = [ "10.0.0.1" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.element: elem: is the JSON spelling; write `elements`";
+  };
+  testDeleteRuleStatementsThrows = {
+    expr = force (
+      dsl.destroy.rule (
+        ruleScope
+        // {
+          handle = 4;
+          statements = [ dsl.accept ];
+        }
+      )
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.rule: takes a Selector, with only `family`, `table`, `chain`, and `handle`; got `statements`";
+  };
+  testListRulesetFamily = {
+    expr = map dsl.list.ruleset [
+      { }
+      { family = "ip"; }
+    ];
+    expected = [
+      { list.ruleset = null; }
+      { list.ruleset.family = "ip"; }
+    ];
   };
 
   # A flush selects its set or map by name: nft ignores the datatypes.
@@ -1639,22 +1713,21 @@ in
       dsl.flush.set {
         family = "ip";
         table = "t";
-        type = "ipv4_addr";
       }
     );
     expectedError.msg = "flush\\.set\\.name.*was accessed but has no value defined";
   };
 
-  testFlushMapBadTypeRejected = {
+  testFlushMapTypeRejected = {
     expr = commandJson (
       dsl.flush.map {
         family = "ip";
         table = "t";
         name = "m";
-        type = 42;
+        type = "ipv4_addr";
       }
     );
-    expectedError.msg = "flush\\.map\\.type.*is not of type";
+    expectedError.msg = "nix-nftypes: dsl\\.flush\\.map: takes a Selector, with only `family`, `table`, and `name`; got `type`\\.$";
   };
 
   testFlushMeterBadTableRejected = {

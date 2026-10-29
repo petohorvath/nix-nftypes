@@ -34,6 +34,7 @@
   "inline-and-named-limits"
   "limit-and-quota-spellings"
   "list-commands"
+  "list-ruleset"
   "list-table"
   "match-eq-bitmask"
   "match-eq-shapes"

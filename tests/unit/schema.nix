@@ -452,15 +452,14 @@ let
         ];
       };
       testDestroySetRequiresName = {
-        expr = roundtrip nftlib.types.command { destroy.set = byHandle; };
+        expr = roundtrip nftlib.types.command {
+          destroy.set = removeAttrs selector [ "name" ];
+        };
         expectedError.msg = missing "destroy\\.set\\.name";
       };
       testDestroyTableRequiresName = {
         expr = roundtrip nftlib.types.command {
-          destroy.table = {
-            family = "inet";
-            handle = 1;
-          };
+          destroy.table.family = "inet";
         };
         expectedError.msg = missing "destroy\\.table\\.name";
       };
@@ -475,6 +474,169 @@ let
           };
         };
         expected = "{\"replace\":{\"rule\":{\"chain\":\"c\",\"expr\":[{\"accept\":null}],\"family\":\"ip\",\"handle\":4,\"table\":\"t\"}}}";
+      };
+    };
+
+  /*
+    Each selecting verb takes a Selector, which accepts no field nft's JSON
+    parser ignores for the verb (ADR 0009): `delete set` with `elem`
+    deletes the whole set, not the elements (a Known difference with a
+    live case in tests/fixtures/nft-misbehaviour.nix).
+  */
+  selectorTests =
+    let
+      inTable = {
+        family = "inet";
+        table = "t";
+      };
+      named = inTable // {
+        name = "x";
+      };
+      # Each kind's Selector, with the fields nft reads.
+      selectorOf =
+        kind:
+        {
+          table = {
+            family = "inet";
+            name = "t";
+          };
+          rule = inTable // {
+            chain = "c";
+            handle = 4;
+          };
+          element = named // {
+            elem = [ "10.0.0.1" ];
+          };
+          ruleset = null;
+        }
+        .${kind} or named;
+      # For each kind, a field its add body takes that nft ignores when it
+      # selects one.
+      ignoredOf = {
+        table.comment = "c";
+        chain.policy = "accept";
+        rule.expr = [ ];
+        set.elem = [ "10.0.0.1" ];
+        map.type = "ipv4_addr";
+        meter.type = "ipv4_addr";
+        element.comment = "c";
+        flowtable.hook = "ingress";
+        counter.packets = 1;
+        quota.bytes = 1;
+        "ct helper".type = "ftp";
+        limit.rate = 1;
+        secmark.context = "c";
+        synproxy.mss = 1460;
+        ruleset = inTable;
+      };
+      deleteKinds = [
+        "table"
+        "chain"
+        "rule"
+        "set"
+        "map"
+        "element"
+        "flowtable"
+        "counter"
+        "quota"
+        "ct helper"
+        "limit"
+        "secmark"
+        "synproxy"
+      ];
+      kindsByVerb = {
+        delete = deleteKinds;
+        destroy = deleteKinds;
+        list = [
+          "table"
+          "chain"
+          "set"
+          "map"
+          "meter"
+          "counter"
+          "quota"
+          "ct helper"
+          "limit"
+          "secmark"
+          "ruleset"
+        ];
+        flush = [
+          "table"
+          "chain"
+          "set"
+          "map"
+          "meter"
+          "ruleset"
+        ];
+        reset = [
+          "counter"
+          "quota"
+          "rule"
+          "set"
+          "map"
+          "element"
+        ];
+      };
+      # `verb.kind` for each command whose `body kind` fails validation.
+      rejected =
+        body:
+        lib.concatLists (
+          lib.mapAttrsToList (
+            verb: kinds:
+            map (kind: "${verb}.${kind}") (
+              builtins.filter (
+                kind: !(helpers.validates nftlib.types.command { ${verb}.${kind} = body kind; })
+              ) kinds
+            )
+          ) kindsByVerb
+        );
+      every = lib.concatLists (lib.mapAttrsToList (verb: map (kind: "${verb}.${kind}")) kindsByVerb);
+    in
+    {
+      testEverySelectorValidates = {
+        expr = rejected selectorOf;
+        expected = [ ];
+      };
+      testEverySelectorRejectsAFieldNftIgnores = {
+        expr = rejected (
+          kind: if kind == "ruleset" then ignoredOf.ruleset else selectorOf kind // ignoredOf.${kind}
+        );
+        expected = every;
+      };
+      # With a name, nft never reads a handle, so a Selector takes none.
+      testNamedSelectorsRejectAHandle = {
+        expr = rejected (
+          kind:
+          if kind == "ruleset" then
+            ignoredOf.ruleset
+          else
+            selectorOf kind
+            // lib.optionalAttrs (kind != "rule") {
+              handle = 1;
+            }
+        );
+        expected = builtins.filter (command: !(lib.hasSuffix ".rule" command)) every;
+      };
+      testListRuleset = {
+        expr = map (body: roundtrip nftlib.types.command { list.ruleset = body; }) [
+          null
+          { family = "ip"; }
+        ];
+        expected = [
+          ''{"list":{"ruleset":null}}''
+          ''{"list":{"ruleset":{"family":"ip"}}}''
+        ];
+      };
+      testDeleteSetRejectsElem = {
+        expr = roundtrip nftlib.types.command {
+          delete.set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            elem = [ "10.0.0.1" ];
+          };
+        };
+        expectedError.msg = "validate\\.delete\\.set\\.elem' does not exist";
       };
     };
 
@@ -576,6 +738,7 @@ textDriftTests
 // commandRequirementTests
 // ruleHandleTests
 // listSelectorTests
+// selectorTests
 // {
   # ------------------------------------------------------------------
   # Verdicts
@@ -1147,8 +1310,6 @@ textDriftTests
       accepted = {
         statement = helpers.validates nftlib.types.statement;
         limitObject = body: helpers.validates nftlib.types.objectBodies.limitBody (limitObject // body);
-        selectLimitObject =
-          body: helpers.validates nftlib.types.objectBodies.selectLimitBody (limitObject // body);
       };
       byField = {
         limit_rate_unit =
@@ -1173,8 +1334,6 @@ textDriftTests
           });
         limitObject_rate_unit = unit: accepted.limitObject { rate_unit = unit; };
         limitObject_burst_unit = unit: accepted.limitObject { burst_unit = unit; };
-        selectLimitObject_rate_unit = unit: accepted.selectLimitObject { rate_unit = unit; };
-        selectLimitObject_burst_unit = unit: accepted.selectLimitObject { burst_unit = unit; };
       };
       units = [
         "packets"
@@ -1208,8 +1367,6 @@ textDriftTests
           quota_used_unit = byteUnits;
           limitObject_rate_unit = rateUnits;
           limitObject_burst_unit = byteUnits;
-          selectLimitObject_rate_unit = rateUnits;
-          selectLimitObject_burst_unit = byteUnits;
         };
     };
 

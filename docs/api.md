@@ -94,7 +94,8 @@ These namespaces hold bodies only, each named `<kind>Body`, such as
 several tags share is named for what they share (`natBody`), a variant or a
 nested part of one tag's body puts its parent first (`payloadRawBody`,
 `tunnelVxlanBody`), and the body of one command puts its verb first
-(`flushRulesetBody`, `insertRuleBody`, `selectSetBody`). A statement body
+(`flushRulesetBody`, `insertRuleBody`), and a Selector is `select<Kind>Body`
+(`selectSetBody`). A statement body
 includes the statement's reference forms. Type a tagged object, such as
 `{ chain = { … }; }`, with its command's union, such as `types.addObject` or
 `types.readBackObject`.
@@ -460,13 +461,14 @@ See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 | `create.<kind>`                   | 15 object kinds; `rule` is excluded                                                  |
 | `delete.<kind>`, `destroy.<kind>` | 13 add-object kinds; not `ctCount`, `ctTimeout`, or `ctExpectation`                  |
 | `flush.<kind>`                    | table, chain, set, map, meter, or ruleset; nftables has no `flush flowtable` command |
-| `list.<kind>`                     | table, chain, set, map, counter, quota, limit, ctHelper, secmark, or meter           |
+| `list.<kind>`                     | table, chain, set, map, counter, quota, limit, ctHelper, secmark, meter, or ruleset  |
 | `reset.<kind>`                    | counter, quota, set, map, or element                                                 |
 | `insert.rule`, `replace.rule`     | rule-only commands                                                                   |
 | `rename.chain`                    | chain-only rename                                                                    |
 
 Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
-every family, and `flush.ruleset { family = "ip"; }` flushes one.
+every family, and `flush.ruleset { family = "ip"; }` flushes one; `list.ruleset`
+takes the same bodies.
 
 A builder returns one command holding only the fields given, under their JSON
 keys, as a table tree's commands do: `add.limit { family = "inet"; table = "t";
@@ -517,14 +519,26 @@ when the body lacks a field nft requires for the verb, naming the field:
   them, the builder throws, naming the command, such as `add.rule`.
 - `rename.chain` requires `newName`.
 
-`delete`, `destroy`, `list`, `flush`, and `reset` select an object by `family`,
-`table`, and `name`, and demand no field that nft ignores for the verb: a set's
-or map's datatypes, a limit's rate, a flowtable's hook, and a synproxy's `mss`
-and `wscale` are optional there. `types.objectBodies` holds these selection
-bodies, such as `selectSetBody`. Every `delete.<kind>` but `delete.rule`
-requires `name`, though nft also deletes most kinds by `handle` alone
-([`spec-coverage.md`](spec-coverage.md)); `destroy.<kind>` requires it in nft
-too.
+`delete`, `destroy`, `list`, `flush`, and `reset` take a Selector: the fields
+nft's JSON parser reads to pick one object, and no other. A table is selected
+by `family` and `name`; a chain, set, map, meter, flowtable, or stateful object
+by `family`, `table`, and `name`; and elements by `family`, `table`, `name`,
+and `elements`. A builder given any other field throws, naming the builder and
+the fields it takes:
+
+```nix
+dsl.delete.set { family = "inet"; table = "t"; name = "s"; elements = [ "10.0.0.1" ]; }
+# error: nix-nftypes: dsl.delete.set: takes a Selector, with only `family`,
+# `table`, and `name`; got `elements`. To delete elements, use dsl.delete.element.
+```
+
+nft ignores such a field without an error, so it changes what the command
+does: `delete set` with elements deletes the whole set. `types.command` rejects
+the same raw fields. Each kind's Selector is a `select<Kind>Body` in
+`types.objectBodies`, such as `selectSetBody`. A Selector takes no `handle`:
+with a name, nft never reads one, and every Selector but a rule's requires the
+name, though nft also deletes most kinds by `handle` alone
+([`spec-coverage.md`](spec-coverage.md)).
 
 A rule is selected by its `chain` and `handle`, which `delete.rule` and
 `destroy.rule` require as a positive integer: nft takes handle 0 as none, and

@@ -89,8 +89,13 @@ Additional command and selector differences are not statement-corpus shapes:
 - nftables has plural `list` selector forms such as `tables`, `chains`, and
   `sets`, plus plural `reset` selector forms; these parser-accepted command
   forms are not modelled;
-- the schema requires `name` on delete, though the parser also deletes most
-  kinds by `handle` alone; a destroy needs `name` in both;
+- a Selector requires `name` on delete and takes no `handle`, though the
+  parser also deletes most kinds by `handle` alone; with a name, the parser
+  never reads the handle, and a destroy needs `name` in both;
+- a Selector rejects every field the parser ignores for its verb, such as a
+  set's `elem` on `delete set`, which deletes the whole set instead of the
+  elements, a Known difference that the `delete-set-elem-deletes-whole-set`
+  live test asserts nft still shows (nftables 1.1.6 and 1.1.7);
 - the schema requires a positive `handle` on a rule delete or destroy, though
   the parser takes handle 0: it reads 0 as no handle, and the kernel then
   deletes every rule in the chain, a Known difference that the
@@ -214,9 +219,7 @@ supported`. The reach check names the `dccp option` expression as a Named
   nft's object cache, which nftables 1.1.6 and 1.1.7 fill for one of them.
   Depending on the order, a set or map lists without its elements, as after
   `list chain`, or a `list set` before a `list map` fails with `No such file
-or directory`. Give each `list` whose output matters a ruleset of its own;
-- `delete` and `destroy` of a rule accept a body without `handle`, which nft
-  requires to select the rule.
+or directory`. Give each `list` whose output matters a ruleset of its own.
 
 A schema-successful value is therefore not proof that a particular kernel will
 accept the resulting ruleset. Live-parser and real-load tests remain necessary.

@@ -564,6 +564,43 @@ in
     }
     (ruleHandleZeroCase "delete")
     (ruleHandleZeroCase "destroy")
+    # The set parser returns before it reads `elem` on delete, so `delete
+    # set` with elements deletes the whole set. A set's Selector takes no
+    # elements; `delete element` deletes some.
+    {
+      name = "delete-set-elem-deletes-whole-set";
+      knownDifference = "docs/adr/0010-accept-what-nft-loads-as-written.md";
+      ruleset.nftables = [
+        { add.table = table; }
+        {
+          add.set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            type = "ipv4_addr";
+            elem = [
+              "10.0.0.1"
+              "10.0.0.2"
+            ];
+          };
+        }
+      ];
+      subject.nftables = [
+        {
+          delete.set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            elem = [ "10.0.0.1" ];
+          };
+        }
+      ];
+      inspect = ''
+        nft -j -f "$subject"
+        nft list table inet t
+      '';
+      misbehaviour = "table inet t {\n}\n";
+    }
     (tunnelCommandCase "delete" "cmd_evaluate_delete")
     (tunnelCommandCase "destroy" "cmd_evaluate_delete")
     (tunnelCommandCase "list" "cmd_evaluate_list")

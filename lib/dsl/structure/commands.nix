@@ -42,7 +42,7 @@ let
   keyRenames = import ../internal/rename.nix { inherit lib; };
   ruleBody = import ../internal/rule-body.nix { inherit lib; };
   compact = import ../internal/compact.nix { inherit lib; };
-  inherit (import ../internal/location.nix { inherit lib; }) builder;
+  inherit (import ../internal/location.nix { inherit lib; }) builder fail;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
   # body; plural; }`). Drop the `plural` field — irrelevant here — and
@@ -77,26 +77,98 @@ let
   };
 
   /*
-    delete, destroy, list, flush, and reset select an object by family,
-    table, and name (ADR 0009): nft ignores the datatypes, rate, hook, and
-    mss that adding a set, map, limit, flowtable, or synproxy requires. A
-    rule is selected by its chain and positive handle. `selecting kinds`
-    gives each of these kinds in `kinds` its selection body.
+    delete, destroy, list, flush, and reset take a Selector (ADR 0009): the
+    fields nft's JSON parser reads to pick one object, and no other, as
+    `lib/schema/objects.nix` records per kind. A table, chain, set, map,
+    meter, flowtable, or stateful object is selected by family, table, and
+    name, a rule by its chain and positive handle, and elements by their
+    set and values. `selecting kinds` gives each of the kinds in `kinds`
+    its Selector.
   */
   selectBodies = {
-    flowtable = objects.selectFlowtableBody;
-    limit = objects.selectLimitBody;
-    map = objects.selectMapBody;
+    table = objects.selectTableBody;
+    chain = objects.selectChainBody;
     rule = objects.selectRuleBody;
     set = objects.selectSetBody;
+    map = objects.selectMapBody;
+    meter = objects.selectMeterBody;
+    element = objects.selectElementBody;
+    flowtable = objects.selectFlowtableBody;
+    counter = objects.selectCounterBody;
+    quota = objects.selectQuotaBody;
+    ctHelper = objects.selectCtHelperBody;
+    limit = objects.selectLimitBody;
+    secmark = objects.selectSecmarkBody;
     synproxy = objects.selectSynproxyBody;
   };
-  selecting =
-    kinds:
-    kinds
-    // lib.mapAttrs (kind: body: kinds.${kind} // { inherit body; }) (
-      builtins.intersectAttrs kinds selectBodies
-    );
+  selecting = lib.mapAttrs (
+    kind: cfg:
+    cfg
+    // {
+      body = selectBodies.${kind};
+      # Only an element's Selector has a field the DSL spells differently.
+      renameBody = if kind == "element" then keyRenames.element else keyRenames.none;
+      selector = true;
+    }
+  );
+
+  # "`a`", "`a` and `b`", or "`a`, `b`, and `c`".
+  prose =
+    names:
+    let
+      quoted = map (name: "`${name}`") names;
+    in
+    if builtins.length quoted <= 2 then
+      lib.concatStringsSep " and " quoted
+    else
+      "${lib.concatStringsSep ", " (lib.init quoted)}, and ${lib.last quoted}";
+
+  # A Selector's fields in the order a message lists them, by their DSL
+  # names: an element's `elem` is `elements`.
+  selectorFieldOrder = [
+    "family"
+    "table"
+    "chain"
+    "name"
+    "handle"
+    "elements"
+  ];
+  dslFieldName = field: if field == "elem" then "elements" else field;
+
+  /*
+    Throw when the DSL `userBody` of the Selector `body`, for `verb`,
+    gives a field the Selector doesn't take: one nft ignores for the verb,
+    or a handle where a name selects the object. A set or map given
+    elements points to the verb's element builder, where there is one:
+    `delete set` with elements deletes the whole set. Returns `userBody`
+    otherwise, and a value that isn't an attrset, for the schema to
+    reject.
+  */
+  checkSelector =
+    location: verb: kind: body: userBody:
+    let
+      fields = map dslFieldName (builtins.attrNames (removeAttrs (body.getSubOptions [ ]) [ "_module" ]));
+      ordered =
+        builtins.filter (field: builtins.elem field fields) selectorFieldOrder
+        ++ lib.subtractLists selectorFieldOrder fields;
+      extra = lib.subtractLists fields (builtins.attrNames userBody);
+      elementHint = lib.optionalString (
+        builtins.elem kind [
+          "set"
+          "map"
+        ]
+        && builtins.elem "elements" extra
+        && builtins.elem verb [
+          "delete"
+          "destroy"
+          "reset"
+        ]
+      ) " To ${verb} elements, use dsl.${verb}.element.";
+    in
+    if builtins.isAttrs userBody && extra != [ ] then
+      fail location "takes a Selector, with only ${prose ordered}; got ${prose extra}.${elementHint}"
+    else
+      userBody;
 
   /*
     nft mishandles delete and destroy of a ct timeout or ct expectation
@@ -119,24 +191,24 @@ let
     command"), lists the whole table for a ct expectation, and aborts on a
     ct timeout. `meter` lists the dynamic set a `meter` statement creates.
   */
-  listObjectKinds = selecting (
-    removeAttrs addObjectKinds [
-      "ctCount"
-      "ctExpectation"
-      "ctTimeout"
-      "element"
-      "flowtable"
-      "rule"
-      "synproxy"
-    ]
+  listObjectKinds =
+    selecting (
+      removeAttrs addObjectKinds [
+        "ctCount"
+        "ctExpectation"
+        "ctTimeout"
+        "element"
+        "flowtable"
+        "rule"
+        "synproxy"
+      ]
+      // {
+        meter.tag = "meter";
+      }
+    )
     // {
-      meter = {
-        tag = "meter";
-        renameBody = keyRenames.none;
-        body = objects.meterBody;
-      };
-    }
-  );
+      ruleset = rulesetKind objects.listRulesetBody;
+    };
 
   /*
     `create rule` is explicitly rejected by the nftables parser with
@@ -148,13 +220,21 @@ let
   createObjectKinds = removeAttrs addObjectKinds [ "rule" ];
 
   /*
+    The ruleset kind of `flush` and `list`, whose `body` is either
+    `{ family; }` or the JSON `null` meaning every family. An empty attrset
+    stands for `null`, so every flush and list kind takes an attrset:
+    `flush.ruleset { }` flushes everything.
+  */
+  rulesetKind = body: {
+    tag = "ruleset";
+    renameBody = _location: value: if value == { } then null else value;
+    inherit body;
+  };
+
+  /*
     `flush` accepts table, chain, set, map, meter, and ruleset
     (parser_json.c:4297-4304). `flush flowtable` is absent because the
     nftables parser rejects it ("Unknown object passed to flush command").
-
-    The ruleset body is either `{ family; }` or the JSON `null` meaning
-    every family. An empty attrset stands for `null`, so every flush kind
-    takes an attrset: `flush.ruleset { }` flushes everything.
   */
   flushObjectKinds = {
     inherit (listObjectKinds)
@@ -164,11 +244,7 @@ let
       map
       meter
       ;
-    ruleset = {
-      tag = "ruleset";
-      renameBody = _location: body: if body == { } then null else body;
-      body = objects.flushRulesetBody;
-    };
+    ruleset = rulesetKind objects.flushRulesetBody;
   };
 
   # nft's JSON path fails `reset rule` with "Operation not supported",
@@ -215,10 +291,18 @@ let
           command
           kind
         ];
-        renamed = cfg.renameBody location userBody;
+        renamed =
+          let
+            checked = cfg.renameBody location userBody;
+          in
+          # A JSON spelling throws first, pointing to the DSL name.
+          if cfg.selector or false then
+            builtins.seq checked (builtins.seq (checkSelector location command kind cfg.body userBody) checked)
+          else
+            checked;
         validated = validate {
           type = cfg.body;
-          # A flush.ruleset body renames to the JSON null.
+          # A ruleset body can rename to the JSON null.
           value = if builtins.isAttrs renamed then compact renamed else renamed;
           inherit location;
         };

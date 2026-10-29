@@ -617,6 +617,18 @@ rec {
       ];
     }
 
+    # -- list.ruleset ----------------------------------------------------
+    # The whole ruleset, then one family's.
+    {
+      name = "list-ruleset";
+      ruleset = ruleset [
+        (flush.ruleset { })
+        (create.table tableIdentity)
+        (list.ruleset { })
+        (list.ruleset { family = "ip"; })
+      ];
+    }
+
     # -- reset counters / quotas -----------------------------------------
     # nft runs a reset of a stateful object only as a batch's last command
     # (docs/spec-coverage.md), so each reset is a case of its own. The
@@ -636,13 +648,7 @@ rec {
         add quota ip t q { 100 bytes used 10 bytes; }
       '';
       ruleset = ruleset [
-        (reset.quota (
-          tableScope
-          // {
-            name = "q";
-            bytes = 100;
-          }
-        ))
+        (reset.quota (tableScope // { name = "q"; }))
       ];
     }
 
