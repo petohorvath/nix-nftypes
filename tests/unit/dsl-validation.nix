@@ -1169,30 +1169,39 @@ let
   unrefinedConstructorTests =
     lib.concatMapAttrs
       (
-        tag: keys:
+        tag: case:
         lib.listToAttrs (
           map (
             key:
             lib.nameValuePair "testExpr_${tag}_WithoutRefinementPointsToLeaf_${key}" {
               expr = force (dsl.expr.${tag} { inherit key; });
-              expectedError.msg = "^nix-nftypes: dsl\\.expr\\.${tag}: `expr\\.${tag}` builds a ${tag} expression with a refinement; without one, write the Field leaf `fields\\.${tag}\\.${key}`$";
+              expectedError.msg = "^nix-nftypes: dsl\\.expr\\.${tag}: `expr\\.${tag}` builds ${case.expression} with a refinement; without one, write the Field leaf `fields\\.${tag}\\.${key}`$";
             }
-          ) keys
+          ) case.keys
         )
       )
       {
-        ct = [
-          "mark"
-          "bytes"
-        ];
-        rt = [
-          "mtu"
-          "nexthop"
-        ];
-        osf = [
-          "name"
-          "version"
-        ];
+        ct = {
+          expression = "a ct expression";
+          keys = [
+            "mark"
+            "bytes"
+          ];
+        };
+        rt = {
+          expression = "an rt expression";
+          keys = [
+            "mtu"
+            "nexthop"
+          ];
+        };
+        osf = {
+          expression = "an osf expression";
+          keys = [
+            "name"
+            "version"
+          ];
+        };
       };
 
   /*
@@ -1398,7 +1407,7 @@ let
         renderer:
         lib.nameValuePair "testBareTableThrows_${renderer}_${placement}" {
           expr = nftlib.${renderer} value;
-          expectedError.msg = "nix-nftypes: ${renderer}: got a dsl\\.table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
+          expectedError.msg = "nix-nftypes: ${renderer}: got a Table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
         }
       )
     ) placements;

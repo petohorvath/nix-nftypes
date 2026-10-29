@@ -52,18 +52,23 @@ let
     "out"
   ];
 
-  prioritySymbolCase = family: hook: symbol: {
-    name = "${family}-${hook}-${symbol}";
-    inherit family hook symbol;
-    text = ''
-      table ${family} t {
-        chain c {
-          type filter hook ${hook} priority ${symbol};
-          ${lib.optionalString (builtins.elem hook deviceHooks) "devices = { eth0 };"}
+  prioritySymbolCase =
+    family: hook: symbol:
+    let
+      devices = lib.optionalString (builtins.elem hook deviceHooks) "devices = { eth0 };";
+    in
+    {
+      name = "${family}-${hook}-${symbol}";
+      inherit family hook symbol;
+      text = ''
+        table ${family} t {
+          chain c {
+            type filter hook ${hook} priority ${symbol};
+            ${devices}
+          }
         }
-      }
-    '';
-  };
+      '';
+    };
 in
 {
   placements = lib.concatMap (

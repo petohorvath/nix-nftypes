@@ -9,5 +9,5 @@ Each text form, imperative or block, either loads exactly the ruleset its JSON l
 ## Evidence
 
 - `a987379` (initial commit) introduces "typed Nix bindings for libnftables-json" with a `toJSON` renderer; `1b1b172` adds text later as a "second renderer alongside `toJSON`" that consumes the same cleaned values.
-- `README.md` "Overview" states "JSON is the compatibility target"; `docs/api.md` states "The JSON renderer is authoritative when JSON and text grammar capabilities differ".
+- `README.md` "Overview" states "JSON is the compatibility target"; `docs/api.md` states "JSON is the Compatibility target: when JSON and text grammar capabilities differ, JSON wins".
 - `docs/text-coverage.md` "Support policy" tells callers to use `toJson` when names interact with text keywords or when text-path evidence is missing.

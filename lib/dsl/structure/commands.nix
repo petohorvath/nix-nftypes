@@ -33,8 +33,10 @@
 */
 {
   compatibility,
+  deleteBodiesByTag,
   lib,
   objects,
+  selectBodiesByTag,
   validate,
 }:
 
@@ -47,6 +49,7 @@ let
   chainPriority = import ../internal/chain-priority.nix { inherit compatibility lib; };
   reference = import ../internal/reference.nix { inherit lib; };
   inherit (import ../internal/location.nix { inherit lib; }) builder fail;
+  inherit (import ../../word-list.nix { inherit lib; }) conjoin;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
   # body; plural; }`). Drop the `plural` field — irrelevant here — and
@@ -65,11 +68,15 @@ let
       renameBody = keyRenames.none;
       body = objects.chainBody;
     };
-    # Adds elements to a set or map, which may be defined elsewhere.
+    # Adds elements to a set or map, which may be defined elsewhere. Its
+    # `name` selects the set, so it takes the bare name
+    # (../internal/reference.nix), and its Selector takes `elements` too.
     element = {
       tag = "element";
       renameBody = keyRenames.element;
+      selectorRenameBody = keyRenames.element;
       body = objects.elementBody;
+      takesBareName = true;
     };
     # nft 1.1.6's JSON parser ignores a handle on `add rule`, so the body
     # has none.
@@ -87,65 +94,34 @@ let
     meter, flowtable, or stateful object is selected by family, table, and
     name, a rule by its chain and positive handle, and elements by their
     set and values. `delete` selects a table, chain, set, map, flowtable,
-    or stateful object but a ct helper by name or by handle
-    (`deleteBodies`). `selecting kinds` gives each of the kinds in `kinds`
-    its Selector.
+    or stateful object by its name or its handle, but a ct helper by its
+    name only (`deleteBodiesByTag`). `selecting kinds` gives each of the
+    kinds in `kinds` the schema's Selector for its tag
+    (`selectBodiesByTag`), so the DSL and `validate` take the same fields.
   */
-  selectBodies = {
-    table = objects.selectTableBody;
-    chain = objects.selectChainBody;
-    rule = objects.selectRuleBody;
-    set = objects.selectSetBody;
-    map = objects.selectMapBody;
-    meter = objects.selectMeterBody;
-    element = objects.selectElementBody;
-    flowtable = objects.selectFlowtableBody;
-    counter = objects.selectCounterBody;
-    quota = objects.selectQuotaBody;
-    ctHelper = objects.selectCtHelperBody;
-    limit = objects.selectLimitBody;
-    secmark = objects.selectSecmarkBody;
-    synproxy = objects.selectSynproxyBody;
-  };
-  deleteBodies = {
-    table = objects.deleteTableBody;
-    chain = objects.deleteChainBody;
-    set = objects.deleteSetBody;
-    map = objects.deleteMapBody;
-    flowtable = objects.deleteFlowtableBody;
-    counter = objects.deleteCounterBody;
-    quota = objects.deleteQuotaBody;
-    limit = objects.deleteLimitBody;
-    secmark = objects.deleteSecmarkBody;
-    synproxy = objects.deleteSynproxyBody;
-  };
   selecting = selectingWith { };
-  # `selecting`, with the Selectors of `bodies` in place of those kinds'.
+  # `selecting`, with the Selectors of `bodiesByTag` in place of those
+  # kinds'. A Selector's `name` selects an object, so it takes the bare
+  # name; only an element's Selector has a field the DSL spells
+  # differently.
   selectingWith =
-    bodies:
+    bodiesByTag:
     lib.mapAttrs (
-      kind: cfg:
+      _: cfg:
       cfg
       // {
-        body = bodies.${kind} or selectBodies.${kind};
-        # Only an element's Selector has a field the DSL spells differently.
-        renameBody = if kind == "element" then keyRenames.element else keyRenames.none;
+        body = bodiesByTag.${cfg.tag} or selectBodiesByTag.${cfg.tag};
+        renameBody = cfg.selectorRenameBody or keyRenames.none;
         selector = true;
+        takesBareName = true;
       }
     );
 
   # "`a`", "`a` and `b`", or "`a`, `b`, and `c`".
-  prose = names: proseOf (map (name: "`${name}`") names);
-  # "a", "a and b", or "a, b, and c".
-  proseOf =
-    items:
-    if builtins.length items <= 2 then
-      lib.concatStringsSep " and " items
-    else
-      "${lib.concatStringsSep ", " (lib.init items)}, and ${lib.last items}";
+  codeList = names: conjoin "and" (map (name: "`${name}`") names);
 
   # A Selector's fields in the order a message lists them, by their DSL
-  # names: an element's `elem` is `elements`.
+  # names.
   selectorFieldOrder = [
     "family"
     "table"
@@ -154,23 +130,32 @@ let
     "handle"
     "elements"
   ];
-  dslFieldName = field: if field == "elem" then "elements" else field;
 
   /*
-    Throw when the DSL `userBody` of the Selector `body`, for `verb`,
-    gives a field the Selector doesn't take: one nft ignores for the verb,
-    or a handle where a name selects the object. A set or map given
-    elements points to the verb's element builder, where there is one:
-    `delete set` with elements deletes the whole set. A destroy given a
-    handle points to delete, which selects by one. A Selector that takes
-    both `name` and `handle` throws unless given exactly one: nft ignores
-    a handle beside a name. Returns `userBody` otherwise, and a value that
-    isn't an attrset, for the schema to reject.
+    Throw when the DSL `userBody` of the Selector `body` of `kind`, whose
+    tag is `tag`, for `verb`, gives a field the Selector doesn't take: one
+    nft ignores for the verb, or a handle where a name selects the object.
+    `location` is the builder's location. A set or map given elements
+    points to the verb's element builder, where there is one: `delete set`
+    with elements deletes the whole set. A destroy given a handle points
+    to delete, which selects by one. A Selector that takes both `name` and
+    `handle` throws unless given exactly one: nft ignores a handle beside a
+    name. Returns `userBody` otherwise, and a value that isn't an attrset,
+    for the schema to reject.
   */
   checkSelector =
-    location: verb: kind: body: userBody:
+    {
+      location,
+      verb,
+      kind,
+      tag,
+      body,
+      userBody,
+    }:
     let
-      fields = map dslFieldName (builtins.attrNames (removeAttrs (body.getSubOptions [ ]) [ "_module" ]));
+      fields = map (keyRenames.dslKey "element") (
+        builtins.attrNames (removeAttrs (body.getSubOptions [ ]) [ "_module" ])
+      );
       ordered =
         builtins.filter (field: builtins.elem field fields) selectorFieldOrder
         ++ lib.subtractLists selectorFieldOrder fields;
@@ -193,14 +178,14 @@ let
         ]
       ) " To ${verb} elements, use dsl.${verb}.element.";
       handleHint = lib.optionalString (
-        verb == "destroy" && deleteBodies ? ${kind} && builtins.elem "handle" extra
+        verb == "destroy" && deleteBodiesByTag ? ${tag} && builtins.elem "handle" extra
       ) " nft destroys by name only; dsl.delete.${kind} selects by handle.";
       given = field: (userBody.${field} or null) != null;
     in
     if !builtins.isAttrs userBody then
       userBody
     else if extra != [ ] then
-      fail location "takes a Selector, with only ${proseOf listed}; got ${prose extra}.${elementHint}${handleHint}"
+      fail location "takes a Selector, with only ${conjoin "and" listed}; got ${codeList extra}.${elementHint}${handleHint}"
     else if eitherNameOrHandle && given "name" == given "handle" then
       fail location "selects by `name` or by `handle`; got ${
         if given "name" then "both, and nft ignores a handle beside a name" else "neither"
@@ -215,14 +200,14 @@ let
     its whole table. nft 1.1.7 aborts on delete and destroy of a ct count,
     which 1.1.6 has no object for. The schema rejects all six commands.
     `delete` takes the same kinds, and selects some by handle
-    (`deleteBodies`).
+    (`deleteBodiesByTag`).
   */
   destroyObjectKinds = removeAttrs addObjectKinds [
     "ctCount"
     "ctExpectation"
     "ctTimeout"
   ];
-  deleteObjectKinds = selectingWith deleteBodies destroyObjectKinds;
+  deleteObjectKinds = selectingWith deleteBodiesByTag destroyObjectKinds;
 
   /*
     nft's JSON `list` command has no singular rule, element, flowtable,
@@ -317,10 +302,20 @@ let
     inherit body;
   };
 
+  # `kinds`, whose bodies take no handle (../internal/reject-handle.nix),
+  # as in `add`, `create`, and `rename`: each throws for one before its
+  # renames.
+  withoutHandle = lib.mapAttrs (
+    _: cfg:
+    cfg
+    // {
+      renameBody = location: body: cfg.renameBody location (rejectHandle location body);
+    }
+  );
+
   /*
     Build one command namespace. `command` is the command tag (`"create"`,
     `"delete"`, …) and `kinds` the registry of object kinds it accepts.
-    `add`, `create`, and `rename` bodies take no handle (../internal/reject-handle.nix).
 
     Returns `{ <dslKey> = body: { <command> = { <jsonTag> = validated; }; };
     … }`. Each builder takes the object body with DSL spellings, renames it,
@@ -338,33 +333,26 @@ let
           command
           kind
         ];
-        renamed =
-          let
-            input =
-              if
-                builtins.elem command [
-                  "add"
-                  "create"
-                  "rename"
-                ]
-              then
-                rejectHandle location userBody
-              else
-                userBody;
-            checked = cfg.renameBody location input;
-          in
-          # A JSON spelling throws first, pointing to the DSL name.
+        # A JSON spelling throws first, pointing to the DSL name.
+        checked = cfg.renameBody location userBody;
+        selected =
           if cfg.selector or false then
             builtins.seq checked (
-              builtins.seq (checkSelector location command kind cfg.body userBody) (bareName checked)
+              builtins.seq (checkSelector {
+                inherit location kind userBody;
+                inherit (cfg) body tag;
+                verb = command;
+              }) checked
             )
-          else if kind == "element" then
-            bareName checked
           else
             checked;
         # A Selector's `name` and `add.element`'s select an object, so
         # they take the bare name (../internal/reference.nix).
-        bareName = body: if builtins.isAttrs body then reference.normaliseBareName location body else body;
+        renamed =
+          if (cfg.takesBareName or false) && builtins.isAttrs selected then
+            reference.normaliseBareName location selected
+          else
+            selected;
         validated = validate {
           type = cfg.body;
           # A ruleset body can rename to the JSON null.
@@ -390,13 +378,15 @@ in
     `flush` the flushable kinds plus `ruleset`.
   */
   add = mkNamespace "add" (
-    addObjectKinds
-    // {
-      chain = declaredChain;
-      rule = ruleCommandKind objects.addRuleBody;
-    }
+    withoutHandle (
+      addObjectKinds
+      // {
+        chain = declaredChain;
+        rule = ruleCommandKind objects.addRuleBody;
+      }
+    )
   );
-  create = mkNamespace "create" (createObjectKinds // { chain = declaredChain; });
+  create = mkNamespace "create" (withoutHandle (createObjectKinds // { chain = declaredChain; }));
   delete = mkNamespace "delete" deleteObjectKinds;
   destroy = mkNamespace "destroy" (selecting destroyObjectKinds);
   flush = mkNamespace "flush" flushObjectKinds;
@@ -410,11 +400,11 @@ in
   # chain's `newName`.
   insert = mkNamespace "insert" { rule = ruleCommandKind objects.insertRuleBody; };
   replace = mkNamespace "replace" { rule = ruleCommandKind objects.replaceRuleBody; };
-  rename = mkNamespace "rename" {
+  rename = mkNamespace "rename" (withoutHandle {
     chain = {
       tag = "chain";
       renameBody = keyRenames.renameChain;
       body = objects.renameChainBody;
     };
-  };
+  });
 }

@@ -67,8 +67,8 @@ let
   # that appear (in slightly different combinations) on every object kind.
   # Composition: identityCore ⊂ inTableOptions ⊂ namedInTableOptions ⊂
   # commonObjectOptions. Specialised shapes (tableContainerOptions for tables,
-  # ruleContainerOptions for rules, elementContainerOptions for elements) are
-  # built from the same core.
+  # ruleContainerOptions for rules, selectorOptions for Selectors and the set
+  # an element is in) are built from the same core.
 
   identityCore = {
     family = mkOption {
@@ -114,8 +114,10 @@ let
     };
   };
 
-  # Elements have no `handle` field on the JSON path.
-  elementContainerOptions = removeAttrs namedInTableOptions [ "handle" ];
+  # A Selector's fields for a kind selected by name in a table, which also
+  # name the set or map an element is in: nft reads no `handle` with a
+  # name.
+  selectorOptions = removeAttrs namedInTableOptions [ "handle" ];
 
   # A ruleset command's body: `null` for every family, or one `family`.
   rulesetSelector = types.oneOf [
@@ -127,9 +129,6 @@ let
       };
     })
   ];
-
-  # A Selector's fields for a kind selected by name in a table.
-  selectorOptions = elementContainerOptions;
 
   /*
     `deleteSelector kind scope`: the Selector of `delete` for a kind nft
@@ -161,7 +160,7 @@ let
   inTableScope = removeAttrs inTableOptions [ "handle" ];
 
   # The elements to add, delete, or reset, and the set or map they're in.
-  elementOptions = elementContainerOptions // {
+  elementOptions = selectorOptions // {
     elem = mkOption {
       type = setElem;
       description = "element(s)";
@@ -956,20 +955,26 @@ let
   # `readBackObjectBodies` gives the kinds that hold elements their
   # Read-back statements.
   listedObjectBodies =
-    lib.mapAttrs (kind: listedBody (if kind == "chain" then chainPlacementDescription else null)) (
+    lib.mapAttrs (_: listedBody null) (
       removeAttrs addObjectBodies [
+        "chain"
         "element"
         "rule"
       ]
     )
     // {
+      chain = listedBody chainPlacementDescription addObjectBodies.chain;
       inherit (addObjectBodies) element;
       rule = bodies.ruleBody;
     };
 
-  # The Selector of each kind a selecting verb takes; `selecting kinds`
-  # gives each kind in the list `kinds` its Selector.
-  selectBodies = {
+  /*
+    The Selector of each kind a selecting verb takes, by tag, and of each
+    kind `delete` selects by name or by handle. `selecting kinds` gives
+    each kind in the list `kinds` its Selector. The DSL's selecting
+    namespaces read the same maps.
+  */
+  selectBodiesByTag = {
     table = bodies.selectTableBody;
     chain = bodies.selectChainBody;
     rule = bodies.selectRuleBody;
@@ -985,7 +990,19 @@ let
     secmark = bodies.selectSecmarkBody;
     synproxy = bodies.selectSynproxyBody;
   };
-  selecting = kinds: lib.genAttrs kinds (kind: selectBodies.${kind});
+  deleteBodiesByTag = {
+    table = bodies.deleteTableBody;
+    chain = bodies.deleteChainBody;
+    set = bodies.deleteSetBody;
+    map = bodies.deleteMapBody;
+    flowtable = bodies.deleteFlowtableBody;
+    counter = bodies.deleteCounterBody;
+    quota = bodies.deleteQuotaBody;
+    limit = bodies.deleteLimitBody;
+    secmark = bodies.deleteSecmarkBody;
+    synproxy = bodies.deleteSynproxyBody;
+  };
+  selecting = kinds: lib.genAttrs kinds (kind: selectBodiesByTag.${kind});
 
   # `create` accepts every add-object kind except `rule`. nftables rejects
   # `create rule` explicitly; keeping a separate union prevents raw typed
@@ -1014,21 +1031,7 @@ let
     ] (builtins.attrNames addObjectBodies)
   );
   destroyObject = taggedUnion destroyObjectBodies;
-  deleteObject = taggedUnion (
-    destroyObjectBodies
-    // {
-      table = bodies.deleteTableBody;
-      chain = bodies.deleteChainBody;
-      set = bodies.deleteSetBody;
-      map = bodies.deleteMapBody;
-      flowtable = bodies.deleteFlowtableBody;
-      counter = bodies.deleteCounterBody;
-      quota = bodies.deleteQuotaBody;
-      limit = bodies.deleteLimitBody;
-      secmark = bodies.deleteSecmarkBody;
-      synproxy = bodies.deleteSynproxyBody;
-    }
-  );
+  deleteObject = taggedUnion (destroyObjectBodies // deleteBodiesByTag);
 
   /*
     The listed bodies of the kinds that hold elements, as Read-back lists
@@ -1059,7 +1062,7 @@ let
         }
       );
       element = submodule {
-        options = elementContainerOptions // {
+        options = selectorOptions // {
           elem = mkOption {
             type = readBackSetElem;
             description = "element(s)";
@@ -1164,6 +1167,7 @@ in
   inherit
     addObject
     createObject
+    deleteBodiesByTag
     deleteObject
     destroyObject
     flushObject
@@ -1173,5 +1177,6 @@ in
     renameObject
     replaceObject
     resetObject
+    selectBodiesByTag
     ;
 }

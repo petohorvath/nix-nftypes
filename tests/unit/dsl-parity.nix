@@ -77,7 +77,11 @@ let
         };
         command = {
           value = dsl.flush.ruleset { };
-          got = "an attribute set";
+          got = "an attribute set with flush";
+        };
+        empty = {
+          value = { };
+          got = "an empty attribute set";
         };
         string = {
           value = "flush ruleset";
@@ -113,6 +117,10 @@ let
         null = {
           children = [ null ];
           got = "null";
+        };
+        function = {
+          children = [ dsl.ruleset ];
+          got = "a function";
         };
         # Recursion reaches a child nested inside a list.
         nested = {

@@ -36,9 +36,11 @@
     # → false  (nat does not attach at forward)
 */
 
-{ enums }:
+{ enums, lib }:
 
 let
+  inherit (import ./word-list.nix { inherit lib; }) withValid;
+
   /*
     Per-family kernel hook points — derived from `str2hooknum` in
     nftables `src/evaluate.c` (the authoritative kernel mapping, more
@@ -204,8 +206,9 @@ let
       )
     ) hooksByFamily;
 
-  # `value` quoted when it's a string or an int, else its type.
-  describe =
+  # `value` quoted when it's a string or an int, else its type. Unlike
+  # ./describe.nix, it shows the value itself, which the error rejects.
+  quoted =
     value:
     if builtins.isString value || builtins.isInt value then
       "'${toString value}'"
@@ -215,11 +218,6 @@ let
   # Throws `message` from the helper `caller`.
   helperError = caller: message: throw "nix-nftypes: compatibility.${caller}: ${message}";
 
-  # `message`, followed by the values `valid` it accepts.
-  invalid =
-    message: validLabel: valid:
-    "${message}. Valid ${validLabel}: " + builtins.concatStringsSep ", " valid + ".";
-
   # `value` when it is one of `valid`; otherwise `throwError`, such as
   # `helperError caller`, called with a message naming `what`, such as
   # `"family"`, with its plural `whats`.
@@ -228,7 +226,7 @@ let
     if builtins.isString value && builtins.elem value valid then
       value
     else
-      throwError (invalid "unknown ${what} ${describe value}" whats valid);
+      throwError (withValid "unknown ${what} ${quoted value}" whats valid);
 
   /*
     The int of `priority` at `hook` of `family`, and `name`, the symbol
@@ -246,7 +244,7 @@ let
         if builtins.isString hook && builtins.elem hook hooks then
           prioritiesByFamily.${family}.${hook}
         else
-          throwError (invalid "family '${family}' has no hook ${describe hook}" "hooks" hooks);
+          throwError (withValid "family '${family}' has no hook ${quoted hook}" "hooks" hooks);
       symbols = builtins.attrNames priorities;
       value =
         if builtins.isInt priority then
@@ -255,7 +253,7 @@ let
           priorities.${priority}
         else
           throwError (
-            invalid "family '${family}' has no priority ${describe priority} at hook '${hook}'" "priorities" (
+            withValid "family '${family}' has no priority ${quoted priority} at hook '${hook}'" "priorities" (
               [ "any int" ] ++ symbols
             )
           );
@@ -265,6 +263,18 @@ let
       inherit value;
       name = if matching == [ ] then null else builtins.head matching;
     };
+
+  /*
+    resolvePriority :: (string -> never) -> family -> hook
+      -> (int | symbol) -> int
+
+    `priorityValue` with its errors thrown by `throwError`, which takes
+    the message without the helper's prefix. Internal: the DSL resolves a
+    chain's Symbolic priority with it, so the error names the chain.
+  */
+  resolvePriority =
+    throwError: family: hook: priority:
+    (lookupPriority throwError family hook priority).value;
 
   /*
     priorityValue :: family -> hook -> (int | symbol) -> int
@@ -279,20 +289,7 @@ let
     as `"filter"`, not an expression such as `"filter + 10"`; add an
     offset with Nix arithmetic: `priorityValue "ip" "input" "filter" + 10`.
   */
-  priorityValue =
-    family: hook: priority:
-    (lookupPriority (helperError "priorityValue") family hook priority).value;
-
-  /*
-    resolvePriority :: (string -> never) -> family -> hook -> (int | symbol) -> int
-
-    `priorityValue` with its errors thrown by `throwError`, which takes
-    the message without the helper's prefix. Internal: the DSL resolves a
-    chain's Symbolic priority with it, so the error names the chain.
-  */
-  resolvePriority =
-    throwError: family: hook: priority:
-    (lookupPriority throwError family hook priority).value;
+  priorityValue = resolvePriority (helperError "priorityValue");
 
   /*
     priorityName :: family -> hook -> (int | symbol) -> (symbol | int)

@@ -162,8 +162,8 @@ The DSL exposes all modelled command verbs:
 `delete`, `destroy`, `list`, `flush`, and `reset` take a Selector, which
 selects an object by family, table, and name alone, a rule by its chain and
 handle, and elements by their set and values, and rejects every other field.
-`delete` selects a table, chain, set, map, flowtable, or stateful object but a
-ct helper by name or by handle
+`delete` selects a table, chain, set, map, flowtable, or stateful object by its
+name or its handle, but a ct helper by its name only
 ([API reference](api.md#commands)).
 
 Each namespace offers only the kinds that nft runs as written. `create.rule`,

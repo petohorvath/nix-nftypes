@@ -9,7 +9,8 @@ let
     "_type"
     "nftables"
   ];
-
+in
+{
   # Whether `value` is a ruleset: an attrset whose `nftables` list holds
   # commands, with no other key but `_type`.
   isRuleset =
@@ -17,7 +18,4 @@ let
     builtins.isAttrs value
     && builtins.isList (value.nftables or null)
     && builtins.all (name: builtins.elem name rulesetKeys) (builtins.attrNames value);
-in
-{
-  inherit isRuleset;
 }
