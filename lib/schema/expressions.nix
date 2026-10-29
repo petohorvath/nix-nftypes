@@ -103,7 +103,8 @@ let
     rec {
       concatBody = types.listOf expression;
 
-      # Anonymous set: expression or list of expressions (mappings are 2-tuples).
+      # Anonymous set: an expression or a list of them (mappings are
+      # 2-tuples).
       setBody = types.either expression (types.listOf expression);
 
       mapBody = submodule {

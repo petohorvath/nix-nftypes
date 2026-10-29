@@ -528,7 +528,9 @@ in
       inspect = ''
         nft -j list ruleset \
           | jq -r '.nftables[] | to_entries[] | select(.key != "metainfo")
-            | "\(.key) handle \(if .value.handle == 1000 then "kept" else "ignored" end)"'
+            | (if .value.handle == 1000 then "kept" else "ignored" end)
+              as $handle
+            | "\(.key) handle \($handle)"'
       '';
       misbehaviour = ''
         table handle ignored
@@ -608,10 +610,13 @@ in
         ++ map referenceRule kinds;
       inspect = ''
         nft -j list chain inet t c \
-          | jq -c '[.nftables[] | select(.rule) | .rule.expr[]]'
+          | jq -c '.nftables[] | select(.rule) | .rule.expr[]'
       '';
       misbehaviour = ''
-        [{"ct helper":"5"},{"ct timeout":"5"},{"ct expectation":"5"},{"synproxy":"5"}]
+        {"ct helper":"5"}
+        {"ct timeout":"5"}
+        {"ct expectation":"5"}
+        {"synproxy":"5"}
       '';
     }
     # nft's JSON parser rejects a listed meter, which the schema accepts

@@ -147,7 +147,8 @@ let
     dir: edits:
     ''
       mkdir -p ${dir}/src
-      cp ${nftablesSource}/src/{ct,meta,parser_json,proto,statement}.c ${dir}/src/
+      cp ${nftablesSource}/src/{ct,meta,parser_json,proto,statement}.c \
+        ${dir}/src/
       chmod +w ${dir}/src/*
     ''
     + lib.concatStrings (

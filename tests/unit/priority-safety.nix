@@ -135,9 +135,9 @@ let
     };
   };
 
-  # `compatibility.priorityValue` is the documented path for users who want named
-  # priorities. Pin that its int result reaches the renderer; the schema
-  # suite covers the resolved values.
+  # `compatibility.priorityValue` is the documented path for users who want
+  # named priorities. Pin that its int result reaches the renderer; the
+  # schema suite covers the resolved values.
   resolverTests = {
     testResolvedPriorityRenders = {
       expr = builtins.isString (

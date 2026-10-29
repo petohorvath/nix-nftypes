@@ -69,12 +69,14 @@ let
     in
     builtins.deepSeq ruleset ruleset;
 
-  # Schema↔text drift: every tag in the schema's `statement`,
-  # `expression` (its tagged forms), and `addObject`/`readBackObject` unions must have a
-  # matching entry in the corresponding text/* dispatch table —
-  # otherwise the renderer throws at *render time* (`no renderer for
-  # tag '…'`) instead of failing eval-time. Catches the regression class
-  # where a new schema tag is added without a renderer.
+  /*
+    Schema↔text drift: every tag in the schema's `statement`, `expression`
+    (its tagged forms), and `addObject`/`readBackObject` unions must have a
+    matching entry in the corresponding text/* dispatch table — otherwise
+    the renderer throws at *render time* (`no renderer for tag '…'`)
+    instead of failing eval-time. Catches the regression class where a new
+    schema tag is added without a renderer.
+  */
   textDriftTests =
     let
       inherit (internal) textDispatch;
@@ -133,10 +135,10 @@ let
 
   /*
     Block-form field drift: block form must render, refuse, or take from
-    the table tree's scope every field of the bodies a table tree
-    prepares, or the tree must reject it before rendering. A field added to one of these bodies
-    fails here until text classifies it, so block form cannot drop it
-    silently, as it once dropped a rule's `index`.
+    the table tree's scope every field of the bodies a table tree prepares,
+    or the tree must reject it before rendering. A field added to one of
+    these bodies fails here until text classifies it, so block form cannot
+    drop it silently, as it once dropped a rule's `index`.
   */
   blockFieldDriftTests =
     let
@@ -678,7 +680,7 @@ let
             handle = 2;
           };
         };
-        expected = ''{"delete":{"counter":{"family":"inet","handle":2,"table":"t"}}}'';
+        expected = "{\"delete\":{\"counter\":{\"family\":\"inet\",\"handle\":2,\"table\":\"t\"}}}";
       };
       # A delete Selector takes the name or the handle: not neither, and not
       # both.
