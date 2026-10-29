@@ -468,6 +468,22 @@ non-empty `statements` list plus optional `index` and `comment`. Any other
 entry throws, naming its path, such as `chains.input.rules.0`: write a single
 statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`.
 
+A chain's `prio` takes an int or a Symbolic priority, such as `"filter"`, in
+a table tree's `chains` and in `add.chain` and `create.chain`. The DSL resolves
+a symbol with `compatibility.priorityValue` for the chain's family and hook,
+and emits the int, because nft's JSON `prio` is an integer only. A bridge
+chain's `prio = "filter"` emits `-200` in JSON and `priority -200` in text. A
+symbol nft rejects at the hook throws the helper's message at the chain's
+`prio`, and a symbol without a `hook` throws too:
+
+```text
+nix-nftypes: dsl.table ip.t: chains.input.prio: family 'ip' has no priority 'dstnat' at hook 'input'. Valid priorities: any int, filter, mangle, raw, security, srcnat.
+```
+
+A flowtable's `prio` takes an int only: nft resolves a flowtable's symbol as
+netdev's at `ingress`, whatever its table's family, and the compatibility
+tables cover only chains.
+
 A Table tree adds its objects, so no body in it takes a `handle`: not the
 table, a chain, a rule entry, or a named object. Each throws at the handle, as
 in `nix-nftypes: dsl.table inet.t: chains.input.handle: nft ignores a handle on

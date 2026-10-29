@@ -10,6 +10,7 @@
       internal/rename.nix)
 */
 {
+  compatibility,
   lib,
   objects,
   listedObjectBodies,
@@ -53,6 +54,7 @@ let
   table = import ./structure/table.nix { inherit lib; };
   commands = import ./structure/commands.nix {
     inherit
+      compatibility
       lib
       listedObjectBodies
       objects

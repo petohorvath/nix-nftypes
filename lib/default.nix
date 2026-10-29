@@ -66,11 +66,11 @@ let
       ;
   };
   tables = import ./table.nix {
-    inherit lib text;
+    inherit compatibility lib text;
     objects = objects.all;
   };
   dsl = import ./dsl {
-    inherit lib;
+    inherit compatibility lib;
     objects = objects.all;
     listedObjectBodies = objects.listed;
     statementBodiesByTag = statements.bodiesByTag;

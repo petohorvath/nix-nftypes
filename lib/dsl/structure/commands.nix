@@ -32,6 +32,7 @@
   (e.g. `dsl.create.chain.prio' is not of type `null or signed integer'`).
 */
 {
+  compatibility,
   lib,
   listedObjectBodies,
   objects,
@@ -44,6 +45,7 @@ let
   ruleBody = import ../internal/rule-body.nix { inherit lib; };
   compact = import ../internal/compact.nix { inherit lib; };
   rejectHandle = import ../internal/reject-handle.nix { inherit lib; };
+  chainPriority = import ../internal/chain-priority.nix { inherit compatibility lib; };
   inherit (import ../internal/location.nix { inherit lib; }) builder;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
@@ -151,6 +153,13 @@ let
   */
   createObjectKinds = removeAttrs addObjectKinds [ "rule" ];
 
+  # A chain that `add` or `create` declares takes a Symbolic priority, which
+  # resolves for its family and hook (../internal/chain-priority.nix). The
+  # other verbs select a chain and take its body as given.
+  declaredChain = addObjectKinds.chain // {
+    renameBody = location: body: chainPriority location (body.family or null) body;
+  };
+
   /*
     `flush` accepts table, chain, set, map, meter, and ruleset
     (parser_json.c:4297-4304). `flush flowtable` is absent because the
@@ -256,8 +265,14 @@ in
     kinds plus `meter`, `reset` the resettable kinds but `rule`, and
     `flush` the flushable kinds plus `ruleset`.
   */
-  add = mkNamespace "add" (addObjectKinds // { rule = ruleCommandKind objects.addRuleBody; });
-  create = mkNamespace "create" createObjectKinds;
+  add = mkNamespace "add" (
+    addObjectKinds
+    // {
+      chain = declaredChain;
+      rule = ruleCommandKind objects.addRuleBody;
+    }
+  );
+  create = mkNamespace "create" (createObjectKinds // { chain = declaredChain; });
   delete = mkNamespace "delete" deleteObjectKinds;
   destroy = mkNamespace "destroy" deleteObjectKinds;
   flush = mkNamespace "flush" flushObjectKinds;

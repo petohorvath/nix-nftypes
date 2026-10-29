@@ -259,15 +259,16 @@ in
     '';
   };
 
+  # A Symbolic priority nft rejects at the chain's hook throws.
   testInvalidChainPriorityRejected = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         chains.input = baseChain // {
-          prio = "filter";
+          prio = "dstnat";
         };
       }
     );
-    expectedError.msg = "chains\\.input\\.prio";
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.prio: family 'inet' has no priority 'dstnat' at hook 'input'";
   };
 
   # JSON and imperative text add the rule after the rule at its index,
@@ -356,6 +357,19 @@ in
         type filter hook input priority 0;
       }
     '';
+  };
+
+  # A Symbolic priority renders as the int it resolves to for the chain's
+  # family and hook: a bridge chain's `filter` is -200.
+  testSymbolicPriorityRendersInt = {
+    expr = toTextBlock (
+      dsl.table "bridge" "br" {
+        chains.input = baseChain // {
+          prio = "filter";
+        };
+      }
+    );
+    expected = "chain input { type filter hook input priority -200; }\n";
   };
 
   # ---- chain with rules (rules become inline statements) -------------

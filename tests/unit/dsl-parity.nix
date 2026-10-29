@@ -2005,6 +2005,56 @@ in
         ];
       };
 
+  # A chain's Symbolic priority resolves for its family and hook, so a
+  # bridge chain's `filter` is -200 (man nft Table 7), and nft's JSON
+  # `prio`, an integer only, gets the int.
+  testTableTreeSymbolicPriority =
+    pr
+      (dsl.ruleset [
+        (dsl.table "bridge" "br" {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            prio = "filter";
+          };
+          chains.prerouting = {
+            type = "filter";
+            hook = "prerouting";
+            prio = "dstnat";
+          };
+        })
+      ])
+      {
+        nftables = [
+          {
+            add.table = {
+              family = "bridge";
+              name = "br";
+            };
+          }
+          {
+            add.chain = {
+              family = "bridge";
+              table = "br";
+              name = "input";
+              type = "filter";
+              hook = "input";
+              prio = -200;
+            };
+          }
+          {
+            add.chain = {
+              family = "bridge";
+              table = "br";
+              name = "prerouting";
+              type = "filter";
+              hook = "prerouting";
+              prio = -300;
+            };
+          }
+        ];
+      };
+
   # Chain with rules — verifies chain-before-rule emission order.
   testRenderChainWithRules =
     pr
@@ -3687,6 +3737,50 @@ in
             type = "ipv4_addr";
             elem = [ "192.0.2.1" ];
           };
+        };
+      };
+
+  # `add.chain` and `create.chain` resolve a Symbolic priority for the
+  # chain's family and hook, as a Table tree does.
+  testCmdAddChainSymbolicPriority =
+    pc
+      (dsl.add.chain {
+        family = "ip";
+        table = "t";
+        name = "prerouting";
+        type = "nat";
+        hook = "prerouting";
+        prio = "dstnat";
+      })
+      {
+        add.chain = {
+          family = "ip";
+          table = "t";
+          name = "prerouting";
+          type = "nat";
+          hook = "prerouting";
+          prio = -100;
+        };
+      };
+
+  testCmdCreateChainSymbolicPriority =
+    pc
+      (dsl.create.chain {
+        family = "inet";
+        table = "t";
+        name = "output";
+        type = "filter";
+        hook = "output";
+        prio = "security";
+      })
+      {
+        create.chain = {
+          family = "inet";
+          table = "t";
+          name = "output";
+          type = "filter";
+          hook = "output";
+          prio = 50;
         };
       };
 

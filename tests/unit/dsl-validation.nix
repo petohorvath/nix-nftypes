@@ -1195,6 +1195,66 @@ let
         ];
       };
 
+  /*
+    A chain's Symbolic priority resolves for its family and hook. A symbol
+    nft rejects at the hook throws `compatibility.priorityValue`'s message
+    at the chain's `prio`; a symbol without a hook has nothing to resolve
+    for. A flowtable keeps an integer priority.
+  */
+  symbolicPriorityTests =
+    let
+      chain = {
+        type = "filter";
+        hook = "input";
+        prio = "dstnat";
+      };
+      command = chain // {
+        family = "ip";
+        table = "t";
+        name = "c";
+      };
+      rejectedAtInput = "family 'ip' has no priority 'dstnat' at hook 'input'\\. Valid priorities: any int, filter, mangle, raw, security, srcnat\\.$";
+      needsHook = "a Symbolic priority resolves for the chain's family and hook; give both, or an int priority$";
+    in
+    {
+      testTreeSymbolicPriorityRejectedAtHook = {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" { chains.c = chain; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${rejectedAtInput}";
+      };
+      testAddChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.add.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${rejectedAtInput}";
+      };
+      testCreateChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.create.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.create\\.chain: prio: ${rejectedAtInput}";
+      };
+      testTreeSymbolicPriorityNeedsHook = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.table "ip" "t" { chains.c = removeAttrs (chain // { prio = "filter"; }) [ "hook" ]; })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${needsHook}";
+      };
+      testAddChainSymbolicPriorityNeedsFamily = {
+        expr = commandJson (dsl.add.chain (removeAttrs (command // { prio = "filter"; }) [ "family" ]));
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${needsHook}";
+      };
+      testFlowtableSymbolicPriorityRejected = {
+        expr = commandJson (
+          dsl.add.flowtable {
+            family = "ip";
+            table = "t";
+            name = "ft";
+            hook = "ingress";
+            prio = "filter";
+          }
+        );
+        expectedError.msg = "dsl\\.add\\.flowtable\\.prio' is not of type `signed integer'";
+      };
+    };
+
   # A `.ref` takes a name or a map expression, never an inline body.
   referenceBodyTests = lib.listToAttrs (
     map (
@@ -1571,7 +1631,7 @@ in
   };
 
   testRenderingValidatesLazyTable = {
-    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = "invalid"; }) ]);
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = true; }) ]);
     expectedError.msg = "chains\\.input\\.prio.*is not of type";
   };
 
@@ -1660,21 +1720,43 @@ in
 
   # The user's bug. Schema `chainBody.prio` is `nullOr int`; passing a
   # symbolic priority like "filter" used to render to `"prio":"filter"`
-  # and the kernel silently dropped the base-chain attrs.
-  testChainsCPrioStringRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "inet" "t" {
-          chains.c = {
-            type = "filter";
-            hook = "input";
-            policy = "drop";
-            prio = "filter";
-          };
-        })
-      ]
-    );
-    expectedError.msg = "chains\\.c\\.prio";
+  # and the kernel silently dropped the base-chain attrs. The DSL now
+  # resolves the symbol, so the JSON holds the int.
+  testChainsCPrioSymbolRendersInt = {
+    expr =
+      (builtins.fromJSON (
+        toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "t" {
+              chains.c = {
+                type = "filter";
+                hook = "input";
+                policy = "drop";
+                prio = "filter";
+              };
+            })
+          ]
+        )
+      )).nftables;
+    expected = [
+      {
+        add.table = {
+          family = "inet";
+          name = "t";
+        };
+      }
+      {
+        add.chain = {
+          family = "inet";
+          table = "t";
+          name = "c";
+          type = "filter";
+          hook = "input";
+          policy = "drop";
+          prio = 0;
+        };
+      }
+    ];
   };
 
   # ----- command-builder constructors (commands.nix) --------------------
@@ -1767,13 +1849,13 @@ in
     };
   };
 
-  testCreateChainPrioStringRejected = {
+  testCreateChainPrioBoolRejected = {
     expr = commandJson (
       dsl.create.chain {
         family = "ip";
         table = "t";
         name = "c";
-        prio = "filter";
+        prio = true;
       }
     );
     expectedError.msg = "create\\.chain\\.prio";
@@ -2589,6 +2671,7 @@ in
 // expressionBuilderTests
 // ctDirectionTests
 // unrefinedConstructorTests
+// symbolicPriorityTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests
