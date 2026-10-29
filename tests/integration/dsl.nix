@@ -58,8 +58,11 @@ lib.listToAttrs (
     expected = lib.sort lib.lessThan (
       fixtures.integrationCaseNames
       ++ [
+        "boolean-object-reference"
         "create-rule"
+        "flowtable-hook-other-than-ingress"
         "port-out-of-range"
+        "reset-other-than-tcp-option"
         "unknown-chain-policy"
         "unknown-family"
         "unknown-hook"

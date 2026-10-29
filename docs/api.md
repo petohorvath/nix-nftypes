@@ -109,8 +109,11 @@ includes the statement's reference forms. Type a tagged object, such as
 than `null`, the same type `types.statement` takes for that tag:
 `statementBodies.logBody` accepts `null` as `{ log = null; }` does. `ct helper`,
 `ct timeout`, `ct expectation`, `secmark`, and `tunnel` share `objectRefBody`,
-an expression: the object's name, such as `"ftp"`, or a map expression that
-selects it. `jump` and `goto` take `verdictTargetBody`, the same type as
+a Reference: the object's name, such as `"ftp"`, or a map expression that
+selects it. Every stateful statement's Reference, a counter's or a synproxy's
+included, takes only these two forms, so a number or a boolean fails.
+`resetBody` takes only a TCP option, the one expression nft's reset statement
+strips. `jump` and `goto` take `verdictTargetBody`, the same type as
 `types.expressionBodies.verdictTargetBody`. `accept`, `drop`, `continue`,
 `return`, and `notrack` take only `null`, so they have no body there; type
 their body with `types.nullLiteral`.
@@ -120,8 +123,8 @@ it rejects a module function, a path, and a `_module` key, so a string in a
 union with a body, such as the synproxy reference `"/sp1"`, is a name rather
 than a module file to import.
 
-Primitive types include `family`, `hook`, `chainType`, `chainPolicy`,
-`portNumber`, `prefixLength`, `ifname`, `comment`, `logPrefix`, `namedReference`
+Primitive types include `family`, `hook`, `flowtableHook`, `chainType`,
+`chainPolicy`, `portNumber`, `prefixLength`, `ifname`, `comment`, `logPrefix`, `namedReference`
 (`"@name"`), `nullLiteral` (the JSON `null` of a body such as
 `{ counter = null; }`), and the enum-backed types listed in `nftlib.enums`.
 
@@ -372,9 +375,10 @@ The option path need not name the field as the DSL spells it. A field takes
 its JSON key before validation, so a renamed field appears by its JSON
 spelling, as in `dsl.quota.val_unit` for `valUnit`. A builder that takes its
 body positionally names the body's JSON field, as in `dsl.mangle.key` or
-`dsl.eq.left`, or, where the body is a single expression, the internal option
-`value`: `resetStmt` errors name `dsl.resetStmt.value`, and a `.ref` given a
-map expression names its key as `dsl.counter.ref.value.map.key`.
+`dsl.eq.left`. Where the body is one tagged expression, it names the tag, as in
+`dsl.resetStmt."tcp option"`, and where the body is any other value, the
+internal option `value`: a `.ref` given a map expression names its key as
+`dsl.counter.ref.value.map.key`.
 
 The builders' own checks carry the prefix. A body that isn't an attribute set
 throws, such as
@@ -385,7 +389,7 @@ so does a body the schema rejects as a whole, such as
 The statement tags named `set`, `map`, and `reset` would collide with the
 `expr.set` and `expr.map` constructors and the `reset.<kind>` command builders,
 so their DSL names are `setStmt`, `mapStmt`, and `resetStmt`. `resetStmt expr`
-resets the stateful data an expression selects, such as a TCP option:
+strips the TCP option `expr`, the only expression nft's reset statement takes:
 `resetStmt (expr.tcpOption { name = "sack"; })`. Like `flow`, `setStmt` and
 `mapStmt` take the set, map, or flowtable name with or without its leading `@`.
 `setStmt` takes the `element` it adds, and `mapStmt` takes the `key` and `data`
@@ -552,7 +556,9 @@ when the body lacks a field nft requires for the verb, naming the field:
   them, in every builder and in a table tree's `chains`. nft loads a chain
   with only some of them as a regular chain whose rules never see packets.
 
-- `add.flowtable` and `create.flowtable` require `hook` and `prio`.
+- `add.flowtable` and `create.flowtable` require `hook` and `prio`. The hook
+  is `ingress`, the only one nft accepts for a flowtable in any family
+  (`types.flowtableHook`).
 - A body takes `handle` only where nft reads it: in Read-back, in a Selector,
   and in `insert.rule` and `replace.rule`. Every `add.<kind>`,
   `create.<kind>`, and `rename.chain` throws on one, at the handle, and points
@@ -645,8 +651,9 @@ Cleaning is not validation.
 
 `nftlib.enums.<name>` exposes the same value list used by each enum type.
 Examples include `family`, `hook`, `matchOperator`, `metaKey`, `ctKey`,
-`rtKey`, `fibResult`, `setFlag`, and `tunnelType`. `byteUnit` holds nft's byte units,
-`bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
+`rtKey`, `fibResult`, `setFlag`, and `tunnelType`. `flowtableHook` holds the
+one hook nft accepts for a flowtable, `ingress`. `byteUnit` holds nft's byte
+units, `bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
 quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
 `rate_unit`, adds `packets`.
 
