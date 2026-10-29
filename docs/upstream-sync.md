@@ -196,7 +196,10 @@ the package set's NixOS VM.
   versions it applies to.
 - `integration-chain-placement` real-loads a base chain at each family, chain
   type, and hook, 126 placements, and asserts that it loads exactly where
-  `compatibility.validChainPlacement` allows it.
+  `compatibility.validChainPlacement` allows it. It also real-loads a filter
+  chain at each hook of each family and each of nft's priority symbols, 175
+  cases, and asserts that it loads exactly where
+  `compatibility.prioritiesByFamily` lists the symbol, at the listed value.
 - Every `nft` probe records `nft --version` as its `nftVersion` run, so a case
   can expect rejection on an `nft` older than the one that added its form.
 - Every live suite asserts the exact names of the runs its probe recorded,

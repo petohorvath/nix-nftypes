@@ -15,7 +15,7 @@
 #
 # Renderer-level fix: `primitives.priority` now refuses anything that
 # isn't an int and throws naming the value. Symbolic priorities
-# (`filter`) flow through `nftlib.compatibility.resolvePriority` to an int
+# (`filter`) flow through `nftlib.compatibility.priorityValue` to an int
 # before reaching the renderer, and offsets are Nix arithmetic on that
 # int; the int path stays unchanged.
 
@@ -135,13 +135,13 @@ let
     };
   };
 
-  # `compatibility.resolvePriority` is the documented path for users who want named
+  # `compatibility.priorityValue` is the documented path for users who want named
   # priorities. Pin that its int result reaches the renderer; the schema
   # suite covers the resolved values.
   resolverTests = {
     testResolvedPriorityRenders = {
       expr = builtins.isString (
-        toText (rulesetWithChainPrio (nftlib.compatibility.resolvePriority "ip" "mangle"))
+        toText (rulesetWithChainPrio (nftlib.compatibility.priorityValue "ip" "prerouting" "mangle"))
       );
       expected = true;
     };

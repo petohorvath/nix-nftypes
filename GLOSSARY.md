@@ -34,7 +34,7 @@ Checking a value against a schema type, which fails naming the field that does n
 _Avoid_: type-checking (on its own), verification (that names the test runs)
 
 **Symbolic priority**:
-A named chain priority such as `filter` or `srcnat`, whose integer value depends on the family.
+A named chain priority such as `filter` or `srcnat`, whose integer value depends on the family, and which nft accepts only at some hooks of some families.
 
 **Known difference**:
 A documented place where the schema knowingly differs from the Authority: a parser form it rejects, a parser condition it leaves to `nft`, a read-back asymmetry, or a value the text grammar cannot spell.

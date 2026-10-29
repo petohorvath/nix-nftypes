@@ -139,8 +139,9 @@ in
 
   /*
     Kernel/man reference data — family×hook compatibility, chain-type
-    families, symbolic chain priorities, oifname-bearing hooks — and the
-    helpers that look placements and priorities up in it. See
+    families, the symbolic chain priorities of each family and hook,
+    oifname-bearing hooks — and the helpers that look placements and
+    priorities up in it. See
     `lib/compatibility.nix` for source-of-truth comments tying each
     table back to `man nft` Tables 6/7 and the relevant kernel headers.
   */
@@ -151,9 +152,9 @@ in
       hooksByChainType
       hooksByFamily
       hooksWithOifname
-      priorityIntsByFamily
-      priorityNameOf
-      resolvePriority
+      prioritiesByFamily
+      priorityName
+      priorityValue
       validChainPlacement
       ;
   };

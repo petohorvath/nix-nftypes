@@ -36,11 +36,14 @@ let
     loads of JSON and each text form whose `nft list ruleset` must agree,
     real-load read-backs of safe comments and ifname sets, real-load round
     trips, "still misbehaves" cases, `nft -c` of every parity pin and
-    Field leaf, and a base chain at every family × chain type × hook
-    placement.
+    Field leaf, a base chain at every family × chain type × hook
+    placement, and a filter chain at every hook and priority symbol.
   */
   nftSuites = {
-    chain-placement = [ "chainPlacement" ];
+    chain-placement = [
+      "chainPlacement"
+      "prioritySymbols"
+    ];
     comment-safety = [ "commentSafetyIntegration" ];
     dsl = [ "dslIntegration" ];
     ifname-safety = [ "ifnameSafetyIntegration" ];

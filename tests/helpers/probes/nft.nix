@@ -196,6 +196,24 @@ in
     )
   );
 
+  # Each priority symbol's filter chain really loaded, with the output
+  # set to the listed chain's priority.
+  prioritySymbols = writeNftRunner "priority-symbols-probe" (
+    lib.listToAttrs (
+      map (
+        case:
+        lib.nameValuePair case.name (inNamespace {
+          interfaces = [ "eth0" ];
+          command = ''
+            nft -f ${pkgs.writeText "${case.name}.nft" case.text}
+            nft -j list chain ${case.family} t c \
+              | jq -j '.nftables[] | select(.chain) | .chain.prio'
+          '';
+        })
+      ) fixtures.chainPlacement.prioritySymbols
+    )
+  );
+
   /*
     The parse check: each check's state really loaded, then its subject
     through `nft -c` (`nft -c -j` for JSON). A state that fails to load
