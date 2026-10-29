@@ -294,9 +294,9 @@ let
 
   /*
     How `renderTableBlock` treats each field of the table, chain, and rule
-    bodies a table tree prepares: rendered, refused, supplied by the tree's
-    scope (the host's table wrapper or the enclosing chain block), or
-    omitted as `toText` omits it. Objects render as they do in `toText`.
+    bodies a table tree prepares: rendered, refused, or supplied by the
+    tree's scope (the host's table wrapper or the enclosing chain block).
+    Objects render as they do in `toText`.
     The block-form drift test (tests/unit/schema.nix) fails when a schema
     field is missing here.
   */
@@ -310,7 +310,6 @@ let
         "family"
         "name"
       ];
-      omitted = [ "handle" ];
     };
     chain = {
       rendered = [
@@ -326,7 +325,6 @@ let
         "family"
         "table"
       ];
-      omitted = [ "handle" ];
     };
     rule = {
       rendered = [

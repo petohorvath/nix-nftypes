@@ -1600,7 +1600,6 @@ in
       (dsl.ruleset [
         (dsl.flush.ruleset { })
         (dsl.table "inet" "t" {
-          handle = 5;
           flags = [ "dormant" ];
           comment = "demo";
         })
@@ -1617,7 +1616,6 @@ in
               table = {
                 family = "inet";
                 name = "t";
-                handle = 5;
                 flags = [ "dormant" ];
                 comment = "demo";
               };

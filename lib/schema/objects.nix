@@ -290,8 +290,59 @@ let
     }
     // commentOption;
 
+  /*
+    nft reads a `handle` only in Read-back, in a Selector, and in `insert`
+    and `replace` rule; it ignores one on `add`, `create`, and `rename`
+    (ADR 0009). `inputBody kind args` is the body of such a command, as
+    `discriminatedSubmodule args` without the `handle` that `args.options`
+    declares. A value with a handle fails, and the error's description
+    points to Read-back.
+  */
+  inputBody =
+    kind: args:
+    discriminatedSubmodule (
+      args
+      // {
+        options = removeAttrs args.options [ "handle" ];
+        forbidKeys = [ "handle" ];
+        description =
+          if args ? description then
+            "${args.description}, and without a handle, ${handleRejection}"
+          else
+            "${kind} body without a handle, ${handleRejection}";
+      }
+    );
+  handleRejection = "which nft ignores on add, create, and rename; a handle appears in Read-back, where nft lists it";
+
+  /*
+    `listedBody description body`: the input body `body` as Read-back
+    lists it, with the handle nft assigned. A value fails as `body` fails
+    without its handle, and `description`, if not null, names the check.
+    The selecting verbs take it too, for the kinds without a Selector body.
+  */
+  listedBody =
+    description: body:
+    let
+      check = v: builtins.isAttrs v && body.check (removeAttrs v [ "handle" ]);
+      withCheck =
+        submodule:
+        types.addCheck submodule check
+        // {
+          substSubModules = modules: withCheck (submodule.substSubModules modules);
+        }
+        // lib.optionalAttrs (description != null) { inherit description; };
+    in
+    withCheck (
+      types.submoduleWith {
+        shorthandOnlyDefinesConfig = true;
+        modules = body.getSubModules ++ [ { options = { inherit (identityCore) handle; }; } ];
+      }
+    );
+
+  chainPlacementDescription = "chain body with type, hook and prio all set (a base chain) or all unset";
+
   bodies = rec {
-    tableBody = submodule {
+    tableBody = inputBody "table" {
       options =
         tableContainerOptions
         // {
@@ -311,7 +362,7 @@ let
       none, which is stricter than the parser: a Known difference (ADR
       0010).
     */
-    chainBody = discriminatedSubmodule {
+    chainBody = inputBody "chain" {
       extraCheck =
         body:
         let
@@ -322,7 +373,7 @@ let
           ];
         in
         setPlacementFields == [ ] || builtins.length setPlacementFields == 3;
-      description = "chain body with type, hook and prio all set (a base chain) or all unset";
+      description = chainPlacementDescription;
       options =
         namedInTableOptions
         // {
@@ -359,7 +410,7 @@ let
 
     # `rename chain` (parser_json.c, json_parse_cmd_rename) reads only
     # these four fields, and requires each.
-    renameChainBody = submodule {
+    renameChainBody = inputBody "rename chain" {
       options = namedInTableOptions // {
         newname = mkOption {
           type = types.str;
@@ -382,8 +433,8 @@ let
     # `add rule` takes no handle: nft 1.1.6's JSON parser ignores one and
     # appends the rule, while 1.1.7 and text read it as a position (a Known
     # difference, ADR 0010). `index` places the rule.
-    addRuleBody = submodule {
-      options = removeAttrs ruleOptions [ "handle" ];
+    addRuleBody = inputBody "rule" {
+      options = ruleOptions;
     };
 
     # `replace rule` (parser_json.c, json_parse_cmd_replace) needs the
@@ -398,11 +449,11 @@ let
       };
     };
 
-    setBody = submodule {
+    setBody = inputBody "set" {
       options = setMapCommonOptions;
     };
 
-    mapBody = submodule {
+    mapBody = inputBody "map" {
       options = mapOptions;
     };
 
@@ -417,7 +468,7 @@ let
 
     # `add` and `create` require `hook` and `prio` (parser_json.c,
     # json_parse_cmd_add_flowtable).
-    flowtableBody = submodule {
+    flowtableBody = inputBody "flowtable" {
       options = flowtableOptions;
     };
 
@@ -460,7 +511,7 @@ let
       };
     };
 
-    counterBody = submodule {
+    counterBody = inputBody "counter" {
       options = commonObjectOptions // {
         packets = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -475,7 +526,7 @@ let
       };
     };
 
-    quotaBody = submodule {
+    quotaBody = inputBody "quota" {
       options = commonObjectOptions // {
         # parser_json.c:3761: bytes is `json_unpack` (optional, defaults to 0).
         bytes = mkOption {
@@ -499,7 +550,7 @@ let
     # Named connection-count limit (nftables 1.1.7+, NFT_OBJECT_CONNLIMIT).
     # parser_json.c json_parse_cmd_add_object: `val` is required, `inv`
     # optional.
-    ctCountBody = submodule {
+    ctCountBody = inputBody "ct count" {
       options = commonObjectOptions // {
         val = mkOption {
           type = types.ints.unsigned;
@@ -513,7 +564,7 @@ let
       };
     };
 
-    ctHelperBody = submodule {
+    ctHelperBody = inputBody "ct helper" {
       # All fields optional per parser_json.c:3782-3809 (all json_unpack,
       # no _err).
       options = commonObjectOptions // {
@@ -535,13 +586,13 @@ let
       };
     };
 
-    limitBody = submodule {
+    limitBody = inputBody "limit" {
       options = limitOptions;
     };
 
     # ct timeout object: parser_json.c:3811-3833 — all fields optional on
     # the JSON path.
-    ctTimeoutBody = submodule {
+    ctTimeoutBody = inputBody "ct timeout" {
       options = commonObjectOptions // {
         protocol = mkOption {
           type = types.nullOr tcpUdpProto;
@@ -565,7 +616,7 @@ let
 
     # ct expectation object: parser_json.c:3835-3860 — all fields optional
     # on the JSON path.
-    ctExpectationBody = submodule {
+    ctExpectationBody = inputBody "ct expectation" {
       options = commonObjectOptions // {
         l3proto = mkOption {
           type = types.nullOr ctL3Proto;
@@ -614,7 +665,7 @@ let
       };
     };
 
-    secmarkBody = submodule {
+    secmarkBody = inputBody "secmark" {
       options = commonObjectOptions // {
         # parser_json.c:3769: context is json_unpack (optional).
         context = mkOption {
@@ -625,7 +676,7 @@ let
       };
     };
 
-    synproxyBody = submodule {
+    synproxyBody = inputBody "synproxy" {
       options = synproxyOptions;
     };
 
@@ -805,8 +856,23 @@ let
 
   addObject = taggedUnion addObjectBodies;
 
+  # Each add-object kind as Read-back lists it, with the handle nft
+  # assigned. A listed rule is `ruleBody`, and an element has no handle.
+  listedObjectBodies =
+    lib.mapAttrs (kind: listedBody (if kind == "chain" then chainPlacementDescription else null)) (
+      removeAttrs addObjectBodies [
+        "element"
+        "rule"
+      ]
+    )
+    // {
+      inherit (addObjectBodies) element;
+      rule = bodies.ruleBody;
+    };
+
   # The selection body of each kind whose add body requires fields that
-  # the selecting verbs ignore; a union takes the ones it has kinds for.
+  # the selecting verbs ignore; a union takes the ones it has kinds for,
+  # and the listed body, which keeps the handle, for its other add kinds.
   selectBodies = {
     flowtable = bodies.selectFlowtableBody;
     limit = bodies.selectLimitBody;
@@ -815,7 +881,7 @@ let
     set = bodies.selectSetBody;
     synproxy = bodies.selectSynproxyBody;
   };
-  selecting = kinds: kinds // builtins.intersectAttrs kinds selectBodies;
+  selecting = lib.mapAttrs (kind: body: selectBodies.${kind} or listedObjectBodies.${kind} or body);
 
   # `create` accepts every add-object kind except `rule`. nftables rejects
   # `create rule` explicitly; keeping a separate union prevents raw typed
@@ -851,8 +917,7 @@ let
     and list of one, so no command union accepts it (Known differences,
     ADR 0010).
   */
-  readBackObjectBodies = addObjectBodies // {
-    rule = bodies.ruleBody;
+  readBackObjectBodies = listedObjectBodies // {
     metainfo = bodies.metainfoBody;
     meter = bodies.meterBody;
     tunnel = bodies.tunnelBody;
@@ -918,6 +983,9 @@ let
 in
 {
   all = bodies;
+  # Internal: each add-object kind's listed body, by JSON tag, for the
+  # DSL's selecting builders.
+  listed = listedObjectBodies;
   inherit
     addObject
     createObject

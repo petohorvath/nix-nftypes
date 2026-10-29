@@ -477,6 +477,68 @@ in
         ["handle 2","handle 3","added","handle 4"]
       '';
     }
+    /*
+      nft's JSON parser ignores a handle on `add` and `create`: each object
+      loads with the handle the kernel assigns, not the 1000 it was given.
+      Text has no spelling for one, so JSON and text disagreed about it.
+      The add and create bodies reject a handle, which appears in Read-back
+      (ADR 0009). The `add rule` case above covers rules.
+    */
+    {
+      name = "add-handle-ignored";
+      knownDifference = "docs/adr/0010-accept-what-nft-loads-as-written.md";
+      ruleset.nftables =
+        let
+          handle = 1000;
+          object = kind: body: {
+            add.${kind} = {
+              family = "inet";
+              table = "t";
+              inherit handle;
+            }
+            // body;
+          };
+        in
+        [
+          {
+            add.table = table // {
+              inherit handle;
+            };
+          }
+          (object "chain" { name = "c"; })
+          (object "set" {
+            name = "s";
+            type = "ipv4_addr";
+          })
+          (object "counter" { name = "k"; })
+          (object "flowtable" {
+            name = "f";
+            hook = "ingress";
+            prio = 0;
+          })
+          {
+            create.quota = {
+              family = "inet";
+              table = "t";
+              name = "q";
+              inherit handle;
+            };
+          }
+        ];
+      inspect = ''
+        nft -j list ruleset \
+          | jq -r '.nftables[] | to_entries[] | select(.key != "metainfo")
+            | "\(.key) handle \(if .value.handle == 1000 then "kept" else "ignored" end)"'
+      '';
+      misbehaviour = ''
+        table handle ignored
+        chain handle ignored
+        counter handle ignored
+        quota handle ignored
+        set handle ignored
+        flowtable handle ignored
+      '';
+    }
     # nft's JSON parser rejects a listed meter, which the schema accepts
     # as Read-back, and nft's text has no meter object, so text refuses
     # one. A JSON parser that loads one fails this case.

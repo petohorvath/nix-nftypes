@@ -68,23 +68,23 @@ called: a builder such as `dsl.create.ctCount`, a table tree as
 
 ### Main types
 
-| Type               | Shape                                                                                                                                              |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ruleset`          | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                          |
-| `command`          | one command wrapper such as `add`, `delete`, or `flush`                                                                                            |
-| `expression`       | scalar, list, or tagged expression                                                                                                                 |
-| `taggedExpression` | tagged-expression forms only                                                                                                                       |
-| `statement`        | one tagged rule statement                                                                                                                          |
-| `addObject`        | the 16 add-object tags; a rule takes no `handle`                                                                                                   |
-| `createObject`     | add-object tags except `rule`                                                                                                                      |
-| `deleteObject`     | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                              |
-| `listObject`       | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                        |
-| `readBackObject`   | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; a rule keeps its `handle` |
-| `flushObject`      | table, chain, set, map, meter, or ruleset                                                                                                          |
-| `resetObject`      | counter, quota, rule, set, map, or element                                                                                                         |
-| `insertObject`     | a rule                                                                                                                                             |
-| `replaceObject`    | a rule with the `handle` of the rule it replaces                                                                                                   |
-| `renameObject`     | a chain with its `newname`                                                                                                                         |
+| Type               | Shape                                                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ruleset`          | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                        |
+| `command`          | one command wrapper such as `add`, `delete`, or `flush`                                                                                          |
+| `expression`       | scalar, list, or tagged expression                                                                                                               |
+| `taggedExpression` | tagged-expression forms only                                                                                                                     |
+| `statement`        | one tagged rule statement                                                                                                                        |
+| `addObject`        | the 16 add-object tags; no body takes a `handle`                                                                                                 |
+| `createObject`     | add-object tags except `rule`                                                                                                                    |
+| `deleteObject`     | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                            |
+| `listObject`       | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                      |
+| `readBackObject`   | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; each keeps its `handle` |
+| `flushObject`      | table, chain, set, map, meter, or ruleset                                                                                                        |
+| `resetObject`      | counter, quota, rule, set, map, or element                                                                                                       |
+| `insertObject`     | a rule                                                                                                                                           |
+| `replaceObject`    | a rule with the `handle` of the rule it replaces                                                                                                 |
+| `renameObject`     | a chain with its `newname`                                                                                                                       |
 
 Per-variant bodies are grouped under:
 
@@ -395,7 +395,7 @@ nftlib.dsl.table "inet" "filter" {
 
 Recognized table-body keys are:
 
-- table options: `handle`, `flags`, `comment`;
+- table options: `flags`, `comment`;
 - `chains`;
 - `sets`, `maps`, `flowtables`, `counters`, `quotas`, `limits`, `ctHelpers`,
   `ctTimeouts`, `ctExpectations`, `ctCounts`, `secmarks`, and `synproxies`.
@@ -417,8 +417,12 @@ dependencies hidden in raw nested bodies remain the caller's responsibility.
 A rule entry is either a non-empty statement list or an attrset with a
 non-empty `statements` list plus optional `index` and `comment`. Any other
 entry throws, naming its path, such as `chains.input.rules.0`: write a single
-statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`. A rule entry
-takes no `handle`, as `add.rule` takes none.
+statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`.
+
+A Table tree adds its objects, so no body in it takes a `handle`: not the
+table, a chain, a rule entry, or a named object. Each throws at the handle, as
+in `nix-nftypes: dsl.table inet.t: chains.input.handle: nft ignores a handle on
+add, create, and rename, …`.
 
 ### Naming and argument conventions
 
@@ -508,12 +512,17 @@ when the body lacks a field nft requires for the verb, naming the field:
   with only some of them as a regular chain whose rules never see packets.
 
 - `add.flowtable` and `create.flowtable` require `hook` and `prio`.
+- A body takes `handle` only where nft reads it: in Read-back, in a Selector,
+  and in `insert.rule` and `replace.rule`. Every `add.<kind>`,
+  `create.<kind>`, and `rename.chain` throws on one, at the handle, and points
+  to Read-back, as in `nix-nftypes: dsl.add.table: handle: nft ignores a
+handle on add, create, and rename, …`; `validate` rejects one in those
+  commands. nft ignores the handle there, so JSON kept it and text dropped it.
 - `replace.rule` requires the `handle` of the rule it replaces.
-- `add.rule` takes no `handle`, and throws naming the field
-  (`dsl.add.rule.handle`). nftables 1.1.6's JSON parser ignores one and
-  appends the rule, while 1.1.7 and text place the rule after the rule with
-  that handle. Place a rule with `index`, or with `insert.rule`, whose `handle`
-  puts it before that rule; see
+- On `add rule`, nftables 1.1.6's JSON parser ignores a handle and appends the
+  rule, while 1.1.7 and text place the rule after the rule with that handle.
+  Place a rule with `index`, or with `insert.rule`, whose `handle` puts it
+  before that rule; see
   [`spec-coverage.md`](spec-coverage.md#rule-handles-on-add-rule).
 - `add.rule`, `insert.rule`, and `replace.rule` require statements, a
   non-empty `statements` list, as a table tree's rule entries do. Without
@@ -568,11 +577,10 @@ Every line ends with a newline, the last included, so renders concatenate:
 
 Render only the contents of one `dsl.table` node. These functions omit the
 outer table declaration, keep the table's `flags` and `comment` as the first
-declarations, and place rules inside their chain blocks. A table `handle` has
-no block-form spelling and is omitted. A chain block lists its rules in order,
-so a rule `index` has no block-form spelling either, and is refused
-(`rule index`); order the rules in the list instead. Passing a full ruleset or
-a raw command is an error.
+declarations, and place rules inside their chain blocks. A chain block lists
+its rules in order, so a rule `index` has no block-form spelling, and is
+refused (`rule index`); order the rules in the list instead. Passing a full
+ruleset or a raw command is an error.
 
 Every declaration ends with a newline, the last included, and a table with no
 declarations renders as `""`.
