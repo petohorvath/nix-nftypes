@@ -1922,6 +1922,39 @@ rec {
         })
       ];
     }
+    # The ct keys whose name holds a space carry their family, so they
+    # load in an inet table, in either direction. Text writes the key as
+    # nft lists it, as in `ct original ip saddr`.
+    {
+      name = "ct-family-address-keys";
+      children = [
+        (dsl.table "inet" "t" {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            prio = 0;
+            rules = map (match: [ match ]) [
+              (dsl.eq (dsl.expr.ct {
+                key = "ip saddr";
+                dir = "original";
+              }) "192.0.2.1")
+              (dsl.eq (dsl.expr.ct {
+                key = "ip daddr";
+                dir = "reply";
+              }) "192.0.2.2")
+              (dsl.eq (dsl.expr.ct {
+                key = "ip6 saddr";
+                dir = "original";
+              }) "2001:db8::1")
+              (dsl.eq (dsl.expr.ct {
+                key = "ip6 daddr";
+                dir = "reply";
+              }) "2001:db8::2")
+            ];
+          };
+        })
+      ];
+    }
     # Statements that act on the packet: dup with and without a device,
     # synproxy in each body form, a meter, and a TCP option reset.
     {

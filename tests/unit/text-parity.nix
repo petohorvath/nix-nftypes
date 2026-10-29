@@ -47,6 +47,71 @@ let
     };
   };
 
+  /*
+    The ct keys whose name holds a space carry their family, so they load
+    in an inet table, where nft refuses a ct `saddr` or `daddr`. Text
+    writes each key as nft lists it, after the direction. The parse check
+    loads each pin.
+  */
+  ctFamilyAddressKeyTests =
+    lib.mapAttrs'
+      (
+        name: case:
+        lib.nameValuePair "testCtFamilyAddressKey${name}" {
+          expr = one {
+            add.rule = {
+              family = "inet";
+              table = "t";
+              chain = "c";
+              expr = [
+                {
+                  match = {
+                    left.ct = case.body;
+                    op = "==";
+                    inherit (case) right;
+                  };
+                }
+              ];
+            };
+          };
+          inherit (case) expected;
+        }
+      )
+      {
+        IpSaddr = {
+          body = {
+            key = "ip saddr";
+            dir = "original";
+          };
+          right = "192.0.2.1";
+          expected = "add rule inet t c ct original ip saddr == 192.0.2.1\n";
+        };
+        IpDaddr = {
+          body = {
+            key = "ip daddr";
+            dir = "reply";
+          };
+          right = "192.0.2.2";
+          expected = "add rule inet t c ct reply ip daddr == 192.0.2.2\n";
+        };
+        Ip6Saddr = {
+          body = {
+            key = "ip6 saddr";
+            dir = "original";
+          };
+          right = "2001:db8::1";
+          expected = "add rule inet t c ct original ip6 saddr == 2001:db8::1\n";
+        };
+        Ip6Daddr = {
+          body = {
+            key = "ip6 daddr";
+            dir = "reply";
+          };
+          right = "2001:db8::2";
+          expected = "add rule inet t c ct reply ip6 daddr == 2001:db8::2\n";
+        };
+      };
+
   # Statements that reference a named stateful object.
   statefulTags = [
     "counter"
@@ -416,15 +481,6 @@ in
       };
     };
     expected = "add rule ip t c ct state { established, related } accept\n";
-  };
-
-  # A ct address key carries its family, as nft lists it.
-  testCtFamilyAddressKey = {
-    expr = one (ctMatch {
-      key = "ip saddr";
-      dir = "original";
-    });
-    expected = "add rule ip t c ct original ip saddr == 10.0.0.1\n";
   };
 
   # nft's JSON parser ignores a ct expression's `family`, while text would
@@ -2740,3 +2796,4 @@ in
 }
 // typeKeyCtObjectMapRefusals
 // elementStatementRefusals
+// ctFamilyAddressKeyTests
