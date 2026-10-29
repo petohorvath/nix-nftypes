@@ -11,29 +11,38 @@
 }:
 
 let
+  inherit (import ../../ruleset-shape.nix { }) isRuleset;
   inherit (import ../../table-tree-marker.nix { }) isTableTree;
 
+  inherit (import ../../describe.nix { inherit lib; }) describe;
+  fail = import ../../fail.nix { } "dsl.ruleset";
+
   # Table preparation belongs to the table module. The ruleset only knows
-  # how to combine tables, nested lists, and the raw-command escape hatch.
+  # how to combine tables, rulesets, nested lists, and the raw-command
+  # escape hatch. A ruleset's commands are spliced in place, since nft
+  # rejects a ruleset nested inside another.
   flattenChild =
     child:
     if isTableTree child then
       expandTable child
+    else if isRuleset child then
+      flattenChildren child.nftables
     else if builtins.isList child then
       flattenChildren child
     else if builtins.isAttrs child then
       [ child ]
     else
-      throw "nix-nftypes: dsl.ruleset: invalid child — expected table node, command attrset, or list";
+      fail "invalid child: expected a Table tree, ruleset, command attrset, or list, got ${describe child}";
 
   flattenChildren = children: lib.concatMap flattenChild children;
 in
 {
   /*
-    Assemble the top-level ruleset envelope. `children` is a list of table
-    nodes (expanded into their commands), bare command attrsets (passed
-    through unvalidated), or nested lists of either. Returns
-    `{ nftables = [ commands ]; }` and throws on any other child.
+    Assemble the top-level ruleset envelope. `children` is a list of Table
+    trees (expanded into their commands), rulesets (their commands spliced
+    in place), bare command attrsets (passed through unvalidated), or
+    nested lists of these. Returns `{ nftables = [ commands ]; }` and
+    throws for a non-list `children` or any other child.
 
     It also throws when a reset of a counter, quota, set, map, or rule is
     not the last command, built or raw: nft runs one only there, and
@@ -42,13 +51,17 @@ in
   ruleset =
     children:
     let
-      commands = flattenChildren children;
+      commands =
+        if builtins.isList children then
+          flattenChildren children
+        else
+          fail "expected a list of children, got ${describe children}; wrap it in a list: dsl.ruleset [ … ]";
     in
     {
       nftables =
         if resetOrder.isRunAsWritten commands then
           commands
         else
-          throw "nix-nftypes: dsl.ruleset: a reset of a ${resetOrder.kindsText} must be the last command; nft resets nothing for one placed earlier";
+          fail "a reset of a ${resetOrder.kindsText} must be the last command; nft resets nothing for one placed earlier";
     };
 }

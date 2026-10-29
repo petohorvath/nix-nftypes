@@ -4,7 +4,9 @@
   numgen, …), header-option expressions (tcpOption, ipOption, …), and
   constructors for key-string expressions (ct, rt, fib, …) that carry the
   refinements a Field leaf can't. A key-string expression that takes no
-  refinement, such as meta or socket, has its leaves only.
+  refinement, such as meta or socket, has its leaves only, and `ct`, `rt`,
+  and `osf` throw without a refinement and point to the key's leaf, so
+  each key has one name.
 
   Every constructor but `setRef`, which builds a reference string,
   validates its body when called (./internal/builder.nix), so a wrong
@@ -16,6 +18,7 @@
 {
   expression,
   expressionBodies,
+  fields,
   lib,
 }:
 
@@ -25,6 +28,27 @@ let
 
   # The location of the `expr` constructor `name`.
   exprBuilder = name: expression.locationOf [ name ];
+
+  /*
+    The constructor `name` of a key-string expression whose keys have
+    Field leaves under `fields.<name>`; `article` is the one `name` takes,
+    `"a"` or `"an"`. A body with only a `key` that has a leaf throws and
+    points to that leaf; any other body, a refined one or one with a wrong
+    or unknown field, goes on to validation.
+  */
+  refinedKey =
+    { name, article }:
+    expression.fromFields {
+      inherit name;
+      prepare =
+        location: body:
+        if
+          builtins.attrNames body == [ "key" ] && lib.isString body.key && fields.${name} ? ${body.key}
+        then
+          fail location "`expr.${name}` builds ${article} ${name} expression with a refinement; without one, write the Field leaf `fields.${name}.${body.key}`"
+        else
+          body;
+    };
 
   # The constructor `name` of the binary operator expression `tag`.
   binaryOperator =
@@ -66,15 +90,16 @@ in
   setRef = reference.atReference (exprBuilder "setRef");
 
   /*
-    Build a map lookup. `key` is the lookup expression and `data` the
-    anonymous map body, or a named map's name with or without its leading
-    `@`. Returns a map expression whose named map is `"@<name>"`.
+    Build a map lookup. `key` is the lookup expression and `data` a list
+    of key-value pairs, another map expression, or a named map's name with
+    or without its leading `@`. Returns a map expression whose data is the
+    anonymous map `{ set = data; }` for a list and `"@<name>"` for a name.
   */
   map =
     key: data:
     expression.tagged { name = "map"; } {
       inherit key;
-      data = if builtins.isString data then reference.atReference (exprBuilder "map") data else data;
+      data = reference.mapData (exprBuilder "map") data;
     };
 
   /*
@@ -96,10 +121,11 @@ in
 
   /*
     Build a set element with per-element options. Takes `val`, the element
-    value, and the optional `timeout`, `expires`, and `comment`. The
-    statements nft lists beside an element's value are Read-back only: its
-    JSON parser ignores them, so `elem` takes none, and there is no element
-    statement either. Returns an elem expression.
+    value, and the optional `timeout`, `expires`, and `comment`, the fields
+    of `elemBody`. The statements nft lists beside an element's value are
+    Read-back only (`elemReadBackBody`): its JSON parser ignores them, so
+    `elem` takes none, and there is no element statement either. Returns
+    an elem expression.
   */
   elem = expression.fromFields { name = "elem"; };
 
@@ -188,23 +214,33 @@ in
   # -- Refined key-string expressions ---------------------------------------
   # The pre-built field tree covers the keys nft loads bare; these take a
   # key with its refinements (`family`, `dir`, …), and require the ones nft
-  # needs.
+  # needs. `ct`, `rt`, and `osf` also require one where the key has a
+  # Field leaf, and point to the leaf without one.
 
   /*
     Reference a conntrack key with a direction. Takes `key`, the conntrack
     key, and `dir`, the direction, which nft needs for `saddr`, `daddr`,
     `proto-src`, `proto-dst`, and the `ip` and `ip6` addresses, and takes
     only for these and `l3proto`, `protocol`, `packets`, `bytes`,
-    `avgpkt`, and `zone`; the constructor throws otherwise. Returns a ct
-    expression.
+    `avgpkt`, and `zone`; the constructor throws otherwise, and points to
+    the Field leaf, such as `fields.ct.mark`, without a direction. Returns
+    a ct expression.
   */
-  ct = expression.fromFields { name = "ct"; };
+  ct = refinedKey {
+    name = "ct";
+    article = "a";
+  };
 
   /*
-    Reference routing data. Takes `key`, the routing key, and an optional
-    address family, `family`. Returns an rt expression.
+    Reference routing data with an address family. Takes `key`, the
+    routing key, and `family`; without `family` the constructor throws and
+    points to the Field leaf, such as `fields.rt.mtu`. Returns an rt
+    expression.
   */
-  rt = expression.fromFields { name = "rt"; };
+  rt = refinedKey {
+    name = "rt";
+    article = "an";
+  };
 
   /*
     Look up the forwarding information base. Takes `result`, the requested
@@ -215,11 +251,15 @@ in
   fib = expression.fromFields { name = "fib"; };
 
   /*
-    Reference passive OS fingerprinting data. Takes `key`, `"name"` or
-    `"version"`, and an optional TTL mode, `ttl`. Returns an osf
-    expression.
+    Reference passive OS fingerprinting data with a TTL mode. Takes `key`,
+    `"name"` or `"version"`, and `ttl`; without `ttl` the constructor
+    throws and points to the Field leaf, such as `fields.osf.name`.
+    Returns an osf expression.
   */
-  osf = expression.fromFields { name = "osf"; };
+  osf = refinedKey {
+    name = "osf";
+    article = "an";
+  };
 
   /*
     Reference IPsec (xfrm) state. Takes `key`, the ipsec key, and `dir`,

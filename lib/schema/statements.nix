@@ -7,24 +7,24 @@
 
 let
   inherit (lib) mkOption types;
-  inherit (internal) submodule taggedUnion;
+  inherit (internal) restrictedUnion submodule taggedUnion;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     byteUnit
-    flowOp
+    flowOperator
     ipFamily
     limitRateUnit
     logFlag
     logLevel
     logPrefix
+    matchOperator
     namedReference
     natFlag
     natTypeFlag
     nullLiteral
-    operator
     queueFlag
     rejectType
-    setOp
+    setOperator
     synproxyFlag
     timeUnit
     xtType
@@ -100,7 +100,7 @@ let
           description = "right-hand expression";
         };
         op = mkOption {
-          type = operator;
+          type = matchOperator;
           description = "comparison operator";
         };
       };
@@ -310,7 +310,7 @@ let
     setBody = submodule {
       options = {
         op = mkOption {
-          type = setOp;
+          type = setOperator;
           description = "operation on the set (add/update/delete)";
         };
         elem = mkOption {
@@ -333,7 +333,7 @@ let
     mapBody = submodule {
       options = {
         op = mkOption {
-          type = setOp;
+          type = setOperator;
           description = "operation (add/update/delete)";
         };
         elem = mkOption {
@@ -435,7 +435,7 @@ let
           description = "map key";
         };
         data = mkOption {
-          type = expr;
+          type = expressions.mapDataExpression;
           description = "key → verdict mapping expression";
         };
       };
@@ -468,7 +468,7 @@ let
     flowBody = submodule {
       options = {
         op = mkOption {
-          type = flowOp;
+          type = flowOperator;
           description = "flow offload operation (only \"add\" accepted)";
         };
         flowtable = mkOption {
@@ -496,28 +496,28 @@ let
       };
     };
 
-    # synproxy statement: null (empty), inline config, or named reference
-    # string/expr. The map reference comes before the permissive anonymous
-    # submodule, which would otherwise claim it.
+    # synproxy statement: null (empty), a Reference, or an inline config.
+    # The Reference comes before the anonymous submodule, which would
+    # otherwise claim a map expression.
     synproxyBody = types.oneOf [
       nullLiteral
-      (expressions.expressionOf [ "map" ])
+      objectRef
       synproxyInline
-      expr
     ];
 
-    # reset statement (TCP option strip): takes a tcp option expression.
-    resetBody = expr;
+    # reset statement (TCP option strip): nft's parser takes only a tcp
+    # option expression (json_parse_optstrip_stmt).
+    resetBody = expressions.expressionOf [ "tcp option" ];
 
     # ct helper, ct timeout, ct expectation, secmark, and tunnel name an
     # object: nft parses each body into an objref statement's expression
     # (src/parser_json.c), the object's name or a map that selects it.
-    objectRefBody = expr;
+    objectRefBody = objectRef;
 
     /*
       Map of tag → body type. Single source of truth for the full
-      `statement` attrTag union and the `statementOf` subset helper —
-      adding a new statement kind here participates in both without
+      `statement` attrTag union and the `statementOf` Restricted type
+      helper — adding a new statement tag here participates in both without
       drift. Kept inside `bodies` (rather than alongside it) so the
       body submodules above are in scope without qualification.
     */
@@ -568,42 +568,27 @@ let
 
     /*
       `statementOf : [ String ] -> Type` — restrict a `statement`-typed
-      field to a subset of statement kinds, validated at `evalModules`
-      time. Each element of `kinds` names a tag in the `statement`
-      union (see `attrNames` of the statement attrTag).
+      field to chosen statement tags, a Restricted type, validated at
+      `evalModules` time. Each element of `tags` names a tag in the
+      `statement` union (see `attrNames` of the statement attrTag).
 
       Use cases: a downstream "match-only" slot
       (`statementOf [ "match" ]`) or a verdict-only slot
       (`statementOf [ "accept" "drop" "jump" "goto" "return" "continue" ]`).
-      Throws at *type construction* time on unknown kinds so typos
+      Throws at *type construction* time on unknown tags so typos
       surface immediately rather than at module evaluation.
 
-      The result is `types.attrTag` of the requested subset, with
-      `description` overridden to name the allowed kinds so error
+      The result is `types.attrTag` of the requested tags, with
+      `description` overridden to name the allowed tags so error
       messages read "value is not of type 'statement (one of: match)'"
       instead of the generic "attribute-tagged union".
     */
-    statementOf =
-      kinds:
-      let
-        valid = lib.attrNames bodiesByTag;
-        invalid = lib.subtractLists valid kinds;
-        renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
-      in
-      if !(builtins.isList kinds) then
-        throw "nix-nftypes: types.statementOf: argument must be a list of strings"
-      else if kinds == [ ] then
-        throw "nix-nftypes: types.statementOf: kinds list must be non-empty"
-      else if invalid != [ ] then
-        throw (
-          "nix-nftypes: types.statementOf: unknown statement kind(s): "
-          + "${renderList invalid}. Valid kinds: ${renderList valid}."
-        )
-      else
-        taggedUnion (lib.getAttrs kinds bodiesByTag)
-        // {
-          description = "statement (one of: ${renderList kinds})";
-        };
+    statementOf = restrictedUnion {
+      api = "types.statementOf";
+      noun = "statement";
+      label = "statement";
+      inherit bodiesByTag;
+    };
   };
 in
 {

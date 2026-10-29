@@ -17,7 +17,7 @@
 # report that something is wrong.
 
 let
-  inherit (helpers) commandJson;
+  inherit (helpers) capitalise commandJson;
   inherit (nftlib) dsl toJson;
 
   # Force a DSL value in full, as rendering it would.
@@ -148,7 +148,7 @@ let
         table = "t";
         name = "m";
         type = "ipv4_addr";
-        map = "mark";
+        dataType = "mark";
         elem = [ ];
       };
       msg = "nix-nftypes: dsl\\.add\\.map: elem: is the JSON spelling; write `elements`";
@@ -245,7 +245,7 @@ let
         statements = [
           (dsl.setStmt {
             op = "add";
-            elem = dsl.fields.ip.saddr;
+            element = dsl.fields.ip.saddr;
             set = "s";
             stmt = [ dsl.counter.auto ];
           })
@@ -261,7 +261,7 @@ let
         statements = [
           (dsl.mapStmt {
             op = "add";
-            elem = dsl.fields.ip.saddr;
+            key = dsl.fields.ip.saddr;
             data = 1;
             map = "m";
             stmt = [ dsl.counter.auto ];
@@ -269,6 +269,58 @@ let
         ];
       };
       msg = "nix-nftypes: dsl\\.mapStmt: stmt: is the JSON spelling; write `statements`";
+    };
+    setStmtElemJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.setStmt {
+            op = "add";
+            elem = dsl.fields.ip.saddr;
+            set = "s";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.setStmt: elem: is the JSON spelling; write `element`";
+    };
+    mapStmtElemJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.mapStmt {
+            op = "add";
+            elem = dsl.fields.ip.saddr;
+            data = 1;
+            map = "m";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.mapStmt: elem: is the JSON spelling; write `key`";
+    };
+    addMapMapJsonSpelling = {
+      value = dsl.add.map {
+        family = "inet";
+        table = "t";
+        name = "m";
+        type = "ipv4_addr";
+        map = "mark";
+      };
+      msg = "nix-nftypes: dsl\\.add\\.map: map: is the JSON spelling; write `dataType`";
+    };
+    treeMapMapJsonSpelling = {
+      value = dsl.ruleset [
+        (dsl.table "inet" "t" {
+          maps.m = {
+            type = "ipv4_addr";
+            map = "verdict";
+          };
+        })
+      ];
+      msg = "nix-nftypes: dsl\\.table inet\\.t: maps\\.m\\.map: is the JSON spelling; write `dataType`";
     };
     rejectExprJsonSpelling = {
       value = dsl.add.rule {
@@ -459,6 +511,72 @@ let
       };
     }
   ) malformedRuleEntries;
+
+  /*
+    A builder left uncalled among a rule's statements, such as the bare
+    `dsl.last` that was a statement in 0.1.0, throws naming the statement's
+    path. A Variant namespace with a null form points to its `.auto`.
+  */
+  uncalledStatements = {
+    last = {
+      statement = dsl.last;
+      msg = "expected a statement, got the Variant namespace `last`; write `last\\.auto` for its null form, or call it with a body$";
+    };
+    counter = {
+      statement = dsl.counter;
+      msg = "expected a statement, got the Variant namespace `counter`; write `counter\\.auto` for its null form, or call it with a body$";
+    };
+    limit = {
+      statement = dsl.limit;
+      msg = "expected a statement, got a function, such as a builder not yet called; call it to build the statement$";
+    };
+    jump = {
+      statement = dsl.jump;
+      msg = "expected a statement, got a function, such as a builder not yet called; call it to build the statement$";
+    };
+  };
+  uncalledStatementTests = lib.concatMapAttrs (
+    name: case:
+    lib.mapAttrs' (
+      form: render:
+      lib.nameValuePair "testUncalledStatementThrows_${name}_tableTree_${form}" {
+        expr = render (
+          dsl.table "inet" "fw" {
+            chains.input.rules = [
+              [
+                dsl.accept
+                case.statement
+              ]
+            ];
+          }
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.0\\.1: ${case.msg}";
+      }
+    ) tableRenderers
+    // {
+      "testUncalledStatementThrows_${name}_ruleBodyEntry" = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "fw" { chains.input.rules = [ { statements = [ case.statement ]; } ]; })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.0\\.statements\\.0: ${case.msg}";
+      };
+      "testUncalledStatementThrows_${name}_addRule" = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.add.rule {
+              family = "inet";
+              table = "t";
+              chain = "c";
+              statements = [ case.statement ];
+            })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.rule: statements\\.0: ${case.msg}";
+      };
+    }
+  ) uncalledStatements;
 
   # A rule command needs its statements in `statements`: without them, `add`,
   # `insert`, and `replace` rendered a rule with no statement. Each must
@@ -692,12 +810,12 @@ let
       setStmt = {
         unknown = dsl.setStmt (withBogus {
           op = "add";
-          elem = expression;
+          element = expression;
           set = "s";
         });
         wrong = dsl.setStmt {
           op = "bogus";
-          elem = expression;
+          element = expression;
           set = "s";
         };
         field = "op";
@@ -705,13 +823,13 @@ let
       mapStmt = {
         unknown = dsl.mapStmt (withBogus {
           op = "add";
-          elem = expression;
+          key = expression;
           data = 1;
           map = "m";
         });
         wrong = dsl.mapStmt {
           op = "bogus";
-          elem = expression;
+          key = expression;
           data = 1;
           map = "m";
         };
@@ -738,11 +856,10 @@ let
         wrong = dsl.goto 1;
         field = "target";
       };
-      # A body that is no submodule, such as an expression, is checked as
-      # the option `value`.
+      # The body is the TCP option expression itself.
       resetStmt = {
-        wrong = dsl.resetStmt notAnExpression;
-        field = "value";
+        wrong = dsl.resetStmt { "tcp option" = 1; };
+        field = ''"tcp option"'';
       };
     }
     // lib.listToAttrs (
@@ -853,13 +970,19 @@ let
       shiftLeft = binaryOperator "shiftLeft";
       shiftRight = binaryOperator "shiftRight";
       ct = fromFields "ct" {
-        valid.key = "mark";
+        valid = {
+          key = "bytes";
+          dir = "original";
+        };
         field = "key";
         value = "bogus";
         required = "key";
       };
       rt = fromFields "rt" {
-        valid.key = "mtu";
+        valid = {
+          key = "mtu";
+          family = "ip";
+        };
         field = "family";
         value = "inet";
         required = "key";
@@ -883,7 +1006,10 @@ let
         required = "key";
       };
       osf = fromFields "osf" {
-        valid.key = "name";
+        valid = {
+          key = "name";
+          ttl = "loose";
+        };
         field = "ttl";
         value = "bogus";
         required = "key";
@@ -1037,6 +1163,107 @@ let
     ) ctKeysNeedingDir
   );
 
+  # `expr.ct`, `expr.rt`, and `expr.osf` build a key with its Refinement;
+  # without one, each key has a Field leaf, so the constructor throws and
+  # points to it.
+  unrefinedConstructorTests =
+    lib.concatMapAttrs
+      (
+        tag: case:
+        lib.listToAttrs (
+          map (
+            key:
+            lib.nameValuePair "testExpr_${tag}_WithoutRefinementPointsToLeaf_${key}" {
+              expr = force (dsl.expr.${tag} { inherit key; });
+              expectedError.msg = "^nix-nftypes: dsl\\.expr\\.${tag}: `expr\\.${tag}` builds ${case.expression} with a refinement; without one, write the Field leaf `fields\\.${tag}\\.${key}`$";
+            }
+          ) case.keys
+        )
+      )
+      {
+        ct = {
+          expression = "a ct expression";
+          keys = [
+            "mark"
+            "bytes"
+          ];
+        };
+        rt = {
+          expression = "an rt expression";
+          keys = [
+            "mtu"
+            "nexthop"
+          ];
+        };
+        osf = {
+          expression = "an osf expression";
+          keys = [
+            "name"
+            "version"
+          ];
+        };
+      };
+
+  /*
+    A chain's Symbolic priority resolves for its family and hook. A symbol
+    nft rejects at the hook throws `compatibility.priorityValue`'s message
+    at the chain's `prio`; a symbol without a hook has nothing to resolve
+    for. A flowtable keeps an integer priority.
+  */
+  symbolicPriorityTests =
+    let
+      chain = {
+        type = "filter";
+        hook = "input";
+        prio = "dstnat";
+      };
+      command = chain // {
+        family = "ip";
+        table = "t";
+        name = "c";
+      };
+      rejectedAtInput = "family 'ip' has no priority 'dstnat' at hook 'input'\\. Valid priorities: any int, filter, mangle, raw, security, srcnat\\.$";
+      needsHook = "a Symbolic priority resolves for the chain's family and hook; give both, or an int priority$";
+    in
+    {
+      testTreeSymbolicPriorityRejectedAtHook = {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" { chains.c = chain; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${rejectedAtInput}";
+      };
+      testAddChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.add.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${rejectedAtInput}";
+      };
+      testCreateChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.create.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.create\\.chain: prio: ${rejectedAtInput}";
+      };
+      testTreeSymbolicPriorityNeedsHook = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.table "ip" "t" { chains.c = removeAttrs (chain // { prio = "filter"; }) [ "hook" ]; })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${needsHook}";
+      };
+      testAddChainSymbolicPriorityNeedsFamily = {
+        expr = commandJson (dsl.add.chain (removeAttrs (command // { prio = "filter"; }) [ "family" ]));
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${needsHook}";
+      };
+      testFlowtableSymbolicPriorityRejected = {
+        expr = commandJson (
+          dsl.add.flowtable {
+            family = "ip";
+            table = "t";
+            name = "ft";
+            hook = "ingress";
+            prio = "filter";
+          }
+        );
+        expectedError.msg = "dsl\\.add\\.flowtable\\.prio' is not of type `signed integer'";
+      };
+    };
+
   # A `.ref` takes a name or a map expression, never an inline body.
   referenceBodyTests = lib.listToAttrs (
     map (
@@ -1046,6 +1273,17 @@ let
         expectedError.msg = "nix-nftypes: dsl\\.${name}\\.ref: expected an object name or a map expression, got an attribute set without the one key `map`";
       }
     ) referencingStatements
+  );
+
+  # nft's parser takes `l4proto` on these protocols but loads a header
+  # field at offset 0 instead, a Known difference, so `expr.payload`
+  # rejects it.
+  payloadL4protoTests = lib.genAttrs' [ "ip" "ip6" "gre" ] (
+    protocol:
+    lib.nameValuePair "testExprPayloadL4protoThrows_${protocol}" {
+      expr = force (dsl.expr.payload protocol "l4proto");
+      expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown ${protocol} field 'l4proto'";
+    }
   );
 
   # The match operators, which build a match statement from its sides.
@@ -1099,7 +1337,9 @@ let
   # nft's JSON parser requires a rule's `expr` even where it ignores it, as
   # for destroy, so each imperative renderer fills the empty list: a rule
   # command without `expr` renders as it does with `expr = [ ]`, in a raw
-  # ruleset or through `dsl.ruleset`.
+  # ruleset or through `dsl.ruleset`. nft's JSON loads an added, inserted,
+  # or replaced rule with no statements, but its text grammar has no
+  # spelling for one, so text refuses it (#96).
   rawRuleCommands = {
     add = body: { add.rule = body; };
     insert = body: { insert.rule = body; };
@@ -1114,6 +1354,11 @@ let
       };
     };
   };
+  verbsNeedingStatements = [
+    "add"
+    "insert"
+    "replace"
+  ];
   rulesets = {
     raw = command: { nftables = [ command ]; };
     dsl = command: dsl.ruleset [ command ];
@@ -1124,10 +1369,16 @@ let
       built: ruleset:
       lib.genAttrs' imperativeRenderers (
         renderer:
-        lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
-          expr = nftlib.${renderer} (ruleset (command ruleScope));
-          expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
-        }
+        if renderer != "toJson" && builtins.elem verb verbsNeedingStatements then
+          lib.nameValuePair "testRuleWithoutExprRefused_${verb}_${built}_${renderer}" {
+            expr = nftlib.${renderer} (ruleset (command ruleScope));
+            expectedError.msg = helpers.refusals.ruleWithoutStatements;
+          }
+        else
+          lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
+            expr = nftlib.${renderer} (ruleset (command ruleScope));
+            expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
+          }
       )
       // {
         "testRuleWithoutExprHasAnEmptyExprInJson_${verb}_${built}" = {
@@ -1156,10 +1407,47 @@ let
         renderer:
         lib.nameValuePair "testBareTableThrows_${renderer}_${placement}" {
           expr = nftlib.${renderer} value;
-          expectedError.msg = "nix-nftypes: ${renderer}: got a dsl\\.table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
+          expectedError.msg = "nix-nftypes: ${renderer}: got a Table tree where a ruleset belongs; wrap it in dsl\\.ruleset";
         }
       )
     ) placements;
+
+  # Each imperative renderer throws for a raw `nftables` command among a
+  # ruleset's commands, which nft rejects, and points to `dsl.ruleset`,
+  # which splices one in place.
+  nestedRulesetTests =
+    let
+      values = {
+        empty.nftables = [ { nftables = [ ]; } ];
+        withCommands.nftables = [
+          {
+            nftables = [
+              (dsl.add.table {
+                family = "inet";
+                name = "t";
+              })
+            ];
+          }
+        ];
+        # A key beside `nftables` doesn't make it a command nft loads.
+        besideAVerb.nftables = [
+          {
+            nftables = [ ];
+            flush.ruleset = null;
+          }
+        ];
+      };
+    in
+    lib.concatMapAttrs (
+      shape: value:
+      lib.genAttrs' imperativeRenderers (
+        renderer:
+        lib.nameValuePair "testNestedRulesetThrows_${renderer}_${shape}" {
+          expr = nftlib.${renderer} value;
+          expectedError.msg = "nix-nftypes: ${renderer}: got a ruleset \\{ nftables = \\[ … \\]; \\} nested among a ruleset's commands, which nft rejects; splice it in with dsl\\.ruleset \\[ … \\]";
+        }
+      )
+    ) values;
 
   # An imperative renderer takes only a ruleset: a lone command, which nft
   # would reject as a bare `{"add":…}`, or any other value throws.
@@ -1224,6 +1512,444 @@ let
         expectedError.msg = "^nix-nftypes: ${renderer}: refusing to render";
       }
     ) renderers;
+
+  /*
+    nft reads a handle only in Read-back, a Selector, and `insert` and
+    `replace` rule (ADR 0009). Every `add`, `create`, and `rename` builder
+    and every Table-tree body throws on one, at the handle, and points to
+    Read-back. The body is otherwise valid, so only the handle fails.
+  */
+  handleTests =
+    let
+      scope = {
+        family = "ip";
+        table = "t";
+      };
+      named = scope // {
+        name = "o";
+      };
+      # A valid body of each `add` kind.
+      addBodies = {
+        table = {
+          family = "ip";
+          name = "t";
+        };
+        chain = named;
+        rule = scope // {
+          chain = "c";
+          statements = [ dsl.accept ];
+        };
+        set = named // {
+          type = "ipv4_addr";
+        };
+        map = named // {
+          type = "ipv4_addr";
+          dataType = "verdict";
+        };
+        element = named // {
+          elements = [ "10.0.0.1" ];
+        };
+        flowtable = named // {
+          hook = "ingress";
+          prio = 0;
+        };
+        counter = named;
+        quota = named;
+        ctHelper = named;
+        limit = named // {
+          rate = 1;
+          per = "second";
+        };
+        ctTimeout = named;
+        ctExpectation = named;
+        ctCount = named // {
+          val = 1;
+        };
+        secmark = named;
+        synproxy = named // {
+          mss = 1460;
+          wscale = 7;
+        };
+      };
+      withHandle = body: body // { handle = 3; };
+      readBack = "nft ignores a handle on add, create, and rename, and a Table tree adds its objects; a handle appears in Read-back";
+      rejects = verb: kind: body: {
+        expr = commandJson (dsl.${verb}.${kind} (withHandle body));
+        expectedError.msg = "^nix-nftypes: dsl\\.${verb}\\.${kind}: handle: ${readBack}";
+      };
+      treeRejects = at: body: {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" body) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: ${at}\\.handle: ${readBack}";
+      };
+      ruleScope = scope // {
+        chain = "c";
+      };
+    in
+    lib.mapAttrs' (
+      kind: body: lib.nameValuePair "testAdd${capitalise kind}HandleRejected" (rejects "add" kind body)
+    ) addBodies
+    // lib.mapAttrs' (
+      kind: body:
+      lib.nameValuePair "testCreate${capitalise kind}HandleRejected" (rejects "create" kind body)
+    ) (removeAttrs addBodies [ "rule" ])
+    // lib.mapAttrs' (
+      kind: cfg:
+      lib.nameValuePair "testTree${capitalise kind}HandleRejected" (
+        treeRejects "${cfg.plural}\\.o" {
+          ${cfg.plural}.o = withHandle (removeAttrs addBodies.${kind} (builtins.attrNames named));
+        }
+      )
+    ) internal.dslObjectKinds
+    // {
+      # Every builder of each verb is covered.
+      testHandleTestsCoverEveryAddKind = {
+        expr = builtins.attrNames dsl.add;
+        expected = builtins.attrNames addBodies;
+      };
+      testRenameChainHandleRejected = rejects "rename" "chain" (named // { newName = "d"; });
+      testTreeTableHandleRejected = {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" { handle = 3; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: handle: ${readBack}";
+      };
+      testTreeChainHandleRejected = treeRejects "chains\\.c" { chains.c.handle = 3; };
+      testTreeRuleHandleRejected = treeRejects "chains\\.c\\.rules\\.0" {
+        chains.c.rules = [
+          {
+            statements = [ dsl.accept ];
+            handle = 3;
+          }
+        ];
+      };
+      # `insert.rule` places a rule and `replace.rule` replaces one by its
+      # handle, a rule's Selector selects by it, and `delete` selects a
+      # named object by it in place of the name.
+      testHandleKeptWhereNftReadsIt = {
+        expr = lib.mapAttrs (_: command: builtins.fromJSON (commandJson command)) {
+          insert = dsl.insert.rule (withHandle addBodies.rule);
+          replace = dsl.replace.rule (withHandle addBodies.rule);
+          deleteRule = dsl.delete.rule (withHandle ruleScope);
+          deleteTable = dsl.delete.table (withHandle {
+            family = "ip";
+          });
+          deleteCounter = dsl.delete.counter (withHandle scope);
+          deleteFlowtable = dsl.delete.flowtable (withHandle scope);
+        };
+        expected = lib.mapAttrs (_: command: { nftables = [ command ]; }) {
+          insert.insert.rule = withHandle ruleScope // {
+            expr = [ { accept = null; } ];
+          };
+          replace.replace.rule = withHandle ruleScope // {
+            expr = [ { accept = null; } ];
+          };
+          deleteRule.delete.rule = withHandle ruleScope // {
+            expr = [ ];
+          };
+          deleteTable.delete.table = withHandle { family = "ip"; };
+          deleteCounter.delete.counter = withHandle scope;
+          deleteFlowtable.delete.flowtable = withHandle scope;
+        };
+      };
+      # With a name, nft never reads a handle: no Selector takes both.
+      testNamedSelectorHandleRejected = {
+        expr = commandJson (dsl.delete.counter (withHandle named));
+        expectedError.msg = "^nix-nftypes: dsl\\.delete\\.counter: selects by `name` or by `handle`; got both, and nft ignores a handle beside a name\\.$";
+      };
+      testListSelectorHandleRejected = {
+        expr = commandJson (dsl.list.set (withHandle scope));
+        expectedError.msg = "^nix-nftypes: dsl\\.list\\.set: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
+      };
+    };
+
+  /*
+    A Table tree's own errors: a rule entry takes no `index`, since the
+    tree lists a chain's rules in order, in `dsl.ruleset` and block form
+    alike.
+  */
+  tableTreeTests =
+    let
+      tree = body: dsl.ruleset [ (dsl.table "inet" "fw" body) ];
+      indexed = {
+        chains.input.rules = [
+          [ dsl.accept ]
+          {
+            statements = [ dsl.drop ];
+            index = 0;
+          }
+        ];
+      };
+      marked = dsl.table "inet" "fw" { chains.input.rules = [ [ dsl.accept ] ]; };
+      rendered = [
+        (toJson (dsl.ruleset [ marked ]))
+        (nftlib.toText (dsl.ruleset [ marked ]))
+        (nftlib.toTextBlock marked)
+      ];
+    in
+    {
+      # The nixpkgs convention marks a value's kind with `_type`.
+      testTreeMarkedWithType = {
+        expr = {
+          inherit (marked) _type;
+          oldMarker = marked ? __nftTable;
+        };
+        expected = {
+          _type = "nix-nftypes.tableTree";
+          oldMarker = false;
+        };
+      };
+
+      # Cleaning strips the marker, so no rendering carries it.
+      testTreeMarkerNeverRendered = {
+        expr = builtins.filter (
+          output:
+          lib.hasInfix "tableTree" output || lib.hasInfix "__nft" output || lib.hasInfix "_type" output
+        ) rendered;
+        expected = [ ];
+      };
+
+      # `dsl.table` sets the marker, so a body's own `_type` would be lost.
+      testTreeBodyTypeRejected = {
+        expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { _type = "example.table"; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: _type: is the Table tree's marker, which `dsl\\.table` sets to \"nix-nftypes\\.tableTree\", got \"example\\.table\"; remove it from the body$";
+      };
+
+      # The module system's option path starts with the tree, as a
+      # builder's starts with the builder (`dsl.add.chain.prio`). It
+      # quotes the part `dsl.table inet.fw`, which is no Nix identifier.
+      testTreeModuleErrorTypeNamesTree = {
+        expr = toJson (tree {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            # A string is a Symbolic priority, which the DSL resolves first.
+            prio = true;
+          };
+        });
+        expectedError.msg = "^A definition for option `\"?dsl\\.table inet\\.fw\"?\\.chains\\.input\\.prio' is not of type";
+      };
+      testTreeModuleErrorUnknownNamesTree = {
+        expr = toJson (tree {
+          counters.hits.bogus = 1;
+        });
+        expectedError.msg = "^The option `\"?dsl\\.table inet\\.fw\"?\\.counters\\.hits\\.bogus' does not exist";
+      };
+      testTreeModuleErrorRuleNamesTree = {
+        expr = toJson (tree {
+          chains.input.rules = [
+            {
+              statements = [ dsl.accept ];
+              comment = 5;
+            }
+          ];
+        });
+        expectedError.msg = "^A definition for option `\"?dsl\\.table inet\\.fw\"?\\.chains\\.input\\.rules\\.\"?0\"?\\.comment' is not of type";
+      };
+
+      # An unknown key lists the keys a Table tree takes, and a kind's
+      # singular name points to its plural.
+      testTreeUnknownKeyListsAllowed = {
+        expr = toJson (tree {
+          chians.c = { };
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: unsupported key\\(s\\): chians; a Table tree takes flags, comment, chains, counters, ctCounts, ctExpectations, ctHelpers, ctTimeouts, flowtables, limits, maps, quotas, secmarks, sets, synproxies$";
+      };
+      testTreeSingularKeySuggestsPlural = {
+        expr = toJson (tree {
+          set.s.type = "ipv4_addr";
+          chain.c = { };
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: unsupported key\\(s\\): chain, set; a Table tree takes flags, comment, chains, .*, synproxies; write `chains` for `chain` and `sets` for `set`$";
+      };
+
+      # The quota statement takes `val`, a quota object `bytes`.
+      testTreeQuotaValPointsToBytes = {
+        expr = toJson (tree {
+          quotas.q.val = 100;
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: quotas\\.q\\.val: is the quota statement's spelling; a quota object takes its threshold in `bytes`$";
+      };
+      testAddQuotaValPointsToBytes = {
+        expr = commandJson (
+          dsl.add.quota {
+            family = "inet";
+            table = "fw";
+            name = "q";
+            val = 100;
+          }
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.quota: val: is the quota statement's spelling; a quota object takes its threshold in `bytes`$";
+      };
+      testCreateQuotaValPointsToBytes = {
+        expr = commandJson (
+          dsl.create.quota {
+            family = "inet";
+            table = "fw";
+            name = "q";
+            val = 100;
+          }
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.create\\.quota: val: is the quota statement's spelling; a quota object takes its threshold in `bytes`$";
+      };
+
+      testTreeRuleIndexRejected = {
+        expr = toJson (tree indexed);
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.1\\.index: a Table tree lists a chain's rules in order, so a rule takes no `index`; order the rules in the list, or place one with `add\\.rule` or `insert\\.rule` and its `index`$";
+      };
+    };
+
+  /*
+    A name that declares or selects an object is no Reference (ADR 0009):
+    nft looks up `"@s"` there as a set literally named `@s`. The builders
+    take the name with or without its `@` and emit the bare name; a Table
+    tree's object key, which no builder spells, throws on a leading `@`.
+    The schema takes a raw name as written.
+  */
+  namePositionTests =
+    let
+      scope = {
+        family = "inet";
+        table = "t";
+      };
+      # The command's object body, in the JSON `commandJson` renders.
+      objectOf =
+        command:
+        let
+          rendered = builtins.head (builtins.fromJSON (commandJson command)).nftables;
+          verb = builtins.head (builtins.attrNames rendered);
+        in
+        builtins.head (builtins.attrValues rendered.${verb});
+      # The name a builder emits for each spelling.
+      namesFor = build: {
+        bare = (objectOf (build "s")).name;
+        at = (objectOf (build "@s")).name;
+      };
+      bothBare = {
+        bare = "s";
+        at = "s";
+      };
+      # Every Selector with a name: each kind of each selecting verb but
+      # the rule, which a handle selects, and the ruleset.
+      selectorBody =
+        kind: name:
+        if kind == "table" then
+          {
+            family = "inet";
+            inherit name;
+          }
+        else
+          scope
+          // {
+            inherit name;
+          }
+          // lib.optionalAttrs (kind == "element") { elements = [ "192.0.2.1" ]; };
+      selectorNames = lib.concatMapAttrs (
+        verb: _:
+        lib.mapAttrs'
+          (kind: build: lib.nameValuePair "${verb}.${kind}" (namesFor (name: build (selectorBody kind name))))
+          (
+            removeAttrs dsl.${verb} [
+              "rule"
+              "ruleset"
+            ]
+          )
+      ) (lib.genAttrs [ "delete" "destroy" "list" "flush" "reset" ] lib.id);
+      meterNamed =
+        name:
+        dsl.meter {
+          inherit name;
+          key = dsl.fields.ip.saddr;
+          statement = dsl.counter.auto;
+        };
+      tree = body: dsl.ruleset [ (dsl.table "inet" "fw" body) ];
+    in
+    {
+      testAddElementTakesBareName = {
+        expr = {
+          add = namesFor (name: dsl.add.element (selectorBody "element" name));
+          create = namesFor (name: dsl.create.element (selectorBody "element" name));
+        };
+        expected = {
+          add = bothBare;
+          create = bothBare;
+        };
+      };
+
+      # Every name-selecting kind, so a kind added later is covered.
+      testSelectorTakesBareName = {
+        expr = {
+          wrong = builtins.attrNames (lib.filterAttrs (_: names: names != bothBare) selectorNames);
+          inherit (selectorNames)
+            "delete.set"
+            "destroy.table"
+            "flush.meter"
+            "reset.element"
+            ;
+        };
+        expected = {
+          wrong = [ ];
+          "delete.set" = bothBare;
+          "destroy.table" = bothBare;
+          "flush.meter" = bothBare;
+          "reset.element" = bothBare;
+        };
+      };
+
+      testMeterTakesBareName = {
+        expr = {
+          bare = (meterNamed "m").meter.name;
+          at = (meterNamed "@m").meter.name;
+        };
+        expected = {
+          bare = "m";
+          at = "m";
+        };
+      };
+
+      testNamePositionRejectsBareAt = {
+        expr = commandJson (dsl.add.element (selectorBody "element" "@"));
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.element: name: expected a name, got \"@\"$";
+      };
+      testMeterRejectsBareAt = {
+        expr = meterNamed "@";
+        expectedError.msg = "^nix-nftypes: dsl\\.meter: name: expected a name, got \"@\"$";
+      };
+
+      # A non-string name reaches the schema, which names the option.
+      testNamePositionLeavesNonStringToSchema = {
+        expr = commandJson (dsl.delete.set (scope // { name = 5; }));
+        expectedError.msg = "dsl\\.delete\\.set\\.name' is not of type";
+      };
+
+      testTreeObjectKeyWithAtThrows = {
+        expr = toJson (tree {
+          sets."@s".type = "ipv4_addr";
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: sets\\.@s: a Table tree declares an object by its bare name; drop the leading `@`, which only a Reference adds$";
+      };
+      testTreeCounterKeyWithAtThrows = {
+        expr = toJson (tree {
+          counters."@c" = { };
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: counters\\.@c: a Table tree declares an object by its bare name";
+      };
+
+      # A raw command's name passes the schema as written.
+      testRawNameKeepsAt = {
+        expr =
+          (builtins.head
+            (builtins.fromJSON (toJson {
+              nftables = [
+                {
+                  add.element = scope // {
+                    name = "@s";
+                    elem = [ "192.0.2.1" ];
+                  };
+                }
+              ];
+            })).nftables
+          ).add.element.name;
+        expected = "@s";
+      };
+    };
 in
 {
   # Building a table or ruleset stays lazy; only rendering validates.
@@ -1241,7 +1967,7 @@ in
   };
 
   testRenderingValidatesLazyTable = {
-    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = "invalid"; }) ]);
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = true; }) ]);
     expectedError.msg = "chains\\.input\\.prio.*is not of type";
   };
 
@@ -1312,39 +2038,48 @@ in
     expr = nftlib.toText (
       dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.rules = [ [ dsl.drop ] ]; }) ]
     );
-    expected = "add table inet fw\nadd chain inet fw input\nadd rule inet fw input drop";
-  };
-
-  testTableTypeMarkerAccepted = {
-    expr = builtins.isString (
-      toJson (
-        dsl.ruleset [
-          (dsl.table "inet" "t" {
-            _type = "example.table";
-          })
-        ]
-      )
-    );
-    expected = true;
+    expected = "add table inet fw\nadd chain inet fw input\nadd rule inet fw input drop\n";
   };
 
   # The user's bug. Schema `chainBody.prio` is `nullOr int`; passing a
   # symbolic priority like "filter" used to render to `"prio":"filter"`
-  # and the kernel silently dropped the base-chain attrs.
-  testChainsCPrioStringRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "inet" "t" {
-          chains.c = {
-            type = "filter";
-            hook = "input";
-            policy = "drop";
-            prio = "filter";
-          };
-        })
-      ]
-    );
-    expectedError.msg = "chains\\.c\\.prio";
+  # and the kernel silently dropped the base-chain attrs. The DSL now
+  # resolves the symbol, so the JSON holds the int.
+  testChainsCPrioSymbolRendersInt = {
+    expr =
+      (builtins.fromJSON (
+        toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "t" {
+              chains.c = {
+                type = "filter";
+                hook = "input";
+                policy = "drop";
+                prio = "filter";
+              };
+            })
+          ]
+        )
+      )).nftables;
+    expected = [
+      {
+        add.table = {
+          family = "inet";
+          name = "t";
+        };
+      }
+      {
+        add.chain = {
+          family = "inet";
+          table = "t";
+          name = "c";
+          type = "filter";
+          hook = "input";
+          policy = "drop";
+          prio = 0;
+        };
+      }
+    ];
   };
 
   # ----- command-builder constructors (commands.nix) --------------------
@@ -1437,13 +2172,13 @@ in
     };
   };
 
-  testCreateChainPrioStringRejected = {
+  testCreateChainPrioBoolRejected = {
     expr = commandJson (
       dsl.create.chain {
         family = "ip";
         table = "t";
         name = "c";
-        prio = "filter";
+        prio = true;
       }
     );
     expectedError.msg = "create\\.chain\\.prio";
@@ -1460,17 +2195,15 @@ in
     expectedError.msg = "delete\\.counter\\.family.*is not of type";
   };
 
-  testListMapBadTypeRejected = {
+  testListMapBadNameRejected = {
     expr = commandJson (
       dsl.list.map {
         family = "ip";
         table = "t";
-        name = "m";
-        type = 123;
-        map = "mark";
+        name = 123;
       }
     );
-    expectedError.msg = "list\\.map\\.type.*is not of type";
+    expectedError.msg = "list\\.map\\.name.*is not of type";
   };
 
   testRenameChainBadNewNameRejected = {
@@ -1507,6 +2240,54 @@ in
       }
     );
     expectedError.msg = "create\\.flowtable\\.prio' was accessed but has no value defined";
+  };
+
+  # nft refuses a flowtable at any hook but `ingress` ("invalid hook").
+  testAddFlowtableHookOtherThanIngressRejected = {
+    expr = commandJson (
+      dsl.add.flowtable {
+        family = "inet";
+        table = "t";
+        name = "ft";
+        hook = "input";
+        prio = 0;
+      }
+    );
+    expectedError.msg = "add\\.flowtable\\.hook' is not of type";
+  };
+
+  testTreeFlowtableHookOtherThanIngressRejected = {
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "inet" "t" {
+          flowtables.ft = {
+            hook = "input";
+            prio = 0;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "flowtables\\.ft\\.hook' is not of type";
+  };
+
+  # Every `.ref` takes a name or a map expression only, as the schema's
+  # Reference does: a number or a boolean throws.
+  testObjectReferenceBuildersRejectNumbersAndBooleans = {
+    expr = lib.concatMap (
+      name:
+      builtins.filter (value: (builtins.tryEval (force (dsl.${name}.ref value))).success) [
+        5
+        true
+      ]
+    ) referencingStatements;
+    expected = [ ];
+  };
+
+  # nft's reset statement strips a TCP option and refuses any other
+  # expression ("Illegal TCP optstrip argument").
+  testResetStmtOtherThanTcpOptionRejected = {
+    expr = force (dsl.resetStmt dsl.fields.ct.mark);
+    expectedError.msg = "`dsl\\.resetStmt\\.ct' does not exist";
   };
 
   testTreeFlowtableMissingHookRejected = {
@@ -1557,7 +2338,41 @@ in
         handle = 4;
       }
     );
-    expectedError.msg = "destroy\\.counter\\.name' was accessed but has no value defined";
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.counter: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\. nft destroys by name only; dsl\\.delete\\.counter selects by handle\\.$";
+  };
+
+  # nft deletes a table, chain, set, map, flowtable, or stateful object
+  # but a ct helper by name or by handle, and reads the handle only
+  # without a name.
+  testDeleteSelectorWithNameAndHandleThrows = {
+    expr = commandJson (
+      dsl.delete.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        handle = 4;
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.set: selects by `name` or by `handle`; got both, and nft ignores a handle beside a name\\.$";
+  };
+  testDeleteSelectorWithoutNameOrHandleThrows = {
+    expr = commandJson (
+      dsl.delete.table {
+        family = "inet";
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.table: selects by `name` or by `handle`; got neither\\.$";
+  };
+  # nft reads a ct helper's name on delete, never its handle.
+  testDeleteCtHelperByHandleThrows = {
+    expr = commandJson (
+      dsl.delete.ctHelper {
+        family = "inet";
+        table = "t";
+        handle = 4;
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.ctHelper: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
   };
 
   testRenameChainMissingNewNameRejected = {
@@ -1621,16 +2436,92 @@ in
     expectedError.msg = "flush\\.table\\.family";
   };
 
-  testFlushChainBadHandleRejected = {
+  testFlushChainBadNameRejected = {
     expr = commandJson (
       dsl.flush.chain {
         family = "ip";
         table = "t";
-        name = "c";
-        handle = "not-a-number";
+        name = 4;
       }
     );
-    expectedError.msg = "flush\\.chain\\.handle.*is not of type";
+    expectedError.msg = "flush\\.chain\\.name.*is not of type";
+  };
+
+  /*
+    A selecting builder takes a Selector, which accepts no field nft
+    ignores for the verb (ADR 0009): `delete set` with elements deletes
+    the whole set, so `dsl.delete.set` throws, naming the builder and
+    pointing to `delete.element`.
+  */
+  testDeleteSetElementsThrows = {
+    expr = force (
+      dsl.delete.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.set: takes a Selector, with only `family`, `table`, and `name` or `handle`; got `elements`\\. To delete elements, use dsl\\.delete\\.element\\.";
+  };
+  testSelectorIgnoredFieldThrows = {
+    expr = force (
+      dsl.flush.chain {
+        family = "inet";
+        table = "t";
+        name = "c";
+        policy = "accept";
+        comment = "x";
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.flush\\.chain: takes a Selector, with only `family`, `table`, and `name`; got `comment` and `policy`\\.$";
+  };
+  # An element's Selector names the elements in the DSL spelling.
+  testDeleteElementSelectorNamesElements = {
+    expr = force (
+      dsl.reset.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+        timeout = 5;
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.reset\\.element: takes a Selector, with only `family`, `table`, `name`, and `elements`; got `timeout`";
+  };
+  # A JSON spelling points to the DSL name before the Selector check.
+  testSelectorJsonSpellingThrows = {
+    expr = force (
+      dsl.delete.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elem = [ "10.0.0.1" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.element: elem: is the JSON spelling; write `elements`";
+  };
+  testDeleteRuleStatementsThrows = {
+    expr = force (
+      dsl.destroy.rule (
+        ruleScope
+        // {
+          handle = 4;
+          statements = [ dsl.accept ];
+        }
+      )
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.rule: takes a Selector, with only `family`, `table`, `chain`, and `handle`; got `statements`";
+  };
+  testListRulesetFamily = {
+    expr = map dsl.list.ruleset [
+      { }
+      { family = "ip"; }
+    ];
+    expected = [
+      { list.ruleset = null; }
+      { list.ruleset.family = "ip"; }
+    ];
   };
 
   # A flush selects its set or map by name: nft ignores the datatypes.
@@ -1639,22 +2530,21 @@ in
       dsl.flush.set {
         family = "ip";
         table = "t";
-        type = "ipv4_addr";
       }
     );
     expectedError.msg = "flush\\.set\\.name.*was accessed but has no value defined";
   };
 
-  testFlushMapBadTypeRejected = {
+  testFlushMapTypeRejected = {
     expr = commandJson (
       dsl.flush.map {
         family = "ip";
         table = "t";
         name = "m";
-        type = 42;
+        type = "ipv4_addr";
       }
     );
-    expectedError.msg = "flush\\.map\\.type.*is not of type";
+    expectedError.msg = "nix-nftypes: dsl\\.flush\\.map: takes a Selector, with only `family`, `table`, and `name`; got `type`\\.$";
   };
 
   testFlushMeterBadTableRejected = {
@@ -1677,21 +2567,6 @@ in
     expectedError.msg = "`dsl\\.flush\\.ruleset\\.family' is not of type";
   };
 
-  # nft 1.1.6's JSON parser ignores a handle on `add rule`, so the
-  # builder refuses one.
-  testAddRuleHandleRejected = {
-    expr = commandJson (
-      dsl.add.rule {
-        family = "ip";
-        table = "t";
-        chain = "c";
-        statements = [ dsl.accept ];
-        handle = 4;
-      }
-    );
-    expectedError.msg = "dsl\\.add\\.rule\\.handle' does not exist";
-  };
-
   # ----- table-tree leaves (lib/table.nix) ------------------------------
   # One per plural-keyed object container, each picking a clearly-bad
   # value for the matching schema submodule. Asserts the leaf-validation
@@ -1706,25 +2581,6 @@ in
       ]
     );
     expectedError.msg = "flags\\..*is not of type";
-  };
-
-  # A table tree's rule loads through `add rule`, which takes no handle.
-  testTreeRuleHandleRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "ip" "t" {
-          chains.c = {
-            rules = [
-              {
-                statements = [ dsl.accept ];
-                handle = 4;
-              }
-            ];
-          };
-        })
-      ]
-    );
-    expectedError.msg = "chains\\.c\\.rules\\..*\\.handle' does not exist";
   };
 
   testTreeSetBadTypeRejected = {
@@ -1926,6 +2782,53 @@ in
     };
   };
 
+  # ----- expr.payload: nft's protocol and field table -----------------
+
+  # A protocol nft's JSON parser does not know fails at evaluation, and
+  # the error lists the ones it does.
+  testExprPayloadUnknownProtocolThrows = {
+    expr = force (dsl.expr.payload "ipv4" "saddr");
+    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown protocol 'ipv4'. Valid protocols: ah, arp, comp, dccp, esp, ether, gre, icmp, icmpv6, igmp, ip, ip6, sctp, tcp, th, udp, udplite, vlan.";
+  };
+
+  # A field the protocol lacks, such as a Field leaf's camelCase name,
+  # fails at evaluation, and the error lists the protocol's fields in
+  # nft's spelling.
+  testExprPayloadUnknownFieldThrows = {
+    expr = force (dsl.expr.payload "ip" "fragOff");
+    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.";
+  };
+
+  # A tunnel header loads only through `expr.payloadTunnel`; nft fails
+  # its named form.
+  testExprPayloadTunnelHeaderThrows = {
+    expr = force (dsl.expr.payload "vxlan" "vni");
+    expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown protocol 'vxlan'";
+  };
+
+  # A protocol or field that is not a string still fails the payload
+  # body's type, at the field's option.
+  testExprPayloadNonStringFieldThrows = {
+    expr = force (dsl.expr.payload "tcp" 1);
+    expectedError.msg = "`dsl\\.expr\\.payload\\.field' is not of type";
+  };
+
+  # Every payload Field leaf is a protocol and field in the table, so
+  # `expr.payload` rebuilds it.
+  testEveryPayloadFieldLeafBuilds = {
+    expr =
+      lib.filterAttrs (_: leaf: dsl.expr.payload leaf.payload.protocol leaf.payload.field != leaf)
+        (
+          lib.concatMapAttrs (
+            protocol: leaves:
+            lib.mapAttrs' (name: leaf: lib.nameValuePair "${protocol}.${name}" leaf) (
+              lib.filterAttrs (_: leaf: leaf ? payload) leaves
+            )
+          ) dsl.fields
+        );
+    expected = { };
+  };
+
   # ----- the flat namespace --------------------------------------------
 
   # The DSL's flat namespace merges its layers; a name two layers define
@@ -2065,8 +2968,8 @@ in
   };
 
   # nft's JSON parser ignores an element's statements on input, so
-  # `expr.elem` takes none; nft lists them, and `types.expression` keeps
-  # them for Read-back.
+  # `expr.elem` takes none, as `elemBody` does; nft lists them, and
+  # `elemReadBackBody` keeps them for Read-back.
   testExprElemTakesNoStatements = {
     expr = map (
       tag:
@@ -2095,11 +2998,9 @@ in
   testExprElemReadBackKeepsStatements = {
     expr = map (
       tag:
-      helpers.validates nftlib.types.expression {
-        elem = {
-          val = "10.0.0.1";
-          ${tag} = elemStatements.${tag};
-        };
+      helpers.validates nftlib.types.expressionBodies.elemReadBackBody {
+        val = "10.0.0.1";
+        ${tag} = elemStatements.${tag};
       }
     ) elemStatementKeys;
     expected = map (_: true) elemStatementKeys;
@@ -2189,7 +3090,7 @@ in
       (dsl.snat { port = 80; })
       (dsl.setStmt {
         op = "add";
-        elem = dsl.fields.ip.saddr;
+        element = dsl.fields.ip.saddr;
         set = "s";
       })
     ];
@@ -2236,15 +3137,23 @@ in
   };
 }
 // scopeTests
+// handleTests
 // droppedInputTests
 // malformedRuleEntryTests
+// uncalledStatementTests
 // ruleCommandTests
 // statementBuilderTests
 // expressionBuilderTests
 // ctDirectionTests
+// unrefinedConstructorTests
+// symbolicPriorityTests
+// payloadL4protoTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests
 // bareTableTests
+// nestedRulesetTests
 // notARulesetTests
 // refusalNamesTheRendererTests
+// tableTreeTests
+// namePositionTests

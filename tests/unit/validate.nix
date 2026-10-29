@@ -4,6 +4,7 @@
 { nftlib, ... }:
 let
   inherit (nftlib)
+    dsl
     toJson
     toText
     types
@@ -79,7 +80,7 @@ in
       expected = {
         validated = selection;
         json = "{\"nftables\":[{\"destroy\":{\"rule\":{\"chain\":\"c\",\"expr\":[],\"family\":\"ip\",\"handle\":4,\"table\":\"t\"}}}]}";
-        text = "destroy rule ip t c handle 4";
+        text = "destroy rule ip t c handle 4\n";
       };
     };
 
@@ -93,6 +94,34 @@ in
     expectedError = {
       type = "ThrownError";
       msg = "validate\\.nftables.*policy";
+    };
+  };
+
+  # `validate value type` is the likeliest slip, and the module system
+  # would report it from deep inside its own internals.
+  testSwappedArgumentsThrowNamingValidate = {
+    expr = validate ruleset types.ruleset;
+    expectedError = {
+      type = "ThrownError";
+      msg = "^nix-nftypes: validate: the arguments are swapped; call it as `validate type value`, such as `validate types\\.ruleset ruleset`$";
+    };
+  };
+
+  testNonTypeFirstArgumentThrowsNamingValidate = {
+    expr = validate "ruleset" ruleset;
+    expectedError = {
+      type = "ThrownError";
+      msg = "^nix-nftypes: validate: expected a schema type, such as `types\\.ruleset`, as the first argument, got a string; call it as `validate type value`$";
+    };
+  };
+
+  # No schema type takes a Table tree; `dsl.ruleset` expands one into the
+  # commands `types.ruleset` takes.
+  testTableTreeValueThrowsNamingValidate = {
+    expr = validate types.ruleset (dsl.table "inet" "filter" { });
+    expectedError = {
+      type = "ThrownError";
+      msg = "^nix-nftypes: validate: got a Table tree, which no schema type takes; expand it into a ruleset with `dsl\\.ruleset \\[ … \\]`, which validates its bodies$";
     };
   };
 

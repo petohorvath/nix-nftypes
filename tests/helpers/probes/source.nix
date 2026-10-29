@@ -122,6 +122,7 @@ let
     family."parser_json.c" = "/{ \"netdev\", NFPROTO_NETDEV }/d";
     fibResult."parser_json.c" = "/= \"check\",/d";
     metaKey."meta.c" = "/META_TEMPLATE(\"secmark\",/d";
+    payloadField."proto.c" = "/\\[IGMPHDR_MRT\\]/d";
     rtKey."parser_json.c" = "/{ \"ipsec\", NFT_RT_XFRM },/d";
     statementTag."parser_json.c" = "/{ \"tproxy\", json_parse_tproxy_stmt },/d";
   };
@@ -146,7 +147,8 @@ let
     dir: edits:
     ''
       mkdir -p ${dir}/src
-      cp ${nftablesSource}/src/{ct,meta,parser_json,statement}.c ${dir}/src/
+      cp ${nftablesSource}/src/{ct,meta,parser_json,proto,statement}.c \
+        ${dir}/src/
       chmod +w ${dir}/src/*
     ''
     + lib.concatStrings (

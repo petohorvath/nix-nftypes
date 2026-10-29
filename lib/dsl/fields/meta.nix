@@ -2,8 +2,10 @@
   Meta-key leaves. Bare attribute access returns the expression:
     fields.meta.mark == { meta = { key = "mark"; }; }
 
-  Key set mirrors primitives.metaKey (meta_templates[] in nftables'
-  src/meta.c, plus the backcompat aliases accepted by meta_key_parse).
+  Key set mirrors meta_templates[] in nftables' src/meta.c, one leaf per
+  key. `types.metaKey` also takes meta_key_parse's aliases `ibriport`,
+  `obriport`, and `secpath` as raw input, but they name the same keys as
+  `ibrname`, `obrname`, and `ipsec`, so they have no leaf.
 */
 { lib }:
 
@@ -46,10 +48,6 @@ let
     "sdifname"
     "broute"
     "ibrhwaddr"
-    # Backwards-compatibility aliases
-    "ibriport"
-    "obriport"
-    "secpath"
   ];
 in
 lib.genAttrs keys (key: {

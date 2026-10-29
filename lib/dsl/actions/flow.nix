@@ -30,22 +30,27 @@ in
 
     `meter { name; key; statement; size?; }` takes the meter name, the
     per-flow key expression, the statement to apply, and the optional
-    maximum entry count. Returns a meter statement. Throws when the body
-    doesn't validate, and for `stmt`, pointing to `statement`.
+    maximum entry count. The name declares the meter's set, so it takes
+    the bare name: a leading `@` is dropped. Returns a meter statement.
+    Throws when the body doesn't validate, and for `stmt`, pointing to
+    `statement`.
   */
-  meter = statement.fromFields { name = "meter"; };
+  meter = statement.fromFields {
+    name = "meter";
+    prepare = reference.normaliseBareName;
+  };
 
   /*
     Choose a verdict by looking up a key. `key` is the lookup expression and
-    `data` the verdict map body, or a named map's name with or without its
-    leading `@`. Returns a vmap statement whose named map is `"@<name>"`,
-    and throws when its body doesn't validate.
+    `data` a list of key-verdict pairs, another verdict map expression, or a
+    named map's name with or without its leading `@`. Returns a vmap
+    statement whose data is the anonymous map `{ set = data; }` for a list
+    and `"@<name>"` for a name, and throws when its body doesn't validate.
   */
   vmap =
     key: data:
     statement.tagged { name = "vmap"; } {
       inherit key;
-      data =
-        if builtins.isString data then reference.atReference (location.builder [ "vmap" ]) data else data;
+      data = reference.mapData (location.builder [ "vmap" ]) data;
     };
 }

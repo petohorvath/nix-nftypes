@@ -6,6 +6,7 @@
 
 let
   inherit (lib) mkOption types;
+  inherit (import ../describe.nix { inherit lib; }) describe;
 
   # Leaf option for one `types.attrTag` choice. Tag values are deliberately
   # required, so the option has no default.
@@ -18,6 +19,53 @@ let
 
   # `types.attrTag` over an attrset of tag → body type.
   taggedUnion = bodies: types.attrTag (lib.mapAttrs tagOption bodies);
+
+  # `type` with `description`. The module system re-creates a type an
+  # option declares (`substSubModules`), which drops an overridden
+  # description; re-apply it there, so an error names the type as given.
+  withDescription =
+    description: type:
+    type
+    // {
+      inherit description;
+      substSubModules = modules: withDescription description (type.substSubModules modules);
+    };
+
+  /*
+    The Restricted type that `types.statementOf` and `types.expressionOf`
+    build: the tagged union of `bodiesByTag` restricted to `tags`,
+    described as `<label> (one of: "<tag>", …)`. `api` names the helper in
+    its errors, and `noun` the layer whose tags it takes. Throws when the
+    type is built, so a typo surfaces before any value is checked.
+  */
+  restrictedUnion =
+    {
+      api,
+      noun,
+      label,
+      bodiesByTag,
+    }:
+    tags:
+    let
+      fail = import ../fail.nix { } api;
+      expected = "expected a list of ${noun} tags (strings)";
+      valid = lib.attrNames bodiesByTag;
+      nonStrings = builtins.filter (tag: !builtins.isString tag) tags;
+      invalid = lib.subtractLists valid tags;
+      renderList = lib.concatMapStringsSep ", " (tag: ''"${tag}"'');
+    in
+    if !builtins.isList tags then
+      fail "${expected}, got ${describe tags}"
+    else if tags == [ ] then
+      fail "expected a non-empty list of ${noun} tags, got an empty list"
+    else if nonStrings != [ ] then
+      fail "${expected}, got a list holding ${describe (builtins.head nonStrings)}"
+    else if invalid != [ ] then
+      fail "unknown ${noun} tag(s): ${renderList invalid}. Valid tags: ${renderList valid}."
+    else
+      withDescription "${label} (one of: ${renderList tags})" (
+        taggedUnion (lib.getAttrs tags bodiesByTag)
+      );
 
   /*
     A body value is data: an attrset of fields. `types.submodule` also takes
@@ -94,7 +142,7 @@ in
   # `oneOf [nullLiteral (refOrInline …)]` at the call site.
   refOrInline = objectRef: inlineBody: types.either objectRef inlineBody;
 
-  inherit taggedUnion;
+  inherit restrictedUnion taggedUnion;
 
   # Single-tag attrTag wrapper:
   #   wrap "table" tableBody

@@ -19,6 +19,12 @@ _Avoid_: object type
 **Named object**:
 An object kind other than a table, chain, or rule, declared by name inside a table and referenced by that name.
 
+**Reference**:
+A value inside a rule that names a Named object: `@name` for a set, map, or flowtable, and the bare name for a stateful object. A name that declares or selects an object is not a reference and takes no `@`.
+
+**Selector**:
+The fields that pick one existing object for a `delete`, `destroy`, `list`, `flush`, or `reset` command: its family, table, and name or handle, plus only the fields nft reads for that verb.
+
 **Ruleset**:
 The ordered commands and listed objects that `nft` loads as one batch. The DSL builds one from commands and table trees.
 

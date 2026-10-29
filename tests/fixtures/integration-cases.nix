@@ -287,7 +287,7 @@ rec {
           // {
             name = "m";
             type = "inet_service";
-            map = "inet_service";
+            dataType = "inet_service";
           }
         ))
         (create.element (
@@ -423,7 +423,7 @@ rec {
           // {
             name = "m";
             type = "inet_service";
-            map = "inet_service";
+            dataType = "inet_service";
           }
         ))
         (create.flowtable (
@@ -466,7 +466,48 @@ rec {
       ];
     }
 
-    # -- destroy (idempotent) --------------------------------------------
+    # -- delete: by handle -----------------------------------------------
+    # nft deletes each of these kinds by handle in place of its name. The
+    # kernel numbers a namespace's tables, and each table's objects, from 1
+    # in the order they are added, and the state adds them one command at a
+    # time, so each handle is the object's position in it. Table `t` and
+    # set `kept` stay, so the listing shows what the deletes left.
+    {
+      name = "delete-by-handle";
+      state = ''
+        add table ip t
+        add counter ip t ctr
+        add quota ip t q { 1 bytes; }
+        add limit ip t lim { rate 1/second; }
+        add synproxy ip t sp { mss 1460; wscale 7; }
+        add set ip t s { type ipv4_addr; }
+        add set ip t kept { type ipv4_addr; }
+        add map ip t m { type inet_service : inet_service; }
+        add flowtable ip t ft { hook ingress priority 0; devices = { lo }; }
+        add chain ip t c
+        add table ip gone
+      '';
+      ruleset =
+        let
+          byHandle = handle: tableScope // { inherit handle; };
+        in
+        ruleset [
+          (delete.counter (byHandle 1))
+          (delete.quota (byHandle 2))
+          (delete.limit (byHandle 3))
+          (delete.synproxy (byHandle 4))
+          (delete.set (byHandle 5))
+          (delete.map (byHandle 7))
+          (delete.flowtable (byHandle 8))
+          (delete.chain (byHandle 9))
+          (delete.table {
+            family = "ip";
+            handle = 2;
+          })
+        ];
+    }
+
+    # -- destroy (idempotent)--------------------------------------------
     # Destroy succeeds whether the object exists or not. Table `t` and
     # counter `kept` stay, so the listing shows what the destroys left.
     {
@@ -490,7 +531,7 @@ rec {
           // {
             name = "m";
             type = "inet_service";
-            map = "inet_service";
+            dataType = "inet_service";
           }
         ))
         (create.flowtable (
@@ -561,7 +602,7 @@ rec {
           // {
             name = "m";
             type = "inet_service";
-            map = "inet_service";
+            dataType = "inet_service";
           }
         ))
         (flush.chain (tableScope // { name = "c"; }))
@@ -605,6 +646,35 @@ rec {
       ];
     }
 
+    # -- elements through a set's `@name` -----------------------------------
+    # `add.element` and a Selector take the set's name with its `@` and
+    # emit the bare name; nft would look up a set literally named `@s`.
+    {
+      name = "element-through-at-name";
+      children = [
+        (dsl.table "inet" "t" {
+          sets.s = {
+            type = "ipv4_addr";
+          };
+        })
+        (dsl.add.element {
+          family = "inet";
+          table = "t";
+          name = "@s";
+          elements = [
+            "192.0.2.1"
+            "192.0.2.2"
+          ];
+        })
+        (delete.element {
+          family = "inet";
+          table = "t";
+          name = "@s";
+          elements = [ "192.0.2.2" ];
+        })
+      ];
+    }
+
     # -- list.table ------------------------------------------------------
     # A table the same batch creates. `list-commands` lists loaded objects
     # of the other kinds.
@@ -614,6 +684,18 @@ rec {
         (flush.ruleset { })
         (create.table tableIdentity)
         (list.table tableIdentity)
+      ];
+    }
+
+    # -- list.ruleset ----------------------------------------------------
+    # The whole ruleset, then one family's.
+    {
+      name = "list-ruleset";
+      ruleset = ruleset [
+        (flush.ruleset { })
+        (create.table tableIdentity)
+        (list.ruleset { })
+        (list.ruleset { family = "ip"; })
       ];
     }
 
@@ -636,13 +718,7 @@ rec {
         add quota ip t q { 100 bytes used 10 bytes; }
       '';
       ruleset = ruleset [
-        (reset.quota (
-          tableScope
-          // {
-            name = "q";
-            bytes = 100;
-          }
-        ))
+        (reset.quota (tableScope // { name = "q"; }))
       ];
     }
 
@@ -1024,7 +1100,7 @@ rec {
           };
           maps.actions = {
             type = "ipv4_addr";
-            map = "verdict";
+            dataType = "verdict";
             comment = "per-host verdicts";
           };
         })
@@ -1154,7 +1230,7 @@ rec {
           };
           maps.timedMarks = {
             type = "ipv4_addr";
-            map = "mark";
+            dataType = "mark";
             flags = [ "timeout" ];
             policy = "performance";
             size = 64;
@@ -1214,7 +1290,7 @@ rec {
             let
               byAddress = kind: name: {
                 type = "ipv4_addr";
-                map = kind;
+                dataType = kind;
                 elements = [
                   [
                     "192.0.2.1"
@@ -1230,7 +1306,7 @@ rec {
               synproxyByAddress = byAddress "synproxy" "web";
               helperByPort = {
                 type.typeof = tcp.dport;
-                map = "ct helper";
+                dataType = "ct helper";
                 elements = [
                   [
                     21
@@ -1274,12 +1350,12 @@ rec {
           maps = {
             marks = {
               type = "ifname";
-              map = "mark";
+              dataType = "mark";
               elements = ifnameMarks;
             };
             byMark = {
               type = "mark";
-              map = "ifname";
+              dataType = "ifname";
               elements = map lib.reverseList ifnameMarks;
             };
           };
@@ -1391,7 +1467,7 @@ rec {
             maps = {
               marks = {
                 type.typeof = ip.saddr;
-                map.typeof = meta.mark;
+                dataType.typeof = meta.mark;
                 elements = [
                   [
                     "192.0.2.1"
@@ -1401,7 +1477,7 @@ rec {
               };
               endpointMarks = {
                 type.typeof = addressPort;
-                map.typeof = meta.mark;
+                dataType.typeof = meta.mark;
                 elements = [
                   [
                     (endpoint "192.0.2.1" 22)
@@ -1411,7 +1487,7 @@ rec {
               };
               counted = {
                 type.typeof = ip.saddr;
-                map = "counter";
+                dataType = "counter";
                 elements = [
                   [
                     "192.0.2.1"
@@ -1432,7 +1508,7 @@ rec {
         (dsl.table "inet" "t" {
           maps.byAddress = {
             type.typeof = ip.saddr;
-            map = "verdict";
+            dataType = "verdict";
             elements = [
               [
                 "192.0.2.1"
@@ -1457,7 +1533,7 @@ rec {
           };
           maps.cache = {
             type = "ipv4_addr";
-            map = "mark";
+            dataType = "mark";
             flags = [ "dynamic" ];
           };
           flowtables.ft = {
@@ -1475,14 +1551,14 @@ rec {
                   [
                     (dsl.setStmt {
                       op = "add";
-                      elem = ip.saddr;
+                      element = ip.saddr;
                       set = reference "blocked";
                     })
                   ]
                   [
                     (dsl.mapStmt {
                       op = "update";
-                      elem = ip.saddr;
+                      key = ip.saddr;
                       data = 1;
                       map = reference "cache";
                     })
@@ -1535,11 +1611,11 @@ rec {
           sets.allowed.type = "ipv4_addr";
           maps.marks = {
             type = "ipv4_addr";
-            map = "mark";
+            dataType = "mark";
           };
           maps.verdicts = {
             type = "ipv4_addr";
-            map = "verdict";
+            dataType = "verdict";
           };
           chains.input = {
             type = "filter";
@@ -1922,6 +1998,39 @@ rec {
         })
       ];
     }
+    # The ct keys whose name holds a space carry their family, so they
+    # load in an inet table, in either direction. Text writes the key as
+    # nft lists it, as in `ct original ip saddr`.
+    {
+      name = "ct-family-address-keys";
+      children = [
+        (dsl.table "inet" "t" {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            prio = 0;
+            rules = map (match: [ match ]) [
+              (dsl.eq (dsl.expr.ct {
+                key = "ip saddr";
+                dir = "original";
+              }) "192.0.2.1")
+              (dsl.eq (dsl.expr.ct {
+                key = "ip daddr";
+                dir = "reply";
+              }) "192.0.2.2")
+              (dsl.eq (dsl.expr.ct {
+                key = "ip6 saddr";
+                dir = "original";
+              }) "2001:db8::1")
+              (dsl.eq (dsl.expr.ct {
+                key = "ip6 daddr";
+                dir = "reply";
+              }) "2001:db8::2")
+            ];
+          };
+        })
+      ];
+    }
     # Statements that act on the packet: dup with and without a device,
     # synproxy in each body form, a meter, and a TCP option reset.
     {
@@ -2072,6 +2181,48 @@ rec {
         })
       ];
     }
+    # A list as the data of a vmap and of a map lookup, which the builders
+    # wrap in an anonymous map; nft rejects the bare list.
+    {
+      name = "anonymous-maps-from-lists";
+      children = [
+        (dsl.table "inet" "t" {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            prio = 0;
+            rules = [
+              [
+                (dsl.vmap tcp.dport [
+                  [
+                    22
+                    accept
+                  ]
+                  [
+                    80
+                    drop
+                  ]
+                ])
+              ]
+              [
+                (dsl.mangle meta.mark (
+                  dsl.expr.map tcp.dport [
+                    [
+                      22
+                      1
+                    ]
+                    [
+                      80
+                      2
+                    ]
+                  ]
+                ))
+              ]
+            ];
+          };
+        })
+      ];
+    }
     # Hashes and number generators, with and without their options.
     {
       name = "generator-expressions";
@@ -2146,13 +2297,13 @@ rec {
               hook = "output";
               prio = 0;
               rules = map (match: [ match ]) [
-                (dsl.eq (dsl.expr.rt { key = "mtu"; }) 1500)
-                (dsl.eq (dsl.expr.rt { key = "classid"; }) 10)
+                (dsl.eq dsl.fields.rt.mtu 1500)
+                (dsl.eq dsl.fields.rt.classid 10)
                 (dsl.eq (dsl.expr.rt {
                   key = "nexthop";
                   family = "ip";
                 }) "192.0.2.1")
-                (dsl.eq (dsl.expr.rt { key = "ipsec"; }) false)
+                (dsl.eq dsl.fields.rt.ipsec false)
                 (dsl.eq (dsl.expr.ipsec {
                   key = "reqid";
                   dir = "out";
@@ -2184,7 +2335,7 @@ rec {
                   dir = "in";
                   spnum = 1;
                 }) "192.0.2.1")
-                (dsl.eq (dsl.expr.osf { key = "name"; }) "Linux")
+                (dsl.eq dsl.fields.osf.name "Linux")
                 (dsl.eq (dsl.expr.osf {
                   key = "version";
                   ttl = "loose";
@@ -2751,6 +2902,55 @@ rec {
           ];
         rejected = 65536;
         accepted = 65535;
+      }
+      # A Reference is a name or a map expression (ADR 0010).
+      {
+        name = "boolean-object-reference";
+        expectedError = "Boolean values not allowed in this context";
+        withValue =
+          secmark:
+          commands [
+            { add.table = table; }
+            { add.chain = baseChain; }
+            (rule [ { inherit secmark; } ])
+          ];
+        rejected = true;
+        accepted = "s";
+      }
+      {
+        name = "reset-other-than-tcp-option";
+        expectedError = "Illegal TCP optstrip argument";
+        withValue =
+          reset:
+          commands [
+            { add.table = table; }
+            { add.chain = baseChain; }
+            (rule [ { inherit reset; } ])
+          ];
+        rejected.ct.key = "mark";
+        accepted."tcp option".name = "maxseg";
+      }
+      # nft evaluates a flowtable's hook as a netdev hook, whatever the
+      # table's family.
+      {
+        name = "flowtable-hook-other-than-ingress";
+        expectedError = "invalid hook";
+        withValue =
+          hook:
+          commands [
+            { add.table = table; }
+            {
+              add.flowtable = {
+                family = "inet";
+                table = "filter";
+                name = "ft";
+                inherit hook;
+                prio = 0;
+              };
+            }
+          ];
+        rejected = "input";
+        accepted = "ingress";
       }
     ];
 

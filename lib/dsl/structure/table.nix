@@ -1,11 +1,11 @@
 /*
-  Declarative table builder. `dsl.table` returns a table node that ruleset
+  Table tree builder. `dsl.table` returns a Table tree that ruleset
   expansion or block rendering turns into nftables commands.
 */
 { lib }:
 
 let
-  inherit (import ../../table-tree-marker.nix { }) marker;
+  inherit (import ../../table-tree-marker.nix { }) type;
   requireBody = import ../internal/require-body.nix { inherit lib; };
   location = import ../internal/location.nix { inherit lib; };
 in
@@ -15,24 +15,29 @@ in
 
   `family` is the table family, `name` the table name, and `body` the tree.
   Recognized keys in `body`:
-    Table-level options: handle, flags, comment
+    Table-level options: flags, comment
     Object kinds (each: name → body attrset):
       sets, maps, flowtables, counters, quotas, limits, ctHelpers,
       ctTimeouts, ctExpectations, ctCounts, secmarks, synproxies
     A set or map takes its elements in its own body; `add.element` adds
     elements to one defined elsewhere.
     Chains (name → chainBody), where chainBody may contain:
-      type, hook, prio, dev, policy, handle, comment, rules
+      type, hook, prio, dev, policy, comment, rules
+    prio is an int or a Symbolic priority such as "filter", which resolves
+    to its int for the table's family and the chain's hook.
     rules is a list (order-preserving); each element is either a bare list
-    of statements or an attrset `{ statements = [...]; index?; comment?; }`.
+    of statements or an attrset `{ statements = [...]; comment?; }`. The
+    list order is the rule order, so a rule takes no `index`.
+    No body in the tree takes a `handle`, which nft ignores on add.
 
   Nesting owns family/table/name/chain. Explicit matching fields in child
   bodies, and in `body` itself, are accepted, but conflicting values fail
   during expansion. Use standalone commands to choose scope independently
   of the tree.
 
-  Returns `body` tagged with the table marker, `family`, and `name`. Keys
-  are checked lazily, when the node is expanded or rendered.
+  Returns `body` marked with `_type = "nix-nftypes.tableTree"`, `family`,
+  and `name`. Keys are checked lazily, when the tree is expanded or
+  rendered.
 */
 family: name: body:
 let
@@ -49,7 +54,13 @@ let
 in
 requireBody tree body
 // {
-  "${marker}" = true;
+  # The body's own `_type` would be lost to the marker.
+  _type =
+    if body ? _type && body._type != type then
+      location.fail (location.within tree [ "_type" ])
+        "is the Table tree's marker, which `dsl.table` sets to ${builtins.toJSON type}, got ${builtins.toJSON body._type}; remove it from the body"
+    else
+      type;
   family = scoped "family" family;
   name = scoped "name" name;
 }

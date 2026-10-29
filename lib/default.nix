@@ -1,7 +1,9 @@
 /**
   nix-nftypes: strict Nix types, an ergonomic DSL, and pure renderers for
-  nftables rulesets. `docs/api.md` documents every export, and
-  `tests/unit/public-surface.nix` pins the list.
+  nftables rulesets. `docs/api.md` names every top-level, `dsl`,
+  `dsl.expr`, and `compatibility` export and documents the bodies and
+  enums by pattern. `tests/unit/public-surface.nix` pins the export lists
+  and fails on a name `docs/api.md` leaves out.
 */
 { lib }:
 
@@ -20,8 +22,8 @@ let
       ;
   };
   # Mutual reference between `expressions` and `statements`: statements
-  # consume `expr`, and elements (defined in expressions) accept the
-  # statement keys nft lists for them. Nix's recursive `let` resolves this
+  # consume `expr`, and Read-back elements (defined in expressions) accept
+  # the statement keys nft lists for them. Nix's recursive `let` resolves this
   # lazily — both modules are constructed without forcing the
   # cross-reference, which is only forced during value validation (by
   # which point both attrsets exist).
@@ -41,12 +43,19 @@ let
       primitives
       ;
   };
+  # The statements Read-back lists, over the expressions whose elements
+  # take the statements nft lists beside them.
+  readBackStatements = import ./schema/statements.nix {
+    inherit internal lib primitives;
+    expressions = expressions.readBack;
+  };
   objects = import ./schema/objects.nix {
     inherit
       expressions
       internal
       lib
       primitives
+      readBackStatements
       statements
       ;
   };
@@ -66,23 +75,25 @@ let
       ;
   };
   tables = import ./table.nix {
-    inherit lib text;
+    inherit compatibility lib text;
     objects = objects.all;
   };
   dsl = import ./dsl {
-    inherit lib;
+    inherit compatibility lib;
     objects = objects.all;
+    inherit (objects) deleteBodiesByTag selectBodiesByTag;
     statementBodiesByTag = statements.bodiesByTag;
-    # `expr.elem` builds an element as input, without the statements nft
-    # lists beside it.
-    expressionBodiesByTag = expressions.bodiesByTag // {
-      elem = expressions.elemInputBody;
-    };
+    expressionBodiesByTag = expressions.bodiesByTag;
     expressionBodies = expressions.all;
+    inherit payloadFieldsByProtocol;
     inherit (commands) resetOrder;
     inherit (tables) expandTable;
   };
-  compatibility = import ./compatibility.nix;
+  compatibility = import ./compatibility.nix {
+    enums = primitives.enumValues;
+    inherit lib;
+  };
+  payloadFieldsByProtocol = import ./schema/payload-fields.nix { };
 in
 {
   /*
@@ -94,22 +105,18 @@ in
   types = primitives.types // {
     /*
       Recursive expression union plus per-variant body submodules and
-      a subset helper. `expressionOf [ kinds... ]` restricts to a
-      chosen set of tagged expression kinds — see the helper docstring
+      the Restricted type helper. `expressionOf [ tags... ]` restricts to a
+      chosen set of expression tags — see the helper docstring
       in `lib/schema/expressions.nix` for scope (tagged-only; scalars
       and bare lists are not included).
     */
     inherit (expressions) expression expressionOf;
-    # The tagged forms of `expression`, without its scalar and bare-list
-    # branches: the type `expressionOf` restricts, and whose
-    # `.functor.payload.tags` lists every expression tag.
-    inherit (expressions) taggedExpression;
     expressionBodies = expressions.all;
 
     /*
-      Statement union plus per-variant body submodules and a subset
-      helper. `statementOf [ kinds... ]` restricts a `statement`-typed
-      field to a subset of statement tags (e.g. match-only or
+      Statement union plus per-variant body submodules and the Restricted
+      type helper. `statementOf [ tags... ]` restricts a `statement`-typed
+      field to a chosen set of statement tags (e.g. match-only or
       verdict-only) with `evalModules`-time validation, replacing
       hand-rolled walker checks downstream.
     */
@@ -122,6 +129,7 @@ in
       addObject
       createObject
       deleteObject
+      destroyObject
       flushObject
       insertObject
       listObject
@@ -140,24 +148,26 @@ in
     binding the `types.enum` definitions read. Useful for downstream
     consumers (zone libraries, validators, doc generators) that want
     the raw list without reaching into `types.<x>.functor.payload.values`.
+    `payloadFieldsByProtocol` is the one table among them: the fields
+    `dsl.expr.payload` takes for each protocol.
   */
-  enums = primitives.enumValues;
+  enums = primitives.enumValues // {
+    inherit payloadFieldsByProtocol;
+  };
 
   /*
     Kernel/man reference data — family×hook compatibility, chain-type
-    families, the symbolic chain priorities of each family and hook,
-    oifname-bearing hooks — and the helpers that look placements and
-    priorities up in it. See
+    families, the symbolic chain priorities of each family and hook —
+    and the helpers that look placements and priorities up in it, scoped
+    to what nft accepts on load. See
     `lib/compatibility.nix` for source-of-truth comments tying each
     table back to `man nft` Tables 6/7 and the relevant kernel headers.
   */
   compatibility = {
     inherit (compatibility)
-      chainTypeFor
       familiesByChainType
       hooksByChainType
       hooksByFamily
-      hooksWithOifname
       prioritiesByFamily
       priorityName
       priorityValue
@@ -189,8 +199,8 @@ in
   inherit (tables) toTextBlock toTextBlockPretty;
 
   /*
-    DSL — path-based field access, top-level operators, variant namespaces,
-    and declarative table structure. Statement, command, and table
+    DSL — path-based field access, top-level operators, Variant
+    namespaces, and Table trees. Statement, command, and table
     builders validate assembled bodies; `dsl.ruleset` also preserves raw
     command attrsets as an escape hatch.
   */

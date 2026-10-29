@@ -28,6 +28,53 @@ let
     toTextBlock
     toTextBlockPretty
     ;
+
+  /*
+    A Table tree adds its objects, and nft ignores a handle on add, so
+    neither block form takes one: the table, a chain, a rule, or a named
+    object.
+  */
+  handleRejectedTests =
+    let
+      cases = {
+        table = {
+          body.handle = 7;
+          at = "handle";
+        };
+        chain = {
+          body.chains.input.handle = 7;
+          at = "chains\\.input\\.handle";
+        };
+        rule = {
+          body.chains.input.rules = [
+            {
+              statements = [ dsl.accept ];
+              handle = 7;
+            }
+          ];
+          at = "chains\\.input\\.rules\\.0\\.handle";
+        };
+        counter = {
+          body.counters.hits.handle = 7;
+          at = "counters\\.hits\\.handle";
+        };
+      };
+    in
+    lib.concatMapAttrs (
+      name: case:
+      lib.mapAttrs'
+        (
+          renderer: render:
+          lib.nameValuePair "test${capitalise name}HandleRejected${renderer}" {
+            expr = render (dsl.table "inet" "fw" case.body);
+            expectedError.msg = "nix-nftypes: dsl\\.table inet\\.fw: ${case.at}: nft ignores a handle on add.*Read-back";
+          }
+        )
+        {
+          Compact = toTextBlock;
+          Pretty = toTextBlockPretty;
+        }
+    ) cases;
 in
 {
   # nft's JSON parser ignores a set or map comment, so block form refuses
@@ -49,7 +96,7 @@ in
       dsl.table "inet" "t" {
         maps.m = {
           type = "ipv4_addr";
-          map = "verdict";
+          dataType = "verdict";
           comment = "per-host verdicts";
         };
       }
@@ -76,8 +123,10 @@ in
     expectedError.msg = helpers.refusals.noTextSpelling "nat family";
   };
 
-  # nft's JSON parser also ignores element statements.
-  testElementStatementRefused = {
+  # nft's JSON parser also ignores element statements, so a Table tree,
+  # which validates its elements as input, rejects them before the
+  # renderer's Refusal is reached.
+  testElementStatementRejected = {
     expr = toTextBlock (
       dsl.table "ip" "t" {
         sets.s = {
@@ -97,7 +146,7 @@ in
         };
       }
     );
-    expectedError.msg = helpers.refusals.jsonIgnored "element counter";
+    expectedError.msg = "sets\\.s\\.elem.*is not of type `element body without counter, quota, limit, or last";
   };
 
   # ---- empty input ---------------------------------------------------
@@ -111,8 +160,9 @@ in
     expected = "";
   };
 
-  # Block renderers accept only declarative table nodes. Raw commands must
-  # not be silently discarded or rendered without their table context.
+  # Block renderers accept only Table trees. Raw commands must not be
+  # silently discarded or rendered without their table context, and the
+  # error says what the renderer got and points to `toText`.
   testRawTableCommandRejected = {
     expr = toTextBlock {
       add.table = {
@@ -120,7 +170,7 @@ in
         name = "fw";
       };
     };
-    expectedError.msg = "nix-nftypes: toTextBlock: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "^nix-nftypes: toTextBlock: expected one Table tree from `dsl\\.table`, got an attribute set with add; render a ruleset with `toText`$";
   };
 
   testRawChainCommandRejectedPretty = {
@@ -131,14 +181,14 @@ in
         name = "input";
       };
     };
-    expectedError.msg = "nix-nftypes: toTextBlockPretty: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "^nix-nftypes: toTextBlockPretty: expected one Table tree from `dsl\\.table`, got an attribute set with add; render a ruleset with `toText`$";
   };
 
   # Assertions cross the public table interface. The old internal command
   # envelope and its partition/regroup protocol no longer exist.
   testRulesetEnvelopeRejected = {
     expr = toTextBlock (dsl.ruleset [ (dsl.table "inet" "fw" { }) ]);
-    expectedError.msg = "nix-nftypes: toTextBlock: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "^nix-nftypes: toTextBlock: expected one Table tree from `dsl\\.table`, got a ruleset; render a ruleset with `toText`$";
   };
 
   testTableListRejectedPretty = {
@@ -146,7 +196,7 @@ in
       (dsl.table "inet" "fw" { })
       (dsl.table "inet" "other" { })
     ];
-    expectedError.msg = "nix-nftypes: toTextBlockPretty: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "^nix-nftypes: toTextBlockPretty: expected one Table tree from `dsl\\.table`, got a list; render a ruleset with `toText`$";
   };
 
   testUnknownTableKeyRejected = {
@@ -169,7 +219,7 @@ in
   # including when there are no declarations to render.
   testInvalidEmptyTableFamilyRejected = {
     expr = toTextBlock (dsl.table "invalid" "fw" { });
-    expectedError.msg = "option .family. is not of type";
+    expectedError.msg = "option `\"?dsl\\.table invalid\\.fw\"?\\.family' is not of type";
   };
 
   testInvalidEmptyTableFlagsRejectedPretty = {
@@ -183,17 +233,15 @@ in
   };
 
   # The wrapper holds only the family and name: flags and comment stay in
-  # the block, or a dormant table would load active. A handle has no
-  # block-form spelling.
+  # the block, or a dormant table would load active.
   testTableFlagsAndCommentStayInBlock = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         comment = "table";
         flags = [ "dormant" ];
-        handle = 7;
       }
     );
-    expected = "flags dormant;\ncomment \"table\";";
+    expected = "flags dormant;\ncomment \"table\";\n";
   };
 
   testTableFlagsAndCommentStayInBlockPretty = {
@@ -209,38 +257,26 @@ in
       comment "table";
       chain input {
         type filter hook input priority 0;
-      }'';
+      }
+    '';
   };
 
+  # A Symbolic priority nft rejects at the chain's hook throws.
   testInvalidChainPriorityRejected = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         chains.input = baseChain // {
-          prio = "filter";
+          prio = "dstnat";
         };
       }
     );
-    expectedError.msg = "chains\\.input\\.prio";
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.prio: family 'inet' has no priority 'dstnat' at hook 'input'";
   };
 
-  # A rule loads through `add rule`, which takes no handle.
-  testRuleHandleRejectedPretty = {
-    expr = toTextBlockPretty (
-      dsl.table "inet" "fw" {
-        chains.input.rules = [
-          {
-            statements = [ dsl.accept ];
-            handle = 7;
-          }
-        ];
-      }
-    );
-    expectedError.msg = "chains\\.input\\.rules\\.\"?0\"?\\.handle' does not exist";
-  };
-
-  # JSON and imperative text add the rule after the rule at its index,
-  # while a chain block lists its rules in order.
-  testRuleIndexRefusedCompact = {
+  # A Table tree lists a chain's rules in order and takes no rule
+  # `index`, so a tree renders in both forms; block form throws as
+  # `dsl.ruleset` does.
+  testRuleIndexRejectedCompact = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
         chains.input.rules = [
@@ -253,11 +289,10 @@ in
         ];
       }
     );
-    expectedError.msg = helpers.refusals.noTextSpelling "rule index";
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.2\\.index: a Table tree lists a chain's rules in order, so a rule takes no `index`";
   };
 
-  # The refusal holds for a rule with a comment, which block form renders.
-  testRuleIndexRefusedPretty = {
+  testRuleIndexRejectedPretty = {
     expr = toTextBlockPretty (
       dsl.table "inet" "fw" {
         chains.input.rules = [
@@ -269,7 +304,7 @@ in
         ];
       }
     );
-    expectedError.msg = helpers.refusals.noTextSpelling "rule index";
+    expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.0\\.index: a Table tree lists a chain's rules in order, so a rule takes no `index`";
   };
 
   testInvalidNamedObjectRejected = {
@@ -295,7 +330,8 @@ in
       set interfaces {
         type ifname;
         elements = { "eth0,eth1", "010" };
-      }'';
+      }
+    '';
   };
 
   testUnsafeIfnameElementRefusedPretty = {
@@ -313,7 +349,7 @@ in
   # ---- chain only (base chain, no rules) -----------------------------
   testBaseChainNoRulesCompact = {
     expr = toTextBlock (dsl.table "inet" "fw" { chains.input = baseChain; });
-    expected = "chain input { type filter hook input priority 0; }";
+    expected = "chain input { type filter hook input priority 0; }\n";
   };
 
   testBaseChainNoRulesPretty = {
@@ -321,7 +357,21 @@ in
     expected = ''
       chain input {
         type filter hook input priority 0;
-      }'';
+      }
+    '';
+  };
+
+  # A Symbolic priority renders as the int it resolves to for the chain's
+  # family and hook: a bridge chain's `filter` is -200.
+  testSymbolicPriorityRendersInt = {
+    expr = toTextBlock (
+      dsl.table "bridge" "br" {
+        chains.input = baseChain // {
+          prio = "filter";
+        };
+      }
+    );
+    expected = "chain input { type filter hook input priority -200; }\n";
   };
 
   # ---- chain with rules (rules become inline statements) -------------
@@ -337,7 +387,7 @@ in
         };
       }
     );
-    expected = "chain input { type filter hook input priority 0; policy drop; accept; drop; }";
+    expected = "chain input { type filter hook input priority 0; policy drop; accept; drop; }\n";
   };
 
   testChainWithRulesPretty = {
@@ -358,7 +408,8 @@ in
         policy drop;
         accept;
         drop;
-      }'';
+      }
+    '';
   };
 
   # ---- rule with comment ---------------------------------------------
@@ -379,13 +430,13 @@ in
       chain input {
         type filter hook input priority 0;
         accept comment "allow";
-      }'';
+      }
+    '';
   };
 
   testMatchingScopeAndCleanedRule = {
     expr = toTextBlock (
       dsl.table "inet" "fw" {
-        _type = "example.table";
         chains.input = {
           family = "inet";
           table = "fw";
@@ -409,7 +460,7 @@ in
         };
       }
     );
-    expected = "chain input { counter packets 1 bytes 2 accept comment \"allow\"; }";
+    expected = "chain input { counter packets 1 bytes 2 accept comment \"allow\"; }\n";
   };
 
   # ---- set / map / counter (block-form decls, no add prefix) ---------
@@ -422,7 +473,7 @@ in
         };
       }
     );
-    expected = "set lan_v4 { type ipv4_addr; flags interval; }";
+    expected = "set lan_v4 { type ipv4_addr; flags interval; }\n";
   };
 
   testSetBlockPretty = {
@@ -438,7 +489,8 @@ in
       set lan_v4 {
         type ipv4_addr;
         flags interval;
-      }'';
+      }
+    '';
   };
 
   testCounterBlockCompact = {
@@ -447,7 +499,7 @@ in
         counters.hits = { };
       }
     );
-    expected = "counter hits { }";
+    expected = "counter hits { }\n";
   };
 
   # Regression: pre-fix emitted `accept; accept }`, which `nft -f`
@@ -463,7 +515,7 @@ in
         };
       }
     );
-    expected = "chain forward { type filter hook forward priority 0; accept; accept; }";
+    expected = "chain forward { type filter hook forward priority 0; accept; accept; }\n";
   };
 
   # Same regression for sibling decls inside the table block.
@@ -479,7 +531,7 @@ in
         };
       }
     );
-    expected = "chain input { type filter hook input priority 0; accept; }\nset lan_v4 { type ipv4_addr; flags interval; }";
+    expected = "chain input { type filter hook input priority 0; accept; }\nset lan_v4 { type ipv4_addr; flags interval; }\n";
   };
 
   # ---- mixed children at the same indent level -----------------------
@@ -503,7 +555,8 @@ in
       set lan_v4 {
         type ipv4_addr;
         flags interval;
-      }'';
+      }
+    '';
   };
 
   # ---- multiple chains, rules grouped by chain -----------------------
@@ -526,17 +579,18 @@ in
       chain output {
         type filter hook output priority 0;
         drop;
-      }'';
+      }
+    '';
   };
 
   testReferencesAndOrderingCompact = {
     expr = toTextBlock referencedTable;
-    expected = lib.concatStringsSep "\n" [
-      "chain input { type filter hook input priority 0; tcp dport vmap @dispatch; }"
-      "chain service { ip saddr == @trusted counter name \"hits\" accept; drop; }"
-      "counter hits { }"
-      "map dispatch { type inet_service : verdict; elements = { 22 : jump service }; }"
-      "set trusted { type ipv4_addr; elements = { 192.0.2.1 }; }"
+    expected = lib.concatStrings [
+      "chain input { type filter hook input priority 0; tcp dport vmap @dispatch; }\n"
+      "chain service { ip saddr == @trusted counter name \"hits\" accept; drop; }\n"
+      "counter hits { }\n"
+      "map dispatch { type inet_service : verdict; elements = { 22 : jump service }; }\n"
+      "set trusted { type ipv4_addr; elements = { 192.0.2.1 }; }\n"
     ];
   };
 
@@ -559,14 +613,15 @@ in
       set trusted {
         type ipv4_addr;
         elements = { 192.0.2.1 };
-      }'';
+      }
+    '';
   };
 
   testLimitsCompact = {
     expr = toTextBlock limitTable;
-    expected = lib.concatStringsSep "\n" [
-      "chain input { limit rate over 10 kbytes/minute burst 5 bytes; limit name \"slow\" accept; }"
-      "limit slow { rate 5/second burst 10 packets; comment \"packet budget\"; }"
+    expected = lib.concatStrings [
+      "chain input { limit rate over 10 kbytes/minute burst 5 bytes; limit name \"slow\" accept; }\n"
+      "limit slow { rate 5/second burst 10 packets; comment \"packet budget\"; }\n"
     ];
   };
 
@@ -580,7 +635,8 @@ in
       limit slow {
         rate 5/second burst 10 packets;
         comment "packet budget";
-      }'';
+      }
+    '';
   };
 }
 # A kind's wrongly shaped named objects name the table and the kind's key
@@ -595,3 +651,4 @@ in
     };
   }
 ) internal.dslObjectKinds
+// handleRejectedTests

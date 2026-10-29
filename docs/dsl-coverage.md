@@ -19,7 +19,7 @@ table preparation (schema validation and scope checks)
     └── block emission    → table contents with rules inside chains
 ```
 
-The table node is lazy. Validation runs when output is forced, either by
+A Table tree is lazy. Validation runs when output is forced, either by
 rendering `dsl.ruleset [...]` or calling `toTextBlock*`. Both paths share
 [`lib/table.nix`](../lib/table.nix), which keeps rules with their chains until
 command expansion needs a flat list. Its prepared table shape stays private;
@@ -39,15 +39,24 @@ The DSL provides:
 - comparison and membership helpers at the top level.
 
 Pre-built leaves cover common payload, metadata, routing, connection-tracking,
-socket, OS fingerprint, and tunnel metadata fields. `expr.payload`,
-`expr.payloadRaw`, `expr.payloadTunnel`, and raw expression attrsets cover
-less common parser fields.
+socket, OS fingerprint, and tunnel metadata fields, nft's transport-header
+ports (`th.sport`, `th.dport`), and IGMP's fields (`igmp.type`, `mrt`,
+`checksum`, and `group`). `expr.payload`, `expr.payloadRaw`,
+`expr.payloadTunnel`, and raw expression attrsets cover less common parser
+fields.
 
 Each leaf names a field nft knows and loads as written in some rule: the
 `integration-parse-check` check sends every leaf, unchanged, through `nft -c`.
 A key that nft loads only with a refinement, such as a FIB result or an IPsec
 key, has no leaf; [`api.md`](api.md#fields-and-expressions) lists these keys and
 the `expr` constructors that build them.
+
+Each key has one name in the DSL: its leaf, or the constructor that takes its
+refinement. `expr.ct`, `expr.rt`, and `expr.osf` build a key with its `dir`,
+`family`, or `ttl`, and throw without one, pointing to the leaf, such as
+`fields.ct.mark`. `fields.meta` has no leaf for `ibriport`, `obriport`, or
+`secpath`, nft's aliases for `ibrname`, `obrname`, and `ipsec`;
+`types.metaKey` still accepts them as raw input.
 
 Where nft's field name differs from a plain word, the leaf follows nft:
 
@@ -64,11 +73,14 @@ There is no `icmpv6.packetTooBig` leaf, because nft has no such field;
 key.
 
 `expr.set` is the anonymous-set constructor; `expr.setRef` is the named-set
-reference, the `"@name"` string `inSet` requires. `expr.map` takes an
-anonymous map body or a named map's name. Every builder that names an
+reference, the `"@name"` string `inSet` requires. `expr.map` and `vmap` take
+an anonymous map or a named map's name, and wrap a list of key-value pairs in
+an anonymous map. Every builder that names an
 object takes the name with or without its `@`, and emits `"@name"` for a set,
 map, or flowtable and the bare name for a stateful object
-([API reference](api.md#references-to-named-objects)).
+([API reference](api.md#references-to-named-objects)). A name that declares
+or selects an object, such as `add.element`'s, a Selector's, or `meter`'s,
+drops a leading `@`.
 
 ### Statements
 
@@ -114,19 +126,23 @@ A set or map takes its elements in its own body. The tree has no top-level
 `elements` key; `add.element` in a `dsl.ruleset` adds elements to a set
 defined elsewhere.
 
-Nesting owns scope. A `dsl.table` body's explicit `family` and `name` must
-match its positional arguments. A named object's or chain's explicit `family`,
-`table`, and `name` must match the enclosing table and collection key. A rule's explicit
-`family`, `table`, and `chain` must match its parent table and chain. Matching
-fields are accepted for composition; conflicting fields fail with their tree
-path in both command and block output. Use standalone commands for scope that
-differs from the tree, including rules intended for another chain.
+Nesting owns scope. A `dsl.table` body's explicit `family` and `name` must match
+its positional arguments. A named object's or chain's explicit `family`,
+`table`, and `name` must match the enclosing table and collection key. A rule's
+explicit `family`, `table`, and `chain` must match its parent table and chain.
+Matching fields are accepted for composition; conflicting fields fail with their
+tree path in both the imperative and the block form. Use standalone commands for
+scope that differs from the tree, including rules intended for another chain.
 
 Each emitted body is validated with a path such as
-`chains.input.rules.0` or `sets.trusted`. Unknown table-body keys fail with the
-table name and offending key. This prevents misspellings such as `chians` from
-being silently dropped. The documented `_type` composability marker is accepted
-and removed during expansion.
+`chains.input.rules.0` or `sets.trusted`. A field's module-system error names
+the tree first, as in `"dsl.table inet.fw".chains.input.prio`. Unknown
+table-body keys fail with the table name, the offending key, and the keys a
+Table tree takes, and a singular kind name points to its plural, such as
+`sets` for `set`. This prevents misspellings such as `chians` from being
+silently dropped. A rule entry's `index` throws, since the list order is the
+rule order. `dsl.table` marks the tree with `_type = "nix-nftypes.tableTree"`,
+which Cleaning strips, so a body's own `_type` throws.
 
 ### Commands
 
@@ -138,13 +154,16 @@ The DSL exposes all modelled command verbs:
 - `delete.<kind>` and `destroy.<kind>` for the add-object kinds except
   `ctCount`, `ctTimeout`, and `ctExpectation`;
 - `list.<kind>` for table, chain, set, map, counter, quota, limit, ctHelper,
-  secmark, and meter;
+  secmark, meter, and ruleset;
 - `reset.<kind>` for counter, quota, set, map, and element;
 - `flush.<kind>` for ruleset, table, chain, set, map, and meter;
 - `rename.chain`.
 
-`delete`, `destroy`, `list`, `flush`, and `reset` select an object by family,
-table, and name alone, and a rule by its chain and handle
+`delete`, `destroy`, `list`, `flush`, and `reset` take a Selector, which
+selects an object by family, table, and name alone, a rule by its chain and
+handle, and elements by their set and values, and rejects every other field.
+`delete` selects a table, chain, set, map, flowtable, or stateful object by its
+name or its handle, but a ct helper by its name only
 ([API reference](api.md#commands)).
 
 Each namespace offers only the kinds that nft runs as written. `create.rule`,
@@ -163,8 +182,9 @@ remains.
 ## Key renaming
 
 Every DSL field and object-kind name is camel case. The DSL translates it where
-nftables uses spaces, hyphens, or underscores, runs words together, or names a
-list of elements or statements in the singular. Examples:
+nftables uses spaces, hyphens, or underscores, runs words together, names a
+list of elements or statements in the singular, or names a field for something
+other than what it holds. Examples:
 
 | DSL              | JSON                                                            |
 | ---------------- | --------------------------------------------------------------- |
@@ -175,6 +195,9 @@ list of elements or statements in the singular. Examples:
 | `typeFlags`      | `type_flags`                                                    |
 | `newName`        | `newname`                                                       |
 | `elements`       | `elem`, in a set, map, or element body                          |
+| `element`        | `elem`, in `setStmt`                                            |
+| `key`            | `elem`, in `mapStmt`                                            |
+| `dataType`       | `map`, in a map body                                            |
 | `statements`     | `expr` in a rule; `stmt` in a set, map, `setStmt`, or `mapStmt` |
 | `statement`      | `stmt`, in `meter`                                              |
 | `code`           | `expr`, in `reject`                                             |
@@ -215,8 +238,6 @@ Validate raw user configuration explicitly with
 
 - Plural `list`/`reset` command-selector forms are not modelled by either schema
   or DSL.
-- Some command verbs accept slimmer parser selector bodies than the shared
-  schema bodies expose.
 - Text rendering may impose stricter token and quoting rules than JSON.
 - A raw attrset remains the escape hatch for parser-valid shapes outside the
   model.

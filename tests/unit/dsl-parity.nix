@@ -55,6 +55,84 @@ let
     lib.nameValuePair "testExprCtDirected${name}" (pe (dsl.expr.ct body) { ct = body; })
   ) ctKeysNeedingDir;
 
+  # A non-list argument throws, naming what it got, rather than failing
+  # with a bare Nix type error.
+  rulesetNonListTests =
+    lib.mapAttrs'
+      (
+        shape: case:
+        lib.nameValuePair "testRulesetRejectsNonList_${shape}" {
+          expr = toJson (dsl.ruleset case.value);
+          expectedError.msg = "nix-nftypes: dsl\\.ruleset: expected a list of children, got ${case.got}; wrap it in a list: dsl\\.ruleset \\[ … \\]";
+        }
+      )
+      {
+        tableTree = {
+          value = dsl.table "ip" "a" { };
+          got = "a Table tree";
+        };
+        ruleset = {
+          value = dsl.ruleset [ ];
+          got = "a ruleset";
+        };
+        command = {
+          value = dsl.flush.ruleset { };
+          got = "an attribute set with flush";
+        };
+        empty = {
+          value = { };
+          got = "an empty attribute set";
+        };
+        string = {
+          value = "flush ruleset";
+          got = "a string";
+        };
+      };
+
+  # Invalid children (wrong type) must throw and name what they got.
+  # `toJson` forces evaluation: the renderer builds a lazy list and the
+  # throw wouldn't fire until a consumer walks it.
+  rulesetInvalidChildTests =
+    lib.mapAttrs'
+      (
+        shape: case:
+        lib.nameValuePair "testRulesetRejectsInvalidChild_${shape}" {
+          expr = toJson (dsl.ruleset case.children);
+          expectedError.msg = "nix-nftypes: dsl\\.ruleset: invalid child: expected a Table tree, ruleset, command attrset, or list, got ${case.got}";
+        }
+      )
+      {
+        string = {
+          children = [ "not-a-command" ];
+          got = "a string";
+        };
+        int = {
+          children = [ 42 ];
+          got = "an int";
+        };
+        bool = {
+          children = [ true ];
+          got = "a bool";
+        };
+        null = {
+          children = [ null ];
+          got = "null";
+        };
+        function = {
+          children = [ dsl.ruleset ];
+          got = "a function";
+        };
+        # Recursion reaches a child nested inside a list.
+        nested = {
+          children = [ [ "bad" ] ];
+          got = "a string";
+        };
+        # And one inside a ruleset passed as a child.
+        inRuleset = {
+          children = [ { nftables = [ 42 ]; } ];
+          got = "an int";
+        };
+      };
 in
 {
   # =========================================================================
@@ -205,6 +283,19 @@ in
     payload = {
       protocol = "vlan";
       field = "id";
+    };
+  };
+  # nft's transport-header fields, whatever the transport protocol.
+  testFieldThDport = pe dsl.fields.th.dport {
+    payload = {
+      protocol = "th";
+      field = "dport";
+    };
+  };
+  testFieldIgmpGroup = pe dsl.fields.igmp.group {
+    payload = {
+      protocol = "igmp";
+      field = "group";
     };
   };
 
@@ -459,6 +550,68 @@ in
       data = "@pf";
     };
   };
+  # A list of key-value pairs is an anonymous map, as for `vmap`.
+  testExprMapListIsAnonymousMap =
+    pe
+      (dsl.expr.map dsl.fields.tcp.dport [
+        [
+          22
+          1
+        ]
+        [
+          80
+          2
+        ]
+      ])
+      {
+        map = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data = {
+            set = [
+              [
+                22
+                1
+              ]
+              [
+                80
+                2
+              ]
+            ];
+          };
+        };
+      };
+  # An expression as data passes through unchanged.
+  testExprMapExpressionUnchanged =
+    pe
+      (dsl.expr.map dsl.fields.tcp.dport (
+        dsl.expr.set [
+          [
+            22
+            1
+          ]
+        ]
+      ))
+      {
+        map = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data.set = [
+            [
+              22
+              1
+            ]
+          ];
+        };
+      };
   testExprPrefix = pe (dsl.expr.prefix "10.0.0.0" 8) {
     prefix = {
       addr = "10.0.0.0";
@@ -1365,6 +1518,69 @@ in
       data = "@v";
     };
   };
+  # A list of key-verdict pairs is an anonymous map, as `inSet` wraps a
+  # list in an anonymous set; nft rejects the bare list.
+  testVmapListIsAnonymousMap =
+    ps
+      (dsl.vmap dsl.fields.tcp.dport [
+        [
+          22
+          dsl.accept
+        ]
+        [
+          80
+          dsl.drop
+        ]
+      ])
+      {
+        vmap = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data = {
+            set = [
+              [
+                22
+                { accept = null; }
+              ]
+              [
+                80
+                { drop = null; }
+              ]
+            ];
+          };
+        };
+      };
+
+  testVmapExpressionUnchanged =
+    ps
+      (dsl.vmap dsl.fields.tcp.dport (
+        dsl.expr.set [
+          [
+            22
+            dsl.accept
+          ]
+        ]
+      ))
+      {
+        vmap = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data.set = [
+            [
+              22
+              { accept = null; }
+            ]
+          ];
+        };
+      };
 
   # mangle / dynamic set/map / misc
   testMangle = ps (dsl.mangle dsl.fields.meta.mark 42) {
@@ -1381,7 +1597,7 @@ in
     ps
       (dsl.setStmt {
         op = "add";
-        elem = "10.0.0.1";
+        element = "10.0.0.1";
         set = "@blocked";
       })
       {
@@ -1395,7 +1611,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = "10.0.0.1";
+        key = "10.0.0.1";
         data = 42;
         map = "@cache";
       })
@@ -1412,7 +1628,7 @@ in
     ps
       (dsl.setStmt {
         op = "update";
-        elem = dsl.fields.ip.saddr;
+        element = dsl.fields.ip.saddr;
         set = "@blocked";
         statements = [ dsl.counter.auto ];
       })
@@ -1433,7 +1649,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = dsl.fields.ip.saddr;
+        key = dsl.fields.ip.saddr;
         data = 42;
         map = "@cache";
         statements = [ dsl.counter.auto ];
@@ -1456,7 +1672,7 @@ in
     ps
       (dsl.setStmt {
         op = "add";
-        elem = "10.0.0.1";
+        element = "10.0.0.1";
         set = "blocked";
       })
       {
@@ -1470,7 +1686,7 @@ in
     ps
       (dsl.mapStmt {
         op = "update";
-        elem = "10.0.0.1";
+        key = "10.0.0.1";
         data = 42;
         map = "cache";
       })
@@ -1485,7 +1701,7 @@ in
   testStatementReferencesRejectNonString = {
     expr = dsl.setStmt {
       op = "add";
-      elem = "10.0.0.1";
+      element = "10.0.0.1";
       set = dsl.expr.set [ "blocked" ];
     };
     expectedError.msg = "setStmt: expected a name string, got set";
@@ -1530,7 +1746,6 @@ in
       (dsl.ruleset [
         (dsl.flush.ruleset { })
         (dsl.table "inet" "t" {
-          handle = 5;
           flags = [ "dormant" ];
           comment = "demo";
         })
@@ -1547,7 +1762,6 @@ in
               table = {
                 family = "inet";
                 name = "t";
-                handle = 5;
                 flags = [ "dormant" ];
                 comment = "demo";
               };
@@ -1767,7 +1981,7 @@ in
         (dsl.table "inet" "t" {
           maps.c = {
             type = "inet_service";
-            map = "inet_service";
+            dataType = "inet_service";
             gcInterval = 60;
             flags = [ "timeout" ];
           };
@@ -1794,6 +2008,56 @@ in
                 "gc-interval" = 60;
                 flags = [ "timeout" ];
               };
+            };
+          }
+        ];
+      };
+
+  # A chain's Symbolic priority resolves for its family and hook, so a
+  # bridge chain's `filter` is -200 (man nft Table 7), and nft's JSON
+  # `prio`, an integer only, gets the int.
+  testTableTreeSymbolicPriority =
+    pr
+      (dsl.ruleset [
+        (dsl.table "bridge" "br" {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            prio = "filter";
+          };
+          chains.prerouting = {
+            type = "filter";
+            hook = "prerouting";
+            prio = "dstnat";
+          };
+        })
+      ])
+      {
+        nftables = [
+          {
+            add.table = {
+              family = "bridge";
+              name = "br";
+            };
+          }
+          {
+            add.chain = {
+              family = "bridge";
+              table = "br";
+              name = "input";
+              type = "filter";
+              hook = "input";
+              prio = -200;
+            };
+          }
+          {
+            add.chain = {
+              family = "bridge";
+              table = "br";
+              name = "prerouting";
+              type = "filter";
+              hook = "prerouting";
+              prio = -300;
             };
           }
         ];
@@ -2192,7 +2456,7 @@ in
                 };
                 maps.m = {
                   type = "ipv4_addr";
-                  map = "quota";
+                  dataType = "quota";
                   elements = [
                     [
                       "192.0.2.1"
@@ -2307,33 +2571,38 @@ in
         ];
       };
 
-  # Invalid children (wrong type) must throw. `toJson` forces evaluation:
-  # the renderer builds a lazy list and the throw wouldn't fire until a
-  # consumer walks it.
-  testRenderRejectString = {
-    expr = toJson (dsl.ruleset [ "not-a-command" ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
-  };
-
-  testRenderRejectInt = {
-    expr = toJson (dsl.ruleset [ 42 ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
-  };
-
-  testRenderRejectBool = {
-    expr = toJson (dsl.ruleset [ true ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
-  };
-
-  testRenderRejectNull = {
-    expr = toJson (dsl.ruleset [ null ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
-  };
-
-  # Invalid child nested inside a list is detected too (recursion reaches it).
-  testRenderRejectNestedInvalid = {
-    expr = toJson (dsl.ruleset [ [ "bad" ] ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
+  # A ruleset passed as a child splices its commands in place, so rulesets
+  # compose: nft rejects a ruleset nested inside another.
+  testRulesetSplicesRulesetChildren = {
+    expr = builtins.fromJSON (
+      toJson (
+        dsl.ruleset [
+          (dsl.ruleset [ (dsl.table "ip" "a" { }) ])
+          [ (dsl.ruleset [ (dsl.table "ip" "b" { }) ]) ]
+          { nftables = [ (dsl.table "ip" "c" { }) ]; }
+        ]
+      )
+    );
+    expected.nftables = [
+      {
+        add.table = {
+          family = "ip";
+          name = "a";
+        };
+      }
+      {
+        add.table = {
+          family = "ip";
+          name = "b";
+        };
+      }
+      {
+        add.table = {
+          family = "ip";
+          name = "c";
+        };
+      }
+    ];
   };
 
   # Table with an empty `chains` attrset emits only the table-add command.
@@ -2589,7 +2858,7 @@ in
         (dsl.table "inet" "t" {
           maps.iif_dispatch = {
             type = "ifname";
-            map = "verdict";
+            dataType = "verdict";
             elements = [
               [
                 "eth0"
@@ -2852,7 +3121,7 @@ in
               "ipv4_addr"
               "inet_service"
             ];
-            map = [
+            dataType = [
               "ipv4_addr"
               "inet_service"
             ];
@@ -3479,6 +3748,50 @@ in
         };
       };
 
+  # `add.chain` and `create.chain` resolve a Symbolic priority for the
+  # chain's family and hook, as a Table tree does.
+  testCmdAddChainSymbolicPriority =
+    pc
+      (dsl.add.chain {
+        family = "ip";
+        table = "t";
+        name = "prerouting";
+        type = "nat";
+        hook = "prerouting";
+        prio = "dstnat";
+      })
+      {
+        add.chain = {
+          family = "ip";
+          table = "t";
+          name = "prerouting";
+          type = "nat";
+          hook = "prerouting";
+          prio = -100;
+        };
+      };
+
+  testCmdCreateChainSymbolicPriority =
+    pc
+      (dsl.create.chain {
+        family = "inet";
+        table = "t";
+        name = "output";
+        type = "filter";
+        hook = "output";
+        prio = "security";
+      })
+      {
+        create.chain = {
+          family = "inet";
+          table = "t";
+          name = "output";
+          type = "filter";
+          hook = "output";
+          prio = 50;
+        };
+      };
+
   testCmdCreateTable =
     pc
       (dsl.create.table {
@@ -3581,7 +3894,7 @@ in
         table = "t";
         name = "m";
         type = "ipv4_addr";
-        map = "verdict";
+        dataType = "verdict";
         comment = "per-host verdicts";
       })
       {
@@ -3797,6 +4110,7 @@ in
       "list.map"
       "list.meter"
       "list.quota"
+      "list.ruleset"
       "list.secmark"
       "list.set"
       "list.table"
@@ -3824,11 +4138,12 @@ in
   };
 
   /*
-    delete, destroy, list, flush, and reset select an object by family,
-    table, and name, and demand no field nft ignores for the verb: each
-    builder takes that selector alone. A rule is selected by its chain and
-    handle, an element by its value, a table by family and name, and
-    `flush.ruleset { }` flushes every family.
+    delete, destroy, list, flush, and reset take a Selector: an object's
+    family, table, and name, and no field nft ignores for the verb (ADR
+    0009). Each builder takes its Selector alone, and throws for any other
+    field. A rule is selected by its chain and handle, an element by its
+    value, a table by family and name, and `flush.ruleset { }` and
+    `list.ruleset { }` take every family.
   */
   testSelectingVerbsTakeOnlyTheSelector =
     let
@@ -3857,23 +4172,36 @@ in
       builds =
         verb: kind:
         (builtins.tryEval (builtins.deepSeq (dsl.${verb}.${kind} (selectorOf kind)) true)).success;
+      # The builders that still build with a field nft ignores.
+      buildsWithAnotherField =
+        verb: kind:
+        (builtins.tryEval (
+          builtins.deepSeq (dsl.${verb}.${kind} (selectorOf kind // { comment = "c"; })) true
+        )).success;
+      verbs = [
+        "delete"
+        "destroy"
+        "flush"
+        "list"
+        "reset"
+      ];
+      # `verb.kind` for each builder of `verbs` for which `test` holds.
+      buildersWhere =
+        test:
+        lib.concatMap (
+          verb: map (kind: "${verb}.${kind}") (builtins.filter (test verb) (builtins.attrNames dsl.${verb}))
+        ) verbs;
     in
     {
+      # A list, not an attrset: the parse check sends each expected value
+      # that is an attrset to nft (tests/fixtures/parse-check.nix).
       expr =
-        lib.concatMap
-          (
-            verb:
-            map (kind: "${verb}.${kind}") (
-              builtins.filter (kind: !(builds verb kind)) (builtins.attrNames dsl.${verb})
-            )
-          )
-          [
-            "delete"
-            "destroy"
-            "flush"
-            "list"
-            "reset"
-          ];
+        map (builder: "${builder} fails with its Selector") (
+          buildersWhere (verb: kind: !(builds verb kind))
+        )
+        ++ map (builder: "${builder} builds with a field nft ignores") (
+          buildersWhere buildsWithAnotherField
+        );
       expected = [ ];
     };
 
@@ -3985,7 +4313,6 @@ in
         family = "inet";
         table = "t";
         name = "s";
-        type = "ipv4_addr";
       })
       {
         reset = {
@@ -3993,7 +4320,6 @@ in
             family = "inet";
             table = "t";
             name = "s";
-            type = "ipv4_addr";
           };
         };
       };
@@ -4003,8 +4329,6 @@ in
         family = "inet";
         table = "t";
         name = "m";
-        type = "ipv4_addr";
-        map = "mark";
       })
       {
         reset = {
@@ -4012,8 +4336,6 @@ in
             family = "inet";
             table = "t";
             name = "m";
-            type = "ipv4_addr";
-            map = "mark";
           };
         };
       };
@@ -4092,6 +4414,18 @@ in
       };
     };
   };
+  testCmdListRulesetEmptyBody = pc (dsl.list.ruleset { }) {
+    list = {
+      ruleset = null;
+    };
+  };
+  testCmdListRuleset = pc (dsl.list.ruleset { family = "ip"; }) {
+    list = {
+      ruleset = {
+        family = "ip";
+      };
+    };
+  };
   testCmdFlushTable =
     pc
       (dsl.flush.table {
@@ -4128,7 +4462,6 @@ in
         family = "inet";
         table = "t";
         name = "trusted";
-        type = "ipv4_addr";
       })
       {
         flush = {
@@ -4136,7 +4469,6 @@ in
             family = "inet";
             table = "t";
             name = "trusted";
-            type = "ipv4_addr";
           };
         };
       };
@@ -4146,8 +4478,6 @@ in
         family = "ip";
         table = "nat";
         name = "port_forward";
-        type = "inet_service";
-        map = "inet_service";
       })
       {
         flush = {
@@ -4155,8 +4485,6 @@ in
             family = "ip";
             table = "nat";
             name = "port_forward";
-            type = "inet_service";
-            map = "inet_service";
           };
         };
       };
@@ -4225,7 +4553,6 @@ in
           family = "ip";
           table = "t";
           name = "stale";
-          type = "ipv4_addr";
         })
         (dsl.reset.counter {
           family = "ip";
@@ -4270,7 +4597,6 @@ in
                 family = "ip";
                 table = "t";
                 name = "stale";
-                type = "ipv4_addr";
               };
             };
           }
@@ -4303,3 +4629,5 @@ in
   }
 ) internal.dslObjectKinds
 // ctDirectionTests
+// rulesetNonListTests
+// rulesetInvalidChildTests

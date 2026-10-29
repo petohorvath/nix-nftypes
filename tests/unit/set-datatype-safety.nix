@@ -42,7 +42,7 @@ let
       (dsl.table "inet" "fw" {
         maps.evil = {
           inherit type;
-          map = "mark";
+          dataType = "mark";
         };
       })
     ];
@@ -53,7 +53,7 @@ let
       (dsl.table "inet" "fw" {
         maps.evil = {
           type = "ipv4_addr";
-          map = valueType;
+          dataType = valueType;
         };
       })
     ];

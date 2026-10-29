@@ -14,7 +14,7 @@
     1. Type-check semantics — the helper must accept values whose tag
        is in the subset and reject any value whose tag is not, checked
        through `validate` so lazy type checks actually run.
-    2. Construction errors — unknown kinds / non-list / empty list
+    2. Construction errors — unknown tags / non-list / empty list
        must throw at type construction time (i.e. when the helper is
        called), not silently produce an unusable type.
     3. Surface drift — `statementOf [ k ]` must work for every `k` in
@@ -159,23 +159,57 @@ let
   constructionTests = {
     testStatementOfUnknownKindThrows = {
       expr = types.statementOf [ "no-such-kind" ];
-      expectedError.msg = "nix-nftypes: types\\.statementOf: unknown statement kind.*no-such-kind";
+      expectedError.msg = "^nix-nftypes: types\\.statementOf: unknown statement tag\\(s\\): \"no-such-kind\"\\. Valid tags: \"[^\n]*\"\\.$";
     };
     testStatementOfEmptyListThrows = {
       expr = types.statementOf [ ];
-      expectedError.msg = "nix-nftypes: types\\.statementOf: kinds list must be non-empty";
+      expectedError.msg = "^nix-nftypes: types\\.statementOf: expected a non-empty list of statement tags, got an empty list$";
     };
     testStatementOfNonListThrows = {
       expr = types.statementOf "match";
-      expectedError.msg = "nix-nftypes: types\\.statementOf: argument must be a list of strings";
+      expectedError.msg = "^nix-nftypes: types\\.statementOf: expected a list of statement tags \\(strings\\), got a string$";
     };
     testExpressionOfUnknownKindThrows = {
       expr = types.expressionOf [ "no-such-kind" ];
-      expectedError.msg = "nix-nftypes: types\\.expressionOf: unknown expression kind.*no-such-kind";
+      expectedError.msg = "^nix-nftypes: types\\.expressionOf: unknown expression tag\\(s\\): \"no-such-kind\"\\. Valid tags: \"[^\n]*\"\\.$";
     };
     testExpressionOfEmptyListThrows = {
       expr = types.expressionOf [ ];
-      expectedError.msg = "nix-nftypes: types\\.expressionOf: kinds list must be non-empty";
+      expectedError.msg = "^nix-nftypes: types\\.expressionOf: expected a non-empty list of expression tags, got an empty list$";
+    };
+    # A tag that is not a string throws the helper's own error, not Nix's
+    # "cannot coerce an integer to a string".
+    testStatementOfNonStringKindThrows = {
+      expr = types.statementOf [ 1 ];
+      expectedError.msg = "^nix-nftypes: types\\.statementOf: expected a list of statement tags \\(strings\\), got a list holding an int$";
+    };
+    testExpressionOfNonStringKindThrows = {
+      expr = types.expressionOf [
+        "meta"
+        null
+      ];
+      expectedError.msg = "^nix-nftypes: types\\.expressionOf: expected a list of expression tags \\(strings\\), got a list holding null$";
+    };
+  };
+
+  # ---------------------------------------------------------------------
+  # Section 2b — descriptions in errors
+  # ---------------------------------------------------------------------
+
+  # The module system rebuilds a type an option declares
+  # (`substSubModules`); the restricted type's description must survive
+  # that, so a mismatch names the allowed tags.
+  descriptionTests = {
+    testStatementOfMismatchNamesAllowedTags = {
+      expr = validate (types.statementOf [ "match" ]) acceptValue;
+      expectedError.msg = "is not of type `statement \\(one of: \"match\"\\)'";
+    };
+    testExpressionOfMismatchNamesAllowedTags = {
+      expr = validate (types.expressionOf [
+        "payload"
+        "meta"
+      ]) ctValue;
+      expectedError.msg = "is not of type `tagged expression \\(one of: \"payload\", \"meta\"\\)'";
     };
   };
 
@@ -327,4 +361,4 @@ let
     };
   };
 in
-semanticsTests // constructionTests // driftTests // roundTripTests
+semanticsTests // constructionTests // descriptionTests // driftTests // roundTripTests

@@ -17,17 +17,17 @@ in
   /*
     `expectedError.msg` patterns for the text renderer's safety refusals.
     Each takes the field label the refusing call site passes and matches
-    the refusal from its `nix-nftypes: <renderer>:` prefix to its closing
-    `Field: <label>.`, so a refusal of a different field fails the test.
-    The opening phrase may wrap at any space.
+    the whole refusal, from its `nix-nftypes: <renderer>:` prefix to its
+    closing `Field: <label>.`, so a refusal of a different field fails the
+    test. A Refusal is never hard-wrapped: its explanation is one line,
+    followed by an `Offending value:` line when it has a value, and the
+    `Field:` line.
   */
   refusals =
     let
       refusal =
         phrase: field:
-        "nix-nftypes: toText(Pretty|Block|BlockPretty)?: ${
-          lib.replaceStrings [ " " ] [ "\\s+" ] phrase
-        }[\\s\\S]*Field: ${field}\\.";
+        "^nix-nftypes: toText(Pretty|Block|BlockPretty)?: ${phrase}[^\n]*(\nOffending value: [^\n]*)?\nField: ${field}\\.$";
     in
     {
       bareToken = refusal "refusing to render a bare nft token";
@@ -36,7 +36,7 @@ in
       logPrefix = refusal "refusing to render a log prefix that nft's text would not";
       jsonIgnored = refusal "refusing to render a field that nft's JSON parser ignores";
       namedReference = refusal "refusing to render a named reference without its `@`";
-      barePrefix = refusal "refusing to render a bare string containing `/`[\\s\\S]*exprs\\.prefix";
+      barePrefix = refusal "refusing to render a bare string containing `/`[^\n]*which `dsl\\.expr\\.prefix` builds";
       unidentified = refusal "refusing to render a string that nft's text would misread";
       noTextSpelling = refusal "refusing to render a value that nft's text has no spelling for";
       typeofMapValue = refusal "refusing to render a map with a datatype key and a typeof value" "map type";
@@ -45,6 +45,7 @@ in
       datatype = refusal "refusing to render a set/map datatype";
       priority = refusal "refusing to render a non-integer chain/flowtable priority";
       setExpression = refusal "refusing to render a `\\{ set = …; \\}` body" "set expression";
+      ruleWithoutStatements = refusal "refusing to render a rule without statements" "rule expr";
     };
 
   # The JSON of `value` once it validates as `valueType`, cleaned as the
@@ -69,6 +70,10 @@ in
   # The model's source-checked token lists and their Drift; see
   # token-drift.nix.
   tokenDrift = import ./token-drift.nix { inherit lib nftlib; };
+
+  # The tags of a tagged union, or of the tagged unions among a `oneOf`'s
+  # branches.
+  tagsOf = import ./tags-of.nix;
 
   # The source-provenance tests for one provenance record.
   sourceProvenanceTests = import ./source-provenance.nix { inherit lib; };

@@ -19,7 +19,7 @@
       `chains.<name>.rules`, both handled by the tree expander; a tree
       gives a set or map its elements in its own body).
     - lib/table.nix keys by plural (`objectKinds.sets`), iterating each
-      present plural to prepare named entries for command or block output.
+      present plural to prepare named entries for commands or the block form.
 
   It has no tunnel: nft's JSON parser loads a tunnel's ports wrongly, and
   nft crashes on delete, destroy, and list of one (Known differences, see
@@ -40,7 +40,7 @@ in
   map = {
     tag = "map";
     plural = "maps";
-    renameBody = rename.set;
+    renameBody = rename.map;
     body = objects.mapBody;
   };
   flowtable = {
@@ -58,7 +58,7 @@ in
   quota = {
     tag = "quota";
     plural = "quotas";
-    renameBody = rename.none;
+    renameBody = rename.quotaObject;
     body = objects.quotaBody;
   };
   limit = {

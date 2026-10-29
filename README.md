@@ -14,13 +14,14 @@ JSON is the compatibility target. The text renderers cover the common path and h
 
 ## Install
 
-Add the flake as an input and take the library from its system-independent `lib` output:
+Add the flake as an input, pinned to a release tag, and take the library from its system-independent `lib` output:
 
 ```nix
-inputs.nix-nftypes.url = "github:petohorvath/nix-nftypes";
+inputs.nix-nftypes.url = "github:petohorvath/nix-nftypes/v0.2.0";
+inputs.nix-nftypes.inputs.nixpkgs.follows = "nixpkgs";
 ```
 
-To pin a release, append its tag to the URL: `github:petohorvath/nix-nftypes/v0.1.0`.
+The `follows` line makes nix-nftypes use the consuming flake's nixpkgs, so the lock file records one nixpkgs. [`CHANGELOG.md`](CHANGELOG.md) lists each release's changes; its 0.2.0 section opens with a table for upgrading from 0.1.0.
 
 ## Usage
 
@@ -29,7 +30,8 @@ This flake renders a ruleset with one input chain as nftables text:
 ```nix
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
-  inputs.nix-nftypes.url = "github:petohorvath/nix-nftypes";
+  inputs.nix-nftypes.url = "github:petohorvath/nix-nftypes/v0.2.0";
+  inputs.nix-nftypes.inputs.nixpkgs.follows = "nixpkgs";
 
   outputs = { nixpkgs, nix-nftypes, ... }:
     let
@@ -63,6 +65,7 @@ This flake renders a ruleset with one input chain as nftables text:
 ```console
 $ nix build .#rules && cat result
 flush ruleset
+
 add table inet filter
 add chain inet filter input {
   type filter hook input priority 0;

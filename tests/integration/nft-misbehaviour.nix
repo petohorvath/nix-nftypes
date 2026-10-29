@@ -39,6 +39,7 @@ lib.listToAttrs (
   testCaseNames = {
     expr = builtins.attrNames (helpers.caseRuns record);
     expected = [
+      "add-handle-ignored"
       "add-rule-handle-ignored-on-json"
       "chain-hook-without-type"
       "chain-prio-without-hook"
@@ -50,6 +51,7 @@ lib.listToAttrs (
       "delete-ct-expectation-deletes-table"
       "delete-ct-timeout-fails"
       "delete-rule-handle-zero-deletes-every-rule"
+      "delete-set-elem-deletes-whole-set"
       "delete-tunnel-aborts"
       "destroy-ct-count-aborts"
       "destroy-ct-expectation-deletes-table"
@@ -61,6 +63,8 @@ lib.listToAttrs (
       "list-ct-timeout-aborts"
       "list-tunnel-aborts"
       "listed-meter-rejected-on-json"
+      "number-reference-loads-as-name"
+      "payload-l4proto-loads-header-field"
       "reset-before-another-command-resets-nothing"
       "reset-runs-only-the-last"
       "set-comment-ignored-on-json"

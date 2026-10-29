@@ -35,29 +35,36 @@ nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 value leaves unset stays absent. `validate` forces the whole value, so every
 check runs before it returns, however deep. A mismatch throws the module
 system's error, whose option path starts with `validate`, such as
-`validate.nftables."[definition 1-entry 2]".add.chain.policy`.
+`validate.nftables."[definition 1-entry 2]".add.chain.policy`. Swapped
+arguments, a first argument that is not a schema type, and a table tree as
+the value throw a `nix-nftypes: validate:` error instead; expand a table tree
+with `dsl.ruleset [ … ]`.
 
-`dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
-nodes are expanded and validated; raw command attrsets are deliberately passed
-through as an escape hatch. Only the order of the commands is checked: a reset
-that nft would ignore throws (see [Commands](#commands)). A statement that a
-builder or match operator made is validated by it, inside a raw command too.
+`dsl.ruleset` takes a list of Table trees, rulesets, raw command attrsets, and
+nested lists of these. Table trees are expanded and validated, and a ruleset's
+commands are spliced in place, so `dsl.ruleset [ base extra ]` composes two
+rulesets; raw command attrsets are deliberately passed through as an escape
+hatch. A non-list argument or any other child throws, naming what it got. Only
+the order of the commands is checked: a reset that nft would ignore throws (see
+[Commands](#commands)). A statement that a builder or match operator made is
+validated by it, inside a raw command too.
 
 Table trees derive scope from nesting. Explicit `family` and `name` fields in a
 `dsl.table` body must match its positional arguments; `family`, `table`, and
 `name` fields on named objects and chains must match the enclosing table and
 collection key; `family`, `table`, and `chain` on rules must match their parent
-table and chain. Matching fields are accepted. Conflicts raise an error naming the field,
-for example `chains.input.rules.0.chain`, in both command and block rendering.
-Explicit command builders and raw commands remain available for independently
-chosen scope.
+table and chain. Matching fields are accepted. Conflicts raise an error naming
+the field, for example `chains.input.rules.0.chain`, in both command and block
+rendering. Explicit command builders and raw commands remain available for
+independently chosen scope.
 
 Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
 `dsl.table inet.t` followed by the field's path, a renderer such as `toText` or
 `toTextBlock`, `types.statementOf`, or a helper such as
-`compatibility.priorityValue`. A text Refusal ends with `Field: <label>.`
-([ADR 0004](adr/0004-refuse-unsafe-text.md)).
+`compatibility.priorityValue`. A text Refusal is never hard-wrapped: one line
+explains it, an `Offending value: <JSON>` line follows when it has a value, and
+it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ## Schema types
 
@@ -65,23 +72,23 @@ called: a builder such as `dsl.create.ctCount`, a table tree as
 
 ### Main types
 
-| Type               | Shape                                                                                                                                              |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ruleset`          | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                          |
-| `command`          | one command wrapper such as `add`, `delete`, or `flush`                                                                                            |
-| `expression`       | scalar, list, or tagged expression                                                                                                                 |
-| `taggedExpression` | tagged-expression forms only                                                                                                                       |
-| `statement`        | one tagged rule statement                                                                                                                          |
-| `addObject`        | the 16 add-object tags; a rule takes no `handle`                                                                                                   |
-| `createObject`     | add-object tags except `rule`                                                                                                                      |
-| `deleteObject`     | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                              |
-| `listObject`       | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                        |
-| `readBackObject`   | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; a rule keeps its `handle` |
-| `flushObject`      | table, chain, set, map, meter, or ruleset                                                                                                          |
-| `resetObject`      | counter, quota, rule, set, map, or element                                                                                                         |
-| `insertObject`     | a rule                                                                                                                                             |
-| `replaceObject`    | a rule with the `handle` of the rule it replaces                                                                                                   |
-| `renameObject`     | a chain with its `newname`                                                                                                                         |
+| Type             | Shape                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ruleset`        | `{ nftables = [ ... ]; }` envelope; a reset of a counter, quota, set, map, or rule only as its last entry                                        |
+| `command`        | one command wrapper such as `add`, `delete`, or `flush`                                                                                          |
+| `expression`     | scalar, list, or tagged expression                                                                                                               |
+| `statement`      | one tagged rule statement                                                                                                                        |
+| `addObject`      | the 16 add-object tags; no body takes a `handle`                                                                                                 |
+| `createObject`   | add-object tags except `rule`                                                                                                                    |
+| `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; a named object by `name` or `handle`, but a ct helper by `name` only      |
+| `destroyObject`  | the same tags as `deleteObject`; a named object by `name`                                                                                        |
+| `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                      |
+| `readBackObject` | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; each keeps its `handle` |
+| `flushObject`    | table, chain, set, map, meter, or ruleset                                                                                                        |
+| `resetObject`    | counter, quota, rule, set, map, or element                                                                                                       |
+| `insertObject`   | a rule                                                                                                                                           |
+| `replaceObject`  | a rule with the `handle` of the rule it replaces                                                                                                 |
+| `renameObject`   | a chain with its `newname`                                                                                                                       |
 
 Per-variant bodies are grouped under:
 
@@ -94,30 +101,61 @@ These namespaces hold bodies only, each named `<kind>Body`, such as
 several tags share is named for what they share (`natBody`), a variant or a
 nested part of one tag's body puts its parent first (`payloadRawBody`,
 `tunnelVxlanBody`), and the body of one command puts its verb first
-(`flushRulesetBody`, `insertRuleBody`, `selectSetBody`). A statement body
-includes the statement's reference forms. Type a tagged object, such as
-`{ chain = { … }; }`, with its command's union, such as `types.addObject` or
-`types.readBackObject`.
+(`flushRulesetBody`, `insertRuleBody`, `deleteSetBody`), and a Selector is
+`select<Kind>Body` (`selectSetBody`). A statement body includes the statement's
+reference forms. Type a tagged object, such as `{ chain = { … }; }`, with its
+command's union, such as `types.addObject` or `types.readBackObject`.
 
 `types.statementBodies` holds the body of each statement tag that takes more
 than `null`, the same type `types.statement` takes for that tag:
 `statementBodies.logBody` accepts `null` as `{ log = null; }` does. `ct helper`,
 `ct timeout`, `ct expectation`, `secmark`, and `tunnel` share `objectRefBody`,
-an expression: the object's name, such as `"ftp"`, or a map expression that
-selects it. `jump` and `goto` take `verdictTargetBody`, the same type as
+a Reference: the object's name, such as `"ftp"`, or a map expression that
+selects it. Every stateful statement's Reference, a counter's or a synproxy's
+included, takes only these two forms, so a number or a boolean fails.
+`resetBody` takes only a TCP option, the one expression nft's reset statement
+strips. `jump` and `goto` take `verdictTargetBody`, the same type as
 `types.expressionBodies.verdictTargetBody`. `accept`, `drop`, `continue`,
 `return`, and `notrack` take only `null`, so they have no body there; type
 their body with `types.nullLiteral`.
 
-Each submodule takes only an attrset of its fields. Unlike `lib.types.submodule`,
-it rejects a module function, a path, and a `_module` key, so a string in a
-union with a body, such as the synproxy reference `"/sp1"`, is a name rather
-than a module file to import.
+`types.expressionBodies` holds two element bodies. nft lists an element's
+`counter`, `quota`, `limit`, or `last` statement as a key beside its `val`, in
+a set's or map's elements and in a rule's anonymous set alike, but its JSON
+parser reads only `val`, `timeout`, `expires`, and `comment`:
 
-Primitive types include `family`, `hook`, `chainType`, `chainPolicy`,
-`portNumber`, `prefixLength`, `ifname`, `comment`, `logPrefix`, `namedReference`
-(`"@name"`), `nullLiteral` (the JSON `null` of a body such as
+- `elemBody` takes those four fields. Input commands, and `types.expression`,
+  take it, so an `add set` whose element carries a counter fails `validate`.
+- `elemReadBackBody` adds the four statement keys. `types.readBackObject`
+  takes it for a listed set, map, element, or rule, so the Read-back of a set
+  with counters validates.
+
+Each submodule takes only an attrset of its fields. Unlike
+`lib.types.submodule`, it rejects a module function, a path, and a `_module`
+key, so a string in a union with a body, such as the synproxy reference
+`"/sp1"`, is a name rather than a module file to import.
+
+Primitive types include `family`, `hook`, `flowtableHook`, `chainType`,
+`chainPolicy`, `portNumber`, `prefixLength`, `ifname`, `comment`, `logPrefix`,
+`namedReference` (`"@name"`), `nullLiteral` (the JSON `null` of a body such as
 `{ counter = null; }`), and the enum-backed types listed in `nftlib.enums`.
+
+Type names spell their words out, even where the field they type keeps nft's
+abbreviation:
+
+| Type                    | Types                                                    | Name in 0.1.0 |
+| ----------------------- | -------------------------------------------------------- | ------------- |
+| `matchOperator`         | a match statement's `op`                                 | `operator`    |
+| `setOperator`           | a set or map statement's `op`                            | `setOp`       |
+| `flowOperator`          | a flow statement's `op`                                  | `flowOp`      |
+| `ctL3Protocol`          | a ct helper, timeout, or expectation object's `l3proto`  | none          |
+| `tcpUdpProtocol`        | a ct helper, timeout, or expectation object's `protocol` | `tcpUdpProto` |
+| `tunnelErspanDirection` | an ERSPAN version 2 tunnel's `dir`                       | none          |
+
+A tunnel object's `tunnel` field takes
+`types.objectBodies.tunnelEncapsulationBody`, which was `tunnelNestedBody`.
+There is no `types.taggedExpression`: use `expression`, or `expressionOf` for
+selected tags.
 
 ### Restricted tag sets
 
@@ -153,7 +191,11 @@ type = lib.types.oneOf [
 ];
 ```
 
-Unknown tag names fail while constructing the restricted type.
+An unknown tag, an empty list, or a tag that is not a string fails while
+constructing the restricted type, with a `nix-nftypes: types.statementOf:` or
+`nix-nftypes: types.expressionOf:` error. A value outside the restricted type
+fails with the type's description, which names its tags, such as
+`statement (one of: "match")`.
 
 ## DSL
 
@@ -189,16 +231,46 @@ keys above take one. The error states the rule as the body's type:
 nix-nftypes: dsl.expr.fib: not of type `fib body with saddr or daddr among its flags'.
 ```
 
+Each key has one name: a leaf, or the constructor that takes its refinement.
+`expr.ct`, `expr.rt`, and `expr.osf` build a key with its `dir`, `family`, or
+`ttl`. Given a key that has a leaf and no refinement, they throw and point to
+the leaf:
+
+```text
+nix-nftypes: dsl.expr.ct: `expr.ct` builds a ct expression with a refinement; without one, write the Field leaf `fields.ct.mark`
+```
+
+`fields.meta` has no leaf for `ibriport`, `obriport`, or `secpath`, nft's
+aliases for `ibrname`, `obrname`, and `ipsec`. `types.metaKey` accepts them,
+so `validate` takes them as raw input.
+
 `validate` checks raw input against the same rules. A ct expression has no
 `family` field: nft's JSON parser ignores one, and a key such as `ip saddr`
 names its family. The text renderer refuses a raw ct `family`.
 
 Use `expr.payload protocol field`, `expr.payloadRaw`, and
-`expr.payloadTunnel` when no pre-built leaf exists. The other structural and
-generated expressions also live under `dsl.expr`, including `concat`, `prefix`,
-`range`, `set`, `setRef`, `map`, `numgen`, `jhash`, and `symhash`.
-The binary operators sit there too: `expr.bitAnd`, `bitOr`, `bitXor`,
-`shiftLeft`, and `shiftRight`, as in `expr.bitAnd fields.meta.mark 255`.
+`expr.payloadTunnel` when no pre-built leaf exists. `expr.payload` takes a
+protocol and field from `enums.payloadFieldsByProtocol`, in nft's spelling
+(`expr.payload "ip" "frag-off"`), and throws for any other, listing the valid
+ones:
+
+```text
+nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.
+```
+
+The table leaves out `l4proto`, which nft loads as other header bits, and the
+`vxlan` and `geneve` fields, which load only through `expr.payloadTunnel`.
+`expr.payloadRaw` reaches any bits. The other `dsl.expr` builders are:
+
+- header options and extension headers: `expr.tcpOption`, `expr.tcpOptionRaw`,
+  `expr.ipOption`, `expr.sctpChunk`, `expr.dccpOption`, which takes the option
+  type number, and `expr.exthdr`, for an IPv6 extension header;
+- structure: `expr.concat`, `expr.prefix`, `expr.range`, `expr.set`,
+  `expr.setRef`, `expr.map`, and `expr.elem`;
+- generated values: `expr.numgen`, `expr.jhash`, and `expr.symhash`;
+- the binary operators: `expr.bitAnd`, `expr.bitOr`, `expr.bitXor`,
+  `expr.shiftLeft`, and `expr.shiftRight`, as in
+  `expr.bitAnd fields.meta.mark 255`.
 
 Every `dsl.expr` builder but `setRef` validates its body when called, against
 the body `types.expression` takes for its tag, as the statement builders do
@@ -211,10 +283,10 @@ that build one form of a body take that form only: `expr.payloadRaw`,
 `expr.payloadTunnel`, `expr.tcpOption`, and `expr.tcpOptionRaw`. `setRef`
 checks its name itself.
 
-`expr.elem` takes `val`, `timeout`, `expires`, and `comment`. nft lists an
-element's `counter`, `quota`, `limit`, or `last` beside its value, but its JSON
-parser ignores them, so `expr.elem` rejects them as unknown options, while
-`types.expressionBodies.elemBody` keeps them for Read-back.
+`expr.elem` takes `val`, `timeout`, `expires`, and `comment`, the fields of
+`types.expressionBodies.elemBody`. nft lists an element's `counter`, `quota`,
+`limit`, or `last` beside its value, but its JSON parser ignores them, so
+`expr.elem` rejects them as unknown options.
 
 Top-level match helpers include:
 
@@ -235,11 +307,16 @@ reference such as `"@trusted"`. A string without `@` throws and points to
 
 `expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` returns the
 reference string `"@name"`, the shape nft lists, for the right side of a
-match. The map lookup is `expr.map key data`, and its data is an anonymous map
-body or a named map's name, with or without its `@`:
+match. The map lookup is `expr.map key data`. Its data is a named map's name,
+with or without its `@`, or an anonymous map. A list of key-value pairs
+becomes the anonymous map `{ set = [ ... ]; }`, as `inSet` wraps a list in an
+anonymous set, because nft rejects a bare list there. `vmap key data` takes
+its data the same way:
 
 ```nix
 expr.map fields.tcp.dport "ports"
+expr.map fields.tcp.dport [ [ 22 1 ] [ 80 2 ] ]
+vmap fields.tcp.dport [ [ 22 accept ] [ 80 drop ] ]
 ```
 
 #### References to named objects
@@ -257,6 +334,14 @@ object by key. `inSet` and `notInSet` are the exception: their
 right side need not be a set, so they take `"@name"` and throw on a string
 without `@`.
 
+A name that declares or selects an object is no Reference, and nft looks up
+`"@s"` there as a set literally named `@s`. `add.element`'s and
+`create.element`'s `name`, a Selector's `name`, and `meter`'s `name` take the
+name with or without its leading `@` and emit the bare name, so
+`add.element { …; name = "@s"; }` adds to set `s`. A Table tree's object key
+that starts with `@`, such as `sets."@s"`, throws naming the key. The schema
+takes a raw name as written.
+
 ### Statements
 
 Verdicts are values:
@@ -271,7 +356,8 @@ return
 `jump target` and `goto target` carry a chain target. A verdict is also the
 data of a `vmap`.
 
-Most statement families are callable attrsets with named variants. Examples:
+Most statement builders are Variant namespaces: callable for the common form,
+with named variants for the others. Examples:
 
 ```nix
 counter { packets = 0; bytes = 0; }
@@ -301,6 +387,19 @@ are all optional takes `{ }` for its empty form, for example `log { }` or
 `last` has no `{ }` form either: nft rejects an empty body, so `last { }`
 throws. `last { used = …; }` seeds the last-used time, and `last.auto` is the
 unseeded form.
+
+The quota statement and the quota object name their threshold differently, as
+nft's JSON does:
+
+| Form            | Threshold                | Bytes already used         | Builder                      |
+| --------------- | ------------------------ | -------------------------- | ---------------------------- |
+| quota statement | `val`, unit in `valUnit` | `used`, unit in `usedUnit` | `quota { val; … }`           |
+| quota object    | `bytes`                  | `used`, in bytes           | `quotas.<name>`, `add.quota` |
+
+`valUnit` and `usedUnit` take `enums.byteUnit` and default to bytes. Both
+forms take `inv` to match once the quota is exceeded. A quota object given
+`val` throws and points to `bytes` (see
+[Declarative table tree](#declarative-table-tree)).
 
 `reject` takes `{ type?; code?; }`: `type` is the answer, such as `"icmp"`,
 `"icmpv6"`, the family-independent `"icmpx"`, or `"tcp reset"`, and `code` the
@@ -340,9 +439,10 @@ The option path need not name the field as the DSL spells it. A field takes
 its JSON key before validation, so a renamed field appears by its JSON
 spelling, as in `dsl.quota.val_unit` for `valUnit`. A builder that takes its
 body positionally names the body's JSON field, as in `dsl.mangle.key` or
-`dsl.eq.left`, or, where the body is a single expression, the internal option
-`value`: `resetStmt` errors name `dsl.resetStmt.value`, and a `.ref` given a
-map expression names its key as `dsl.counter.ref.value.map.key`.
+`dsl.eq.left`. Where the body is one tagged expression, it names the tag, as in
+`dsl.resetStmt."tcp option"`, and where the body is any other value, the
+internal option `value`: a `.ref` given a map expression names its key as
+`dsl.counter.ref.value.map.key`.
 
 The builders' own checks carry the prefix. A body that isn't an attribute set
 throws, such as
@@ -353,13 +453,16 @@ so does a body the schema rejects as a whole, such as
 The statement tags named `set`, `map`, and `reset` would collide with the
 `expr.set` and `expr.map` constructors and the `reset.<kind>` command builders,
 so their DSL names are `setStmt`, `mapStmt`, and `resetStmt`. `resetStmt expr`
-resets the stateful data an expression selects, such as a TCP option:
+strips the TCP option `expr`, the only expression nft's reset statement takes:
 `resetStmt (expr.tcpOption { name = "sack"; })`. Like `flow`, `setStmt` and
 `mapStmt` take the set, map, or flowtable name with or without its leading `@`.
-`flow` takes the flowtable alone, because nft's only flow operation is `add`:
+`setStmt` takes the `element` it adds, and `mapStmt` takes the `key` and `data`
+it writes. `flow` takes the flowtable alone, because nft's only flow operation
+is `add`:
 
 ```nix
-setStmt { op = "add"; elem = fields.ip.saddr; set = "blocked"; }
+setStmt { op = "add"; element = fields.ip.saddr; set = "blocked"; }
+mapStmt { op = "update"; key = fields.ip.saddr; data = 1; map = "marks"; }
 flow "ft"
 ```
 
@@ -392,7 +495,7 @@ nftlib.dsl.table "inet" "filter" {
 
 Recognized table-body keys are:
 
-- table options: `handle`, `flags`, `comment`;
+- table options: `flags`, `comment`;
 - `chains`;
 - `sets`, `maps`, `flowtables`, `counters`, `quotas`, `limits`, `ctHelpers`,
   `ctTimeouts`, `ctExpectations`, `ctCounts`, `secmarks`, and `synproxies`.
@@ -401,9 +504,22 @@ A set or map takes its elements in its own body, as `sets.<name>.elements`.
 To add elements to a set defined elsewhere, put `add.element` in a
 `dsl.ruleset` after the set.
 
-Unknown keys fail evaluation. The internal `_type` marker remains accepted for
-libraries that layer their own boundary tags on nftypes values; it is not
-emitted. Expansion order is table, chains, named objects, then rules. Among
+An object's key is its bare name: a key that starts with `@`, such as
+`sets."@s"`, throws, since a Reference adds the `@`.
+
+A quota object takes its threshold in `bytes`. `val`, the quota statement's
+word, throws and points to `bytes`, in a Table tree's `quotas` and in
+`add.quota` and `create.quota` alike.
+
+An unknown key throws, listing the keys a Table tree takes, and a kind's
+singular name points to its plural, as in ``unsupported key(s): set; a Table
+tree takes flags, comment, chains, …; write `sets` for `set` ``.
+
+`dsl.table` marks the tree with `_type = "nix-nftypes.tableTree"`, the nixpkgs
+convention for a value's kind. Cleaning strips the marker, so it never reaches
+JSON or text. A body's own `_type` throws, since the marker would replace it.
+
+Expansion order is table, chains, named objects, then rules. Among
 named objects, stateful objects come first, so a set or map element can name
 one: counters, quotas, limits, ct helpers, ct timeouts, ct expectations,
 secmarks, synproxies, and ct counts. The other kinds follow alphabetically.
@@ -411,11 +527,42 @@ Object and chain names are emitted in sorted order; rule order remains the
 source-list order. This covers dependencies made explicit by the table tree;
 dependencies hidden in raw nested bodies remain the caller's responsibility.
 
-A rule entry is either a non-empty statement list or an attrset with a
-non-empty `statements` list plus optional `index` and `comment`. Any other
-entry throws, naming its path, such as `chains.input.rules.0`: write a single
-statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`. A rule entry
-takes no `handle`, as `add.rule` takes none.
+A rule entry is either a non-empty statement list or an attrset with a non-empty
+`statements` list and an optional `comment`. The list order is the rule order,
+so an entry's `index` throws, as in ``nix-nftypes: dsl.table inet.t:
+chains.input.rules.1.index: a Table tree lists a chain's rules in order, so a
+rule takes no `index`; …``. To place a rule, use `add.rule` or `insert.rule`
+with its `index`. Any other entry throws, naming its path, such as
+`chains.input.rules.0`: write a single statement as a list, `[ dsl.drop ]`, not
+as the bare `dsl.drop`.
+
+A chain's `prio` takes an int or a Symbolic priority, such as `"filter"`, in
+a table tree's `chains` and in `add.chain` and `create.chain`. The DSL resolves
+a symbol with `compatibility.priorityValue` for the chain's family and hook,
+and emits the int, because nft's JSON `prio` is an integer only. A bridge
+chain's `prio = "filter"` emits `-200` in JSON and `priority -200` in text. A
+symbol nft rejects at the hook throws the helper's message at the chain's
+`prio`, and a symbol without a `hook` throws too:
+
+```text
+nix-nftypes: dsl.table ip.t: chains.input.prio: family 'ip' has no priority 'dstnat' at hook 'input'. Valid priorities: any int, filter, mangle, raw, security, srcnat.
+```
+
+A flowtable's `prio` takes an int only: nft resolves a flowtable's symbol as
+netdev's at `ingress`, whatever its table's family, and the compatibility
+tables cover only chains.
+
+A Table tree adds its objects, so no body in it takes a `handle`: not the
+table, a chain, a rule entry, or a named object. Each throws at the handle, as
+in `nix-nftypes: dsl.table inet.t: chains.input.handle: nft ignores a handle on
+add, create, and rename, …`.
+
+A field's error inside a Table tree is the module system's, and its option
+path starts with the tree, which the module system quotes:
+
+```text
+A definition for option `"dsl.table inet.fw".chains.input.prio' is not of type `null or signed integer'.
+```
 
 ### Naming and argument conventions
 
@@ -423,14 +570,23 @@ Every DSL field name is camelCase, and each field has one spelling. The DSL
 renames it where JSON uses hyphens or underscores or runs words together, for
 example `queueThreshold` to `queue-threshold`, `gcInterval` to `gc-interval`,
 `rateUnit` to `rate_unit`, `typeFlags` to `type_flags`, and `newName` to
-`newname`. A field that holds elements or statements is plural: named sets and
-maps take `elements` and `statements` for the JSON `elem` and `stmt`, `setStmt`
-and `mapStmt` take `statements`, and a rule takes `statements` for `expr`.
-`meter` takes one `statement` for `stmt`, and `reject` takes `code` for `expr`,
-which holds the ICMP code. Other fields keep nft's word: a chain or flowtable's
-`dev` takes one device or a list. The same renames apply to statements,
-table-tree objects, and command builders, and in each a JSON spelling throws,
-pointing to the DSL name:
+`newname`. A field that holds statements, elements, or a key takes the DSL word
+for what it holds:
+
+- Named sets and maps take `elements` and `statements` for the JSON `elem` and
+  `stmt`.
+- `setStmt` takes `element` and `mapStmt` takes `key` for the JSON `elem`, and
+  both take `statements` for `stmt`.
+- A rule takes `statements` for `expr`, and `meter` takes one `statement` for
+  `stmt`.
+
+A field whose JSON key names something other than what it holds also takes the
+DSL word: `reject` takes `code` for `expr`, which holds the ICMP code, and a map
+takes `dataType` for `map`, which holds the data type of its values, as in
+`maps.m = { type = "ifname"; dataType = "verdict"; }`. Other fields keep nft's
+word: a chain or flowtable's `dev` takes one device or a list. The same renames
+apply to statements, table-tree objects, and command builders, and in each a
+JSON spelling throws, pointing to the DSL name:
 
 ```text
 nix-nftypes: dsl.add.limit: rate_unit: is the JSON spelling; write `rateUnit`
@@ -460,13 +616,14 @@ See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 | `create.<kind>`                   | 15 object kinds; `rule` is excluded                                                  |
 | `delete.<kind>`, `destroy.<kind>` | 13 add-object kinds; not `ctCount`, `ctTimeout`, or `ctExpectation`                  |
 | `flush.<kind>`                    | table, chain, set, map, meter, or ruleset; nftables has no `flush flowtable` command |
-| `list.<kind>`                     | table, chain, set, map, counter, quota, limit, ctHelper, secmark, or meter           |
+| `list.<kind>`                     | table, chain, set, map, counter, quota, limit, ctHelper, secmark, meter, or ruleset  |
 | `reset.<kind>`                    | counter, quota, set, map, or element                                                 |
 | `insert.rule`, `replace.rule`     | rule-only commands                                                                   |
 | `rename.chain`                    | chain-only rename                                                                    |
 
 Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
-every family, and `flush.ruleset { family = "ip"; }` flushes one.
+every family, and `flush.ruleset { family = "ip"; }` flushes one; `list.ruleset`
+takes the same bodies.
 
 A builder returns one command holding only the fields given, under their JSON
 keys, as a table tree's commands do: `add.limit { family = "inet"; table = "t";
@@ -475,10 +632,10 @@ name = "l"; rate = 10; per = "second"; }` returns those five fields under
 ruleset: `toJson (dsl.ruleset [ (dsl.add.limit { … }) ])`.
 
 In one batch, nft runs a `reset` of a counter, quota, set, map, or rule only as
-the last command: followed by any other command, it resets nothing, and nft still
-exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere else,
-and `dsl.ruleset` throws for one, whether a builder or a raw attrset made it.
-Give each one a ruleset of its own, or put it last. `reset.element` runs
+the last command: followed by any other command, it resets nothing, and nft
+still exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere
+else, and `dsl.ruleset` throws for one, whether a builder or a raw attrset made
+it. Give each one a ruleset of its own, or put it last. `reset.element` runs
 anywhere.
 
 Each namespace offers only the kinds that nft runs as written, measured on
@@ -504,27 +661,63 @@ when the body lacks a field nft requires for the verb, naming the field:
   them, in every builder and in a table tree's `chains`. nft loads a chain
   with only some of them as a regular chain whose rules never see packets.
 
-- `add.flowtable` and `create.flowtable` require `hook` and `prio`.
+- `add.flowtable` and `create.flowtable` require `hook` and `prio`. The hook
+  is `ingress`, the only one nft accepts for a flowtable in any family
+  (`types.flowtableHook`).
+- A body takes `handle` only where nft reads it: in Read-back, in a Selector,
+  and in `insert.rule` and `replace.rule`. Every `add.<kind>`,
+  `create.<kind>`, and `rename.chain` throws on one, at the handle, and points
+  to Read-back, as in `nix-nftypes: dsl.add.table: handle: nft ignores a
+handle on add, create, and rename, …`; `validate` rejects one in those
+  commands. nft ignores the handle there, so JSON kept it and text dropped it.
 - `replace.rule` requires the `handle` of the rule it replaces.
-- `add.rule` takes no `handle`, and throws naming the field
-  (`dsl.add.rule.handle`). nftables 1.1.6's JSON parser ignores one and
-  appends the rule, while 1.1.7 and text place the rule after the rule with
-  that handle. Place a rule with `index`, or with `insert.rule`, whose `handle`
-  puts it before that rule; see
+- On `add rule`, nftables 1.1.6's JSON parser ignores a handle and appends the
+  rule, while 1.1.7 and text place the rule after the rule with that handle.
+  Place a rule with `index`, or with `insert.rule`, whose `handle` puts it
+  before that rule; see
   [`spec-coverage.md`](spec-coverage.md#rule-handles-on-add-rule).
 - `add.rule`, `insert.rule`, and `replace.rule` require statements, a
   non-empty `statements` list, as a table tree's rule entries do. Without
   them, the builder throws, naming the command, such as `add.rule`.
 - `rename.chain` requires `newName`.
 
-`delete`, `destroy`, `list`, `flush`, and `reset` select an object by `family`,
-`table`, and `name`, and demand no field that nft ignores for the verb: a set's
-or map's datatypes, a limit's rate, a flowtable's hook, and a synproxy's `mss`
-and `wscale` are optional there. `types.objectBodies` holds these selection
-bodies, such as `selectSetBody`. Every `delete.<kind>` but `delete.rule`
-requires `name`, though nft also deletes most kinds by `handle` alone
-([`spec-coverage.md`](spec-coverage.md)); `destroy.<kind>` requires it in nft
-too.
+`delete`, `destroy`, `list`, `flush`, and `reset` take a Selector: the fields
+nft's JSON parser reads to pick one object, and no other. A table is selected
+by `family` and `name`; a chain, set, map, meter, flowtable, or stateful object
+by `family`, `table`, and `name`; and elements by `family`, `table`, `name`,
+and `elements`. A builder given any other field throws, naming the builder and
+the fields it takes:
+
+```nix
+dsl.delete.set { family = "inet"; table = "t"; name = "s"; elements = [ "10.0.0.1" ]; }
+# error: nix-nftypes: dsl.delete.set: takes a Selector, with only `family`,
+# `table`, and `name` or `handle`; got `elements`. To delete elements, use
+# dsl.delete.element.
+```
+
+nft ignores such a field without an error, so it changes what the command
+does: `delete set` with elements deletes the whole set. `types.command` rejects
+the same raw fields. Each kind's Selector is a `select<Kind>Body` in
+`types.objectBodies`, such as `selectSetBody`.
+
+`delete` of a table, chain, set, map, flowtable, counter, quota, limit,
+secmark, or synproxy selects the object by `name` or by `handle`, a positive
+integer, and takes exactly one of them. With a name, nft never reads the
+handle, so a builder given both throws, as does one given neither:
+
+```nix
+dsl.delete.counter { family = "inet"; table = "t"; handle = 4; }
+# { delete.counter = { family = "inet"; table = "t"; handle = 4; }; }
+dsl.delete.counter { family = "inet"; table = "t"; name = "c"; handle = 4; }
+# error: nix-nftypes: dsl.delete.counter: selects by `name` or by `handle`;
+# got both, and nft ignores a handle beside a name.
+```
+
+Their Selectors are `delete<Kind>Body` in `types.objectBodies`, such as
+`deleteSetBody`. Every other Selector but a rule's requires the name: nft's
+JSON parser reads a handle in its place only on `delete`, and not for a ct
+helper. The handle is positive: nft takes handle 0 as no handle, and a
+`delete table` with one deletes every table of the family.
 
 A rule is selected by its `chain` and `handle`, which `delete.rule` and
 `destroy.rule` require as a positive integer: nft takes handle 0 as none, and
@@ -537,13 +730,18 @@ and names itself in its errors, as in `nix-nftypes: toTextBlock: `.
 
 `toJson`, `toText`, and `toTextPretty` take only a ruleset,
 `{ nftables = [ … ]; }`, and throw on anything else. A lone command throws, and
-so does a `dsl.table` value passed alone or among the `nftables` commands; each
-error asks for `dsl.ruleset`. Build a ruleset with `dsl.ruleset [ … ]`, which
-takes commands and table trees and expands each tree into commands.
+so does a `dsl.table` value passed alone or among the `nftables` commands, and
+a ruleset nested among them, which nft rejects; each error asks for
+`dsl.ruleset`. Build a ruleset with `dsl.ruleset [ … ]`, which takes commands,
+Table trees, and rulesets, expands each tree into commands, and splices each
+ruleset's commands in place.
 
 These three renderers give a rule without `expr` the empty list: nft's JSON
 parser requires the key on a rule even where it ignores it, as for
-`destroy.rule`, so a raw rule command may leave it out.
+`destroy.rule`, so a raw rule command may leave it out. nft's text grammar
+has no spelling for an added, inserted, replaced, or listed rule with no
+statements, so `toText` and `toTextPretty` refuse one, while `toJson` renders
+it as the empty rule nft's JSON loads.
 
 ### `toJson ruleset`
 
@@ -552,20 +750,26 @@ Returns compact JSON via `builtins.toJSON`. Use the result with `nft -j -f`.
 ### `toText ruleset` and `toTextPretty ruleset`
 
 Render imperative nftables commands. The compact form minimizes whitespace;
-the pretty form uses readable multi-line blocks. Both are pure Nix.
+the pretty form uses readable multi-line blocks and puts a blank line where
+the commands move to another table. Both are pure Nix.
 
-### `toTextBlock tableNode` and `toTextBlockPretty tableNode`
+Every line ends with a newline, the last included, so renders concatenate:
+`toText a + toText b` loads as both rulesets. An empty ruleset renders as
+`""`.
 
-Render only the contents of one `dsl.table` node. These functions omit the
-outer table declaration, keep the table's `flags` and `comment` as the first
-declarations, and place rules inside their chain blocks. A table `handle` has
-no block-form spelling and is omitted. A chain block lists its rules in order,
-so a rule `index` has no block-form spelling either, and is refused
-(`rule index`); order the rules in the list instead. Passing a full ruleset or
-a raw command is an error.
+### `toTextBlock tableTree` and `toTextBlockPretty tableTree`
 
-The JSON renderer is authoritative when JSON and text grammar capabilities
-differ. See [`text-coverage.md`](text-coverage.md).
+Render only the contents of one Table tree from `dsl.table`. These functions
+omit the outer table declaration, keep the table's `flags` and `comment` as the
+first declarations, and place rules inside their chain blocks. A Table tree's
+rules take no `index`, so every tree renders in both forms. Passing a full
+ruleset or a raw command is an error.
+
+Every declaration ends with a newline, the last included, and a table with no
+declarations renders as `""`.
+
+JSON is the Compatibility target: when JSON and text grammar capabilities
+differ, JSON wins. See [`text-coverage.md`](text-coverage.md).
 
 ## Cleaning
 
@@ -582,22 +786,30 @@ Cleaning is not validation.
 ## Reference data
 
 `nftlib.enums.<name>` exposes the same value list used by each enum type.
-Examples include `family`, `hook`, `operator`, `metaKey`, `ctKey`, `rtKey`,
-`fibResult`, `setFlag`, and `tunnelType`. `byteUnit` holds nft's byte units,
-`bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
+Examples include `family`, `hook`, `matchOperator`, `metaKey`, `ctKey`,
+`rtKey`, `fibResult`, `setFlag`, and `tunnelType`. `flowtableHook` holds the
+one hook nft accepts for a flowtable, `ingress`. `byteUnit` holds nft's byte
+units, `bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
 quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
 `rate_unit`, adds `packets`.
 
+`enums.payloadFieldsByProtocol` is a table rather than a list: it maps each
+payload protocol nft's JSON parser knows to the fields it loads as written, in
+nft's spelling, such as `payloadFieldsByProtocol.ip`, which holds `"frag-off"`.
+`dsl.expr.payload` checks against it, and no type reads it.
+
 `nftlib.compatibility` holds the static tables and the helpers that look
-placements and priorities up in them. The tables are:
+placements and priorities up in them. It holds only what nft accepts on load;
+a convention built on it, such as the chain type a priority suggests, belongs
+to the consumer. The families, chain types, and hooks it knows are those of
+`enums.family`, `enums.chainType`, and `enums.hook`. The tables are:
 
 - `hooksByFamily`;
-- `familiesByChainType`;
-- `hooksByChainType`;
+- `familiesByChainType`, whose `filter` entry is `enums.family`;
+- `hooksByChainType`, whose `filter` entry is `enums.hook`;
 - `prioritiesByFamily`, the symbolic priorities nft accepts at each hook of
   each family, indexed by family and hook: `prioritiesByFamily.bridge.input`
-  is `{ filter = -200; }`;
-- `hooksWithOifname`.
+  is `{ filter = -200; }`.
 
 `prioritiesByFamily` holds only what nft accepts, as
 `std_prio_family_hook_compat` in nftables' `src/rule.c` decides:
@@ -618,20 +830,12 @@ The helpers are:
   symbol nft accepts for it at the hook, and otherwise returns the int, as nft
   lists it. `priorityName "ip" "prerouting" (-100)` is `"dstnat"`, but
   `priorityName "ip" "input" (-100)` is `-100`. A symbol passes through.
-- `chainTypeFor family hook priority` classifies the project's conventional
-  chain type policy. NAT priorities map to `nat` and the `mangle` priority to
-  `route`, unless `validChainPlacement` rejects that type at the hook, in the
-  family; every other placement maps to `filter`. So
-  `chainTypeFor "bridge" "postrouting" 300` (bridge `srcnat`) and
-  `chainTypeFor "ip" "prerouting" "mangle"` return `filter`. An int counts as a
-  symbol only where nft accepts the symbol, so
-  `chainTypeFor "ip" "input" (-100)` is `filter` too.
 - `validChainPlacement family chainType hook` checks the static family,
   chain-type, and hook tables. A hook the family lacks is an invalid
   placement: `validChainPlacement "arp" "filter" "forward"` is `false`.
 
 Every helper throws, naming the helper, on a family, chain type, or hook
-outside its table, so a typo doesn't read as an invalid placement. The three
+outside its table, so a typo doesn't read as an invalid placement. The two
 priority helpers also throw on a hook the family lacks and on a symbol nft
 rejects at the hook, as nft does:
 

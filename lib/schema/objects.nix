@@ -4,6 +4,7 @@
   primitives,
   expressions,
   statements,
+  readBackStatements,
 }:
 
 let
@@ -20,8 +21,9 @@ let
     chainPolicy
     chainType
     comment
-    ctL3Proto
+    ctL3Protocol
     family
+    flowtableHook
     hook
     ifname
     limitRateUnit
@@ -31,8 +33,9 @@ let
     setPolicy
     synproxyFlag
     tableFlag
-    tcpUdpProto
+    tcpUdpProtocol
     timeUnit
+    tunnelErspanDirection
     tunnelType
     ;
   expr = expressions.expression;
@@ -54,28 +57,18 @@ let
   # A set element is either a bare expression or a list of expressions.
   setElem = types.either expr (types.listOf expr);
 
-  # `options` with each option in `names` made optional (null by default).
-  # A selection body uses it for the fields its add body requires but nft's
-  # JSON parser ignores for the selecting verbs.
-  withOptional =
-    names: options:
-    options
-    // lib.genAttrs names (
-      name:
-      options.${name}
-      // {
-        type = types.nullOr options.${name}.type;
-        default = null;
-      }
-    );
+  # A set element as Read-back lists it: an element there takes the
+  # statements nft lists beside its value (`elemReadBackBody`).
+  readBackExpr = expressions.readBack.expression;
+  readBackSetElem = types.either readBackExpr (types.listOf readBackExpr);
 
   # ----- Identity-options fragments -----
   # Composable building blocks for the family/table/name/handle/comment fields
   # that appear (in slightly different combinations) on every object kind.
   # Composition: identityCore ⊂ inTableOptions ⊂ namedInTableOptions ⊂
   # commonObjectOptions. Specialised shapes (tableContainerOptions for tables,
-  # ruleContainerOptions for rules, elementContainerOptions for elements) are
-  # built from the same core.
+  # ruleContainerOptions for rules, selectorOptions for Selectors and the set
+  # an element is in) are built from the same core.
 
   identityCore = {
     family = mkOption {
@@ -121,8 +114,58 @@ let
     };
   };
 
-  # Elements have no `handle` field on the JSON path.
-  elementContainerOptions = removeAttrs namedInTableOptions [ "handle" ];
+  # A Selector's fields for a kind selected by name in a table, which also
+  # name the set or map an element is in: nft reads no `handle` with a
+  # name.
+  selectorOptions = removeAttrs namedInTableOptions [ "handle" ];
+
+  # A ruleset command's body: `null` for every family, or one `family`.
+  rulesetSelector = types.oneOf [
+    nullLiteral
+    (submodule {
+      options.family = mkOption {
+        type = family;
+        description = "limit scope to this family";
+      };
+    })
+  ];
+
+  /*
+    `deleteSelector kind scope`: the Selector of `delete` for a kind nft
+    deletes by name or by handle, with the options `scope` (`family`, and
+    `table` but for a table). nft's JSON parser reads the handle only
+    without a name, so the Selector takes exactly one of `name` and
+    `handle`. nft takes handle 0 as no handle: `delete table` with handle
+    0 deletes every table of the family, so the handle is positive.
+  */
+  deleteSelector =
+    kind: scope:
+    discriminatedSubmodule {
+      options = scope // {
+        name = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          description = "${kind} name, or null to select it by handle";
+        };
+        handle = mkOption {
+          type = types.nullOr types.ints.positive;
+          default = null;
+          description = "${kind} handle, or null to select it by name";
+        };
+      };
+      extraCheck = v: ((v.name or null) != null) != ((v.handle or null) != null);
+      description = "${kind} Selector with exactly one of name and handle";
+    };
+  # The scope a delete Selector of a kind in a table names it in.
+  inTableScope = removeAttrs inTableOptions [ "handle" ];
+
+  # The elements to add, delete, or reset, and the set or map they're in.
+  elementOptions = selectorOptions // {
+    elem = mkOption {
+      type = setElem;
+      description = "element(s)";
+    };
+  };
 
   commentOption = {
     comment = mkOption {
@@ -260,7 +303,7 @@ let
 
   flowtableOptions = namedInTableOptions // {
     hook = mkOption {
-      type = hook;
+      type = flowtableHook;
       description = "hook point";
     };
     prio = mkOption {
@@ -290,8 +333,58 @@ let
     }
     // commentOption;
 
+  /*
+    nft reads a `handle` only in Read-back, in a Selector, and in `insert`
+    and `replace` rule; it ignores one on `add`, `create`, and `rename`
+    (ADR 0009). `inputBody kind args` is the body of such a command, as
+    `discriminatedSubmodule args` without the `handle` that `args.options`
+    declares. A value with a handle fails, and the error's description
+    points to Read-back.
+  */
+  inputBody =
+    kind: args:
+    discriminatedSubmodule (
+      args
+      // {
+        options = removeAttrs args.options [ "handle" ];
+        forbidKeys = [ "handle" ];
+        description =
+          if args ? description then
+            "${args.description}, and without a handle, ${handleRejection}"
+          else
+            "${kind} body without a handle, ${handleRejection}";
+      }
+    );
+  handleRejection = "which nft ignores on add, create, and rename; a handle appears in Read-back, where nft lists it";
+
+  /*
+    `listedBody description body`: the input body `body` as Read-back
+    lists it, with the handle nft assigned. A value fails as `body` fails
+    without its handle, and `description`, if not null, names the check.
+  */
+  listedBody =
+    description: body:
+    let
+      check = v: builtins.isAttrs v && body.check (removeAttrs v [ "handle" ]);
+      withCheck =
+        submodule:
+        types.addCheck submodule check
+        // {
+          substSubModules = modules: withCheck (submodule.substSubModules modules);
+        }
+        // lib.optionalAttrs (description != null) { inherit description; };
+    in
+    withCheck (
+      types.submoduleWith {
+        shorthandOnlyDefinesConfig = true;
+        modules = body.getSubModules ++ [ { options = { inherit (identityCore) handle; }; } ];
+      }
+    );
+
+  chainPlacementDescription = "chain body with type, hook and prio all set (a base chain) or all unset";
+
   bodies = rec {
-    tableBody = submodule {
+    tableBody = inputBody "table" {
       options =
         tableContainerOptions
         // {
@@ -311,7 +404,7 @@ let
       none, which is stricter than the parser: a Known difference (ADR
       0010).
     */
-    chainBody = discriminatedSubmodule {
+    chainBody = inputBody "chain" {
       extraCheck =
         body:
         let
@@ -322,7 +415,7 @@ let
           ];
         in
         setPlacementFields == [ ] || builtins.length setPlacementFields == 3;
-      description = "chain body with type, hook and prio all set (a base chain) or all unset";
+      description = chainPlacementDescription;
       options =
         namedInTableOptions
         // {
@@ -359,7 +452,7 @@ let
 
     # `rename chain` (parser_json.c, json_parse_cmd_rename) reads only
     # these four fields, and requires each.
-    renameChainBody = submodule {
+    renameChainBody = inputBody "rename chain" {
       options = namedInTableOptions // {
         newname = mkOption {
           type = types.str;
@@ -368,7 +461,8 @@ let
       };
     };
 
-    # A listed rule, as Read-back emits it, with the `handle` nft assigned.
+    # A listed rule, with the `handle` nft assigned, whose elements take
+    # no statements; `readBackObject` lists a rule's elements with theirs.
     ruleBody = submodule {
       options = ruleOptions;
     };
@@ -382,8 +476,8 @@ let
     # `add rule` takes no handle: nft 1.1.6's JSON parser ignores one and
     # appends the rule, while 1.1.7 and text read it as a position (a Known
     # difference, ADR 0010). `index` places the rule.
-    addRuleBody = submodule {
-      options = removeAttrs ruleOptions [ "handle" ];
+    addRuleBody = inputBody "rule" {
+      options = ruleOptions;
     };
 
     # `replace rule` (parser_json.c, json_parse_cmd_replace) needs the
@@ -398,61 +492,119 @@ let
       };
     };
 
-    setBody = submodule {
+    setBody = inputBody "set" {
       options = setMapCommonOptions;
     };
 
-    mapBody = submodule {
+    mapBody = inputBody "map" {
       options = mapOptions;
     };
 
     elementBody = submodule {
-      options = elementContainerOptions // {
-        elem = mkOption {
-          type = setElem;
-          description = "element(s)";
-        };
-      };
+      options = elementOptions;
     };
 
     # `add` and `create` require `hook` and `prio` (parser_json.c,
     # json_parse_cmd_add_flowtable).
-    flowtableBody = submodule {
+    flowtableBody = inputBody "flowtable" {
       options = flowtableOptions;
     };
 
     /*
-      Selection bodies, for the verbs that select an existing object:
-      delete, destroy, list, flush, and reset. nft's JSON parser reads
-      only the family, table, and name (or handle) for these verbs
-      (parser_json.c, json_parse_cmd_add_set, json_parse_cmd_add_object,
-      json_parse_cmd_add_flowtable), so the fields adding one requires
-      are optional here.
+      Selectors: the bodies of delete, destroy, list, flush, and reset,
+      which pick one existing object (ADR 0009). Each accepts only the
+      fields nft's JSON parser reads for the verb and kind, checked against
+      parser_json.c in nftables 1.1.6 and 1.1.7, which agree:
+
+      - table (json_parse_cmd_add_table): `family`, then `name`. delete
+        reads `handle` only without a name, and fails without either
+        ("Either name or handle required"); destroy, list, and flush
+        require the name ("Object item not found: name"), and read
+        `comment` and `flags` but use neither.
+      - chain (json_parse_cmd_add_chain): `family`, `table`, and `name`,
+        with `handle` as for a table. destroy reads a base chain's `type`,
+        `hook`, `prio`, `dev`, and `policy`, and nft deletes the chain
+        without them.
+      - set, map, and meter (json_parse_cmd_add_set): `family`, `table`,
+        and `name`, with `handle` as for a table. Every verb returns before
+        the datatypes, flags, `elem`, or `stmt`, so `delete set` with
+        `elem` deletes the whole set (a Known difference, ADR 0010).
+      - flowtable (json_parse_cmd_add_flowtable): `family`, `table`, and
+        `name`, with `handle` as for a table; `hook`, `prio`, and `dev`
+        are unread.
+      - counter, quota, ct helper, limit, secmark, and synproxy
+        (json_parse_cmd_add_object): `family`, `table`, and `name`, with
+        `handle` as for a table but a ct helper's, which delete never
+        reads. reset of a counter or quota reads the counts but resets
+        the object whatever they say.
+      - element (json_parse_cmd_add_element): `family`, `table`, `name`,
+        and `elem`, all required on every verb.
+      - rule (json_parse_cmd_add_rule, json_parse_cmd_reset_rule):
+        `family`, `table`, `chain`, and `handle`, all required. nft takes
+        handle 0 as no handle, and the kernel then deletes every rule in
+        the chain, so the handle is positive. destroy requires an `expr`
+        key whose value it ignores, which the renderers fill
+        (../prepare-ruleset.nix).
+      - ruleset (json_parse_cmd_list_multiple): an optional `family`.
+
+      With a name, nft never reads `handle`, so no Selector takes both.
+      delete of a table, chain, set, map, flowtable, counter, quota,
+      limit, secmark, or synproxy takes exactly one of `name` and
+      `handle`, a `delete<Kind>Body` (`deleteSelector`); the other
+      Selectors name the object, but a rule's, which has no name and is
+      selected by handle.
     */
-    selectFlowtableBody = submodule {
-      options = withOptional [ "hook" "prio" ] flowtableOptions;
+    selectTableBody = submodule {
+      options = removeAttrs tableContainerOptions [ "handle" ];
+    };
+    selectChainBody = submodule {
+      options = selectorOptions;
     };
     selectSetBody = submodule {
-      options = withOptional [ "type" ] setMapCommonOptions;
+      options = selectorOptions;
     };
     selectMapBody = submodule {
-      options = withOptional [ "type" "map" ] mapOptions;
+      options = selectorOptions;
+    };
+    selectMeterBody = submodule {
+      options = selectorOptions;
+    };
+    selectFlowtableBody = submodule {
+      options = selectorOptions;
+    };
+    selectCounterBody = submodule {
+      options = selectorOptions;
+    };
+    selectQuotaBody = submodule {
+      options = selectorOptions;
+    };
+    selectCtHelperBody = submodule {
+      options = selectorOptions;
     };
     selectLimitBody = submodule {
-      options = withOptional [ "rate" "per" ] limitOptions;
+      options = selectorOptions;
+    };
+    selectSecmarkBody = submodule {
+      options = selectorOptions;
     };
     selectSynproxyBody = submodule {
-      options = withOptional [ "mss" "wscale" ] synproxyOptions;
+      options = selectorOptions;
     };
-
-    /*
-      A rule is selected by its chain and handle (json_parse_cmd_add_rule,
-      json_parse_cmd_reset_rule). nft takes handle 0 as no handle, and the
-      kernel then deletes every rule in the chain, so the handle is
-      positive. nft ignores `expr` here, but `destroy` requires the key.
-    */
+    selectElementBody = submodule {
+      options = elementOptions;
+    };
+    deleteTableBody = deleteSelector "table" { inherit (identityCore) family; };
+    deleteChainBody = deleteSelector "chain" inTableScope;
+    deleteSetBody = deleteSelector "set" inTableScope;
+    deleteMapBody = deleteSelector "map" inTableScope;
+    deleteFlowtableBody = deleteSelector "flowtable" inTableScope;
+    deleteCounterBody = deleteSelector "counter" inTableScope;
+    deleteQuotaBody = deleteSelector "quota" inTableScope;
+    deleteLimitBody = deleteSelector "limit" inTableScope;
+    deleteSecmarkBody = deleteSelector "secmark" inTableScope;
+    deleteSynproxyBody = deleteSelector "synproxy" inTableScope;
     selectRuleBody = submodule {
-      options = ruleOptions // {
+      options = removeAttrs ruleContainerOptions [ "handle" ] // {
         handle = mkOption {
           type = types.ints.positive;
           description = "handle of the selected rule";
@@ -460,7 +612,7 @@ let
       };
     };
 
-    counterBody = submodule {
+    counterBody = inputBody "counter" {
       options = commonObjectOptions // {
         packets = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -475,7 +627,7 @@ let
       };
     };
 
-    quotaBody = submodule {
+    quotaBody = inputBody "quota" {
       options = commonObjectOptions // {
         # parser_json.c:3761: bytes is `json_unpack` (optional, defaults to 0).
         bytes = mkOption {
@@ -499,7 +651,7 @@ let
     # Named connection-count limit (nftables 1.1.7+, NFT_OBJECT_CONNLIMIT).
     # parser_json.c json_parse_cmd_add_object: `val` is required, `inv`
     # optional.
-    ctCountBody = submodule {
+    ctCountBody = inputBody "ct count" {
       options = commonObjectOptions // {
         val = mkOption {
           type = types.ints.unsigned;
@@ -513,7 +665,7 @@ let
       };
     };
 
-    ctHelperBody = submodule {
+    ctHelperBody = inputBody "ct helper" {
       # All fields optional per parser_json.c:3782-3809 (all json_unpack,
       # no _err).
       options = commonObjectOptions // {
@@ -523,33 +675,33 @@ let
           description = "helper type (e.g. ftp, tftp)";
         };
         protocol = mkOption {
-          type = types.nullOr tcpUdpProto;
+          type = types.nullOr tcpUdpProtocol;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr ctL3Proto;
+          type = types.nullOr ctL3Protocol;
           default = null;
           description = "layer-3 protocol";
         };
       };
     };
 
-    limitBody = submodule {
+    limitBody = inputBody "limit" {
       options = limitOptions;
     };
 
     # ct timeout object: parser_json.c:3811-3833 — all fields optional on
     # the JSON path.
-    ctTimeoutBody = submodule {
+    ctTimeoutBody = inputBody "ct timeout" {
       options = commonObjectOptions // {
         protocol = mkOption {
-          type = types.nullOr tcpUdpProto;
+          type = types.nullOr tcpUdpProtocol;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
         l3proto = mkOption {
-          type = types.nullOr ctL3Proto;
+          type = types.nullOr ctL3Protocol;
           default = null;
           description = "layer-3 protocol";
         };
@@ -565,17 +717,17 @@ let
 
     # ct expectation object: parser_json.c:3835-3860 — all fields optional
     # on the JSON path.
-    ctExpectationBody = submodule {
+    ctExpectationBody = inputBody "ct expectation" {
       options = commonObjectOptions // {
         l3proto = mkOption {
-          type = types.nullOr ctL3Proto;
+          type = types.nullOr ctL3Protocol;
           default = null;
           # Recent kernels refuse `inet`, and an omitted l3proto in an inet
           # table, with "Address family not supported by protocol".
           description = "layer-3 protocol";
         };
         protocol = mkOption {
-          type = types.nullOr tcpUdpProto;
+          type = types.nullOr tcpUdpProtocol;
           default = null;
           description = "layer-4 protocol (tcp/udp)";
         };
@@ -614,7 +766,7 @@ let
       };
     };
 
-    secmarkBody = submodule {
+    secmarkBody = inputBody "secmark" {
       options = commonObjectOptions // {
         # parser_json.c:3769: context is json_unpack (optional).
         context = mkOption {
@@ -625,11 +777,11 @@ let
       };
     };
 
-    synproxyBody = submodule {
+    synproxyBody = inputBody "synproxy" {
       options = synproxyOptions;
     };
 
-    # --- Tunnel nested encapsulation variants ---
+    # --- Tunnel encapsulation variants, the shapes of a tunnel's `tunnel` ---
     # VXLAN: { gbp: <uint> }
     tunnelVxlanBody = discriminatedSubmodule {
       requireKeys = [ "gbp" ];
@@ -664,10 +816,7 @@ let
           description = "ERSPAN version (2)";
         };
         dir = mkOption {
-          type = types.enum [
-            "ingress"
-            "egress"
-          ];
+          type = tunnelErspanDirection;
           description = "capture direction";
         };
         hwid = mkOption {
@@ -695,7 +844,7 @@ let
       };
     };
 
-    tunnelNestedBody = types.oneOf [
+    tunnelEncapsulationBody = types.oneOf [
       tunnelVxlanBody
       tunnelErspanV1Body
       tunnelErspanV2Body
@@ -755,7 +904,7 @@ let
           description = "tunnel encapsulation (vxlan/erspan/geneve)";
         };
         tunnel = mkOption {
-          type = types.nullOr tunnelNestedBody;
+          type = types.nullOr tunnelEncapsulationBody;
           default = null;
           description = ''
             encapsulation-specific nested parameters (shape depends on `type`)
@@ -765,15 +914,10 @@ let
     };
 
     # `ruleset` body is `null` (operate on all) OR `{ family = "ip"; }`.
-    flushRulesetBody = types.oneOf [
-      nullLiteral
-      (submodule {
-        options.family = mkOption {
-          type = family;
-          description = "limit scope to this family";
-        };
-      })
-    ];
+    flushRulesetBody = rulesetSelector;
+
+    # `list ruleset` takes the same body as `flush ruleset`.
+    listRulesetBody = rulesetSelector;
 
     # Meter object body: meters are anonymous sets internally
     # (parser_json.c routes meter to json_parse_cmd_add_set), so the
@@ -805,17 +949,60 @@ let
 
   addObject = taggedUnion addObjectBodies;
 
-  # The selection body of each kind whose add body requires fields that
-  # the selecting verbs ignore; a union takes the ones it has kinds for.
-  selectBodies = {
-    flowtable = bodies.selectFlowtableBody;
-    limit = bodies.selectLimitBody;
-    map = bodies.selectMapBody;
+  # Each add-object kind as Read-back lists it, with the handle nft
+  # assigned, but with input elements, which the selecting verbs take. A
+  # listed rule is `ruleBody`, and an element has no handle.
+  # `readBackObjectBodies` gives the kinds that hold elements their
+  # Read-back statements.
+  listedObjectBodies =
+    lib.mapAttrs (_: listedBody null) (
+      removeAttrs addObjectBodies [
+        "chain"
+        "element"
+        "rule"
+      ]
+    )
+    // {
+      chain = listedBody chainPlacementDescription addObjectBodies.chain;
+      inherit (addObjectBodies) element;
+      rule = bodies.ruleBody;
+    };
+
+  /*
+    The Selector of each kind a selecting verb takes, by tag, and of each
+    kind `delete` selects by name or by handle. `selecting kinds` gives
+    each kind in the list `kinds` its Selector. The DSL's selecting
+    namespaces read the same maps.
+  */
+  selectBodiesByTag = {
+    table = bodies.selectTableBody;
+    chain = bodies.selectChainBody;
     rule = bodies.selectRuleBody;
     set = bodies.selectSetBody;
+    map = bodies.selectMapBody;
+    meter = bodies.selectMeterBody;
+    element = bodies.selectElementBody;
+    flowtable = bodies.selectFlowtableBody;
+    counter = bodies.selectCounterBody;
+    quota = bodies.selectQuotaBody;
+    "ct helper" = bodies.selectCtHelperBody;
+    limit = bodies.selectLimitBody;
+    secmark = bodies.selectSecmarkBody;
     synproxy = bodies.selectSynproxyBody;
   };
-  selecting = kinds: kinds // builtins.intersectAttrs kinds selectBodies;
+  deleteBodiesByTag = {
+    table = bodies.deleteTableBody;
+    chain = bodies.deleteChainBody;
+    set = bodies.deleteSetBody;
+    map = bodies.deleteMapBody;
+    flowtable = bodies.deleteFlowtableBody;
+    counter = bodies.deleteCounterBody;
+    quota = bodies.deleteQuotaBody;
+    limit = bodies.deleteLimitBody;
+    secmark = bodies.deleteSecmarkBody;
+    synproxy = bodies.deleteSynproxyBody;
+  };
+  selecting = kinds: lib.genAttrs kinds (kind: selectBodiesByTag.${kind});
 
   # `create` accepts every add-object kind except `rule`. nftables rejects
   # `create rule` explicitly; keeping a separate union prevents raw typed
@@ -831,16 +1018,65 @@ let
     ct timeout (7) becomes a chain, so delete fails and list aborts. nft
     1.1.7 aborts on delete and destroy of a ct count (1.1.6 has no ct count
     object).
+
+    `destroy` takes the Selector of each kind, and `delete` the same but
+    for a kind nft deletes by name or by handle, whose Selector takes
+    either (`deleteSelector`).
   */
-  deleteObject = taggedUnion (
-    selecting (
-      removeAttrs addObjectBodies [
-        "ct count"
-        "ct expectation"
-        "ct timeout"
-      ]
-    )
+  destroyObjectBodies = selecting (
+    lib.subtractLists [
+      "ct count"
+      "ct expectation"
+      "ct timeout"
+    ] (builtins.attrNames addObjectBodies)
   );
+  destroyObject = taggedUnion destroyObjectBodies;
+  deleteObject = taggedUnion (destroyObjectBodies // deleteBodiesByTag);
+
+  /*
+    The listed bodies of the kinds that hold elements, as Read-back lists
+    them: their elements, in a set's or map's `elem` or in a rule's
+    anonymous sets, take the statements nft lists beside each value, which
+    its JSON parser ignores on input.
+  */
+  readBackHolderBodies =
+    let
+      withReadBackElements =
+        options:
+        options
+        // {
+          elem = options.elem // {
+            type = types.nullOr readBackSetElem;
+          };
+        };
+    in
+    {
+      set = listedBody null (
+        inputBody "set" {
+          options = withReadBackElements setMapCommonOptions;
+        }
+      );
+      map = listedBody null (
+        inputBody "map" {
+          options = withReadBackElements mapOptions;
+        }
+      );
+      element = submodule {
+        options = selectorOptions // {
+          elem = mkOption {
+            type = readBackSetElem;
+            description = "element(s)";
+          };
+        };
+      };
+      rule = submodule {
+        options = ruleOptions // {
+          expr = ruleOptions.expr // {
+            type = types.listOf readBackStatements.statement;
+          };
+        };
+      };
+    };
 
   /*
     A bare listed object, the shape `nft -j list` emits: every add-object
@@ -851,12 +1087,14 @@ let
     and list of one, so no command union accepts it (Known differences,
     ADR 0010).
   */
-  readBackObjectBodies = addObjectBodies // {
-    rule = bodies.ruleBody;
-    metainfo = bodies.metainfoBody;
-    meter = bodies.meterBody;
-    tunnel = bodies.tunnelBody;
-  };
+  readBackObjectBodies =
+    listedObjectBodies
+    // readBackHolderBodies
+    // {
+      metainfo = bodies.metainfoBody;
+      meter = bodies.meterBody;
+      tunnel = bodies.tunnelBody;
+    };
 
   readBackObject = taggedUnion readBackObjectBodies;
 
@@ -867,11 +1105,12 @@ let
     expectation (see `deleteObject`), and tunnel (see `readBackObjectBodies`).
     nft has no singular `list` of a ct count, element, flowtable, metainfo,
     rule, or synproxy ("Unknown object passed to list command"), so the
-    union omits them too (ADR 0009).
+    union omits them too (ADR 0009). `ruleset` lists every table, or a
+    family's.
   */
   listObject = taggedUnion (
     selecting (
-      removeAttrs readBackObjectBodies [
+      lib.subtractLists [
         "ct count"
         "ct expectation"
         "ct timeout"
@@ -881,22 +1120,29 @@ let
         "rule"
         "synproxy"
         "tunnel"
-      ]
+      ] (builtins.attrNames readBackObjectBodies)
     )
+    // {
+      ruleset = bodies.listRulesetBody;
+    }
   );
 
   # parser_json.c:4297-4304 (json_parse_cmd_flush dispatch table):
   # table, chain, set, map, meter, ruleset. `flowtable` is intentionally
   # absent — the parser rejects `flush flowtable` ("Unknown object passed
   # to flush command.").
-  flushObject = taggedUnion (selecting {
-    table = bodies.tableBody;
-    chain = bodies.chainBody;
-    set = bodies.setBody;
-    map = bodies.mapBody;
-    meter = bodies.meterBody;
-    ruleset = bodies.flushRulesetBody;
-  });
+  flushObject = taggedUnion (
+    selecting [
+      "table"
+      "chain"
+      "set"
+      "map"
+      "meter"
+    ]
+    // {
+      ruleset = bodies.flushRulesetBody;
+    }
+  );
 
   # `insert` takes only a rule.
   insertObject = wrap "rule" bodies.insertRuleBody;
@@ -907,21 +1153,23 @@ let
   # `rename` takes only a chain, and requires its `newname`.
   renameObject = wrap "chain" bodies.renameChainBody;
 
-  resetObject = taggedUnion (selecting {
-    counter = bodies.counterBody;
-    quota = bodies.quotaBody;
-    rule = bodies.ruleBody;
-    set = bodies.setBody;
-    map = bodies.mapBody;
-    element = bodies.elementBody;
-  });
+  resetObject = taggedUnion (selecting [
+    "counter"
+    "quota"
+    "rule"
+    "set"
+    "map"
+    "element"
+  ]);
 in
 {
   all = bodies;
   inherit
     addObject
     createObject
+    deleteBodiesByTag
     deleteObject
+    destroyObject
     flushObject
     insertObject
     listObject
@@ -929,5 +1177,6 @@ in
     renameObject
     replaceObject
     resetObject
+    selectBodiesByTag
     ;
 }

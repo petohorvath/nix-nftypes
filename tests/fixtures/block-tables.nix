@@ -57,7 +57,7 @@ rec {
     };
     maps.dispatch = {
       type = "inet_service";
-      map = "verdict";
+      dataType = "verdict";
       elements = [
         [
           22
@@ -91,6 +91,18 @@ rec {
         flags = [ "interval" ];
       };
       counters.hits = { };
+    };
+    # Symbolic priorities resolve for the family and hook: a bridge
+    # chain's `filter` is -200 and `dstnat` at prerouting -300, which nft
+    # lists by their symbols.
+    symbolic-priority-chains = dsl.table "bridge" "br" {
+      chains.input = baseChain // {
+        prio = "filter";
+      };
+      chains.prerouting = baseChain // {
+        hook = "prerouting";
+        prio = "dstnat";
+      };
     };
     set-with-inline-elements = dsl.table "inet" "fw" {
       sets.blocked = {

@@ -341,8 +341,8 @@ in
     # `comment`, so JSON drops element statements, both the keys nft lists
     # and a `stmt` list: set `c`'s seeded counters load as fresh ones, and
     # set `o`, which declares no statement, loads plain elements. Text
-    # loads them, so the schema accepts the listed keys and text refuses
-    # them.
+    # loads them, so input commands reject the listed keys, Read-back
+    # accepts them, and text refuses them.
     {
       name = "element-statements-ignored-on-json";
       knownDifference = "docs/spec-coverage.md";
@@ -477,6 +477,148 @@ in
         ["handle 2","handle 3","added","handle 4"]
       '';
     }
+    /*
+      nft's JSON parser ignores a handle on `add` and `create`: each object
+      loads with the handle the kernel assigns, not the 1000 it was given.
+      Text has no spelling for one, so JSON and text disagreed about it.
+      The add and create bodies reject a handle, which appears in Read-back
+      (ADR 0009). The `add rule` case above covers rules.
+    */
+    {
+      name = "add-handle-ignored";
+      knownDifference = "docs/adr/0010-accept-what-nft-loads-as-written.md";
+      ruleset.nftables =
+        let
+          handle = 1000;
+          object = kind: body: {
+            add.${kind} = {
+              family = "inet";
+              table = "t";
+              inherit handle;
+            }
+            // body;
+          };
+        in
+        [
+          {
+            add.table = table // {
+              inherit handle;
+            };
+          }
+          (object "chain" { name = "c"; })
+          (object "set" {
+            name = "s";
+            type = "ipv4_addr";
+          })
+          (object "counter" { name = "k"; })
+          (object "flowtable" {
+            name = "f";
+            hook = "ingress";
+            prio = 0;
+          })
+          {
+            create.quota = {
+              family = "inet";
+              table = "t";
+              name = "q";
+              inherit handle;
+            };
+          }
+        ];
+      inspect = ''
+        nft -j list ruleset \
+          | jq -r '.nftables[] | to_entries[] | select(.key != "metainfo")
+            | (if .value.handle == 1000 then "kept" else "ignored" end)
+              as $handle
+            | "\(.key) handle \($handle)"'
+      '';
+      misbehaviour = ''
+        table handle ignored
+        chain handle ignored
+        counter handle ignored
+        quota handle ignored
+        set handle ignored
+        flowtable handle ignored
+      '';
+    }
+    /*
+      nft's JSON parser takes a number where a stateful object Reference
+      names its object, and loads it as the object named by the number's
+      digits: `{ "ct helper" = 5; }` references the helper named "5". The
+      schema takes a name, such as "5", or a map. A secmark Reference loads
+      the same way, but a secmark object needs SELinux, so the case leaves
+      it out.
+    */
+    {
+      name = "number-reference-loads-as-name";
+      knownDifference = "docs/adr/0010-accept-what-nft-loads-as-written.md";
+      ruleset.nftables =
+        let
+          object = kind: body: {
+            add.${kind} = {
+              family = "inet";
+              table = "t";
+              name = "5";
+            }
+            // body;
+          };
+          referenceRule = kind: {
+            add.rule = {
+              family = "inet";
+              table = "t";
+              chain = "c";
+              expr = [ { ${kind} = 5; } ];
+            };
+          };
+          kinds = [
+            "ct helper"
+            "ct timeout"
+            "ct expectation"
+            "synproxy"
+          ];
+        in
+        [
+          { add.table = table; }
+          {
+            add.chain = {
+              family = "inet";
+              table = "t";
+              name = "c";
+            };
+          }
+          (object "ct helper" {
+            type = "ftp";
+            protocol = "tcp";
+          })
+          (object "ct timeout" {
+            protocol = "tcp";
+            l3proto = "ip";
+            policy.established = 100;
+          })
+          (object "ct expectation" {
+            protocol = "tcp";
+            dport = 21;
+            timeout = 100;
+            size = 10;
+            l3proto = "ip";
+          })
+          (object "synproxy" {
+            mss = 1460;
+            wscale = 7;
+          })
+        ]
+        ++ map referenceRule kinds;
+      inspect = ''
+        nft -j list chain inet t c \
+          | jq -c '.nftables[] | select(.rule) | .rule.expr[]'
+      '';
+      misbehaviour = ''
+        {"ct helper":"5"}
+        {"ct timeout":"5"}
+        {"ct expectation":"5"}
+        {"synproxy":"5"}
+      '';
+    }
     # nft's JSON parser rejects a listed meter, which the schema accepts
     # as Read-back, and nft's text has no meter object, so text refuses
     # one. A JSON parser that loads one fails this case.
@@ -564,6 +706,43 @@ in
     }
     (ruleHandleZeroCase "delete")
     (ruleHandleZeroCase "destroy")
+    # The set parser returns before it reads `elem` on delete, so `delete
+    # set` with elements deletes the whole set. A set's Selector takes no
+    # elements; `delete element` deletes some.
+    {
+      name = "delete-set-elem-deletes-whole-set";
+      knownDifference = "docs/adr/0010-accept-what-nft-loads-as-written.md";
+      ruleset.nftables = [
+        { add.table = table; }
+        {
+          add.set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            type = "ipv4_addr";
+            elem = [
+              "10.0.0.1"
+              "10.0.0.2"
+            ];
+          };
+        }
+      ];
+      subject.nftables = [
+        {
+          delete.set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            elem = [ "10.0.0.1" ];
+          };
+        }
+      ];
+      inspect = ''
+        nft -j -f "$subject"
+        nft list table inet t
+      '';
+      misbehaviour = "table inet t {\n}\n";
+    }
     (tunnelCommandCase "delete" "cmd_evaluate_delete")
     (tunnelCommandCase "destroy" "cmd_evaluate_delete")
     (tunnelCommandCase "list" "cmd_evaluate_list")
@@ -602,5 +781,47 @@ in
         {"name":"second","packets":3,"bytes":4}
       '';
     })
+    /*
+      The payload parser looks a field up among all of a protocol's
+      templates, the `meta l4proto` dependency's included, so `ip l4proto`
+      loads as the header bits at offset 0: `ip version` and `ip
+      hdrlength`. `expr.payload` takes only the fields nft loads as
+      written (lib/schema/payload-fields.nix).
+    */
+    {
+      name = "payload-l4proto-loads-header-field";
+      knownDifference = "docs/spec-coverage.md";
+      ruleset.nftables = [
+        { add.table = table; }
+        {
+          add.chain = {
+            family = "inet";
+            table = "t";
+            name = "c";
+          };
+        }
+        {
+          add.rule = {
+            family = "inet";
+            table = "t";
+            chain = "c";
+            expr = [
+              {
+                match = {
+                  op = "==";
+                  left.payload = {
+                    protocol = "ip";
+                    field = "l4proto";
+                  };
+                  right = 6;
+                };
+              }
+            ];
+          };
+        }
+      ];
+      inspect = "nft list chain inet t c";
+      misbehaviour = "table inet t {\n\tchain c {\n\t\tip version 0 ip hdrlength 6\n\t}\n}\n";
+    }
   ];
 }

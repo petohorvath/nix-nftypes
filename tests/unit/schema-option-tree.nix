@@ -62,6 +62,11 @@ let
       0
       65535
     ];
+    # Read-back lists a ct expectation with its handle, a body of its own.
+    "readBackObject.ct expectation.dport" = [
+      0
+      65535
+    ];
     "objectBodies.tunnelBody.dport" = [
       0
       65535
@@ -163,17 +168,17 @@ generatedTests
       fields = builtins.length fields;
     };
     expected = {
-      fields = 546;
-      body = 81;
-      wrongType = 546;
-      accepted = 170;
-      omitted = 196;
-      lowest = 99;
-      belowLowest = 99;
-      highest = 8;
-      aboveHighest = 8;
-      member = 450;
-      enum = 193;
+      fields = 694;
+      body = 103;
+      wrongType = 694;
+      accepted = 219;
+      omitted = 235;
+      lowest = 112;
+      belowLowest = 112;
+      highest = 9;
+      aboveHighest = 9;
+      member = 594;
+      enum = 196;
     };
   };
 

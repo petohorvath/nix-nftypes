@@ -9,7 +9,7 @@
 
     `ruleset` is `{ nftables = [ … ]; }`, as `dsl.ruleset` builds it. It is
     cleaned first, which drops unset nullable fields and module markers,
-    and a rule without `expr` gets the empty list; it is not type-checked.
+    and a rule without `expr` gets the empty list; it is not validated.
     Anything else throws, a lone command or a table tree included: wrap it
     in `dsl.ruleset [ … ]`.
 

@@ -94,7 +94,16 @@ let
     if ctx.block then
       identQuote "object name" body.name
     else
-      "${renderTableScope body} ${identQuote "object name" body.name}";
+      "${renderTableScope body} ${renderNameOrHandle "object" body}";
+
+  # An object's name, or `handle <n>` for a `delete` Selector that selects
+  # it by handle instead.
+  renderNameOrHandle =
+    what: body:
+    if (body.name or null) == null && (body.handle or null) != null then
+      "handle ${safeToken "${what} handle" body.handle}"
+    else
+      identQuote "${what} name" body.name;
 
   # SECURITY-CRITICAL: a string datatype renders bare into the set/map
   # `type <X>` clause; a list renders bare joined with ` . `. An unsafe
@@ -103,13 +112,18 @@ let
   # or splits the token in ways that corrupt the parse. The legitimate
   # datatype set is identifier-shaped (`ipv4_addr`, `inet_service`,
   # `ifname`, …), so the shared `nft-safe-scalar` predicate captures
-  # exactly the safe subset.
+  # exactly the safe datatypes.
   assertSafeDatatype =
     field: name:
     if !(builtins.isString name) || nftSafeScalar.isSafe name then
       true
     else
-      fail "refusing to render a set/map datatype ${builtins.toJSON name} that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly. Offending value: ${builtins.toJSON name}. Field: ${field}.\n";
+      primitives.refuse
+        {
+          inherit field;
+          value = name;
+        }
+        "refusing to render a set/map datatype that contains a character unsafe for nft's `type <X>` clause. The renderer emits the value bare (or joined with ` . ` for concatenated keys), so an unsafe byte either truncates the clause or splits the token — at table scope a newline + `add chain …` payload silently appends an attacker-controlled chain. The shared predicate (lib/nft-safe-scalar.nix) excludes whitespace, ',', ';', '{', '}', '\"', '\\', '#', and control characters; legitimate nft datatypes are identifier-shaped and pass cleanly.";
 
   # Render a datatype: string → "ipv4_addr"; list → "ipv4_addr . port".
   renderDatatype =
@@ -164,14 +178,13 @@ let
     else if isCtObjectKind then
       primitives.refuseNoTextSpelling "map type" "nft's text declares a map of ${body.map} objects only with a typeof key, as in `typeof tcp dport : ${body.map}`."
     else if isTypeof body.map then
-      fail ''
-        refusing to render a map with a datatype key and a
-        typeof value. nft's text grammar declares both sides with `type` or both
-        with `typeof`; give the key as `{ typeof = …; }` too, or the value as a
-        datatype.
-        Offending map: ${builtins.toJSON (body.name or null)}
-        Field: map type.
-      ''
+      primitives.refuse
+        {
+          field = "map type";
+        }
+        "refusing to render a map with a datatype key and a typeof value: map ${
+          builtins.toJSON (body.name or null)
+        }. nft's text grammar declares both sides with `type` or both with `typeof`; give the key as `{ typeof = …; }` too, or the value as a datatype."
     else
       "type ${renderDatatype "map type" body.type} : ${renderDatatype "map value type" body.map}";
 
@@ -202,11 +215,7 @@ let
   # ---- per-kind body renderers ---------------------------------------
 
   renderTableHeader =
-    _ctx: body:
-    renderTableScope {
-      inherit (body) family;
-      table = body.name;
-    };
+    _ctx: body: "${safeToken "family" body.family} ${renderNameOrHandle "table" body}";
 
   renderTableBody =
     _ctx: body:
@@ -258,22 +267,13 @@ let
     in
     baseLine ++ policyLine ++ commentLine;
 
-  # A rule inside a chain block. Block grammar lists a chain's rules in
-  # order and has no rule position, so an `index` is refused.
-  renderBlockRule =
-    ctx: body:
-    if (body.index or null) != null then
-      primitives.refuseNoTextSpelling "rule index" "nft's block grammar lists a chain's rules in order and has no rule position, while JSON adds the rule after the rule at that index. Order the rules in the list, or use `toText`."
-    else
-      renderRuleStmtsAndComment ctx body;
-
   # The table module supplies this chain's rules explicitly. Formatting
   # context contains no table data, and imperative chain declarations keep
   # their usual body without inline rules.
   renderChainBlock =
     ctx: body: rules:
     "chain ${identQuote "chain name" body.name}${
-      block ctx (renderChainBody ctx body ++ map (renderBlockRule ctx) rules)
+      block ctx (renderChainBody ctx body ++ map (renderRuleStmtsAndComment ctx) rules)
     }";
 
   /*
@@ -281,12 +281,12 @@ let
     the `table <family> <name> { … }` wrapper. `table` is the table
     module's cleaned `{ body, chains, objects }`, with each chain's rules
     beside its body. Returns the table's options, then its chain blocks
-    with their rules, then its objects, joined by newlines. Every block
-    form Refusal is raised here or in the renderers it calls.
+    with their rules, then its objects, each ending with a newline. Every
+    block form Refusal is raised here or in the renderers it calls.
   */
   renderTableBlock =
     ctx: table:
-    lib.concatStringsSep "\n" (
+    lib.concatMapStrings (declaration: "${declaration}\n") (
       map (line: "${line};") (renderTableBody ctx table.body)
       ++ map (chain: renderChainBlock ctx chain.body chain.rules) table.chains
       ++ map (object: renderObject ctx object.kind object.body) table.objects
@@ -294,9 +294,11 @@ let
 
   /*
     How `renderTableBlock` treats each field of the table, chain, and rule
-    bodies a table tree prepares: rendered, refused, supplied by the tree's
-    scope (the host's table wrapper or the enclosing chain block), or
-    omitted as `toText` omits it. Objects render as they do in `toText`.
+    bodies a table tree prepares: rendered, refused, supplied by the
+    tree's scope (the host's table wrapper or the enclosing chain block),
+    or rejected by the tree before it renders, as a rule's `index` is,
+    since a chain block lists its rules in order.
+    Objects render as they do in `toText`.
     The block-form drift test (tests/unit/schema.nix) fails when a schema
     field is missing here.
   */
@@ -310,7 +312,6 @@ let
         "family"
         "name"
       ];
-      omitted = [ "handle" ];
     };
     chain = {
       rendered = [
@@ -326,14 +327,13 @@ let
         "family"
         "table"
       ];
-      omitted = [ "handle" ];
     };
     rule = {
       rendered = [
         "comment"
         "expr"
       ];
-      refused = [ "index" ];
+      rejected = [ "index" ];
       scope = [
         "chain"
         "family"
@@ -652,12 +652,11 @@ let
   */
   refuseTunnel =
     _ctx: _body:
-    fail ''
-      refusing to render a tunnel object. nft's JSON parser
-      loads a tunnel's ports wrongly, so text and JSON would load different
-      tunnels. Load the tunnel with nft's own text syntax instead.
-      Field: tunnel.
-    '';
+    primitives.refuse
+      {
+        field = "tunnel";
+      }
+      "refusing to render a tunnel object. nft's JSON parser loads a tunnel's ports wrongly, so text and JSON would load different tunnels. Load the tunnel with nft's own text syntax instead.";
 
   # A listed metainfo is listing metadata, which nft's JSON parser
   # ignores, so text drops it and loads what the JSON form loads.
@@ -686,7 +685,9 @@ let
   # Kinds with `noBraces = true` suppress the block wrapper entirely.
   # A kind that appears whole only in a listing, `metainfo` or `meter`,
   # gives `object ctx body` for that form instead of a body: it returns
-  # null to drop the object, or raises a Refusal.
+  # null to drop the object, or raises a Refusal. A kind may give
+  # `checkBody body`, which returns the body an added object renders
+  # with, or raises a Refusal.
   emptyBody = _ctx: _body: [ ];
 
   kinds = {
@@ -702,6 +703,7 @@ let
       header = renderRuleHeader;
       body = emptyBody;
       noBraces = true;
+      checkBody = requireStatements;
     };
     set = {
       header = renderSetHeader;
@@ -806,7 +808,23 @@ let
   # its own `render` because its body is a bare comma-separated value
   # list rather than the `;`-separated statement body the block helper
   # produces. A listed `metainfo` renders as null.
-  renderObject = renderObjectGeneric true;
+  renderObject =
+    ctx: kind: body:
+    renderObjectGeneric true ctx kind ((kinds.${kind}.checkBody or lib.id) body);
+
+  # nft's JSON loads an added, inserted, replaced, or listed rule with no
+  # statements as an empty rule, while its text grammar requires one
+  # (#96). A selected rule, as `delete` takes, needs none.
+  requireStatements =
+    body:
+    if builtins.isAttrs body && (body.expr or [ ]) == [ ] then
+      primitives.refuse
+        {
+          field = "rule expr";
+        }
+        "refusing to render a rule without statements: nft's JSON loads an added, inserted, replaced, or listed rule with no statements as an empty rule, while nft's text grammar requires a statement, so the text form would fail to load. Give the rule a statement, or load the ruleset as JSON."
+    else
+      body;
 
   # Render only the header — used for `delete`/`destroy`/`flush`/`reset`/
   # `list`/`create` verbs, which the text grammar does not accept with a

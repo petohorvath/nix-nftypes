@@ -34,9 +34,12 @@
       check runs too, once every field has been checked: its error,
       "<prefix>: not of type `<description>'", names the rule the type's
       description states.
-    - other types, such as `nullLiteral` or an expression: wrap in a
+      A tagged union such as `resetStmt`'s `expressionOf [ "tcp option" ]`
+      has its tags as sub-options and is checked the same way, so its
+      errors name the tag, as in `dsl.resetStmt."tcp option"`.
+    - other types, such as `nullLiteral` or a Reference: wrap in a
       top-level `value` option. Errors look like "<prefix>.value: …", as in
-      `dsl.resetStmt.value`.
+      `dsl.counter.ref.value`.
 */
 { lib }:
 

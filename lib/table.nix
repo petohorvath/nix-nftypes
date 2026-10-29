@@ -1,5 +1,5 @@
 /*
-  One table tree, two renderings: `expandTable` turns a `dsl.table` node into
+  One table tree, two renderings: `expandTable` turns a Table tree into
   imperative commands, and `toTextBlock` / `toTextBlockPretty` render it in
   block form. Preparation keeps validated rules with their chains; only
   command expansion flattens them. The prepared shape is private to this
@@ -7,6 +7,7 @@
   pass rules through the text renderer's formatting context.
 */
 {
+  compatibility,
   lib,
   objects,
   text,
@@ -18,8 +19,11 @@ let
   location = import ./dsl/internal/location.nix { inherit lib; };
   ruleBody = import ./dsl/internal/rule-body.nix { inherit lib; };
   compact = import ./dsl/internal/compact.nix { inherit lib; };
+  rejectHandle = import ./dsl/internal/reject-handle.nix { inherit lib; };
+  chainPriority = import ./dsl/internal/chain-priority.nix { inherit compatibility lib; };
   tableTreeMarker = import ./table-tree-marker.nix { };
   fail = import ./fail.nix { };
+  inherit (import ./describe.nix { inherit lib; }) describe;
   objectKindRegistry = import ./dsl/structure/object-kinds.nix { inherit lib objects; };
   objectKinds = lib.mapAttrs' (
     _: cfg: lib.nameValuePair cfg.plural (removeAttrs cfg [ "plural" ])
@@ -45,16 +49,22 @@ let
   orderedObjectKindNames =
     statefulObjectKindNames ++ lib.subtractLists statefulObjectKindNames (sortedNames objectKinds);
 
+  # Each Table-tree key holding named entries, by its singular name.
+  treeKeysBySingular = lib.mapAttrs (_: cfg: cfg.plural) objectKindRegistry // {
+    chain = "chains";
+  };
+
   # The tree owns scope. Check after schema validation so ordinary type
   # errors keep their existing paths, and matching explicit scope fields
   # remain useful when composing bodies. Raw commands can choose any scope.
+  # A tree's bodies take no handle, as `add` bodies take none.
   prepareBody =
     type: at: scope: userBody:
     let
       validated = compact (validate {
         inherit type;
         location = at;
-        value = compact (scope // requireBody at userBody);
+        value = compact (scope // rejectHandle at (requireBody at userBody));
       });
       conflicts = builtins.filter (key: validated.${key} != scope.${key}) (sortedNames scope);
       key = builtins.head conflicts;
@@ -80,7 +90,12 @@ let
 
   requireNamedBodies = noun: requireShape builtins.isAttrs "an attribute set of ${noun} bodies";
 
-  # `tree` is the table tree's location (../dsl/internal/location.nix).
+  /*
+    `tree` is the table tree's location (../dsl/internal/location.nix). An
+    object's key declares it, so it is the bare name: a key such as
+    `sets."@s"` would declare a set no Reference could name without
+    ambiguity (ADR 0009).
+  */
   prepareObject =
     tree: scope: pluralKey: name: userBody:
     let
@@ -91,10 +106,13 @@ let
       ];
       body = prepareBody cfg.body at (scope // { inherit name; }) (cfg.renameBody at userBody);
     in
-    {
-      kind = cfg.tag;
-      inherit body;
-    };
+    if lib.hasPrefix "@" name then
+      location.fail at "a Table tree declares an object by its bare name; drop the leading `@`, which only a Reference adds"
+    else
+      {
+        kind = cfg.tag;
+        inherit body;
+      };
 
   # A rule entry is a list of statements or a rule body with them in
   # `statements` (./dsl/internal/rule-body.nix).
@@ -123,41 +141,51 @@ let
       );
     in
     {
+      # The tree's family resolves a Symbolic priority; a conflicting
+      # `family` in the body still throws in `prepareBody`.
       body = prepareBody objects.chainBody at (scope // { inherit name; }) (
-        removeAttrs checkedBody [ "rules" ]
+        chainPriority at scope.family (removeAttrs checkedBody [ "rules" ])
       );
       rules = lib.imap0 (prepareRule tree (scope // { chain = name; })) rules;
     };
 
   prepareTable =
-    node:
+    value:
     let
-      inherit (node) family name;
+      inherit (value) family name;
       tree = location.tableTree family name;
-      body = removeAttrs node [
-        tableTreeMarker.marker
-        "family"
-        "name"
-      ];
+      body = rejectHandle tree (
+        removeAttrs value [
+          "_type"
+          "family"
+          "name"
+        ]
+      );
       allowedBodyKeys = [
-        "_type"
-        "handle"
         "flags"
         "comment"
         "chains"
       ]
       ++ sortedNames objectKinds;
       unknownBodyKeys = lib.subtractLists allowedBodyKeys (sortedNames body);
+      # A singular kind name, such as `set`, is a misspelled plural key.
+      misspelledPlurals = builtins.filter (key: treeKeysBySingular ? ${key}) unknownBodyKeys;
       checkedBody =
         if unknownBodyKeys == [ ] then
           body
         else
           location.fail tree (
-            "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}"
+            "unsupported key(s): ${lib.concatStringsSep ", " unknownBodyKeys}; a Table tree takes ${lib.concatStringsSep ", " allowedBodyKeys}"
+            +
+              lib.optionalString (misspelledPlurals != [ ])
+                "; write ${
+                  lib.concatMapStringsSep " and " (
+                    key: "`${treeKeysBySingular.${key}}` for `${key}`"
+                  ) misspelledPlurals
+                }"
             + lib.optionalString (builtins.elem "elements" unknownBodyKeys) "; give a set or map its elements in its body, as `sets.<name>.elements` or `maps.<name>.elements`, or add them to a set defined elsewhere with `add.element`"
           );
       tableOptions = builtins.intersectAttrs {
-        handle = null;
         flags = null;
         comment = null;
       } checkedBody;
@@ -187,9 +215,9 @@ let
   # then objects before rules (rules can reference both). Rules keep source
   # order within each chain. Dependencies inside raw bodies are caller-owned.
   expandTable =
-    node:
+    tree:
     let
-      table = prepareTable node;
+      table = prepareTable tree;
       add = kind: body: { add.${kind} = body; };
     in
     [ (add "table" table.body) ]
@@ -198,26 +226,26 @@ let
     ++ lib.concatMap (chain: map (add "rule") chain.rules) table.chains;
 
   /*
-    Render one `dsl.table` node's contents in block form. `api` names the
-    renderer in errors, `pretty` selects multi-line output, and `node` is
-    the table node. Returns the table's `flags` and `comment`, then the
-    chain and object declarations, joined by newlines, without the
-    `table <family> <name> { … }` wrapper. Throws when `node` is not a
-    table node; text refuses what block grammar cannot spell, such as a
-    rule `index`.
+    Render one Table tree's contents in block form. `api` names the
+    renderer in errors, `pretty` selects multi-line output, and `tree` is
+    the Table tree. Returns the table's `flags` and `comment`, then the
+    chain and object declarations, each ending with a newline, without the
+    `table <family> <name> { … }` wrapper. Throws when `tree` is not a
+    Table tree, saying what it got; text refuses what block grammar cannot
+    spell.
   */
   renderTableBlock =
     api: pretty:
     let
-      # Bound before `node`, so each renderer builds its text modules once.
+      # Bound before `tree`, so each renderer builds its text modules once.
       render = text.renderTableBlock api pretty;
     in
-    node:
-    if !(tableTreeMarker.isTableTree node) then
-      fail api "block-form text rendering expects one dsl.table node"
+    tree:
+    if !(tableTreeMarker.isTableTree tree) then
+      fail api "expected one Table tree from `dsl.table`, got ${describe tree}; render a ruleset with `toText`"
     else
       let
-        table = prepareTable node;
+        table = prepareTable tree;
       in
       # Validate even an empty table's omitted wrapper fields. Construction
       # stays lazy; validation is forced when the rendered string is needed.
@@ -227,16 +255,16 @@ in
   inherit expandTable;
 
   /*
-    Render a `dsl.table` node for a host module that supplies the
+    Render a Table tree for a host module that supplies the
     `table <family> <name> { … }` wrapper itself, such as nixpkgs'
-    `networking.nftables.tables.<name>.content`. Takes the table node and
+    `networking.nftables.tables.<name>.content`. Takes the Table tree and
     returns compact block-form text; see `renderTableBlock` for failures.
   */
   toTextBlock = renderTableBlock "toTextBlock" false;
 
   /*
     Multi-line variant of `toTextBlock`, for readable generated
-    configuration. Takes the table node and returns block-form text with
+    configuration. Takes the Table tree and returns block-form text with
     each statement on its own indented line; see `renderTableBlock` for
     failures.
   */

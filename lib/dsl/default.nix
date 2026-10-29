@@ -4,19 +4,23 @@
       `expr.payload "tcp" "dport"`)
     - Top-level operator functions (`eq`, `ne`, `inSet`, `notInSet`, …)
     - Variant namespaces via `__functor` (`counter {…}` vs `counter.auto`)
-    - Declarative table structure (`chains.<name>.rules = [...]`) in place
-      of context-threading builders
+    - Table trees (`chains.<name>.rules = [...]`) in place of
+      context-threading builders
     - One camelCase spelling for each JSON key (handled by
       internal/rename.nix)
 */
 {
+  compatibility,
+  deleteBodiesByTag,
   lib,
   objects,
+  selectBodiesByTag,
   expandTable,
   resetOrder,
   statementBodiesByTag,
   expressionBodiesByTag,
   expressionBodies,
+  payloadFieldsByProtocol,
 }:
 
 let
@@ -38,12 +42,35 @@ let
   fields = import ./fields { inherit lib; };
   ops = import ./ops.nix { inherit lib statement; };
   verdicts = import ./verdicts.nix { inherit statement; };
-  exprs = import ./exprs.nix { inherit expression expressionBodies lib; };
-  payload = import ./payload.nix { inherit expression expressionBodies; };
+  exprs = import ./exprs.nix {
+    inherit
+      expression
+      expressionBodies
+      fields
+      lib
+      ;
+  };
+  payload = import ./payload.nix {
+    inherit
+      expression
+      expressionBodies
+      lib
+      payloadFieldsByProtocol
+      ;
+  };
   actions = import ./actions { inherit lib statement; };
   ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetOrder; };
   table = import ./structure/table.nix { inherit lib; };
-  commands = import ./structure/commands.nix { inherit lib objects validate; };
+  commands = import ./structure/commands.nix {
+    inherit
+      compatibility
+      deleteBodiesByTag
+      lib
+      objects
+      selectBodiesByTag
+      validate
+      ;
+  };
   mergeDisjoint = import ./internal/merge-disjoint.nix { inherit lib; };
 in
 # One flat namespace plus a few nested ones. The layers must define

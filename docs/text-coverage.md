@@ -22,17 +22,17 @@ runtime behavior.
 | `toTextBlockPretty` | readable contents of one table block |
 
 Imperative output contains commands such as `add table`, `add chain`, and
-`add rule`. Block output accepts one `dsl.table` node, omits the table wrapper,
-keeps the table's `flags` and `comment`, and emits named objects and chains in
-block syntax, with rules folded into their parent chains and each set's or
-map's elements in its definition. It omits the table's and each chain's
-`handle`. A chain block lists its rules in order and has no rule position, so
-block form refuses a rule's `index` (`rule index`).
+`add rule`. The block form takes one Table tree from `dsl.table`, omits the
+table wrapper, keeps the table's `flags` and `comment`, and emits named objects
+and chains in block syntax, with rules folded into their parent chains and each
+set's or map's elements in its definition. A Table tree takes no `handle`, and
+its rules take no `index`, since a chain block lists its rules in order and has
+no rule position.
 
 Text's `renderTableBlock` is the one entry point for block form and raises
 every block-form Refusal. Its `blockFields` classifies each field of the
 table, chain, and rule bodies a table tree prepares as rendered, refused,
-supplied by the tree's scope, or omitted as `toText` omits it.
+supplied by the tree's scope, or rejected by the tree before rendering.
 
 ## Executable evidence
 
@@ -91,10 +91,17 @@ flowtable-name and flowtable-reference positions, so a flowtable named
 `offload` loads only through JSON.
 
 The same applies to map datatypes. The text renderer accepts identifier-shaped
-datatypes only, so it rejects a map whose `map` value is an object type with a
+datatypes only, so it rejects a map whose `map` value is an object kind with a
 space, such as `"ct count"` or `"ct timeout"`. Define such a map with JSON. A
 statement that looks it up (`ct count name meta mark map @m`) and inline map
 references still render to text.
+
+nft's JSON loads an added, inserted, replaced, or listed rule with no
+statements as an empty rule, while its text grammar rejects `add rule inet fw
+input` as a syntax error. The text renderer refuses such a rule and names the
+field (`rule expr`). The schema accepts it and the DSL never builds one, so
+only raw input reaches the renderer with one. A `delete` or `destroy` rule
+needs no statements and renders as before.
 
 A tunnel match (`tunnel id`, `tunnel path`) leaves nft's lexer reading tunnel
 keywords for the rest of the input, in nftables 1.1.6 and 1.1.7. A later
@@ -136,9 +143,9 @@ ruleset loaded through text:
   nft lists beside an element's `val`, or a raw `stmt` list.
 
 The schema accepts the comment and the listed element keys as Read-back
-shapes. Text would load them while JSON drops them, so the text renderer
-refuses them and names the field (`set comment`, `map comment`, or `element
-counter`). Set-level statements, such as `counter;`, render as before.
+shapes, and input commands reject the element keys. Text would load them while
+JSON drops them, so the text renderer refuses them and names the field (`set
+comment`, `map comment`, or `element counter`). Set-level statements, such as `counter;`, render as before.
 
 nft's JSON parser ignores a listed rule's `handle` too, while text reads it as
 a position: `rule … handle 7` loads after rule 7, or fails with `No such file
@@ -317,9 +324,9 @@ refuse a log prefix containing `$` or outside that length. Give a literal `$`
 through a raw JSON attrset.
 
 A bare expression string containing `/`, such as `"198.51.100.7/0"`, is
-refused, and the Refusal points to `exprs.prefix` (`dsl.expr.prefix`). nft's
-JSON parser rejects such a string as a hostname, while text would load it as
-a prefix, so a typo could widen a match to every address.
+refused, and the Refusal points to `dsl.expr.prefix`. nft's JSON parser
+rejects such a string as a hostname, while text would load it as a prefix, so
+a typo could widen a match to every address.
 
 Each of these Refusals names the field, such as `chain policy`, `match
 right`, or `element`.

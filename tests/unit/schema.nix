@@ -46,6 +46,20 @@ let
   };
   portMapReferenceJson = "{\"map\":{\"data\":{\"set\":[[22,\"a\"],[80,\"b\"]]},\"key\":{\"payload\":{\"field\":\"dport\",\"protocol\":\"tcp\"}}}}";
 
+  # The statements that name a stateful object, by a Reference.
+  objectReferenceTags = [
+    "counter"
+    "quota"
+    "limit"
+    "ct count"
+    "synproxy"
+    "ct helper"
+    "ct timeout"
+    "ct expectation"
+    "secmark"
+    "tunnel"
+  ];
+
   # A listed command validated as a singleton ruleset, deep-forced so
   # lazy submodule checks run.
   readBack =
@@ -55,12 +69,14 @@ let
     in
     builtins.deepSeq ruleset ruleset;
 
-  # Schema↔text drift: every tag in the schema's `statement`,
-  # `taggedExpression`, and `addObject`/`readBackObject` unions must have a
-  # matching entry in the corresponding text/* dispatch table —
-  # otherwise the renderer throws at *render time* (`no renderer for
-  # tag '…'`) instead of failing eval-time. Catches the regression class
-  # where a new schema tag is added without a renderer.
+  /*
+    Schema↔text drift: every tag in the schema's `statement`, `expression`
+    (its tagged forms), and `addObject`/`readBackObject` unions must have a
+    matching entry in the corresponding text/* dispatch table — otherwise
+    the renderer throws at *render time* (`no renderer for tag '…'`)
+    instead of failing eval-time. Catches the regression class where a new
+    schema tag is added without a renderer.
+  */
   textDriftTests =
     let
       inherit (internal) textDispatch;
@@ -70,7 +86,7 @@ let
       # self-explanatory.
       missing = xs: ys: lib.subtractLists ys xs;
       statementTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
-      expressionTags = builtins.attrNames nftlib.types.taggedExpression.functor.payload.tags;
+      expressionTags = helpers.tagsOf nftlib.types.expression;
       # Renderable object kinds: every union tag in addObject ∪
       # readBackObject (the latter adds `metainfo`, `meter`, and the
       # Read-back-only `tunnel`) plus `ruleset`, which appears only as a
@@ -118,11 +134,11 @@ let
     };
 
   /*
-    Block-form field drift: block form must render, refuse, take from the
-    table tree's scope, or omit (as `toText` does) every field of the
-    bodies a table tree prepares. A field added to one of these bodies
-    fails here until text classifies it, so block form cannot drop it
-    silently, as it once dropped a rule's `index`.
+    Block-form field drift: block form must render, refuse, or take from
+    the table tree's scope every field of the bodies a table tree prepares,
+    or the tree must reject it before rendering. A field added to one of
+    these bodies fails here until text classifies it, so block form cannot
+    drop it silently, as it once dropped a rule's `index`.
   */
   blockFieldDriftTests =
     let
@@ -452,15 +468,14 @@ let
         ];
       };
       testDestroySetRequiresName = {
-        expr = roundtrip nftlib.types.command { destroy.set = byHandle; };
+        expr = roundtrip nftlib.types.command {
+          destroy.set = removeAttrs selector [ "name" ];
+        };
         expectedError.msg = missing "destroy\\.set\\.name";
       };
       testDestroyTableRequiresName = {
         expr = roundtrip nftlib.types.command {
-          destroy.table = {
-            family = "inet";
-            handle = 1;
-          };
+          destroy.table.family = "inet";
         };
         expectedError.msg = missing "destroy\\.table\\.name";
       };
@@ -475,6 +490,244 @@ let
           };
         };
         expected = "{\"replace\":{\"rule\":{\"chain\":\"c\",\"expr\":[{\"accept\":null}],\"family\":\"ip\",\"handle\":4,\"table\":\"t\"}}}";
+      };
+    };
+
+  /*
+    Each selecting verb takes a Selector, which accepts no field nft's JSON
+    parser ignores for the verb (ADR 0009): `delete set` with `elem`
+    deletes the whole set, not the elements (a Known difference with a
+    live case in tests/fixtures/nft-misbehaviour.nix).
+  */
+  selectorTests =
+    let
+      inTable = {
+        family = "inet";
+        table = "t";
+      };
+      named = inTable // {
+        name = "x";
+      };
+      # Each kind's Selector, with the fields nft reads.
+      selectorOf =
+        kind:
+        {
+          table = {
+            family = "inet";
+            name = "t";
+          };
+          rule = inTable // {
+            chain = "c";
+            handle = 4;
+          };
+          element = named // {
+            elem = [ "10.0.0.1" ];
+          };
+          ruleset = null;
+        }
+        .${kind} or named;
+      # For each kind, a field its add body takes that nft ignores when it
+      # selects one.
+      ignoredOf = {
+        table.comment = "c";
+        chain.policy = "accept";
+        rule.expr = [ ];
+        set.elem = [ "10.0.0.1" ];
+        map.type = "ipv4_addr";
+        meter.type = "ipv4_addr";
+        element.comment = "c";
+        flowtable.hook = "ingress";
+        counter.packets = 1;
+        quota.bytes = 1;
+        "ct helper".type = "ftp";
+        limit.rate = 1;
+        secmark.context = "c";
+        synproxy.mss = 1460;
+        ruleset = inTable;
+      };
+      deleteKinds = [
+        "table"
+        "chain"
+        "rule"
+        "set"
+        "map"
+        "element"
+        "flowtable"
+        "counter"
+        "quota"
+        "ct helper"
+        "limit"
+        "secmark"
+        "synproxy"
+      ];
+      kindsByVerb = {
+        delete = deleteKinds;
+        destroy = deleteKinds;
+        list = [
+          "table"
+          "chain"
+          "set"
+          "map"
+          "meter"
+          "counter"
+          "quota"
+          "ct helper"
+          "limit"
+          "secmark"
+          "ruleset"
+        ];
+        flush = [
+          "table"
+          "chain"
+          "set"
+          "map"
+          "meter"
+          "ruleset"
+        ];
+        reset = [
+          "counter"
+          "quota"
+          "rule"
+          "set"
+          "map"
+          "element"
+        ];
+      };
+      # `verb.kind` for each command whose `body kind` fails validation.
+      rejected =
+        body:
+        lib.concatLists (
+          lib.mapAttrsToList (
+            verb: kinds:
+            map (kind: "${verb}.${kind}") (
+              builtins.filter (
+                kind: !(helpers.validates nftlib.types.command { ${verb}.${kind} = body kind; })
+              ) kinds
+            )
+          ) kindsByVerb
+        );
+      every = lib.concatLists (lib.mapAttrsToList (verb: map (kind: "${verb}.${kind}")) kindsByVerb);
+    in
+    {
+      testEverySelectorValidates = {
+        expr = rejected selectorOf;
+        expected = [ ];
+      };
+      testEverySelectorRejectsAFieldNftIgnores = {
+        expr = rejected (
+          kind: if kind == "ruleset" then ignoredOf.ruleset else selectorOf kind // ignoredOf.${kind}
+        );
+        expected = every;
+      };
+      # With a name, nft never reads a handle, so no Selector takes both.
+      testNamedSelectorsRejectAHandle = {
+        expr = rejected (
+          kind:
+          if kind == "ruleset" then
+            ignoredOf.ruleset
+          else
+            selectorOf kind
+            // lib.optionalAttrs (kind != "rule") {
+              handle = 1;
+            }
+        );
+        expected = builtins.filter (command: !(lib.hasSuffix ".rule" command)) every;
+      };
+      # nft's JSON parser reads the handle without a name only on delete,
+      # and never of a ct helper, an element, or a ruleset; destroy, list,
+      # flush, and reset require the name ("Object item not found: name").
+      testOnlyDeleteSelectsByHandle = {
+        expr =
+          let
+            byHandle =
+              kind:
+              if kind == "rule" then
+                selectorOf kind
+              else if kind == "ruleset" then
+                ignoredOf.ruleset
+              else
+                removeAttrs (selectorOf kind) [ "name" ] // { handle = 2; };
+          in
+          lib.subtractLists (rejected byHandle) every;
+        expected = [
+          "delete.table"
+          "delete.chain"
+          "delete.rule"
+          "delete.set"
+          "delete.map"
+          "delete.flowtable"
+          "delete.counter"
+          "delete.quota"
+          "delete.limit"
+          "delete.secmark"
+          "delete.synproxy"
+          "destroy.rule"
+          "reset.rule"
+        ];
+      };
+      testDeleteTableByHandle = {
+        expr = roundtrip nftlib.types.command {
+          delete.table = {
+            family = "ip";
+            handle = 2;
+          };
+        };
+        expected = ''{"delete":{"table":{"family":"ip","handle":2}}}'';
+      };
+      testDeleteCounterByHandle = {
+        expr = roundtrip nftlib.types.command {
+          delete.counter = inTable // {
+            handle = 2;
+          };
+        };
+        expected = "{\"delete\":{\"counter\":{\"family\":\"inet\",\"handle\":2,\"table\":\"t\"}}}";
+      };
+      # A delete Selector takes the name or the handle: not neither, and not
+      # both.
+      testDeleteSelectorRequiresNameOrHandle = {
+        expr = roundtrip nftlib.types.command { delete.counter = inTable; };
+        expectedError.msg = "validate\\.delete\\.counter' is not of type `counter Selector with exactly one of name and handle'";
+      };
+      testDeleteSelectorRejectsBothNameAndHandle = {
+        expr = roundtrip nftlib.types.command {
+          delete.set = named // {
+            handle = 2;
+          };
+        };
+        expectedError.msg = "validate\\.delete\\.set' is not of type `set Selector with exactly one of name and handle'";
+      };
+      # nft takes handle 0 as no handle, and the kernel then deletes every
+      # table of the family (measured on nft 1.1.6), so the handle is
+      # positive.
+      testDeleteRejectsHandleZero = {
+        expr = roundtrip nftlib.types.command {
+          delete.table = {
+            family = "ip";
+            handle = 0;
+          };
+        };
+        expectedError.msg = "validate\\.delete\\.table\\.handle' is not of type `null or \\(positive integer";
+      };
+      testListRuleset = {
+        expr = map (body: roundtrip nftlib.types.command { list.ruleset = body; }) [
+          null
+          { family = "ip"; }
+        ];
+        expected = [
+          ''{"list":{"ruleset":null}}''
+          ''{"list":{"ruleset":{"family":"ip"}}}''
+        ];
+      };
+      testDeleteSetRejectsElem = {
+        expr = roundtrip nftlib.types.command {
+          delete.set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            elem = [ "10.0.0.1" ];
+          };
+        };
+        expectedError.msg = "validate\\.delete\\.set\\.elem' does not exist";
       };
     };
 
@@ -535,37 +788,323 @@ let
     };
 
   /*
-    nft 1.1.6's JSON parser ignores a handle on `add rule` and appends the
-    rule, so the schema rejects one there (a Known difference, ADR 0010).
-    `insert` places the rule before the handle's rule, and a listed rule
-    carries its handle.
+    nft reads a `handle` only in Read-back, a Selector, and `insert` and
+    `replace` rule (ADR 0009). It ignores one on `add`, `create`, and
+    `rename`, except that nft 1.1.7 places an added rule after it, so
+    those bodies reject it and the error points to Read-back (a Known
+    difference, ADR 0010). An element has no handle at all.
   */
-  ruleHandleTests =
+  handleTests =
     let
-      rule = {
+      scope = {
         family = "ip";
         table = "t";
-        chain = "c";
-        handle = 3;
-        expr = [ { accept = null; } ];
       };
+      # A minimal valid add body of each kind but `element`.
+      addBodies = {
+        table = {
+          family = "ip";
+          name = "t";
+        };
+        chain = scope // {
+          name = "c";
+        };
+        rule = scope // {
+          chain = "c";
+          expr = [ { accept = null; } ];
+        };
+        set = scope // {
+          name = "s";
+          type = "ipv4_addr";
+        };
+        map = scope // {
+          name = "m";
+          type = "ipv4_addr";
+          map = "verdict";
+        };
+        flowtable = scope // {
+          name = "f";
+          hook = "ingress";
+          prio = 0;
+        };
+        counter = scope // {
+          name = "o";
+        };
+        quota = scope // {
+          name = "o";
+        };
+        "ct helper" = scope // {
+          name = "o";
+        };
+        limit = scope // {
+          name = "o";
+          rate = 1;
+          per = "second";
+        };
+        "ct timeout" = scope // {
+          name = "o";
+        };
+        "ct expectation" = scope // {
+          name = "o";
+        };
+        "ct count" = scope // {
+          name = "o";
+          val = 1;
+        };
+        secmark = scope // {
+          name = "o";
+        };
+        synproxy = scope // {
+          name = "o";
+          mss = 1460;
+          wscale = 7;
+        };
+      };
+      withHandle = body: body // { handle = 3; };
+      rejects =
+        verb: kind: body:
+        lib.nameValuePair
+          "test${helpers.capitalise verb}${lib.concatMapStrings helpers.capitalise (lib.splitString " " kind)}RejectsHandle"
+          {
+            expr = roundtrip nftlib.types.command { ${verb}.${kind} = withHandle body; };
+            expectedError.msg = "${verb}\\.\"?${kind}\"?' is not of type `[^']*without a handle[^']*Read-back";
+          };
+      accepts = command: {
+        expr = helpers.validates nftlib.types.command command;
+        expected = true;
+      };
+      rule = withHandle addBodies.rule;
     in
-    {
-      testAddRuleRejectsHandle = {
-        expr = roundtrip nftlib.types.command { add.rule = rule; };
-        expectedError.msg = "add\\.rule\\.handle' does not exist";
+    lib.listToAttrs (
+      lib.mapAttrsToList (rejects "add") addBodies
+      ++ lib.mapAttrsToList (rejects "create") (removeAttrs addBodies [ "rule" ])
+      ++ [
+        (rejects "rename" "chain" (addBodies.chain // { newname = "d"; }))
+      ]
+    )
+    // {
+      testAddBodiesWithoutHandle = {
+        expr = lib.mapAttrs (
+          kind: body: helpers.validates nftlib.types.command { add.${kind} = body; }
+        ) addBodies;
+        expected = lib.mapAttrs (_: _: true) addBodies;
+      };
+      testAddElementRejectsHandle = {
+        expr = roundtrip nftlib.types.command {
+          add.element = scope // {
+            name = "s";
+            elem = [ "10.0.0.1" ];
+            handle = 3;
+          };
+        };
+        expectedError.msg = "add\\.element\\.handle' does not exist";
       };
       testAddRuleWithoutHandle = {
-        expr = roundtrip nftlib.types.command { add.rule = removeAttrs rule [ "handle" ]; };
+        expr = roundtrip nftlib.types.command { add.rule = addBodies.rule; };
         expected = "{\"add\":{\"rule\":{\"chain\":\"c\",\"expr\":[{\"accept\":null}],\"family\":\"ip\",\"table\":\"t\"}}}";
       };
       testInsertRuleKeepsHandle = {
         expr = roundtrip nftlib.types.command { insert.rule = rule; };
         expected = "{\"insert\":{\"rule\":{\"chain\":\"c\",\"expr\":[{\"accept\":null}],\"family\":\"ip\",\"handle\":3,\"table\":\"t\"}}}";
       };
+      testReplaceRuleKeepsHandle = accepts { replace.rule = rule; };
       testListedRuleKeepsHandle = {
         expr = roundtrip nftlib.types.readBackObject { inherit rule; };
         expected = "{\"rule\":{\"chain\":\"c\",\"expr\":[{\"accept\":null}],\"family\":\"ip\",\"handle\":3,\"table\":\"t\"}}";
+      };
+      # Read-back lists every object with the handle nft assigned.
+      testReadBackObjectsKeepHandle = {
+        expr = lib.mapAttrs (
+          kind: body: helpers.validates nftlib.types.readBackObject { ${kind} = withHandle body; }
+        ) addBodies;
+        expected = lib.mapAttrs (_: _: true) addBodies;
+      };
+      # A Selector selects by handle where nft reads one: a rule's always,
+      # and a named object's on delete, in place of its name. With a name,
+      # nft never reads a handle (`testNamedSelectorsRejectAHandle`).
+      testSelectorsSelectByHandle = {
+        expr = lib.mapAttrs (_: helpers.validates nftlib.types.command) {
+          deleteRule.delete.rule = removeAttrs rule [ "expr" ];
+          destroyRule.destroy.rule = removeAttrs rule [ "expr" ];
+          resetRule.reset.rule = removeAttrs rule [ "expr" ];
+          deleteTable.delete.table = withHandle (removeAttrs addBodies.table [ "name" ]);
+          deleteChain.delete.chain = withHandle (removeAttrs addBodies.chain [ "name" ]);
+          deleteCounter.delete.counter = withHandle (removeAttrs addBodies.counter [ "name" ]);
+          deleteSet.delete.set = withHandle scope;
+          destroyChain.destroy.chain = withHandle scope;
+          flushChain.flush.chain = withHandle scope;
+          listTable.list.table = withHandle (removeAttrs addBodies.table [ "name" ]);
+          resetQuota.reset.quota = withHandle scope;
+        };
+        expected = {
+          deleteRule = true;
+          destroyRule = true;
+          resetRule = true;
+          deleteTable = true;
+          deleteChain = true;
+          deleteCounter = true;
+          deleteSet = true;
+          destroyChain = false;
+          flushChain = false;
+          listTable = false;
+          resetQuota = false;
+        };
+      };
+    };
+
+  /*
+    Element statements: nft lists an element's `counter`, `quota`,
+    `limit`, or `last` beside its value (json.c set_elem_expr_json), in a
+    set's or map's elements and in a rule's anonymous set alike. Its JSON
+    parser reads only `val`, `timeout`, `expires`, and `comment`
+    (json_parse_set_elem_expr), so an input command takes `elemBody`,
+    which rejects them, and Read-back takes `elemReadBackBody`.
+  */
+  elementStatementTests =
+    let
+      scope = {
+        family = "ip";
+        table = "t";
+      };
+      statementsByKey = {
+        counter = {
+          packets = 1;
+          bytes = 2;
+        };
+        quota = {
+          val = 100;
+          val_unit = "bytes";
+        };
+        limit = {
+          rate = 5;
+          per = "second";
+        };
+        last.used = 1200;
+      };
+      element = key: {
+        elem = {
+          val = "10.0.0.1";
+          ${key} = statementsByKey.${key};
+        };
+      };
+      rule = key: {
+        chain = "c";
+        expr = [
+          {
+            match = {
+              op = "==";
+              left.payload = {
+                protocol = "ip";
+                field = "saddr";
+              };
+              right.set = [
+                (element key)
+                "10.0.0.2"
+              ];
+            };
+          }
+        ];
+      };
+      # The objects that hold elements, as input commands and Read-back
+      # take them.
+      holders = key: {
+        set = scope // {
+          name = "s";
+          type = "ipv4_addr";
+          elem = [ (element key) ];
+        };
+        map = scope // {
+          name = "m";
+          type = "ipv4_addr";
+          map = "mark";
+          elem = [
+            [
+              (element key)
+              5
+            ]
+          ];
+        };
+        element = scope // {
+          name = "s";
+          elem = [ (element key) ];
+        };
+        rule = scope // rule key;
+      };
+      inputCommands = key: {
+        "add set" = {
+          add.set = (holders key).set;
+        };
+        "create map" = {
+          create.map = (holders key).map;
+        };
+        "add element" = {
+          add.element = (holders key).element;
+        };
+        "delete element" = {
+          delete.element = (holders key).element;
+        };
+        "add rule" = {
+          add.rule = (holders key).rule;
+        };
+        "insert rule" = {
+          insert.rule = (holders key).rule;
+        };
+        "replace rule" = {
+          replace.rule = (holders key).rule // {
+            handle = 4;
+          };
+        };
+      };
+      keys = builtins.attrNames statementsByKey;
+      ruleset = command: { nftables = [ command ]; };
+    in
+    lib.listToAttrs (
+      lib.concatMap (
+        key:
+        lib.mapAttrsToList (
+          name: command:
+          lib.nameValuePair
+            "testInputRejectsElementStatement_${lib.replaceStrings [ " " ] [ "_" ] name}_${key}"
+            {
+              expr = builtins.deepSeq (helpers.validate nftlib.types.ruleset (ruleset command)) null;
+              expectedError.msg = "is not of type `element body without counter, quota, limit, or last[^']*Read-back";
+            }
+        ) (inputCommands key)
+      ) keys
+    )
+    // {
+      testReadBackAcceptsElementStatements = {
+        expr = map (
+          key:
+          lib.mapAttrs (
+            kind: body:
+            helpers.validates nftlib.types.ruleset (ruleset {
+              ${kind} = body // lib.optionalAttrs (kind != "element") { handle = 3; };
+            })
+          ) (holders key)
+        ) keys;
+        expected = map (_: {
+          set = true;
+          map = true;
+          element = true;
+          rule = true;
+        }) keys;
+      };
+      testElementBodyRejectsStatements = {
+        expr = map (key: helpers.validates nftlib.types.expressionBodies.elemBody (element key).elem) keys;
+        expected = map (_: false) keys;
+      };
+      testElementReadBackBodyKeepsStatements = {
+        expr = map (
+          key: helpers.validates nftlib.types.expressionBodies.elemReadBackBody (element key).elem
+        ) keys;
+        expected = map (_: true) keys;
+      };
+      # `types.expression` is the input expression: its element takes
+      # `elemBody`.
+      testExpressionElementRejectsStatements = {
+        expr = map (key: helpers.validates nftlib.types.expression (element key)) keys;
+        expected = map (_: false) keys;
       };
     };
 in
@@ -574,8 +1113,10 @@ textDriftTests
 // mishandledCommandTests
 // tunnelCommandTests
 // commandRequirementTests
-// ruleHandleTests
+// handleTests
+// elementStatementTests
 // listSelectorTests
+// selectorTests
 // {
   # ------------------------------------------------------------------
   # Verdicts
@@ -829,6 +1370,38 @@ textDriftTests
     expected = "{\"vmap\":{\"data\":\"@iifname_vmap\",\"key\":{\"meta\":{\"key\":\"iifname\"}}}}";
   };
 
+  # nft rejects a bare list as the data of a vmap or a map lookup
+  # ("invalid mapping expression list"); it takes the anonymous map
+  # `{ set = [ … ]; }`.
+  testVmapListDataRejected = {
+    expr = roundtrip nftlib.types.statement {
+      vmap = {
+        key.meta.key = "mark";
+        data = [
+          [
+            1
+            { accept = null; }
+          ]
+        ];
+      };
+    };
+    expectedError.msg = "validate\\.vmap\\.data.*is not of type";
+  };
+  testMapLookupListDataRejected = {
+    expr = roundtrip nftlib.types.expression {
+      map = {
+        key.meta.key = "mark";
+        data = [
+          [
+            1
+            2
+          ]
+        ];
+      };
+    };
+    expectedError.msg = "validate\\.map\\.data.*is not of type";
+  };
+
   # ------------------------------------------------------------------
   # Meta expression
   # ------------------------------------------------------------------
@@ -839,6 +1412,21 @@ textDriftTests
       };
     };
     expected = ''{"meta":{"key":"mark"}}'';
+  };
+
+  # nft's aliases for `ibrname`, `obrname`, and `ipsec` have no Field leaf
+  # but stay valid raw input, since nft loads them.
+  testMetaAliasKeysValidate = {
+    expr = map (key: roundtrip nftlib.types.expression { meta = { inherit key; }; }) [
+      "ibriport"
+      "obriport"
+      "secpath"
+    ];
+    expected = [
+      ''{"meta":{"key":"ibriport"}}''
+      ''{"meta":{"key":"obriport"}}''
+      ''{"meta":{"key":"secpath"}}''
+    ];
   };
 
   # ------------------------------------------------------------------
@@ -1147,8 +1735,6 @@ textDriftTests
       accepted = {
         statement = helpers.validates nftlib.types.statement;
         limitObject = body: helpers.validates nftlib.types.objectBodies.limitBody (limitObject // body);
-        selectLimitObject =
-          body: helpers.validates nftlib.types.objectBodies.selectLimitBody (limitObject // body);
       };
       byField = {
         limit_rate_unit =
@@ -1173,8 +1759,6 @@ textDriftTests
           });
         limitObject_rate_unit = unit: accepted.limitObject { rate_unit = unit; };
         limitObject_burst_unit = unit: accepted.limitObject { burst_unit = unit; };
-        selectLimitObject_rate_unit = unit: accepted.selectLimitObject { rate_unit = unit; };
-        selectLimitObject_burst_unit = unit: accepted.selectLimitObject { burst_unit = unit; };
       };
       units = [
         "packets"
@@ -1208,8 +1792,6 @@ textDriftTests
           quota_used_unit = byteUnits;
           limitObject_rate_unit = rateUnits;
           limitObject_burst_unit = byteUnits;
-          selectLimitObject_rate_unit = rateUnits;
-          selectLimitObject_burst_unit = byteUnits;
         };
     };
 
@@ -1406,6 +1988,76 @@ textDriftTests
     };
     expectedError.msg = "validate\\.flush.*is not of type";
   };
+
+  # nft evaluates a flowtable's hook as a netdev hook and refuses any but
+  # `ingress` ("invalid hook"), whatever the table's family.
+  testFlowtableHookIsIngressOnly = {
+    expr =
+      map
+        (
+          hook:
+          helpers.validates nftlib.types.addObject {
+            flowtable = {
+              family = "inet";
+              table = "t";
+              name = "ft";
+              inherit hook;
+              prio = 0;
+            };
+          }
+        )
+        [
+          "ingress"
+          "input"
+          "egress"
+        ];
+    expected = [
+      true
+      false
+      false
+    ];
+  };
+
+  testFlowtableHookEnum = {
+    expr = {
+      enum = nftlib.enums.flowtableHook;
+      type = map nftlib.types.flowtableHook.check [
+        "ingress"
+        "input"
+      ];
+    };
+    expected = {
+      enum = [ "ingress" ];
+      type = [
+        true
+        false
+      ];
+    };
+  };
+
+  # nft's JSON loads an added, inserted, or replaced rule with no
+  # statements as written, so the schema accepts one (ADR 0010); only the
+  # text renderers refuse it (#96).
+  testRuleWithoutStatementsValidates =
+    let
+      body = {
+        family = "inet";
+        table = "filter";
+        chain = "input";
+        expr = [ ];
+      };
+      commands = {
+        add.add.rule = body;
+        insert.insert.rule = body;
+        replace.replace.rule = body // {
+          handle = 4;
+        };
+      };
+    in
+    {
+      expr = lib.mapAttrs (_: helpers.validates nftlib.types.command) commands;
+      expected = lib.mapAttrs (_: _: true) commands;
+    };
 
   # nftables rejects `create rule` explicitly. `create` must not reuse the
   # broader add-object union or raw typed input would accept an impossible
@@ -1766,7 +2418,7 @@ textDriftTests
   # `nft -s` lists a counter and a last statement without state.
   testReadBackStatelessElementStatements = {
     expr = builtins.isAttrs (readBack {
-      add.element = {
+      element = {
         family = "ip";
         name = "s";
         table = "t";
@@ -1788,7 +2440,7 @@ textDriftTests
   # here as in a rule.
   testElementCounterRejectsPartialBody = {
     expr = readBack {
-      add.element = {
+      element = {
         family = "ip";
         name = "s";
         table = "t";
@@ -2055,6 +2707,17 @@ textDriftTests
     expected = ''{"reset":{"tcp option":{"name":"sack-perm"}}}'';
   };
 
+  # nft's reset statement strips a TCP option and refuses anything else
+  # ("Illegal TCP optstrip argument").
+  testResetStmtRejectsOtherExpressions = {
+    expr = builtins.filter (helpers.validates nftlib.types.statement) [
+      { reset.ct.key = "mark"; }
+      { reset = "sack-perm"; }
+      { reset = 1; }
+    ];
+    expected = [ ];
+  };
+
   # ------------------------------------------------------------------
   # `secmark` and `tunnel` statements (reference forms)
   # ------------------------------------------------------------------
@@ -2190,6 +2853,40 @@ textDriftTests
       };
     };
     expectedError.msg = "validate\\.\"ct count\"\\.payload.*does not exist";
+  };
+
+  /*
+    Every stateful object Reference takes the one name-or-map type, so a
+    number or a boolean fails for each tag as for a quota. nft refuses a
+    boolean ("Boolean values not allowed in this context") and loads a
+    number as the name "5", a Known difference (ADR 0010).
+  */
+  testObjectReferencesRejectNumbersAndBooleans = {
+    expr = lib.concatMap (
+      tag:
+      lib.optional (helpers.validates nftlib.types.statement { ${tag} = 5; }) "${tag} = 5"
+      ++ lib.optional (helpers.validates nftlib.types.statement { ${tag} = true; }) "${tag} = true"
+    ) objectReferenceTags;
+    expected = [ ];
+  };
+
+  # A Reference is a name or a map, never another expression.
+  testObjectReferencesRejectNonMapExpressions = {
+    expr = builtins.filter (
+      tag: helpers.validates nftlib.types.statement { ${tag}.meta.key = "mark"; }
+    ) objectReferenceTags;
+    expected = [ ];
+  };
+
+  testObjectReferencesTakeNamesAndMaps = {
+    expr = lib.concatMap (tag: [
+      (roundtrip nftlib.types.statement { ${tag} = "o"; })
+      (roundtrip nftlib.types.statement { ${tag} = portMapReference; })
+    ]) objectReferenceTags;
+    expected = lib.concatMap (tag: [
+      ''{"${tag}":"o"}''
+      ''{"${tag}":${portMapReferenceJson}}''
+    ]) objectReferenceTags;
   };
 
   # ------------------------------------------------------------------
@@ -2708,7 +3405,7 @@ textDriftTests
 
   testCleanKeepsMarkedVerdictInText = {
     expr = nftlib.toText markedVerdictRuleset;
-    expected = "add rule inet t c drop";
+    expected = "add rule inet t c drop\n";
   };
 
   # ------------------------------------------------------------------
@@ -2919,7 +3616,7 @@ textDriftTests
   # Family and hook are checked for an int too.
   testPriorityValueUnknownFamilyThrows = {
     expr = nftlib.compatibility.priorityValue "wat" "input" 0;
-    expectedError.msg = "nix-nftypes: compatibility.priorityValue: unknown family 'wat'. Valid families: arp, bridge, inet, ip, ip6, netdev.";
+    expectedError.msg = "nix-nftypes: compatibility.priorityValue: unknown family 'wat'. Valid families: ip, ip6, inet, arp, bridge, netdev.";
   };
 
   testPriorityValueHookFamilyLacksThrows = {
@@ -3059,14 +3756,50 @@ textDriftTests
     ];
   };
 
-  testCompatHooksWithOifname = {
-    expr = nftlib.compatibility.hooksWithOifname;
+  # Every family supports `filter`, in the order of `enums.family`.
+  testCompatFamiliesByChainTypeFilterIsEveryFamily = {
+    expr = nftlib.compatibility.familiesByChainType.filter;
     expected = [
-      "forward"
-      "output"
-      "postrouting"
+      "ip"
+      "ip6"
+      "inet"
+      "arp"
+      "bridge"
+      "netdev"
     ];
   };
+
+  # The tables are keyed by, and list only, the families, chain types,
+  # and hooks of `enums`, so they cannot drift from the schema.
+  testCompatTablesStayWithinEnums =
+    let
+      inherit (nftlib) compatibility enums;
+      sortedNames = attrs: lib.sort lib.lessThan (lib.attrNames attrs);
+      sorted = lib.sort lib.lessThan;
+      outside = enum: lists: lib.filter (value: !(lib.elem value enum)) (lib.concatLists lists);
+    in
+    {
+      expr = {
+        hooksByFamilyKeys = sortedNames compatibility.hooksByFamily;
+        prioritiesByFamilyKeys = sortedNames compatibility.prioritiesByFamily;
+        familiesByChainTypeKeys = sortedNames compatibility.familiesByChainType;
+        hooksByChainTypeKeys = sortedNames compatibility.hooksByChainType;
+        hooksOutsideEnum = outside enums.hook (
+          lib.attrValues compatibility.hooksByFamily
+          ++ lib.attrValues compatibility.hooksByChainType
+          ++ map lib.attrNames (lib.attrValues compatibility.prioritiesByFamily)
+        );
+        familiesOutsideEnum = outside enums.family (lib.attrValues compatibility.familiesByChainType);
+      };
+      expected = {
+        hooksByFamilyKeys = sorted enums.family;
+        prioritiesByFamilyKeys = sorted enums.family;
+        familiesByChainTypeKeys = sorted enums.chainType;
+        hooksByChainTypeKeys = sorted enums.chainType;
+        hooksOutsideEnum = [ ];
+        familiesOutsideEnum = [ ];
+      };
+    };
 
   # ------------------------------------------------------------------
   # hooksByChainType — `filter` lists every hook in the schema's enum;
@@ -3159,7 +3892,7 @@ textDriftTests
   # invalid placement.
   testValidChainPlacementUnknownFamilyThrows = {
     expr = nftlib.compatibility.validChainPlacement "wat" "filter" "input";
-    expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown family 'wat'. Valid families: arp, bridge, inet, ip, ip6, netdev.";
+    expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown family 'wat'. Valid families: ip, ip6, inet, arp, bridge, netdev.";
   };
 
   testValidChainPlacementUnknownChainTypeThrows = {
@@ -3170,165 +3903,6 @@ textDriftTests
   testValidChainPlacementUnknownHookThrows = {
     expr = nftlib.compatibility.validChainPlacement "ip" "filter" "inptu";
     expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown hook 'inptu'. Valid hooks: prerouting, input, forward, output, postrouting, ingress, egress.";
-  };
-
-  # ------------------------------------------------------------------
-  # chainTypeFor — derive chain type from (family, hook, priority).
-  # ------------------------------------------------------------------
-  testChainTypeForIpInputFilter = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" "filter";
-    expected = "filter";
-  };
-
-  testChainTypeForIpInputZero = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" 0;
-    expected = "filter";
-  };
-
-  testChainTypeForIpPostroutingSrcnat = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "postrouting" "srcnat";
-    expected = "nat";
-  };
-
-  testChainTypeForIpInputSrcnatInt = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" 100;
-    expected = "nat";
-  };
-
-  testChainTypeForIpPreroutingDstnat = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "prerouting" "dstnat";
-    expected = "nat";
-  };
-
-  testChainTypeForIpOutputMangle = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "output" "mangle";
-    expected = "route";
-  };
-
-  testChainTypeForIpPreroutingMangle = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "prerouting" "mangle";
-    expected = "filter";
-  };
-
-  # -100 is `dstnat` only where nft accepts `dstnat`, so at input it is
-  # a filter priority.
-  testChainTypeForIpInputDstnatInt = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" (-100);
-    expected = "filter";
-  };
-
-  # The bridge family has no nat chain type, so bridge srcnat (300, not
-  # 100) is a filter chain in both symbol and int form.
-  testChainTypeForBridgePostroutingSrcnatSymbol = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "postrouting" "srcnat";
-    expected = "filter";
-  };
-
-  testChainTypeForBridgePostroutingSrcnatInt = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "postrouting" 300;
-    expected = "filter";
-  };
-
-  testChainTypeForNetdevIngressSrcnatInt = {
-    expr = nftlib.compatibility.chainTypeFor "netdev" "ingress" 100;
-    expected = "filter";
-  };
-
-  /*
-    Every hook each family exposes, at every symbol nft accepts there
-    and every int a priority table names (plus two no table names),
-    lists the placements whose type `validChainPlacement` rejects.
-  */
-  testChainTypeForPassesValidChainPlacement =
-    let
-      inherit (nftlib.compatibility) prioritiesByFamily;
-      tableInts = lib.unique (
-        lib.concatMap (byHook: lib.concatMap lib.attrValues (lib.attrValues byHook)) (
-          lib.attrValues prioritiesByFamily
-        )
-      );
-      hooks = lib.concatLists (
-        lib.mapAttrsToList (
-          family: lib.mapAttrsToList (hook: priorities: { inherit family hook priorities; })
-        ) prioritiesByFamily
-      );
-      placements = lib.concatMap (
-        {
-          family,
-          hook,
-          priorities,
-        }:
-        map
-          (prio: {
-            inherit family hook prio;
-            type = nftlib.compatibility.chainTypeFor family hook prio;
-          })
-          (
-            lib.attrNames priorities
-            ++ tableInts
-            ++ [
-              (-1)
-              1000
-            ]
-          )
-      ) hooks;
-    in
-    {
-      expr = {
-        count = builtins.length placements;
-        rejected = builtins.filter (
-          p: !(nftlib.compatibility.validChainPlacement p.family p.type p.hook)
-        ) placements;
-      };
-      # 88 accepted symbols over the 25 hooks (ip, ip6, and inet 24 each
-      # plus 4 at inet ingress, bridge 8, arp 2, netdev 2), and 8 table
-      # ints plus 2 at each hook.
-      expected = {
-        count = 88 + 25 * 10;
-        rejected = [ ];
-      };
-    };
-
-  testChainTypeForBridgeInputFilter = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "input" "filter";
-    expected = "filter";
-  };
-
-  testChainTypeForBridgeInputFilterInt = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "input" (-200);
-    expected = "filter";
-  };
-
-  # Bridge `out` is bridge-specific and not a NAT/route signal.
-  testChainTypeForBridgeOutputOut = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "output" "out";
-    expected = "filter";
-  };
-
-  # A symbol nft rejects at the placement throws, as nft does.
-  testChainTypeForIpForwardDstnatThrows = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "forward" "dstnat";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'ip' has no priority 'dstnat' at hook 'forward'";
-  };
-
-  testChainTypeForArpOutputMangleThrows = {
-    expr = nftlib.compatibility.chainTypeFor "arp" "output" "mangle";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'arp' has no priority 'mangle' at hook 'output'";
-  };
-
-  testChainTypeForUnknownSymbolThrows = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" "bogus";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'ip' has no priority 'bogus' at hook 'input'";
-  };
-
-  testChainTypeForHookFamilyLacksThrows = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "ingress" "filter";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'bridge' has no hook 'ingress'";
-  };
-
-  testChainTypeForUnknownFamilyThrows = {
-    expr = nftlib.compatibility.chainTypeFor "nope" "input" "filter";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: unknown family 'nope'";
   };
 
   # Read-back validation: the source-side checks validate each listed

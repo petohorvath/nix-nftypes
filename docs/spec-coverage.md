@@ -20,19 +20,19 @@ reference material but is not complete enough to be the sole authority.
 
 ## Modelled surfaces
 
-| Surface                    | Current schema                                                                                                                                                                      |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Commands                   | `add`, `replace`, `create`, `insert`, `delete`, `destroy`, `list`, `reset`, `flush`, `rename`                                                                                       |
-| Add objects                | 16 singular object kinds; `tunnel` is excluded because nftables mishandles it                                                                                                       |
-| Create objects             | 15 kinds; `rule` is excluded because nftables rejects `create rule`                                                                                                                 |
-| Delete and destroy objects | 13 kinds; `ct count`, `ct timeout`, and `ct expectation` are excluded because nftables mishandles them. A set, map, limit, or flowtable needs only its name                         |
-| Replace and rename objects | a rule with its `handle`; a chain with its `newname`                                                                                                                                |
-| List objects               | table, chain, set, map, counter, quota, limit, ct helper, secmark, and meter; nftables has no singular `list` of the other kinds, and mishandles a `ct timeout` or `ct expectation` |
-| Listed objects             | bare objects in a ruleset, as `nft -j list` emits: 16 add objects plus `metainfo`, `meter`, and `tunnel`                                                                            |
-| Flush objects              | table, chain, set, map, meter, ruleset                                                                                                                                              |
-| Reset objects              | counter, quota, rule, set, map, element                                                                                                                                             |
-| Statements                 | 37 tagged forms                                                                                                                                                                     |
-| Tagged expressions         | 34 tags, plus scalar and bare-list branches in the full `expression` type                                                                                                           |
+| Surface                    | Current schema                                                                                                                                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commands                   | `add`, `replace`, `create`, `insert`, `delete`, `destroy`, `list`, `reset`, `flush`, `rename`                                                                                                                                               |
+| Add objects                | 16 singular object kinds; `tunnel` is excluded because nftables mishandles it                                                                                                                                                               |
+| Create objects             | 15 kinds; `rule` is excluded because nftables rejects `create rule`                                                                                                                                                                         |
+| Delete and destroy objects | 13 kinds; `ct count`, `ct timeout`, and `ct expectation` are excluded because nftables mishandles them. A set, map, limit, or flowtable needs only its name; `delete` takes a named object's handle in place of its name, but a ct helper's |
+| Replace and rename objects | a rule with its `handle`; a chain with its `newname`                                                                                                                                                                                        |
+| List objects               | table, chain, set, map, counter, quota, limit, ct helper, secmark, and meter; nftables has no singular `list` of the other kinds, and mishandles a `ct timeout` or `ct expectation`                                                         |
+| Listed objects             | bare objects in a ruleset, as `nft -j list` emits: 16 add objects plus `metainfo`, `meter`, and `tunnel`                                                                                                                                    |
+| Flush objects              | table, chain, set, map, meter, ruleset                                                                                                                                                                                                      |
+| Reset objects              | counter, quota, rule, set, map, element                                                                                                                                                                                                     |
+| Statements                 | 37 tagged forms                                                                                                                                                                                                                             |
+| Tagged expressions         | 34 tags, plus scalar and bare-list branches in the full `expression` type                                                                                                                                                                   |
 
 The schema also includes parser behavior missing or incomplete in the manual,
 including:
@@ -89,8 +89,18 @@ Additional command and selector differences are not statement-corpus shapes:
 - nftables has plural `list` selector forms such as `tables`, `chains`, and
   `sets`, plus plural `reset` selector forms; these parser-accepted command
   forms are not modelled;
-- the schema requires `name` on delete, though the parser also deletes most
-  kinds by `handle` alone; a destroy needs `name` in both;
+- a Selector takes `name` or `handle` exactly where the parser reads one:
+  `delete` of a table, chain, set, map, flowtable, or stateful object but a
+  ct helper takes exactly one of them, and every other Selector but a rule's
+  requires the name, as the parser does; with a name, the parser never reads
+  the handle, so the schema rejects both. The schema requires the handle to
+  be positive, though the parser takes handle 0 as no handle: `delete table`
+  with handle 0 deletes every table of the family (nftables 1.1.6). The
+  `delete-by-handle` Integration case deletes each kind by handle;
+- a Selector rejects every field the parser ignores for its verb, such as a
+  set's `elem` on `delete set`, which deletes the whole set instead of the
+  elements, a Known difference that the `delete-set-elem-deletes-whole-set`
+  live test asserts nft still shows (nftables 1.1.6 and 1.1.7);
 - the schema requires a positive `handle` on a rule delete or destroy, though
   the parser takes handle 0: it reads 0 as no handle, and the kernel then
   deletes every rule in the chain, a Known difference that the
@@ -141,11 +151,24 @@ is stricter than the parser (ADR 0010). The six `chain-*` cases of
 `integration-nft-misbehaviour`, one for each partial placement, assert that nft
 still loads a regular chain.
 
+#### Handles on `add`, `create`, and `rename`
+
+nft's JSON parser ignores a `handle` on `add` and `create` of every kind but a
+rule, and `rename chain` reads only the family, table, name, and new name. The
+object loads with the handle the kernel assigns, and text has no spelling for
+one, so JSON kept the handle and text dropped it. The schema rejects a handle
+in these bodies and in every Table-tree body (ADR 0009, ADR 0010), and the
+error points to Read-back, where nft lists the handle. The `add-handle-ignored`
+case of `integration-nft-misbehaviour` asserts that nftables 1.1.6 and 1.1.7
+still ignore the handle on an added table, chain, set, counter, and flowtable,
+and on a created quota. A handle stays in Read-back, in a Selector, and in
+`insert rule` and `replace rule`, which nft reads it in.
+
 #### Rule handles on `add rule`
 
 `add rule` takes no `handle`. nftables 1.1.6's JSON parser ignores one and
 appends the rule, so the schema rejects the field there (ADR 0010), and
-`add.rule` and table-tree rules throw naming it. Place a rule with `index`, or
+`add.rule` and table-tree rules throw at it. Place a rule with `index`, or
 with `insert`. Measured on nftables 1.1.6 and 1.1.7, with rules 2, 3, and 4 in
 a chain:
 
@@ -215,8 +238,14 @@ supported`. The reach check names the `dccp option` expression as a Named
   Depending on the order, a set or map lists without its elements, as after
   `list chain`, or a `list set` before a `list map` fails with `No such file
 or directory`. Give each `list` whose output matters a ruleset of its own;
-- `delete` and `destroy` of a rule accept a body without `handle`, which nft
-  requires to select the rule.
+- a named payload body takes any protocol and field string. `expr.payload`
+  takes only those of `enums.payloadFieldsByProtocol`, which leaves out two
+  forms nft's parser takes: `l4proto` on `ip`, `ip6`, `gre`, and `gretap`,
+  which loads as the header bits at offset 0, so `ip l4proto 6` loads as
+  `ip version 0 ip hdrlength 6`, and the `vxlan` and `geneve` fields, which
+  load only in the tunnel form. The `payload-l4proto-loads-header-field` case
+  of `integration-nft-misbehaviour` asserts that nft still loads `ip l4proto`
+  so.
 
 A schema-successful value is therefore not proof that a particular kernel will
 accept the resulting ruleset. Live-parser and real-load tests remain necessary.
@@ -238,10 +267,11 @@ Element statements are a Read-back shape too: nft lists each element's stateful
 statement as a `counter`, `quota`, `limit`, or `last` key beside its `val`, but
 its JSON parser reads only `val`, `timeout`, `expires`, and `comment`, in
 nftables 1.1.6 and 1.1.7. JSON input drops the statements, both those keys and a
-`stmt` list, while text loads them when the set declares the same statement. The
-schema accepts the listed keys and no `stmt` list, and the text renderer refuses
-them. Set-level statements load identically through JSON and text, and give each
-element its own instance. The `element-statements-ignored-on-json` case of
+`stmt` list, while text loads them when the set declares the same statement.
+Read-back accepts the listed keys through `elemReadBackBody`, input commands
+reject them through `elemBody`, no element takes a `stmt` list, and the text
+renderer refuses them. Set-level statements load identically through JSON and
+text, and give each element its own instance. The `element-statements-ignored-on-json` case of
 `integration-nft-misbehaviour` asserts that nft still ignores them.
 
 A ct expression's `family` is not a Read-back shape: nft's JSON parser
@@ -266,6 +296,10 @@ serializer output has been observed.
 A schema value can be valid JSON input while lacking a usable text spelling.
 Text support and exclusions are tracked separately in
 [`text-coverage.md`](text-coverage.md).
+
+An added, inserted, or replaced rule with no statements is one such value. nft's
+JSON parser loads it as an empty rule, so the schema accepts it, while nft's text
+grammar has no spelling for it, so the text renderer refuses it.
 
 ## Validation boundaries
 
