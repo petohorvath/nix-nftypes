@@ -155,6 +155,12 @@ in
         "sequence"
         "type"
       ];
+      igmp = [
+        "checksum"
+        "group"
+        "mrt"
+        "type"
+      ];
       ip = [
         "checksum"
         "daddr"
@@ -187,7 +193,6 @@ in
         "day"
         "hour"
         "ibrhwaddr"
-        "ibriport"
         "ibrname"
         "ibrpvid"
         "ibrvproto"
@@ -202,7 +207,6 @@ in
         "mark"
         "nfproto"
         "nftrace"
-        "obriport"
         "obrname"
         "oif"
         "oifgroup"
@@ -217,7 +221,6 @@ in
         "sdif"
         "sdifname"
         "secmark"
-        "secpath"
         "skgid"
         "skuid"
         "time"
@@ -254,6 +257,10 @@ in
         "sport"
         "urgptr"
         "window"
+      ];
+      th = [
+        "dport"
+        "sport"
       ];
       tunnel = [
         "id"

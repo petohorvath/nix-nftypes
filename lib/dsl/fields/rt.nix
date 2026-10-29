@@ -1,6 +1,7 @@
 /*
-  Routing-data leaves. For `family`, use the escape hatch
-  `dsl.expr.rt { key = …; family = "ip6"; }`.
+  Routing-data leaves, one for each key. `dsl.expr.rt` builds a key with
+  its `family`, as in `dsl.expr.rt { key = …; family = "ip6"; }`, and
+  throws without one, pointing here.
 
     fields.rt.mtu   == { rt = { key = "mtu"; }; }
     fields.rt.ipsec == { rt = { key = "ipsec"; }; }

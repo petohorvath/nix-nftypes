@@ -22,6 +22,7 @@ let
     comment
     ctL3Protocol
     family
+    flowtableHook
     hook
     ifname
     limitRateUnit
@@ -261,7 +262,7 @@ let
 
   flowtableOptions = namedInTableOptions // {
     hook = mkOption {
-      type = hook;
+      type = flowtableHook;
       description = "hook point";
     };
     prio = mkOption {

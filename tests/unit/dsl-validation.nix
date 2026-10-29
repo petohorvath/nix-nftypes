@@ -856,11 +856,10 @@ let
         wrong = dsl.goto 1;
         field = "target";
       };
-      # A body that is no submodule, such as an expression, is checked as
-      # the option `value`.
+      # The body is the TCP option expression itself.
       resetStmt = {
-        wrong = dsl.resetStmt notAnExpression;
-        field = "value";
+        wrong = dsl.resetStmt { "tcp option" = 1; };
+        field = ''"tcp option"'';
       };
     }
     // lib.listToAttrs (
@@ -971,13 +970,19 @@ let
       shiftLeft = binaryOperator "shiftLeft";
       shiftRight = binaryOperator "shiftRight";
       ct = fromFields "ct" {
-        valid.key = "mark";
+        valid = {
+          key = "bytes";
+          dir = "original";
+        };
         field = "key";
         value = "bogus";
         required = "key";
       };
       rt = fromFields "rt" {
-        valid.key = "mtu";
+        valid = {
+          key = "mtu";
+          family = "ip";
+        };
         field = "family";
         value = "inet";
         required = "key";
@@ -1001,7 +1006,10 @@ let
         required = "key";
       };
       osf = fromFields "osf" {
-        valid.key = "name";
+        valid = {
+          key = "name";
+          ttl = "loose";
+        };
         field = "ttl";
         value = "bogus";
         required = "key";
@@ -1154,6 +1162,38 @@ let
       }
     ) ctKeysNeedingDir
   );
+
+  # `expr.ct`, `expr.rt`, and `expr.osf` build a key with its Refinement;
+  # without one, each key has a Field leaf, so the constructor throws and
+  # points to it.
+  unrefinedConstructorTests =
+    lib.concatMapAttrs
+      (
+        tag: keys:
+        lib.listToAttrs (
+          map (
+            key:
+            lib.nameValuePair "testExpr_${tag}_WithoutRefinementPointsToLeaf_${key}" {
+              expr = force (dsl.expr.${tag} { inherit key; });
+              expectedError.msg = "^nix-nftypes: dsl\\.expr\\.${tag}: `expr\\.${tag}` builds a ${tag} expression with a refinement; without one, write the Field leaf `fields\\.${tag}\\.${key}`$";
+            }
+          ) keys
+        )
+      )
+      {
+        ct = [
+          "mark"
+          "bytes"
+        ];
+        rt = [
+          "mtu"
+          "nexthop"
+        ];
+        osf = [
+          "name"
+          "version"
+        ];
+      };
 
   # A `.ref` takes a name or a map expression, never an inline body.
   referenceBodyTests = lib.listToAttrs (
@@ -1921,6 +1961,54 @@ in
     expectedError.msg = "create\\.flowtable\\.prio' was accessed but has no value defined";
   };
 
+  # nft refuses a flowtable at any hook but `ingress` ("invalid hook").
+  testAddFlowtableHookOtherThanIngressRejected = {
+    expr = commandJson (
+      dsl.add.flowtable {
+        family = "inet";
+        table = "t";
+        name = "ft";
+        hook = "input";
+        prio = 0;
+      }
+    );
+    expectedError.msg = "add\\.flowtable\\.hook' is not of type";
+  };
+
+  testTreeFlowtableHookOtherThanIngressRejected = {
+    expr = toJson (
+      dsl.ruleset [
+        (dsl.table "inet" "t" {
+          flowtables.ft = {
+            hook = "input";
+            prio = 0;
+          };
+        })
+      ]
+    );
+    expectedError.msg = "flowtables\\.ft\\.hook' is not of type";
+  };
+
+  # Every `.ref` takes a name or a map expression only, as the schema's
+  # Reference does: a number or a boolean throws.
+  testObjectReferenceBuildersRejectNumbersAndBooleans = {
+    expr = lib.concatMap (
+      name:
+      builtins.filter (value: (builtins.tryEval (force (dsl.${name}.ref value))).success) [
+        5
+        true
+      ]
+    ) referencingStatements;
+    expected = [ ];
+  };
+
+  # nft's reset statement strips a TCP option and refuses any other
+  # expression ("Illegal TCP optstrip argument").
+  testResetStmtOtherThanTcpOptionRejected = {
+    expr = force (dsl.resetStmt dsl.fields.ct.mark);
+    expectedError.msg = "`dsl\\.resetStmt\\.ct' does not exist";
+  };
+
   testTreeFlowtableMissingHookRejected = {
     expr = toJson (
       dsl.ruleset [
@@ -2622,6 +2710,7 @@ in
 // statementBuilderTests
 // expressionBuilderTests
 // ctDirectionTests
+// unrefinedConstructorTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests

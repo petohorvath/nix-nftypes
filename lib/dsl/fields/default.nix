@@ -9,7 +9,9 @@
   need a table family or hook there. A key nft loads only with a
   refinement has no leaf, such as a FIB result, which needs `saddr` or
   `daddr` among its flags, or an IPsec key, which needs a direction; its
-  `dsl.expr` constructor builds it.
+  `dsl.expr` constructor builds it. Each key has one name: a leaf, or a
+  constructor that takes its refinement, and `dsl.expr.ct`, `rt`, and
+  `osf` throw without one, pointing to the leaf.
 */
 { lib }:
 
