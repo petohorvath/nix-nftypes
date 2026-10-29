@@ -164,8 +164,9 @@ remains.
 ## Key renaming
 
 Every DSL field and object-kind name is camel case. The DSL translates it where
-nftables uses spaces, hyphens, or underscores, runs words together, or names a
-list of elements or statements in the singular. Examples:
+nftables uses spaces, hyphens, or underscores, runs words together, names a
+list of elements or statements in the singular, or names a field for something
+other than what it holds. Examples:
 
 | DSL              | JSON                                                            |
 | ---------------- | --------------------------------------------------------------- |
@@ -176,6 +177,9 @@ list of elements or statements in the singular. Examples:
 | `typeFlags`      | `type_flags`                                                    |
 | `newName`        | `newname`                                                       |
 | `elements`       | `elem`, in a set, map, or element body                          |
+| `element`        | `elem`, in `setStmt`                                            |
+| `key`            | `elem`, in `mapStmt`                                            |
+| `dataType`       | `map`, in a map body                                            |
 | `statements`     | `expr` in a rule; `stmt` in a set, map, `setStmt`, or `mapStmt` |
 | `statement`      | `stmt`, in `meter`                                              |
 | `code`           | `expr`, in `reject`                                             |

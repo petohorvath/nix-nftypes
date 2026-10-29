@@ -8,7 +8,7 @@
 */
 { lib, nftlib }:
 let
-  tagsOf = union: builtins.attrNames union.functor.payload.tags;
+  tagsOf = import ./tags-of.nix;
 
   # The ct keys the ct body takes a direction for, as the schema decides.
   ctDirKeys = builtins.filter (
@@ -33,7 +33,7 @@ let
       rtKey
       ;
     ctDirKey = ctDirKeys;
-    expressionTag = tagsOf nftlib.types.taggedExpression;
+    expressionTag = tagsOf nftlib.types.expression;
     statementTag = tagsOf nftlib.types.statement;
   };
 

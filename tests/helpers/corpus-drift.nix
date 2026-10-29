@@ -44,7 +44,7 @@ let
   # schema rejected".
   knownDivergences = {
     "op-negation" =
-      "match `op:\"!\"` (unary negation); missing from the `operator` enum (strcmp-parsed, so the table extractor cannot see it)";
+      "match `op:\"!\"` (unary negation); missing from the `matchOperator` enum (strcmp-parsed, so the table extractor cannot see it)";
     "synproxy-flags-only" =
       "`synproxy` with only `flags` (no mss/wscale); schema over-requires mss/wscale";
   };

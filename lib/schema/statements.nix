@@ -7,24 +7,24 @@
 
 let
   inherit (lib) mkOption types;
-  inherit (internal) submodule taggedUnion;
+  inherit (internal) restrictedUnion submodule taggedUnion;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     byteUnit
-    flowOp
+    flowOperator
     ipFamily
     limitRateUnit
     logFlag
     logLevel
     logPrefix
+    matchOperator
     namedReference
     natFlag
     natTypeFlag
     nullLiteral
-    operator
     queueFlag
     rejectType
-    setOp
+    setOperator
     synproxyFlag
     timeUnit
     xtType
@@ -100,7 +100,7 @@ let
           description = "right-hand expression";
         };
         op = mkOption {
-          type = operator;
+          type = matchOperator;
           description = "comparison operator";
         };
       };
@@ -310,7 +310,7 @@ let
     setBody = submodule {
       options = {
         op = mkOption {
-          type = setOp;
+          type = setOperator;
           description = "operation on the set (add/update/delete)";
         };
         elem = mkOption {
@@ -333,7 +333,7 @@ let
     mapBody = submodule {
       options = {
         op = mkOption {
-          type = setOp;
+          type = setOperator;
           description = "operation (add/update/delete)";
         };
         elem = mkOption {
@@ -468,7 +468,7 @@ let
     flowBody = submodule {
       options = {
         op = mkOption {
-          type = flowOp;
+          type = flowOperator;
           description = "flow offload operation (only \"add\" accepted)";
         };
         flowtable = mkOption {
@@ -583,27 +583,12 @@ let
       messages read "value is not of type 'statement (one of: match)'"
       instead of the generic "attribute-tagged union".
     */
-    statementOf =
-      kinds:
-      let
-        valid = lib.attrNames bodiesByTag;
-        invalid = lib.subtractLists valid kinds;
-        renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
-      in
-      if !(builtins.isList kinds) then
-        throw "nix-nftypes: types.statementOf: argument must be a list of strings"
-      else if kinds == [ ] then
-        throw "nix-nftypes: types.statementOf: kinds list must be non-empty"
-      else if invalid != [ ] then
-        throw (
-          "nix-nftypes: types.statementOf: unknown statement kind(s): "
-          + "${renderList invalid}. Valid kinds: ${renderList valid}."
-        )
-      else
-        taggedUnion (lib.getAttrs kinds bodiesByTag)
-        // {
-          description = "statement (one of: ${renderList kinds})";
-        };
+    statementOf = restrictedUnion {
+      api = "types.statementOf";
+      noun = "statement";
+      label = "statement";
+      inherit bodiesByTag;
+    };
   };
 in
 {

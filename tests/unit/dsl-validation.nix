@@ -148,7 +148,7 @@ let
         table = "t";
         name = "m";
         type = "ipv4_addr";
-        map = "mark";
+        dataType = "mark";
         elem = [ ];
       };
       msg = "nix-nftypes: dsl\\.add\\.map: elem: is the JSON spelling; write `elements`";
@@ -245,7 +245,7 @@ let
         statements = [
           (dsl.setStmt {
             op = "add";
-            elem = dsl.fields.ip.saddr;
+            element = dsl.fields.ip.saddr;
             set = "s";
             stmt = [ dsl.counter.auto ];
           })
@@ -261,7 +261,7 @@ let
         statements = [
           (dsl.mapStmt {
             op = "add";
-            elem = dsl.fields.ip.saddr;
+            key = dsl.fields.ip.saddr;
             data = 1;
             map = "m";
             stmt = [ dsl.counter.auto ];
@@ -269,6 +269,58 @@ let
         ];
       };
       msg = "nix-nftypes: dsl\\.mapStmt: stmt: is the JSON spelling; write `statements`";
+    };
+    setStmtElemJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.setStmt {
+            op = "add";
+            elem = dsl.fields.ip.saddr;
+            set = "s";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.setStmt: elem: is the JSON spelling; write `element`";
+    };
+    mapStmtElemJsonSpelling = {
+      value = dsl.add.rule {
+        family = "inet";
+        table = "t";
+        chain = "c";
+        statements = [
+          (dsl.mapStmt {
+            op = "add";
+            elem = dsl.fields.ip.saddr;
+            data = 1;
+            map = "m";
+          })
+        ];
+      };
+      msg = "nix-nftypes: dsl\\.mapStmt: elem: is the JSON spelling; write `key`";
+    };
+    addMapMapJsonSpelling = {
+      value = dsl.add.map {
+        family = "inet";
+        table = "t";
+        name = "m";
+        type = "ipv4_addr";
+        map = "mark";
+      };
+      msg = "nix-nftypes: dsl\\.add\\.map: map: is the JSON spelling; write `dataType`";
+    };
+    treeMapMapJsonSpelling = {
+      value = dsl.ruleset [
+        (dsl.table "inet" "t" {
+          maps.m = {
+            type = "ipv4_addr";
+            map = "verdict";
+          };
+        })
+      ];
+      msg = "nix-nftypes: dsl\\.table inet\\.t: maps\\.m\\.map: is the JSON spelling; write `dataType`";
     };
     rejectExprJsonSpelling = {
       value = dsl.add.rule {
@@ -758,12 +810,12 @@ let
       setStmt = {
         unknown = dsl.setStmt (withBogus {
           op = "add";
-          elem = expression;
+          element = expression;
           set = "s";
         });
         wrong = dsl.setStmt {
           op = "bogus";
-          elem = expression;
+          element = expression;
           set = "s";
         };
         field = "op";
@@ -771,13 +823,13 @@ let
       mapStmt = {
         unknown = dsl.mapStmt (withBogus {
           op = "add";
-          elem = expression;
+          key = expression;
           data = 1;
           map = "m";
         });
         wrong = dsl.mapStmt {
           op = "bogus";
-          elem = expression;
+          key = expression;
           data = 1;
           map = "m";
         };
@@ -1569,7 +1621,7 @@ in
         table = "t";
         name = "m";
         type = 123;
-        map = "mark";
+        dataType = "mark";
       }
     );
     expectedError.msg = "list\\.map\\.type.*is not of type";
@@ -2339,7 +2391,7 @@ in
       (dsl.snat { port = 80; })
       (dsl.setStmt {
         op = "add";
-        elem = dsl.fields.ip.saddr;
+        element = dsl.fields.ip.saddr;
         set = "s";
       })
     ];

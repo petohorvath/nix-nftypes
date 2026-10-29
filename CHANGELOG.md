@@ -13,9 +13,10 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `validate type value` checks a value against a schema type and returns it unchanged, ready to render. It forces the whole value, so every check runs, and replaces the `lib.evalModules` pattern the docs showed.
 - `add.<kind>`, a command builder for each of the 16 add-object kinds, like `create.<kind>`.
 - Sets and maps accept a `comment`, so `types.ruleset` validates the Read-back of a commented set or map. nft's JSON parser ignores it on input.
-- ct helper, timeout, and expectation objects accept `l3proto = "inet"`, which nft lists for one in an inet table. Their `l3proto` has its own type, `types.ctL3Proto`, with values under `enums.ctL3Proto`.
+- ct helper, timeout, and expectation objects accept `l3proto = "inet"`, which nft lists for one in an inet table. Their `l3proto` has its own type, `types.ctL3Protocol`, with values under `enums.ctL3Protocol`.
 - `types.deleteObject`, the object union of `delete` and `destroy` commands, and `types.readBackObject`, a bare listed object in a ruleset, as `nft -j list` emits.
 - `types.insertObject`, `types.replaceObject`, and `types.renameObject`, the object unions of `insert`, `replace`, and `rename` commands.
+- `types.tunnelErspanDirection` and `enums.tunnelErspanDirection`, the capture directions `ingress` and `egress` of an ERSPAN version 2 tunnel's `dir`, which took an unnamed enum.
 - Set and map elements accept the statement keys nft lists for them, `counter`, `quota`, `limit`, and `last`, beside `val`, so `types.ruleset` validates the Read-back of a set whose elements carry stateful statements. nft's JSON parser ignores them on input.
 - The log, masquerade, redirect, queue, and reject statements accept the `null` body that nft lists for one with no options, so `types.ruleset` validates its Read-back. Text renders it as the bare statement, such as `log`. Their bodies, `types.statementBodies.logBody`, `masqueradeBody`, `queueBody`, and `rejectBody`, accept `null` too.
 - `types.byteUnit` and `types.limitRateUnit`, with their values under `enums`: nft's byte units, `bytes`, `kbytes`, and `mbytes`, and a limit's rate units, which add `packets`. `types.ctKey` and `enums.ctKey` hold the conntrack keys nft's JSON parser looks up.
@@ -44,6 +45,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
   - `rename.chain` takes `newName` for `newname`.
   - `reject` takes `code` for `expr`, the ICMP code: write `reject { type = "icmpx"; code = "admin-prohibited"; }`.
   - A JSON spelling, such as `rate_unit`, `gc-interval`, `expr`, `newname`, or `elem` in a set or map body, throws in a statement, a command builder, and a table tree alike, and points to the DSL name: ``rate_unit: is the JSON spelling; write `rateUnit` ``. An object body passed it through, so a body with both spellings dropped one value, and a statement rejected it as an unexpected argument.
+- A field takes the DSL word for what it holds ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)): `setStmt` takes `element` and `mapStmt` takes `key` for the JSON `elem`, so `mapStmt { op; key; data; map; }` reads like `expr.map key data`. A map body takes `dataType` for the JSON `map`, which holds the data type of the map's values, in a table tree and in the `<verb>.map` command builders alike: write `maps.m = { type = "ifname"; dataType = "verdict"; }` for `map = "verdict"`. `elem` in `setStmt` and `mapStmt` and `map` in a map body throw and point to the DSL name.
 - `expr.map key data` and `expr.payload protocol field` take positional arguments, like `vmap key data`.
 - `flow` takes the flowtable name alone, with or without its `@`: write `flow "ft"` for `flow { flowtable = "ft"; }`. Its `op` had one legal value, `add`, which the statement still emits.
 - `payload`, `payloadRaw`, and `payloadTunnel` sit under `expr` with the other expression constructors: write `expr.payload "tcp" "dport"` for `payload "tcp" "dport"`.
@@ -131,6 +133,11 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - The reset statement takes only a TCP option, the one expression nft's parser strips: `types.statementBodies.resetBody` is `expressionOf [ "tcp option" ]`, and `resetStmt (expr.ct { key = "mark"; })` throws, naming `dsl.resetStmt.ct`. It took any expression, which nft rejects with "Illegal TCP optstrip argument". Its errors name the expression's tag, such as `dsl.resetStmt."tcp option"`, instead of `dsl.resetStmt.value`.
 - A flowtable's `hook` takes only `ingress`, typed by `types.flowtableHook`, in `types.objectBodies.flowtableBody`, `add.flowtable`, `create.flowtable`, and a table tree's `flowtables`. It took any chain hook, and nft rejects every other with "invalid hook", whatever the table's family.
 
+- Type names spell their words out, as ADR 0009 requires, in `types` and `enums` alike: `operator` is `matchOperator`, `setOp` is `setOperator`, `flowOp` is `flowOperator`, and `tcpUdpProto` is `tcpUdpProtocol`. The fields they type keep nft's words, such as `op` and `protocol`.
+- `types.objectBodies.tunnelNestedBody` is `tunnelEncapsulationBody`, named for what a tunnel's `tunnel` field holds.
+- A value outside `types.statementOf` or `types.expressionOf` fails with the restricted type's description, such as `statement (one of: "match")`. The module system rebuilds a type an option declares, which dropped the description, so the error read `attribute-tagged union with choices: match`.
+- `types.statementOf` and `types.expressionOf` throw `nix-nftypes: types.statementOf:` or `nix-nftypes: types.expressionOf:` for a tag that is not a string, as in `statementOf [ 1 ]`, which failed with Nix's "cannot coerce an integer to a string". A non-list argument's error now says what it got.
+
 ### Removed
 
 - `toNix`. Command builders and `validate` no longer return unset `null` fields, so `lib.generators.toPretty { multiline = true; }` replaces it. That doesn't clean its input: a raw value's `_type` markers and `null` fields print as written.
@@ -146,6 +153,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `xt`, which built a statement nft rejects as JSON input. `types.statementBodies.xtBody` still types its Read-back.
 - A table tree's top-level `elements` key, which named each set twice, as `elements.s = { elements = [ … ]; }`, and block form's `table elements` Refusal with it. Give a set or map its elements in its body, as `sets.s.elements = [ … ]`, or add them to a set defined elsewhere with `add.element` in a `dsl.ruleset`.
 - `types.matchStatement`, a second name for `types.statementOf [ "match" ]`. Use `statementOf [ "match" ]`, which builds the same type.
+- `types.taggedExpression`, a second name for `expressionOf` over every expression tag. Use `types.expression`, or `types.expressionOf` for selected tags.
 - `expr.meta` and `expr.socket`, second names for Field leaves: they take only a key, and `fields.meta` and `fields.socket` have a leaf for every key the schema allows. Use the leaf, such as `fields.meta.mark` for `expr.meta "mark"`.
 - The single-tag object types `types.objects.table`, `chain`, `rule`, `set`, `map`, `element`, `flowtable`, `counter`, `quota`, `ctHelper`, `limit`, `ctTimeout`, `ctExpectation`, `ctCount`, `secmark`, `synproxy`, `tunnel`, `metainfo`, and `ruleset`, so `types.objectBodies` holds bodies only, like `types.expressionBodies` and `types.statementBodies`. Use a command's object union, such as `types.addObject` or `types.readBackObject`, which takes the same tagged shapes.
 - `types.statements.synproxyAnonBody`, the inline synproxy form alone. Use `types.statementBodies.synproxyBody`, which takes it and the reference forms.

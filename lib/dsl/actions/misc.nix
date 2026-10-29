@@ -21,12 +21,13 @@ in
     Modify a named set from the packet path. Distinct from the anonymous set
     expression in exprs.nix.
 
-    `setStmt { op; elem; set; statements?; }` takes the operation, `"add"`,
-    `"update"`, or `"delete"`, the element expression `elem`, the set name
-    `set` with or without its leading `@`, and an optional statement list.
-    Returns a set statement referencing `"@<name>"`. Throws when the body
-    doesn't validate, when `set` is not a string, and for `stmt`, pointing
-    to `statements`.
+    `setStmt { op; element; set; statements?; }` takes the operation,
+    `"add"`, `"update"`, or `"delete"`, the element expression `element`,
+    the set name `set` with or without its leading `@`, and an optional
+    statement list. Returns a set statement referencing `"@<name>"`. Throws
+    when the body doesn't validate, when `set` is not a string, and for the
+    JSON spellings `elem` and `stmt`, pointing to `element` and
+    `statements`.
   */
   setStmt = statement.fromFields {
     name = "setStmt";
@@ -38,12 +39,12 @@ in
     Modify a named map from the packet path. Distinct from the map lookup
     expression in exprs.nix.
 
-    `mapStmt { op; elem; data; map; statements?; }` takes the update
-    operation, the key expression `elem`, the value expression `data`, the
+    `mapStmt { op; key; data; map; statements?; }` takes the update
+    operation, the key expression `key`, the value expression `data`, the
     map name `map` with or without its leading `@`, and an optional
     statement list. Returns a map statement referencing `"@<name>"`. Throws
-    when the body doesn't validate, when `map` is not a string, and for
-    `stmt`, pointing to `statements`.
+    when the body doesn't validate, when `map` is not a string, and for the
+    JSON spellings `elem` and `stmt`, pointing to `key` and `statements`.
   */
   mapStmt = statement.fromFields {
     name = "mapStmt";
