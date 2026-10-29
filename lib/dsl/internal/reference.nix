@@ -11,6 +11,10 @@
   - `normaliseAtReference field location body`: `body` with its `field`,
     if given, normalised by `atReference`, for a statement body that names
     a set or map, such as `setStmt`'s `set`. Returns the body.
+  - `mapData location data`: the data of a map lookup or a vmap. A name
+    becomes `"@<name>"` as for `atReference`, a list becomes the anonymous
+    map `{ set = data; }`, since nft rejects a bare list there, and any
+    other expression passes through.
   - `objectReference location ref`: a stateful object reference, such as
     a counter's. Returns the bare name, which nft looks up as written, so
     `"@c"` names no object; a map expression, which selects the object by
@@ -48,9 +52,18 @@ let
       fail location "expected an object name or a map expression, got ${
         if builtins.isAttrs ref then "an attribute set without the one key `map`" else builtins.typeOf ref
       }";
+
+  mapData =
+    location: data:
+    if builtins.isString data then
+      atReference location data
+    else if builtins.isList data then
+      { set = data; }
+    else
+      data;
 in
 {
-  inherit atReference objectReference;
+  inherit atReference mapData objectReference;
 
   normaliseAtReference =
     field: location: body:

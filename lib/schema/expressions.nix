@@ -95,7 +95,7 @@ let
           description = "map key expression";
         };
         data = mkOption {
-          type = expression;
+          type = mapDataExpression;
           description = "map data expression";
         };
       };
@@ -584,6 +584,19 @@ let
         description = "nft expression (string, integer, boolean, list of expressions, or tagged expression)";
       };
 
+    # The data of a map lookup or a vmap: an expression, but not a bare
+    # list, which nft rejects there ("invalid mapping expression list").
+    mapDataExpression =
+      types.oneOf [
+        types.str
+        types.int
+        types.bool
+        taggedExpression
+      ]
+      // {
+        description = "map data expression (a named map's \"@name\" or an anonymous map { set = [ … ]; }, not a bare list)";
+      };
+
     /*
       `expressionOf : [ String ] -> Type` — restrict an
       `expression`-typed field to a subset of the *tagged* expression
@@ -631,6 +644,7 @@ in
     elemInputBody
     expression
     expressionOf
+    mapDataExpression
     taggedExpression
     verdictTargetBody
     ;
@@ -640,6 +654,7 @@ in
     "elemInputOptions"
     "expression"
     "expressionOf"
+    "mapDataExpression"
     "taggedExpression"
   ];
 }

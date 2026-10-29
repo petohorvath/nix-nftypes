@@ -829,6 +829,38 @@ textDriftTests
     expected = "{\"vmap\":{\"data\":\"@iifname_vmap\",\"key\":{\"meta\":{\"key\":\"iifname\"}}}}";
   };
 
+  # nft rejects a bare list as the data of a vmap or a map lookup
+  # ("invalid mapping expression list"); it takes the anonymous map
+  # `{ set = [ … ]; }`.
+  testVmapListDataRejected = {
+    expr = roundtrip nftlib.types.statement {
+      vmap = {
+        key.meta.key = "mark";
+        data = [
+          [
+            1
+            { accept = null; }
+          ]
+        ];
+      };
+    };
+    expectedError.msg = "validate\\.vmap\\.data.*is not of type";
+  };
+  testMapLookupListDataRejected = {
+    expr = roundtrip nftlib.types.expression {
+      map = {
+        key.meta.key = "mark";
+        data = [
+          [
+            1
+            2
+          ]
+        ];
+      };
+    };
+    expectedError.msg = "validate\\.map\\.data.*is not of type";
+  };
+
   # ------------------------------------------------------------------
   # Meta expression
   # ------------------------------------------------------------------

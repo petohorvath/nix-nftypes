@@ -2072,6 +2072,48 @@ rec {
         })
       ];
     }
+    # A list as the data of a vmap and of a map lookup, which the builders
+    # wrap in an anonymous map; nft rejects the bare list.
+    {
+      name = "anonymous-maps-from-lists";
+      children = [
+        (dsl.table "inet" "t" {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            prio = 0;
+            rules = [
+              [
+                (dsl.vmap tcp.dport [
+                  [
+                    22
+                    accept
+                  ]
+                  [
+                    80
+                    drop
+                  ]
+                ])
+              ]
+              [
+                (dsl.mangle meta.mark (
+                  dsl.expr.map tcp.dport [
+                    [
+                      22
+                      1
+                    ]
+                    [
+                      80
+                      2
+                    ]
+                  ]
+                ))
+              ]
+            ];
+          };
+        })
+      ];
+    }
     # Hashes and number generators, with and without their options.
     {
       name = "generator-expressions";

@@ -238,11 +238,16 @@ reference such as `"@trusted"`. A string without `@` throws and points to
 
 `expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` returns the
 reference string `"@name"`, the shape nft lists, for the right side of a
-match. The map lookup is `expr.map key data`, and its data is an anonymous map
-body or a named map's name, with or without its `@`:
+match. The map lookup is `expr.map key data`. Its data is a named map's name,
+with or without its `@`, or an anonymous map. A list of key-value pairs
+becomes the anonymous map `{ set = [ ... ]; }`, as `inSet` wraps a list in an
+anonymous set, because nft rejects a bare list there. `vmap key data` takes
+its data the same way:
 
 ```nix
 expr.map fields.tcp.dport "ports"
+expr.map fields.tcp.dport [ [ 22 1 ] [ 80 2 ] ]
+vmap fields.tcp.dport [ [ 22 accept ] [ 80 drop ] ]
 ```
 
 #### References to named objects

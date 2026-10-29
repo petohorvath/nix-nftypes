@@ -64,8 +64,9 @@ There is no `icmpv6.packetTooBig` leaf, because nft has no such field;
 key.
 
 `expr.set` is the anonymous-set constructor; `expr.setRef` is the named-set
-reference, the `"@name"` string `inSet` requires. `expr.map` takes an
-anonymous map body or a named map's name. Every builder that names an
+reference, the `"@name"` string `inSet` requires. `expr.map` and `vmap` take
+an anonymous map or a named map's name, and wrap a list of key-value pairs in
+an anonymous map. Every builder that names an
 object takes the name with or without its `@`, and emits `"@name"` for a set,
 map, or flowtable and the bare name for a stateful object
 ([API reference](api.md#references-to-named-objects)).
