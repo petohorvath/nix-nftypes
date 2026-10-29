@@ -235,6 +235,7 @@ in
       "osfKey"
       "osfTtl"
       "payloadBase"
+      "payloadFieldsByProtocol"
       "queueFlag"
       "rejectType"
       "rtKey"
