@@ -22,6 +22,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `types.byteUnit` and `types.limitRateUnit`, with their values under `enums`: nft's byte units, `bytes`, `kbytes`, and `mbytes`, and a limit's rate units, which add `packets`. `types.ctKey` and `enums.ctKey` hold the conntrack keys nft's JSON parser looks up.
 - `types.statementBodies` holds the body of every statement tag that takes more than `null`, the same type `types.statement` takes for that tag. It adds `objectRefBody`, which `ct helper`, `ct timeout`, `ct expectation`, `secmark`, and `tunnel` share: a Reference, the object's name or a map expression that selects it. It also holds `verdictTargetBody`, the body of `jump` and `goto`, the same type as `types.expressionBodies.verdictTargetBody`. `accept`, `drop`, `continue`, `return`, and `notrack` take only `null`, so they have no body there and keep `types.nullLiteral`.
 - `types.flowtableHook` and `enums.flowtableHook`, which hold the one hook nft accepts for a flowtable, `ingress`, and type a flowtable's `hook`.
+- `fields.th`, nft's transport-header ports `sport` and `dport`, which match whatever the transport protocol, and `fields.igmp`, IGMP's `type`, `mrt`, `checksum`, and `group`.
 
 ### Changed
 
@@ -138,6 +139,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - `types.objectBodies.tunnelNestedBody` is `tunnelEncapsulationBody`, named for what a tunnel's `tunnel` field holds.
 - A value outside `types.statementOf` or `types.expressionOf` fails with the restricted type's description, such as `statement (one of: "match")`. The module system rebuilds a type an option declares, which dropped the description, so the error read `attribute-tagged union with choices: match`.
 - `types.statementOf` and `types.expressionOf` throw `nix-nftypes: types.statementOf:` or `nix-nftypes: types.expressionOf:` for a tag that is not a string, as in `statementOf [ 1 ]`, which failed with Nix's "cannot coerce an integer to a string". A non-list argument's error now says what it got.
+- `expr.ct`, `expr.rt`, and `expr.osf` take a key with its refinement, `dir`, `family`, or `ttl`. Without one they throw and point to the key's Field leaf: ``nix-nftypes: dsl.expr.ct: `expr.ct` builds a ct expression with a refinement; without one, write the Field leaf `fields.ct.mark` ``. Each key had two names, so `expr.ct { key = "mark"; }` built the same expression as `fields.ct.mark`.
 
 ### Removed
 
@@ -162,6 +164,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 - The element `stmt` field and the `stmt` argument of `expr.elem`. nft's JSON parser ignores element statements, so seeded element counters loaded as fresh ones, and elements of a set that declares no statement loaded without any. Declare the statement on the set, as in `statements = [ counter.auto ]` (`stmt` in JSON), to give each element its own counter.
 - `fields.icmpv6.packetTooBig`, a field nft doesn't have. Use `fields.icmpv6.mtu`.
 - `fields.ct.count`. `ct count` is a statement (`ctCount`), not a ct key.
+- `fields.meta.ibriport`, `obriport`, and `secpath`, nft's aliases for `fields.meta.ibrname`, `obrname`, and `ipsec`, which nft lists under those names. `types.metaKey` still accepts the aliases, so `validate` takes them as raw input.
 - The leaves nft loads only with a refinement: every `fields.fib` and `fields.ipsec` leaf, and `fields.ct.saddr`, `daddr`, `proto-src`, `proto-dst`, `protoSrc`, and `protoDst`. A FIB result needs `saddr` or `daddr` among its flags, and these ct and ipsec keys need a direction, so nft rejected each leaf as written. Build them with `expr.fib`, `expr.ct`, and `expr.ipsec`, as in `expr.ct { key = "saddr"; dir = "original"; }`.
 - The `.plain` variants of `log`, `queue`, `reject`, `masquerade`, and `redirect`. Use the empty body, for example `log { }`.
 - Command builders for commands nft rejects: `list.rule`, `list.element`, `list.flowtable`, `list.synproxy`, `list.metainfo`, `list.ctCount`, and `reset.rule`, whose JSON form fails with "Operation not supported".

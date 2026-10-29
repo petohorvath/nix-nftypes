@@ -970,13 +970,19 @@ let
       shiftLeft = binaryOperator "shiftLeft";
       shiftRight = binaryOperator "shiftRight";
       ct = fromFields "ct" {
-        valid.key = "mark";
+        valid = {
+          key = "bytes";
+          dir = "original";
+        };
         field = "key";
         value = "bogus";
         required = "key";
       };
       rt = fromFields "rt" {
-        valid.key = "mtu";
+        valid = {
+          key = "mtu";
+          family = "ip";
+        };
         field = "family";
         value = "inet";
         required = "key";
@@ -1000,7 +1006,10 @@ let
         required = "key";
       };
       osf = fromFields "osf" {
-        valid.key = "name";
+        valid = {
+          key = "name";
+          ttl = "loose";
+        };
         field = "ttl";
         value = "bogus";
         required = "key";
@@ -1153,6 +1162,38 @@ let
       }
     ) ctKeysNeedingDir
   );
+
+  # `expr.ct`, `expr.rt`, and `expr.osf` build a key with its Refinement;
+  # without one, each key has a Field leaf, so the constructor throws and
+  # points to it.
+  unrefinedConstructorTests =
+    lib.concatMapAttrs
+      (
+        tag: keys:
+        lib.listToAttrs (
+          map (
+            key:
+            lib.nameValuePair "testExpr_${tag}_WithoutRefinementPointsToLeaf_${key}" {
+              expr = force (dsl.expr.${tag} { inherit key; });
+              expectedError.msg = "^nix-nftypes: dsl\\.expr\\.${tag}: `expr\\.${tag}` builds a ${tag} expression with a refinement; without one, write the Field leaf `fields\\.${tag}\\.${key}`$";
+            }
+          ) keys
+        )
+      )
+      {
+        ct = [
+          "mark"
+          "bytes"
+        ];
+        rt = [
+          "mtu"
+          "nexthop"
+        ];
+        osf = [
+          "name"
+          "version"
+        ];
+      };
 
   # A `.ref` takes a name or a map expression, never an inline body.
   referenceBodyTests = lib.listToAttrs (
@@ -1842,7 +1883,7 @@ in
   # nft's reset statement strips a TCP option and refuses any other
   # expression ("Illegal TCP optstrip argument").
   testResetStmtOtherThanTcpOptionRejected = {
-    expr = force (dsl.resetStmt (dsl.expr.ct { key = "mark"; }));
+    expr = force (dsl.resetStmt dsl.fields.ct.mark);
     expectedError.msg = "`dsl\\.resetStmt\\.ct' does not exist";
   };
 
@@ -2547,6 +2588,7 @@ in
 // statementBuilderTests
 // expressionBuilderTests
 // ctDirectionTests
+// unrefinedConstructorTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests

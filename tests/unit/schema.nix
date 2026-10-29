@@ -1009,6 +1009,21 @@ textDriftTests
     expected = ''{"meta":{"key":"mark"}}'';
   };
 
+  # nft's aliases for `ibrname`, `obrname`, and `ipsec` have no Field leaf
+  # but stay valid raw input, since nft loads them.
+  testMetaAliasKeysValidate = {
+    expr = map (key: roundtrip nftlib.types.expression { meta = { inherit key; }; }) [
+      "ibriport"
+      "obriport"
+      "secpath"
+    ];
+    expected = [
+      ''{"meta":{"key":"ibriport"}}''
+      ''{"meta":{"key":"obriport"}}''
+      ''{"meta":{"key":"secpath"}}''
+    ];
+  };
+
   # ------------------------------------------------------------------
   # CT expression with direction
   # ------------------------------------------------------------------

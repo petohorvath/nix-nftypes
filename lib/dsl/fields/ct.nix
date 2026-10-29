@@ -1,6 +1,7 @@
 /*
-  Conntrack-key leaves — plain value for each common key. For a key with a
-  direction (`dir`) use the escape hatch `dsl.expr.ct {…}`.
+  Conntrack-key leaves, one for each key nft loads without a direction.
+  `dsl.expr.ct` builds a key with its direction (`dir`), and throws
+  without one, pointing here.
 
     fields.ct.state == { ct = { key = "state"; }; }
 */

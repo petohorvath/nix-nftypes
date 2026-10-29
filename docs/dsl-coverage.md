@@ -39,15 +39,24 @@ The DSL provides:
 - comparison and membership helpers at the top level.
 
 Pre-built leaves cover common payload, metadata, routing, connection-tracking,
-socket, OS fingerprint, and tunnel metadata fields. `expr.payload`,
-`expr.payloadRaw`, `expr.payloadTunnel`, and raw expression attrsets cover
-less common parser fields.
+socket, OS fingerprint, and tunnel metadata fields, nft's transport-header
+ports (`th.sport`, `th.dport`), and IGMP's fields (`igmp.type`, `mrt`,
+`checksum`, and `group`). `expr.payload`, `expr.payloadRaw`,
+`expr.payloadTunnel`, and raw expression attrsets cover less common parser
+fields.
 
 Each leaf names a field nft knows and loads as written in some rule: the
 `integration-parse-check` check sends every leaf, unchanged, through `nft -c`.
 A key that nft loads only with a refinement, such as a FIB result or an IPsec
 key, has no leaf; [`api.md`](api.md#fields-and-expressions) lists these keys and
 the `expr` constructors that build them.
+
+Each key has one name in the DSL: its leaf, or the constructor that takes its
+refinement. `expr.ct`, `expr.rt`, and `expr.osf` build a key with its `dir`,
+`family`, or `ttl`, and throw without one, pointing to the leaf, such as
+`fields.ct.mark`. `fields.meta` has no leaf for `ibriport`, `obriport`, or
+`secpath`, nft's aliases for `ibrname`, `obrname`, and `ipsec`;
+`types.metaKey` still accepts them as raw input.
 
 Where nft's field name differs from a plain word, the leaf follows nft:
 

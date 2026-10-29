@@ -173,12 +173,10 @@ let
         statement = setOnly 1;
       };
       "meta.ibrhwaddr" = bridge;
-      "meta.ibriport" = bridge;
       "meta.ibrname" = bridge;
       "meta.ibrpvid" = bridge;
       "meta.ibrvproto" = bridge;
       "meta.nftrace".statement = setOnly 1;
-      "meta.obriport" = bridge;
       "meta.obrname" = bridge;
       "meta.secmark".statement = dsl.mangle { ct.key = "secmark"; };
       "payload.arp".family = "arp";
