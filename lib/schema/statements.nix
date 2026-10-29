@@ -435,7 +435,7 @@ let
           description = "map key";
         };
         data = mkOption {
-          type = expr;
+          type = expressions.mapDataExpression;
           description = "key → verdict mapping expression";
         };
       };

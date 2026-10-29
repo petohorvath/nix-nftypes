@@ -529,6 +529,68 @@ in
       data = "@pf";
     };
   };
+  # A list of key-value pairs is an anonymous map, as for `vmap`.
+  testExprMapListIsAnonymousMap =
+    pe
+      (dsl.expr.map dsl.fields.tcp.dport [
+        [
+          22
+          1
+        ]
+        [
+          80
+          2
+        ]
+      ])
+      {
+        map = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data = {
+            set = [
+              [
+                22
+                1
+              ]
+              [
+                80
+                2
+              ]
+            ];
+          };
+        };
+      };
+  # An expression as data passes through unchanged.
+  testExprMapExpressionUnchanged =
+    pe
+      (dsl.expr.map dsl.fields.tcp.dport (
+        dsl.expr.set [
+          [
+            22
+            1
+          ]
+        ]
+      ))
+      {
+        map = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data.set = [
+            [
+              22
+              1
+            ]
+          ];
+        };
+      };
   testExprPrefix = pe (dsl.expr.prefix "10.0.0.0" 8) {
     prefix = {
       addr = "10.0.0.0";
@@ -1435,6 +1497,69 @@ in
       data = "@v";
     };
   };
+  # A list of key-verdict pairs is an anonymous map, as `inSet` wraps a
+  # list in an anonymous set; nft rejects the bare list.
+  testVmapListIsAnonymousMap =
+    ps
+      (dsl.vmap dsl.fields.tcp.dport [
+        [
+          22
+          dsl.accept
+        ]
+        [
+          80
+          dsl.drop
+        ]
+      ])
+      {
+        vmap = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data = {
+            set = [
+              [
+                22
+                { accept = null; }
+              ]
+              [
+                80
+                { drop = null; }
+              ]
+            ];
+          };
+        };
+      };
+
+  testVmapExpressionUnchanged =
+    ps
+      (dsl.vmap dsl.fields.tcp.dport (
+        dsl.expr.set [
+          [
+            22
+            dsl.accept
+          ]
+        ]
+      ))
+      {
+        vmap = {
+          key = {
+            payload = {
+              protocol = "tcp";
+              field = "dport";
+            };
+          };
+          data.set = [
+            [
+              22
+              { accept = null; }
+            ]
+          ];
+        };
+      };
 
   # mangle / dynamic set/map / misc
   testMangle = ps (dsl.mangle dsl.fields.meta.mark 42) {

@@ -35,7 +35,10 @@ nftlib.toJson (nftlib.validate nftlib.types.ruleset raw)
 value leaves unset stays absent. `validate` forces the whole value, so every
 check runs before it returns, however deep. A mismatch throws the module
 system's error, whose option path starts with `validate`, such as
-`validate.nftables."[definition 1-entry 2]".add.chain.policy`.
+`validate.nftables."[definition 1-entry 2]".add.chain.policy`. Swapped
+arguments, a first argument that is not a schema type, and a table tree as
+the value throw a `nix-nftypes: validate:` error instead; expand a table tree
+with `dsl.ruleset [ … ]`.
 
 `dsl.ruleset` takes a list of Table trees, rulesets, raw command attrsets, and
 nested lists of these. Table trees are expanded and validated, and a ruleset's
@@ -59,8 +62,9 @@ Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
 `dsl.table inet.t` followed by the field's path, a renderer such as `toText` or
 `toTextBlock`, `types.statementOf`, or a helper such as
-`compatibility.priorityValue`. A text Refusal ends with `Field: <label>.`
-([ADR 0004](adr/0004-refuse-unsafe-text.md)).
+`compatibility.priorityValue`. A text Refusal is never hard-wrapped: one line
+explains it, an `Offending value: <JSON>` line follows when it has a value, and
+it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 
 ## Schema types
 
@@ -238,11 +242,16 @@ reference such as `"@trusted"`. A string without `@` throws and points to
 
 `expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` returns the
 reference string `"@name"`, the shape nft lists, for the right side of a
-match. The map lookup is `expr.map key data`, and its data is an anonymous map
-body or a named map's name, with or without its `@`:
+match. The map lookup is `expr.map key data`. Its data is a named map's name,
+with or without its `@`, or an anonymous map. A list of key-value pairs
+becomes the anonymous map `{ set = [ ... ]; }`, as `inSet` wraps a list in an
+anonymous set, because nft rejects a bare list there. `vmap key data` takes
+its data the same way:
 
 ```nix
 expr.map fields.tcp.dport "ports"
+expr.map fields.tcp.dport [ [ 22 1 ] [ 80 2 ] ]
+vmap fields.tcp.dport [ [ 22 accept ] [ 80 drop ] ]
 ```
 
 #### References to named objects

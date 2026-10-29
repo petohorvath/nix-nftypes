@@ -111,8 +111,9 @@ in
     expected = "";
   };
 
-  # Block renderers accept only declarative table nodes. Raw commands must
-  # not be silently discarded or rendered without their table context.
+  # Block renderers accept only Table trees. Raw commands must not be
+  # silently discarded or rendered without their table context, and the
+  # error says what the renderer got and points to `toText`.
   testRawTableCommandRejected = {
     expr = toTextBlock {
       add.table = {
@@ -120,7 +121,7 @@ in
         name = "fw";
       };
     };
-    expectedError.msg = "nix-nftypes: toTextBlock: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "^nix-nftypes: toTextBlock: expected one Table tree from `dsl\\.table`, got an attribute set with add; render a ruleset with `toText`$";
   };
 
   testRawChainCommandRejectedPretty = {
@@ -131,14 +132,14 @@ in
         name = "input";
       };
     };
-    expectedError.msg = "nix-nftypes: toTextBlockPretty: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "^nix-nftypes: toTextBlockPretty: expected one Table tree from `dsl\\.table`, got an attribute set with add; render a ruleset with `toText`$";
   };
 
   # Assertions cross the public table interface. The old internal command
   # envelope and its partition/regroup protocol no longer exist.
   testRulesetEnvelopeRejected = {
     expr = toTextBlock (dsl.ruleset [ (dsl.table "inet" "fw" { }) ]);
-    expectedError.msg = "nix-nftypes: toTextBlock: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "^nix-nftypes: toTextBlock: expected one Table tree from `dsl\\.table`, got a ruleset; render a ruleset with `toText`$";
   };
 
   testTableListRejectedPretty = {
@@ -146,7 +147,7 @@ in
       (dsl.table "inet" "fw" { })
       (dsl.table "inet" "other" { })
     ];
-    expectedError.msg = "nix-nftypes: toTextBlockPretty: block-form text rendering expects one dsl\\.table node";
+    expectedError.msg = "^nix-nftypes: toTextBlockPretty: expected one Table tree from `dsl\\.table`, got a list; render a ruleset with `toText`$";
   };
 
   testUnknownTableKeyRejected = {

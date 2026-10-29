@@ -59,17 +59,12 @@ let
       # evalModules time; this assert backstops callers that bypass
       # the schema (raw attrsets, third-party DSLs).
       if !(nftSafeScalar.isSafe v) then
-        fail ''
-          refusing to render a scalar string at expression
-          position that contains a character unsafe for nft's bare-token
-          grammar (any of: whitespace, ',', ';', '{', '}', '"', '\', '#',
-          control character, byte above 0x7F). The renderer emits the value
-          verbatim, so an unsafe byte either splits the token or breaks the
-          parser context — at rule scope a newline + statement payload
-          silently appends attacker-controlled commands.
-          Offending value: ${builtins.toJSON v}
-          Field: expression.
-        ''
+        primitives.refuse
+          {
+            field = "expression";
+            value = v;
+          }
+          "refusing to render a scalar string at expression position that contains a character unsafe for nft's bare-token grammar (any of: whitespace, ',', ';', '{', '}', '\"', '\\', '#', control character, byte above 0x7F). The renderer emits the value verbatim, so an unsafe byte either splits the token or breaks the parser context — at rule scope a newline + statement payload silently appends attacker-controlled commands."
       else if lib.hasInfix "/" v then
         primitives.refuseBarePrefix "expression" v
       else
@@ -234,14 +229,12 @@ let
     if builtins.isString body && lib.hasPrefix "@" body then
       body
     else if !(builtins.isList body) then
-      fail ''
-        refusing to render a `{ set = …; }` body that is
-        neither a list (anonymous set) nor an `@`-prefixed string (named-set
-        reference). For a named-set reference, use `expr.setRef "<name>"` or
-        pass `"@<name>"` directly as the right operand.
-        Offending value: ${builtins.toJSON body}
-        Field: set expression.
-      ''
+      primitives.refuse
+        {
+          field = "set expression";
+          value = body;
+        }
+        "refusing to render a `{ set = …; }` body that is neither a list (anonymous set) nor an `@`-prefixed string (named-set reference). For a named-set reference, use `expr.setRef \"<name>\"` or pass `\"@<name>\"` directly as the right operand."
     else if body == [ ] then
       "{ }"
     else

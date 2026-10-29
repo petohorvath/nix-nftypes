@@ -17,16 +17,8 @@
 let
   inherit (import ./ruleset-shape.nix { }) isRuleset;
   inherit (import ./table-tree-marker.nix { }) isTableTree;
+  inherit (import ./describe.nix { inherit lib; }) describe;
   fail = import ./fail.nix { };
-
-  describe =
-    value:
-    if value == { } then
-      "an empty attribute set"
-    else if builtins.isAttrs value then
-      "an attribute set with ${lib.concatStringsSep ", " (builtins.attrNames value)}"
-    else
-      "a ${builtins.typeOf value}";
 
   withExpr = body: if builtins.isAttrs body && !(body ? expr) then body // { expr = [ ]; } else body;
 

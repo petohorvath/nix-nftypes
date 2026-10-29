@@ -22,9 +22,15 @@
   Submodule checks are lazy, so the checked value is forced in full before
   `value` is returned: every check runs, however deep. A mismatch throws
   the module system's error, whose option path starts with `validate`.
+  Swapped arguments, a first argument that is no schema type, and a Table
+  tree as `value` throw a `nix-nftypes: validate:` error instead.
 */
 type: value:
 let
+  fail = import ./fail.nix { } "validate";
+  inherit (import ./describe.nix { inherit lib; }) describe;
+  inherit (import ./table-tree-marker.nix { }) isTableTree;
+
   checked =
     (lib.evalModules {
       modules = [
@@ -38,4 +44,11 @@ let
       ];
     }).config.validate;
 in
-builtins.deepSeq checked value
+if !(lib.isOptionType type) && lib.isOptionType value then
+  fail "the arguments are swapped; call it as `validate type value`, such as `validate types.ruleset ruleset`"
+else if !(lib.isOptionType type) then
+  fail "expected a schema type, such as `types.ruleset`, as the first argument, got ${describe type}; call it as `validate type value`"
+else if isTableTree value then
+  fail "got a Table tree, which no schema type takes; expand it into a ruleset with `dsl.ruleset [ … ]`, which validates its bodies"
+else
+  builtins.deepSeq checked value
