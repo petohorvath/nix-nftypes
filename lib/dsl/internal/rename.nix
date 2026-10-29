@@ -30,6 +30,8 @@
     table tree's `sets.s`, for its errors. Keys without a rename pass
     through unchanged.
   - `none location attrs`: `attrs`, for a body without DSL-only spellings.
+  - `quotaObject location attrs`: `attrs`, for a quota object's body. Its
+    `val`, the quota statement's word, throws and points to `bytes`.
   - `checkSpelling.rule location attrs`: the check alone, for a rule body,
     which ./rule-body.nix checks further before renaming it.
   - `statement name location attrs`: check and rename the body of the
@@ -160,6 +162,17 @@ let
   bodyRenames = lib.mapAttrs (_: renameKeys) renames;
 
   none = _location: lib.id;
+
+  # The quota statement takes its threshold in `val`, a quota object in
+  # `bytes`.
+  quotaObject =
+    location: attrs:
+    if builtins.isAttrs attrs && attrs ? val then
+      fail (within location [
+        "val"
+      ]) "is the quota statement's spelling; a quota object takes its threshold in `bytes`"
+    else
+      attrs;
 in
 {
   inherit (bodyRenames)
@@ -171,7 +184,7 @@ in
     set
     ;
 
-  inherit none;
+  inherit none quotaObject;
 
   checkSpelling.rule = checkKeys renames.rule;
 

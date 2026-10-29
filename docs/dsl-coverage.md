@@ -133,10 +133,14 @@ path in both command and block output. Use standalone commands for scope that
 differs from the tree, including rules intended for another chain.
 
 Each emitted body is validated with a path such as
-`chains.input.rules.0` or `sets.trusted`. Unknown table-body keys fail with the
-table name and offending key. This prevents misspellings such as `chians` from
-being silently dropped. The documented `_type` composability marker is accepted
-and removed during expansion.
+`chains.input.rules.0` or `sets.trusted`. A field's module-system error names
+the tree first, as in `"dsl.table inet.fw".chains.input.prio`. Unknown
+table-body keys fail with the table name, the offending key, and the keys a
+Table tree takes, and a singular kind name points to its plural, such as
+`sets` for `set`. This prevents misspellings such as `chians` from being
+silently dropped. A rule entry's `index` throws, since the list order is the
+rule order. `dsl.table` marks the tree with `_type = "nix-nftypes.tableTree"`,
+which Cleaning strips, so a body's own `_type` throws.
 
 ### Commands
 
