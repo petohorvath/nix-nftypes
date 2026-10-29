@@ -496,23 +496,23 @@ let
       };
     };
 
-    # synproxy statement: null (empty), inline config, or named reference
-    # string/expr. The map reference comes before the permissive anonymous
-    # submodule, which would otherwise claim it.
+    # synproxy statement: null (empty), a Reference, or an inline config.
+    # The Reference comes before the anonymous submodule, which would
+    # otherwise claim a map expression.
     synproxyBody = types.oneOf [
       nullLiteral
-      (expressions.expressionOf [ "map" ])
+      objectRef
       synproxyInline
-      expr
     ];
 
-    # reset statement (TCP option strip): takes a tcp option expression.
-    resetBody = expr;
+    # reset statement (TCP option strip): nft's parser takes only a tcp
+    # option expression (json_parse_optstrip_stmt).
+    resetBody = expressions.expressionOf [ "tcp option" ];
 
     # ct helper, ct timeout, ct expectation, secmark, and tunnel name an
     # object: nft parses each body into an objref statement's expression
     # (src/parser_json.c), the object's name or a map that selects it.
-    objectRefBody = expr;
+    objectRefBody = objectRef;
 
     /*
       Map of tag → body type. Single source of truth for the full

@@ -1,7 +1,7 @@
 /*
   Statements that do not fit the variant-namespace pattern: mangle
   (payload-field rewrite), dynamic set/map modification (setStmt, mapStmt),
-  resetStmt (takes a bare expression), secmark/tunnel (`.ref` to a named
+  resetStmt (takes a TCP option expression), secmark/tunnel (`.ref` to a named
   object), and notrack (no body).
 */
 { lib, statement }:
@@ -52,10 +52,10 @@ in
   };
 
   /*
-    Reset stateful data referenced by an expression, such as a TCP option.
-    `e` is that expression. Named like `setStmt`, since `reset` is the
-    command namespace. Returns a reset statement, and throws when `e` is
-    not an expression.
+    Strip a TCP option from the packet. `e` is the TCP option expression,
+    the only expression nft's reset statement takes. Named like `setStmt`,
+    since `reset` is the command namespace. Returns a reset statement, and
+    throws when `e` is not a TCP option expression.
   */
   resetStmt = statement.tagged {
     name = "resetStmt";
