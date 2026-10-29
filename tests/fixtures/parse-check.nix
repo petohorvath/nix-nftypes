@@ -493,6 +493,26 @@ let
       add ct count ip t c1 { over 5; }
     '';
     "textParity.testDeleteByHandle".state = rulesThroughHandle ipTc 42;
+    # The kernel numbers a namespace's tables, and each table's objects,
+    # from 1 in the order they are added.
+    "textParity.testDeleteNamedObjectsByHandle.0".state = ''
+      add table ip t
+      add table ip gone
+    '';
+    "textParity.testDeleteNamedObjectsByHandle.1".state = ''
+      add chain ip t c
+    '';
+    "textParity.testDeleteNamedObjectsByHandle.2".state = ''
+      add counter inet t a
+      add counter inet t b
+      add counter inet t c
+    '';
+    "textParity.testDeleteNamedObjectsByHandle.3".state = ''
+      add counter inet t a
+      add counter inet t b
+      add counter inet t c
+      add flowtable inet t ft { hook ingress priority 0; devices = { eth0 }; }
+    '';
     "textParity.testTunnelStatement".state = ''
       add tunnel netdev t vxlan0 {
         id 42; ip saddr 192.0.2.1; ip daddr 192.0.2.2;
@@ -639,7 +659,8 @@ let
 
   # The tables and chains a command refers to. `name` is the object's own
   # name, for a table or chain command that needs it to exist, or the
-  # chain, for a rule.
+  # chain, for a rule. A command that selects its object by handle has no
+  # `name`, and the check's context loads the object.
   scopeState =
     {
       verb,
@@ -649,7 +670,7 @@ let
       name ? null,
     }:
     let
-      existing = builtins.elem verb existingVerbs;
+      existing = builtins.elem verb existingVerbs && name != null;
     in
     if kind == "table" then
       lib.optional existing "add table ${family} ${name}"
@@ -663,6 +684,9 @@ let
   commandLine = builtins.match "(add|create|insert|replace|delete|destroy|flush|reset|rename|list) (table|rule|chain|set|map|element|flowtable|counter|quota|limit|ct count|ct helper|ct timeout|ct expectation|synproxy|tunnel|secmark) ([a-z0-9]+) ([^ ]+)( ([^ ]+))?.*";
 
   stateLines = lines: lib.concatMapStrings (line: "${line}\n") (lib.unique lines);
+
+  # A line's object name, or null where `handle` selects the object.
+  nameWord = word: if word == "handle" then null else word;
 
   # The tables and chains the imperative lines of `text` refer to.
   derivedState =
@@ -686,11 +710,11 @@ let
           }
           // (
             if kind == "table" then
-              { name = fourth; }
+              { name = nameWord fourth; }
             else
               {
                 table = fourth;
-                name = fifth;
+                name = nameWord fifth;
               }
           )
         )

@@ -4193,14 +4193,16 @@ in
         ) verbs;
     in
     {
-      expr = {
-        failWithTheSelector = buildersWhere (verb: kind: !(builds verb kind));
-        buildWithAnotherField = buildersWhere buildsWithAnotherField;
-      };
-      expected = {
-        failWithTheSelector = [ ];
-        buildWithAnotherField = [ ];
-      };
+      # A list, not an attrset: the parse check sends each expected value
+      # that is an attrset to nft (tests/fixtures/parse-check.nix).
+      expr =
+        map (builder: "${builder} fails with its Selector") (
+          buildersWhere (verb: kind: !(builds verb kind))
+        )
+        ++ map (builder: "${builder} builds with a field nft ignores") (
+          buildersWhere buildsWithAnotherField
+        );
+      expected = [ ];
     };
 
   # nft deletes a rule by handle, and with handle 0 (or none, through text)
