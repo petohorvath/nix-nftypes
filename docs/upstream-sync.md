@@ -36,9 +36,6 @@ All tests are entries of `checks.<system>`:
 
 - `nix-unit`, the source-side `integration-<suite>` entries, `lint`,
   `treefmt`, and `package-nftables-source` run in the build sandbox.
-  `nix-unit` evaluates `tests` from the flake source, which loads the `dev`
-  partition and fetches its inputs, so it is a fixed-output build with
-  network access.
 - The live parser and renderer entries are VM tests. Their probes create
   private user and network namespaces, which hosted CI runners deny inside
   the build sandbox, so `tests/helpers/probes/vm.nix` runs them in one NixOS
@@ -322,10 +319,6 @@ When `check.yml` moves to a new policy series, change `POLICY` in
 The `flake-parts` input only assembles the flake outputs; its `nixpkgs-lib`
 input follows `nixpkgs`. Update it separately with
 `nix flake update flake-parts`.
-
-The development-only inputs, `nix-unit` and `treefmt-nix`, are in
-`dev/flake.nix`, whose header explains the split. Update them with
-`nix flake update --flake ./dev`.
 
 Before merging an input update:
 
