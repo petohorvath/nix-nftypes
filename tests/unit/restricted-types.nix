@@ -14,7 +14,7 @@
     1. Type-check semantics — the helper must accept values whose tag
        is in the subset and reject any value whose tag is not, checked
        through `validate` so lazy type checks actually run.
-    2. Construction errors — unknown kinds / non-list / empty list
+    2. Construction errors — unknown tags / non-list / empty list
        must throw at type construction time (i.e. when the helper is
        called), not silently produce an unusable type.
     3. Surface drift — `statementOf [ k ]` must work for every `k` in
@@ -159,11 +159,11 @@ let
   constructionTests = {
     testStatementOfUnknownKindThrows = {
       expr = types.statementOf [ "no-such-kind" ];
-      expectedError.msg = "nix-nftypes: types\\.statementOf: unknown statement kind.*no-such-kind";
+      expectedError.msg = "^nix-nftypes: types\\.statementOf: unknown statement tag\\(s\\): \"no-such-kind\"\\. Valid tags: \"[^\n]*\"\\.$";
     };
     testStatementOfEmptyListThrows = {
       expr = types.statementOf [ ];
-      expectedError.msg = "nix-nftypes: types\\.statementOf: kinds list must be non-empty";
+      expectedError.msg = "^nix-nftypes: types\\.statementOf: expected a non-empty list of statement tags, got an empty list$";
     };
     testStatementOfNonListThrows = {
       expr = types.statementOf "match";
@@ -171,11 +171,11 @@ let
     };
     testExpressionOfUnknownKindThrows = {
       expr = types.expressionOf [ "no-such-kind" ];
-      expectedError.msg = "nix-nftypes: types\\.expressionOf: unknown expression kind.*no-such-kind";
+      expectedError.msg = "^nix-nftypes: types\\.expressionOf: unknown expression tag\\(s\\): \"no-such-kind\"\\. Valid tags: \"[^\n]*\"\\.$";
     };
     testExpressionOfEmptyListThrows = {
       expr = types.expressionOf [ ];
-      expectedError.msg = "nix-nftypes: types\\.expressionOf: kinds list must be non-empty";
+      expectedError.msg = "^nix-nftypes: types\\.expressionOf: expected a non-empty list of expression tags, got an empty list$";
     };
     # A tag that is not a string throws the helper's own error, not Nix's
     # "cannot coerce an integer to a string".

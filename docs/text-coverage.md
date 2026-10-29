@@ -22,12 +22,12 @@ runtime behavior.
 | `toTextBlockPretty` | readable contents of one table block |
 
 Imperative output contains commands such as `add table`, `add chain`, and
-`add rule`. Block output accepts one `dsl.table` node, omits the table wrapper,
-keeps the table's `flags` and `comment`, and emits named objects and chains in
-block syntax, with rules folded into their parent chains and each set's or
-map's elements in its definition. A Table tree takes no `handle`, and its
-rules take no `index`, since a chain block lists its rules in order and has no
-rule position.
+`add rule`. The block form takes one Table tree from `dsl.table`, omits the
+table wrapper, keeps the table's `flags` and `comment`, and emits named objects
+and chains in block syntax, with rules folded into their parent chains and each
+set's or map's elements in its definition. A Table tree takes no `handle`, and
+its rules take no `index`, since a chain block lists its rules in order and has
+no rule position.
 
 Text's `renderTableBlock` is the one entry point for block form and raises
 every block-form Refusal. Its `blockFields` classifies each field of the
@@ -91,7 +91,7 @@ flowtable-name and flowtable-reference positions, so a flowtable named
 `offload` loads only through JSON.
 
 The same applies to map datatypes. The text renderer accepts identifier-shaped
-datatypes only, so it rejects a map whose `map` value is an object type with a
+datatypes only, so it rejects a map whose `map` value is an object kind with a
 space, such as `"ct count"` or `"ct timeout"`. Define such a map with JSON. A
 statement that looks it up (`ct count name meta mark map @m`) and inline map
 references still render to text.

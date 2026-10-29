@@ -4,8 +4,8 @@
       `expr.payload "tcp" "dport"`)
     - Top-level operator functions (`eq`, `ne`, `inSet`, `notInSet`, …)
     - Variant namespaces via `__functor` (`counter {…}` vs `counter.auto`)
-    - Declarative table structure (`chains.<name>.rules = [...]`) in place
-      of context-threading builders
+    - Table trees (`chains.<name>.rules = [...]`) in place of
+      context-threading builders
     - One camelCase spelling for each JSON key (handled by
       internal/rename.nix)
 */

@@ -1,7 +1,9 @@
 /**
   nix-nftypes: strict Nix types, an ergonomic DSL, and pure renderers for
-  nftables rulesets. `docs/api.md` documents every export, and
-  `tests/unit/public-surface.nix` pins the list.
+  nftables rulesets. `docs/api.md` names every top-level, `dsl`,
+  `dsl.expr`, and `compatibility` export and documents the bodies and
+  enums by pattern. `tests/unit/public-surface.nix` pins the export lists
+  and fails on a name `docs/api.md` leaves out.
 */
 { lib }:
 
@@ -99,8 +101,8 @@ in
   types = primitives.types // {
     /*
       Recursive expression union plus per-variant body submodules and
-      a subset helper. `expressionOf [ kinds... ]` restricts to a
-      chosen set of tagged expression kinds — see the helper docstring
+      the Restricted type helper. `expressionOf [ tags... ]` restricts to a
+      chosen set of expression tags — see the helper docstring
       in `lib/schema/expressions.nix` for scope (tagged-only; scalars
       and bare lists are not included).
     */
@@ -108,9 +110,9 @@ in
     expressionBodies = expressions.all;
 
     /*
-      Statement union plus per-variant body submodules and a subset
-      helper. `statementOf [ kinds... ]` restricts a `statement`-typed
-      field to a subset of statement tags (e.g. match-only or
+      Statement union plus per-variant body submodules and the Restricted
+      type helper. `statementOf [ tags... ]` restricts a `statement`-typed
+      field to a chosen set of statement tags (e.g. match-only or
       verdict-only) with `evalModules`-time validation, replacing
       hand-rolled walker checks downstream.
     */
@@ -193,8 +195,8 @@ in
   inherit (tables) toTextBlock toTextBlockPretty;
 
   /*
-    DSL — path-based field access, top-level operators, variant namespaces,
-    and declarative table structure. Statement, command, and table
+    DSL — path-based field access, top-level operators, Variant
+    namespaces, and Table trees. Statement, command, and table
     builders validate assembled bodies; `dsl.ruleset` also preserves raw
     command attrsets as an escape hatch.
   */

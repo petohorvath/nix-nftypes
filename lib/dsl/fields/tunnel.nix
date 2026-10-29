@@ -1,5 +1,5 @@
 /*
-  Tunnel-metadata leaves. Distinct from the `tunnel` named-object type and
+  Tunnel-metadata leaves. Distinct from the `tunnel` Named object and
   from the tunnel-inner-header payload form.
     fields.tunnel.id == { tunnel = { key = "id"; }; }
 */
