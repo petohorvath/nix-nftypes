@@ -79,7 +79,6 @@ let
   dsl = import ./dsl {
     inherit compatibility lib;
     objects = objects.all;
-    listedObjectBodies = objects.listed;
     statementBodiesByTag = statements.bodiesByTag;
     expressionBodiesByTag = expressions.bodiesByTag;
     expressionBodies = expressions.all;
@@ -124,6 +123,7 @@ in
       addObject
       createObject
       deleteObject
+      destroyObject
       flushObject
       insertObject
       listObject

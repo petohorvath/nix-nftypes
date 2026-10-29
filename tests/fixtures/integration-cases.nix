@@ -466,7 +466,48 @@ rec {
       ];
     }
 
-    # -- destroy (idempotent) --------------------------------------------
+    # -- delete: by handle -----------------------------------------------
+    # nft deletes each of these kinds by handle in place of its name. The
+    # kernel numbers a namespace's tables, and each table's objects, from 1
+    # in the order they are added, and the state adds them one command at a
+    # time, so each handle is the object's position in it. Table `t` and
+    # set `kept` stay, so the listing shows what the deletes left.
+    {
+      name = "delete-by-handle";
+      state = ''
+        add table ip t
+        add counter ip t ctr
+        add quota ip t q { 1 bytes; }
+        add limit ip t lim { rate 1/second; }
+        add synproxy ip t sp { mss 1460; wscale 7; }
+        add set ip t s { type ipv4_addr; }
+        add set ip t kept { type ipv4_addr; }
+        add map ip t m { type inet_service : inet_service; }
+        add flowtable ip t ft { hook ingress priority 0; devices = { lo }; }
+        add chain ip t c
+        add table ip gone
+      '';
+      ruleset =
+        let
+          byHandle = handle: tableScope // { inherit handle; };
+        in
+        ruleset [
+          (delete.counter (byHandle 1))
+          (delete.quota (byHandle 2))
+          (delete.limit (byHandle 3))
+          (delete.synproxy (byHandle 4))
+          (delete.set (byHandle 5))
+          (delete.map (byHandle 7))
+          (delete.flowtable (byHandle 8))
+          (delete.chain (byHandle 9))
+          (delete.table {
+            family = "ip";
+            handle = 2;
+          })
+        ];
+    }
+
+    # -- destroy (idempotent)--------------------------------------------
     # Destroy succeeds whether the object exists or not. Table `t` and
     # counter `kept` stay, so the listing shows what the destroys left.
     {
@@ -617,6 +658,18 @@ rec {
       ];
     }
 
+    # -- list.ruleset ----------------------------------------------------
+    # The whole ruleset, then one family's.
+    {
+      name = "list-ruleset";
+      ruleset = ruleset [
+        (flush.ruleset { })
+        (create.table tableIdentity)
+        (list.ruleset { })
+        (list.ruleset { family = "ip"; })
+      ];
+    }
+
     # -- reset counters / quotas -----------------------------------------
     # nft runs a reset of a stateful object only as a batch's last command
     # (docs/spec-coverage.md), so each reset is a case of its own. The
@@ -636,13 +689,7 @@ rec {
         add quota ip t q { 100 bytes used 10 bytes; }
       '';
       ruleset = ruleset [
-        (reset.quota (
-          tableScope
-          // {
-            name = "q";
-            bytes = 100;
-          }
-        ))
+        (reset.quota (tableScope // { name = "q"; }))
       ];
     }
 

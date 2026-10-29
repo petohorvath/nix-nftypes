@@ -94,7 +94,16 @@ let
     if ctx.block then
       identQuote "object name" body.name
     else
-      "${renderTableScope body} ${identQuote "object name" body.name}";
+      "${renderTableScope body} ${renderNameOrHandle "object" body}";
+
+  # An object's name, or `handle <n>` for a `delete` Selector that selects
+  # it by handle instead.
+  renderNameOrHandle =
+    what: body:
+    if (body.name or null) == null && (body.handle or null) != null then
+      "handle ${safeToken "${what} handle" body.handle}"
+    else
+      identQuote "${what} name" body.name;
 
   # SECURITY-CRITICAL: a string datatype renders bare into the set/map
   # `type <X>` clause; a list renders bare joined with ` . `. An unsafe
@@ -206,11 +215,7 @@ let
   # ---- per-kind body renderers ---------------------------------------
 
   renderTableHeader =
-    _ctx: body:
-    renderTableScope {
-      inherit (body) family;
-      table = body.name;
-    };
+    _ctx: body: "${safeToken "family" body.family} ${renderNameOrHandle "table" body}";
 
   renderTableBody =
     _ctx: body:

@@ -13,7 +13,6 @@
   compatibility,
   lib,
   objects,
-  listedObjectBodies,
   expandTable,
   resetOrder,
   statementBodiesByTag,
@@ -64,7 +63,6 @@ let
     inherit
       compatibility
       lib
-      listedObjectBodies
       objects
       validate
       ;

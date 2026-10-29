@@ -152,13 +152,16 @@ The DSL exposes all modelled command verbs:
 - `delete.<kind>` and `destroy.<kind>` for the add-object kinds except
   `ctCount`, `ctTimeout`, and `ctExpectation`;
 - `list.<kind>` for table, chain, set, map, counter, quota, limit, ctHelper,
-  secmark, and meter;
+  secmark, meter, and ruleset;
 - `reset.<kind>` for counter, quota, set, map, and element;
 - `flush.<kind>` for ruleset, table, chain, set, map, and meter;
 - `rename.chain`.
 
-`delete`, `destroy`, `list`, `flush`, and `reset` select an object by family,
-table, and name alone, and a rule by its chain and handle
+`delete`, `destroy`, `list`, `flush`, and `reset` take a Selector, which
+selects an object by family, table, and name alone, a rule by its chain and
+handle, and elements by their set and values, and rejects every other field.
+`delete` selects a table, chain, set, map, flowtable, or stateful object but a
+ct helper by name or by handle
 ([API reference](api.md#commands)).
 
 Each namespace offers only the kinds that nft runs as written. `create.rule`,
@@ -233,8 +236,6 @@ Validate raw user configuration explicitly with
 
 - Plural `list`/`reset` command-selector forms are not modelled by either schema
   or DSL.
-- Some command verbs accept slimmer parser selector bodies than the shared
-  schema bodies expose.
 - Text rendering may impose stricter token and quoting rules than JSON.
 - A raw attrset remains the escape hatch for parser-valid shapes outside the
   model.

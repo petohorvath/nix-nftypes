@@ -169,15 +169,15 @@ generatedTests
     };
     expected = {
       fields = 694;
-      body = 96;
+      body = 103;
       wrongType = 694;
-      accepted = 205;
-      omitted = 257;
-      lowest = 118;
-      belowLowest = 118;
+      accepted = 219;
+      omitted = 235;
+      lowest = 112;
+      belowLowest = 112;
       highest = 9;
       aboveHighest = 9;
-      member = 579;
+      member = 594;
       enum = 196;
     };
   };

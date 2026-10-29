@@ -1612,16 +1612,18 @@ let
         ];
       };
       # `insert.rule` places a rule and `replace.rule` replaces one by its
-      # handle, and a Selector selects by it.
+      # handle, a rule's Selector selects by it, and `delete` selects a
+      # named object by it in place of the name.
       testHandleKeptWhereNftReadsIt = {
         expr = lib.mapAttrs (_: command: builtins.fromJSON (commandJson command)) {
           insert = dsl.insert.rule (withHandle addBodies.rule);
           replace = dsl.replace.rule (withHandle addBodies.rule);
-          deleteTable = dsl.delete.table (withHandle addBodies.table);
-          deleteCounter = dsl.delete.counter (withHandle named);
-          flushChain = dsl.flush.chain (withHandle named);
-          listSet = dsl.list.set (withHandle named);
-          resetQuota = dsl.reset.quota (withHandle named);
+          deleteRule = dsl.delete.rule (withHandle ruleScope);
+          deleteTable = dsl.delete.table (withHandle {
+            family = "ip";
+          });
+          deleteCounter = dsl.delete.counter (withHandle scope);
+          deleteFlowtable = dsl.delete.flowtable (withHandle scope);
         };
         expected = lib.mapAttrs (_: command: { nftables = [ command ]; }) {
           insert.insert.rule = withHandle ruleScope // {
@@ -1630,12 +1632,22 @@ let
           replace.replace.rule = withHandle ruleScope // {
             expr = [ { accept = null; } ];
           };
-          deleteTable.delete.table = withHandle addBodies.table;
-          deleteCounter.delete.counter = withHandle named;
-          flushChain.flush.chain = withHandle named;
-          listSet.list.set = withHandle named;
-          resetQuota.reset.quota = withHandle named;
+          deleteRule.delete.rule = withHandle ruleScope // {
+            expr = [ ];
+          };
+          deleteTable.delete.table = withHandle { family = "ip"; };
+          deleteCounter.delete.counter = withHandle scope;
+          deleteFlowtable.delete.flowtable = withHandle scope;
         };
+      };
+      # With a name, nft never reads a handle: no Selector takes both.
+      testNamedSelectorHandleRejected = {
+        expr = commandJson (dsl.delete.counter (withHandle named));
+        expectedError.msg = "^nix-nftypes: dsl\\.delete\\.counter: selects by `name` or by `handle`; got both, and nft ignores a handle beside a name\\.$";
+      };
+      testListSelectorHandleRejected = {
+        expr = commandJson (dsl.list.set (withHandle scope));
+        expectedError.msg = "^nix-nftypes: dsl\\.list\\.set: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
       };
     };
 
@@ -2019,17 +2031,15 @@ in
     expectedError.msg = "delete\\.counter\\.family.*is not of type";
   };
 
-  testListMapBadTypeRejected = {
+  testListMapBadNameRejected = {
     expr = commandJson (
       dsl.list.map {
         family = "ip";
         table = "t";
-        name = "m";
-        type = 123;
-        dataType = "mark";
+        name = 123;
       }
     );
-    expectedError.msg = "list\\.map\\.type.*is not of type";
+    expectedError.msg = "list\\.map\\.name.*is not of type";
   };
 
   testRenameChainBadNewNameRejected = {
@@ -2164,7 +2174,41 @@ in
         handle = 4;
       }
     );
-    expectedError.msg = "destroy\\.counter\\.name' was accessed but has no value defined";
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.counter: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\. nft destroys by name only; dsl\\.delete\\.counter selects by handle\\.$";
+  };
+
+  # nft deletes a table, chain, set, map, flowtable, or stateful object
+  # but a ct helper by name or by handle, and reads the handle only
+  # without a name.
+  testDeleteSelectorWithNameAndHandleThrows = {
+    expr = commandJson (
+      dsl.delete.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        handle = 4;
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.set: selects by `name` or by `handle`; got both, and nft ignores a handle beside a name\\.$";
+  };
+  testDeleteSelectorWithoutNameOrHandleThrows = {
+    expr = commandJson (
+      dsl.delete.table {
+        family = "inet";
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.table: selects by `name` or by `handle`; got neither\\.$";
+  };
+  # nft reads a ct helper's name on delete, never its handle.
+  testDeleteCtHelperByHandleThrows = {
+    expr = commandJson (
+      dsl.delete.ctHelper {
+        family = "inet";
+        table = "t";
+        handle = 4;
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.ctHelper: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
   };
 
   testRenameChainMissingNewNameRejected = {
@@ -2228,16 +2272,92 @@ in
     expectedError.msg = "flush\\.table\\.family";
   };
 
-  testFlushChainBadHandleRejected = {
+  testFlushChainBadNameRejected = {
     expr = commandJson (
       dsl.flush.chain {
         family = "ip";
         table = "t";
-        name = "c";
-        handle = "not-a-number";
+        name = 4;
       }
     );
-    expectedError.msg = "flush\\.chain\\.handle.*is not of type";
+    expectedError.msg = "flush\\.chain\\.name.*is not of type";
+  };
+
+  /*
+    A selecting builder takes a Selector, which accepts no field nft
+    ignores for the verb (ADR 0009): `delete set` with elements deletes
+    the whole set, so `dsl.delete.set` throws, naming the builder and
+    pointing to `delete.element`.
+  */
+  testDeleteSetElementsThrows = {
+    expr = force (
+      dsl.delete.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.set: takes a Selector, with only `family`, `table`, and `name` or `handle`; got `elements`\\. To delete elements, use dsl\\.delete\\.element\\.";
+  };
+  testSelectorIgnoredFieldThrows = {
+    expr = force (
+      dsl.flush.chain {
+        family = "inet";
+        table = "t";
+        name = "c";
+        policy = "accept";
+        comment = "x";
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.flush\\.chain: takes a Selector, with only `family`, `table`, and `name`; got `comment` and `policy`\\.$";
+  };
+  # An element's Selector names the elements in the DSL spelling.
+  testDeleteElementSelectorNamesElements = {
+    expr = force (
+      dsl.reset.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+        timeout = 5;
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.reset\\.element: takes a Selector, with only `family`, `table`, `name`, and `elements`; got `timeout`";
+  };
+  # A JSON spelling points to the DSL name before the Selector check.
+  testSelectorJsonSpellingThrows = {
+    expr = force (
+      dsl.delete.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elem = [ "10.0.0.1" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.element: elem: is the JSON spelling; write `elements`";
+  };
+  testDeleteRuleStatementsThrows = {
+    expr = force (
+      dsl.destroy.rule (
+        ruleScope
+        // {
+          handle = 4;
+          statements = [ dsl.accept ];
+        }
+      )
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.rule: takes a Selector, with only `family`, `table`, `chain`, and `handle`; got `statements`";
+  };
+  testListRulesetFamily = {
+    expr = map dsl.list.ruleset [
+      { }
+      { family = "ip"; }
+    ];
+    expected = [
+      { list.ruleset = null; }
+      { list.ruleset.family = "ip"; }
+    ];
   };
 
   # A flush selects its set or map by name: nft ignores the datatypes.
@@ -2246,22 +2366,21 @@ in
       dsl.flush.set {
         family = "ip";
         table = "t";
-        type = "ipv4_addr";
       }
     );
     expectedError.msg = "flush\\.set\\.name.*was accessed but has no value defined";
   };
 
-  testFlushMapBadTypeRejected = {
+  testFlushMapTypeRejected = {
     expr = commandJson (
       dsl.flush.map {
         family = "ip";
         table = "t";
         name = "m";
-        type = 42;
+        type = "ipv4_addr";
       }
     );
-    expectedError.msg = "flush\\.map\\.type.*is not of type";
+    expectedError.msg = "nix-nftypes: dsl\\.flush\\.map: takes a Selector, with only `family`, `table`, and `name`; got `type`\\.$";
   };
 
   testFlushMeterBadTableRejected = {

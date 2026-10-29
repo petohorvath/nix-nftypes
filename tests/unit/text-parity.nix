@@ -2615,6 +2615,45 @@ in
     expected = "delete rule ip t c handle 42\n";
   };
 
+  # `delete` selects a named object by handle, in place of its name.
+  testDeleteNamedObjectsByHandle = {
+    expr = map one [
+      {
+        delete.table = {
+          family = "ip";
+          handle = 2;
+        };
+      }
+      {
+        delete.chain = {
+          family = "ip";
+          table = "t";
+          handle = 1;
+        };
+      }
+      {
+        delete.counter = {
+          family = "inet";
+          table = "t";
+          handle = 3;
+        };
+      }
+      {
+        delete.flowtable = {
+          family = "inet";
+          table = "t";
+          handle = 4;
+        };
+      }
+    ];
+    expected = [
+      "delete table ip handle 2\n"
+      "delete chain ip t handle 1\n"
+      "delete counter inet t handle 3\n"
+      "delete flowtable inet t handle 4\n"
+    ];
+  };
+
   testRename = {
     expr = one {
       rename.chain = {

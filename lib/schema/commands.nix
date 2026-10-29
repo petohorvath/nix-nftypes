@@ -25,7 +25,7 @@ let
     create = objects.createObject;
     insert = objects.insertObject;
     delete = objects.deleteObject;
-    destroy = objects.deleteObject;
+    destroy = objects.destroyObject;
     list = objects.listObject;
     reset = objects.resetObject;
     flush = objects.flushObject;
