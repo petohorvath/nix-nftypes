@@ -28,7 +28,9 @@
 #
 # The schema types a ct key as `ctKey`, so a table tree rejects a bad
 # one before rendering; its surface is a Raw attrset, which reaches the
-# renderer unvalidated (ADR 0003).
+# renderer unvalidated (ADR 0003). Every `ctKey` renders, the keys whose
+# name holds a space (`ip saddr`) included; any other key with a space is
+# refused.
 
 let
   inherit (nftlib) dsl;
@@ -210,6 +212,31 @@ let
     empty = "";
   };
 
+  # Keys with a space that are not ct keys: the renderer writes only the
+  # spaced keys of `types.ctKey`, as they are.
+  ctKeyNearMisses = {
+    doubleSpace = "ip  saddr";
+    trailingSpace = "ip saddr ";
+    tab = "ip\tsaddr";
+    otherFamily = "ether saddr";
+    injection = "ip saddr\nadd chain inet fw pwned { type filter hook input priority -10; policy accept; }";
+  };
+
+  ctKeyNearMissTests = lib.mapAttrs' (
+    name: key:
+    lib.nameValuePair "testRendererRejects_ctKey_${name}" {
+      expr = nftlib.toText (surfaces.ctKey key);
+      expectedError.msg = refusal "ct key";
+    }
+  ) ctKeyNearMisses;
+
+  # Every `types.ctKey` value renders as nft writes it, so the schema and
+  # the text renderer agree on the keys.
+  testAcceptsEveryCtKey = {
+    expr = lib.genAttrs nftlib.enums.ctKey (key: nftlib.toText (surfaces.ctKey key));
+    expected = lib.genAttrs nftlib.enums.ctKey (key: "add rule inet fw input ct ${key} == 22 accept\n");
+  };
+
   rejectionTests = lib.listToAttrs (
     lib.concatMap (
       surface:
@@ -265,4 +292,10 @@ let
     };
   };
 in
-rejectionTests // prettyTests // acceptanceTests
+rejectionTests
+// prettyTests
+// acceptanceTests
+// ctKeyNearMissTests
+// {
+  inherit testAcceptsEveryCtKey;
+}
