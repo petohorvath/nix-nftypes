@@ -50,7 +50,7 @@ in
 */
 api: value:
 if isTableTree value || isRuleset value && builtins.any isTableTree value.nftables then
-  fail api "got a dsl.table tree where a ruleset belongs; wrap it in dsl.ruleset [ … ]"
+  fail api "got a Table tree where a ruleset belongs; wrap it in dsl.ruleset [ … ]"
 else if !(isRuleset value) then
   fail api "expected a ruleset { nftables = [ … ]; }, got ${describe value}; build one with dsl.ruleset [ … ]"
 else if builtins.any (command: builtins.isAttrs command && command ? nftables) value.nftables then

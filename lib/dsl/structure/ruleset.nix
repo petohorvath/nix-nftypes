@@ -14,23 +14,8 @@ let
   inherit (import ../../ruleset-shape.nix { }) isRuleset;
   inherit (import ../../table-tree-marker.nix { }) isTableTree;
 
-  fail = message: throw "nix-nftypes: dsl.ruleset: ${message}";
-
-  # What a value is, in the words of the errors.
-  describe =
-    value:
-    if isTableTree value then
-      "a Table tree"
-    else if isRuleset value then
-      "a ruleset"
-    else if builtins.isAttrs value then
-      "an attribute set"
-    else if value == null then
-      "null"
-    else if builtins.isInt value then
-      "an int"
-    else
-      "a ${builtins.typeOf value}";
+  inherit (import ../../describe.nix { inherit lib; }) describe;
+  fail = import ../../fail.nix { } "dsl.ruleset";
 
   # Table preparation belongs to the table module. The ruleset only knows
   # how to combine tables, rulesets, nested lists, and the raw-command
@@ -77,6 +62,6 @@ in
         if resetOrder.isRunAsWritten commands then
           commands
         else
-          throw "nix-nftypes: dsl.ruleset: a reset of a ${resetOrder.kindsText} must be the last command; nft resets nothing for one placed earlier";
+          fail "a reset of a ${resetOrder.kindsText} must be the last command; nft resets nothing for one placed earlier";
     };
 }

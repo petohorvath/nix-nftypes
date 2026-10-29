@@ -31,12 +31,13 @@ let
 
   /*
     The constructor `name` of a key-string expression whose keys have
-    Field leaves under `fields.<name>`. A body with only a `key` that has
-    a leaf throws and points to that leaf; any other body, a refined one
-    or one with a wrong or unknown field, goes on to validation.
+    Field leaves under `fields.<name>`; `article` is the one `name` takes,
+    `"a"` or `"an"`. A body with only a `key` that has a leaf throws and
+    points to that leaf; any other body, a refined one or one with a wrong
+    or unknown field, goes on to validation.
   */
   refinedKey =
-    name:
+    { name, article }:
     expression.fromFields {
       inherit name;
       prepare =
@@ -44,7 +45,7 @@ let
         if
           builtins.attrNames body == [ "key" ] && lib.isString body.key && fields.${name} ? ${body.key}
         then
-          fail location "`expr.${name}` builds a ${name} expression with a refinement; without one, write the Field leaf `fields.${name}.${body.key}`"
+          fail location "`expr.${name}` builds ${article} ${name} expression with a refinement; without one, write the Field leaf `fields.${name}.${body.key}`"
         else
           body;
     };
@@ -225,7 +226,10 @@ in
     the Field leaf, such as `fields.ct.mark`, without a direction. Returns
     a ct expression.
   */
-  ct = refinedKey "ct";
+  ct = refinedKey {
+    name = "ct";
+    article = "a";
+  };
 
   /*
     Reference routing data with an address family. Takes `key`, the
@@ -233,7 +237,10 @@ in
     points to the Field leaf, such as `fields.rt.mtu`. Returns an rt
     expression.
   */
-  rt = refinedKey "rt";
+  rt = refinedKey {
+    name = "rt";
+    article = "an";
+  };
 
   /*
     Look up the forwarding information base. Takes `result`, the requested
@@ -249,7 +256,10 @@ in
     throws and points to the Field leaf, such as `fields.osf.name`.
     Returns an osf expression.
   */
-  osf = refinedKey "osf";
+  osf = refinedKey {
+    name = "osf";
+    article = "an";
+  };
 
   /*
     Reference IPsec (xfrm) state. Takes `key`, the ipsec key, and `dir`,
