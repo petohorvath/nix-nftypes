@@ -3073,7 +3073,7 @@ textDriftTests
   # Family and hook are checked for an int too.
   testPriorityValueUnknownFamilyThrows = {
     expr = nftlib.compatibility.priorityValue "wat" "input" 0;
-    expectedError.msg = "nix-nftypes: compatibility.priorityValue: unknown family 'wat'. Valid families: arp, bridge, inet, ip, ip6, netdev.";
+    expectedError.msg = "nix-nftypes: compatibility.priorityValue: unknown family 'wat'. Valid families: ip, ip6, inet, arp, bridge, netdev.";
   };
 
   testPriorityValueHookFamilyLacksThrows = {
@@ -3213,14 +3213,50 @@ textDriftTests
     ];
   };
 
-  testCompatHooksWithOifname = {
-    expr = nftlib.compatibility.hooksWithOifname;
+  # Every family supports `filter`, in the order of `enums.family`.
+  testCompatFamiliesByChainTypeFilterIsEveryFamily = {
+    expr = nftlib.compatibility.familiesByChainType.filter;
     expected = [
-      "forward"
-      "output"
-      "postrouting"
+      "ip"
+      "ip6"
+      "inet"
+      "arp"
+      "bridge"
+      "netdev"
     ];
   };
+
+  # The tables are keyed by, and list only, the families, chain types,
+  # and hooks of `enums`, so they cannot drift from the schema.
+  testCompatTablesStayWithinEnums =
+    let
+      inherit (nftlib) compatibility enums;
+      sortedNames = attrs: lib.sort lib.lessThan (lib.attrNames attrs);
+      sorted = lib.sort lib.lessThan;
+      outside = enum: lists: lib.filter (value: !(lib.elem value enum)) (lib.concatLists lists);
+    in
+    {
+      expr = {
+        hooksByFamilyKeys = sortedNames compatibility.hooksByFamily;
+        prioritiesByFamilyKeys = sortedNames compatibility.prioritiesByFamily;
+        familiesByChainTypeKeys = sortedNames compatibility.familiesByChainType;
+        hooksByChainTypeKeys = sortedNames compatibility.hooksByChainType;
+        hooksOutsideEnum = outside enums.hook (
+          lib.attrValues compatibility.hooksByFamily
+          ++ lib.attrValues compatibility.hooksByChainType
+          ++ map lib.attrNames (lib.attrValues compatibility.prioritiesByFamily)
+        );
+        familiesOutsideEnum = outside enums.family (lib.attrValues compatibility.familiesByChainType);
+      };
+      expected = {
+        hooksByFamilyKeys = sorted enums.family;
+        prioritiesByFamilyKeys = sorted enums.family;
+        familiesByChainTypeKeys = sorted enums.chainType;
+        hooksByChainTypeKeys = sorted enums.chainType;
+        hooksOutsideEnum = [ ];
+        familiesOutsideEnum = [ ];
+      };
+    };
 
   # ------------------------------------------------------------------
   # hooksByChainType — `filter` lists every hook in the schema's enum;
@@ -3313,7 +3349,7 @@ textDriftTests
   # invalid placement.
   testValidChainPlacementUnknownFamilyThrows = {
     expr = nftlib.compatibility.validChainPlacement "wat" "filter" "input";
-    expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown family 'wat'. Valid families: arp, bridge, inet, ip, ip6, netdev.";
+    expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown family 'wat'. Valid families: ip, ip6, inet, arp, bridge, netdev.";
   };
 
   testValidChainPlacementUnknownChainTypeThrows = {
@@ -3324,165 +3360,6 @@ textDriftTests
   testValidChainPlacementUnknownHookThrows = {
     expr = nftlib.compatibility.validChainPlacement "ip" "filter" "inptu";
     expectedError.msg = "nix-nftypes: compatibility.validChainPlacement: unknown hook 'inptu'. Valid hooks: prerouting, input, forward, output, postrouting, ingress, egress.";
-  };
-
-  # ------------------------------------------------------------------
-  # chainTypeFor — derive chain type from (family, hook, priority).
-  # ------------------------------------------------------------------
-  testChainTypeForIpInputFilter = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" "filter";
-    expected = "filter";
-  };
-
-  testChainTypeForIpInputZero = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" 0;
-    expected = "filter";
-  };
-
-  testChainTypeForIpPostroutingSrcnat = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "postrouting" "srcnat";
-    expected = "nat";
-  };
-
-  testChainTypeForIpInputSrcnatInt = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" 100;
-    expected = "nat";
-  };
-
-  testChainTypeForIpPreroutingDstnat = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "prerouting" "dstnat";
-    expected = "nat";
-  };
-
-  testChainTypeForIpOutputMangle = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "output" "mangle";
-    expected = "route";
-  };
-
-  testChainTypeForIpPreroutingMangle = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "prerouting" "mangle";
-    expected = "filter";
-  };
-
-  # -100 is `dstnat` only where nft accepts `dstnat`, so at input it is
-  # a filter priority.
-  testChainTypeForIpInputDstnatInt = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" (-100);
-    expected = "filter";
-  };
-
-  # The bridge family has no nat chain type, so bridge srcnat (300, not
-  # 100) is a filter chain in both symbol and int form.
-  testChainTypeForBridgePostroutingSrcnatSymbol = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "postrouting" "srcnat";
-    expected = "filter";
-  };
-
-  testChainTypeForBridgePostroutingSrcnatInt = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "postrouting" 300;
-    expected = "filter";
-  };
-
-  testChainTypeForNetdevIngressSrcnatInt = {
-    expr = nftlib.compatibility.chainTypeFor "netdev" "ingress" 100;
-    expected = "filter";
-  };
-
-  /*
-    Every hook each family exposes, at every symbol nft accepts there
-    and every int a priority table names (plus two no table names),
-    lists the placements whose type `validChainPlacement` rejects.
-  */
-  testChainTypeForPassesValidChainPlacement =
-    let
-      inherit (nftlib.compatibility) prioritiesByFamily;
-      tableInts = lib.unique (
-        lib.concatMap (byHook: lib.concatMap lib.attrValues (lib.attrValues byHook)) (
-          lib.attrValues prioritiesByFamily
-        )
-      );
-      hooks = lib.concatLists (
-        lib.mapAttrsToList (
-          family: lib.mapAttrsToList (hook: priorities: { inherit family hook priorities; })
-        ) prioritiesByFamily
-      );
-      placements = lib.concatMap (
-        {
-          family,
-          hook,
-          priorities,
-        }:
-        map
-          (prio: {
-            inherit family hook prio;
-            type = nftlib.compatibility.chainTypeFor family hook prio;
-          })
-          (
-            lib.attrNames priorities
-            ++ tableInts
-            ++ [
-              (-1)
-              1000
-            ]
-          )
-      ) hooks;
-    in
-    {
-      expr = {
-        count = builtins.length placements;
-        rejected = builtins.filter (
-          p: !(nftlib.compatibility.validChainPlacement p.family p.type p.hook)
-        ) placements;
-      };
-      # 88 accepted symbols over the 25 hooks (ip, ip6, and inet 24 each
-      # plus 4 at inet ingress, bridge 8, arp 2, netdev 2), and 8 table
-      # ints plus 2 at each hook.
-      expected = {
-        count = 88 + 25 * 10;
-        rejected = [ ];
-      };
-    };
-
-  testChainTypeForBridgeInputFilter = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "input" "filter";
-    expected = "filter";
-  };
-
-  testChainTypeForBridgeInputFilterInt = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "input" (-200);
-    expected = "filter";
-  };
-
-  # Bridge `out` is bridge-specific and not a NAT/route signal.
-  testChainTypeForBridgeOutputOut = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "output" "out";
-    expected = "filter";
-  };
-
-  # A symbol nft rejects at the placement throws, as nft does.
-  testChainTypeForIpForwardDstnatThrows = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "forward" "dstnat";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'ip' has no priority 'dstnat' at hook 'forward'";
-  };
-
-  testChainTypeForArpOutputMangleThrows = {
-    expr = nftlib.compatibility.chainTypeFor "arp" "output" "mangle";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'arp' has no priority 'mangle' at hook 'output'";
-  };
-
-  testChainTypeForUnknownSymbolThrows = {
-    expr = nftlib.compatibility.chainTypeFor "ip" "input" "bogus";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'ip' has no priority 'bogus' at hook 'input'";
-  };
-
-  testChainTypeForHookFamilyLacksThrows = {
-    expr = nftlib.compatibility.chainTypeFor "bridge" "ingress" "filter";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: family 'bridge' has no hook 'ingress'";
-  };
-
-  testChainTypeForUnknownFamilyThrows = {
-    expr = nftlib.compatibility.chainTypeFor "nope" "input" "filter";
-    expectedError.msg = "nix-nftypes: compatibility.chainTypeFor: unknown family 'nope'";
   };
 
   # Read-back validation: the source-side checks validate each listed

@@ -651,15 +651,17 @@ quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
 `rate_unit`, adds `packets`.
 
 `nftlib.compatibility` holds the static tables and the helpers that look
-placements and priorities up in them. The tables are:
+placements and priorities up in them. It holds only what nft accepts on load;
+a convention built on it, such as the chain type a priority suggests, belongs
+to the consumer. The families, chain types, and hooks it knows are those of
+`enums.family`, `enums.chainType`, and `enums.hook`. The tables are:
 
 - `hooksByFamily`;
-- `familiesByChainType`;
-- `hooksByChainType`;
+- `familiesByChainType`, whose `filter` entry is `enums.family`;
+- `hooksByChainType`, whose `filter` entry is `enums.hook`;
 - `prioritiesByFamily`, the symbolic priorities nft accepts at each hook of
   each family, indexed by family and hook: `prioritiesByFamily.bridge.input`
-  is `{ filter = -200; }`;
-- `hooksWithOifname`.
+  is `{ filter = -200; }`.
 
 `prioritiesByFamily` holds only what nft accepts, as
 `std_prio_family_hook_compat` in nftables' `src/rule.c` decides:
@@ -680,20 +682,12 @@ The helpers are:
   symbol nft accepts for it at the hook, and otherwise returns the int, as nft
   lists it. `priorityName "ip" "prerouting" (-100)` is `"dstnat"`, but
   `priorityName "ip" "input" (-100)` is `-100`. A symbol passes through.
-- `chainTypeFor family hook priority` classifies the project's conventional
-  chain type policy. NAT priorities map to `nat` and the `mangle` priority to
-  `route`, unless `validChainPlacement` rejects that type at the hook, in the
-  family; every other placement maps to `filter`. So
-  `chainTypeFor "bridge" "postrouting" 300` (bridge `srcnat`) and
-  `chainTypeFor "ip" "prerouting" "mangle"` return `filter`. An int counts as a
-  symbol only where nft accepts the symbol, so
-  `chainTypeFor "ip" "input" (-100)` is `filter` too.
 - `validChainPlacement family chainType hook` checks the static family,
   chain-type, and hook tables. A hook the family lacks is an invalid
   placement: `validChainPlacement "arp" "filter" "forward"` is `false`.
 
 Every helper throws, naming the helper, on a family, chain type, or hook
-outside its table, so a typo doesn't read as an invalid placement. The three
+outside its table, so a typo doesn't read as an invalid placement. The two
 priority helpers also throw on a hook the family lacks and on a symbol nft
 rejects at the hook, as nft does:
 
