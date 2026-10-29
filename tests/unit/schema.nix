@@ -118,9 +118,9 @@ let
     };
 
   /*
-    Block-form field drift: block form must render, refuse, take from the
-    table tree's scope, or omit (as `toText` does) every field of the
-    bodies a table tree prepares. A field added to one of these bodies
+    Block-form field drift: block form must render, refuse, or take from
+    the table tree's scope every field of the bodies a table tree
+    prepares, or the tree must reject it before rendering. A field added to one of these bodies
     fails here until text classifies it, so block form cannot drop it
     silently, as it once dropped a rule's `index`.
   */

@@ -58,7 +58,7 @@ in
   quota = {
     tag = "quota";
     plural = "quotas";
-    renameBody = rename.none;
+    renameBody = rename.quotaObject;
     body = objects.quotaBody;
   };
   limit = {
