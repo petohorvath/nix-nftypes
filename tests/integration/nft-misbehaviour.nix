@@ -51,6 +51,7 @@ lib.listToAttrs (
       "delete-ct-expectation-deletes-table"
       "delete-ct-timeout-fails"
       "delete-rule-handle-zero-deletes-every-rule"
+      "delete-set-elem-deletes-whole-set"
       "delete-tunnel-aborts"
       "destroy-ct-count-aborts"
       "destroy-ct-expectation-deletes-table"

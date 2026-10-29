@@ -168,16 +168,16 @@ generatedTests
       fields = builtins.length fields;
     };
     expected = {
-      fields = 656;
-      body = 95;
-      wrongType = 656;
-      accepted = 171;
-      omitted = 254;
-      lowest = 116;
-      belowLowest = 116;
+      fields = 694;
+      body = 103;
+      wrongType = 694;
+      accepted = 219;
+      omitted = 235;
+      lowest = 112;
+      belowLowest = 112;
       highest = 9;
       aboveHighest = 9;
-      member = 579;
+      member = 594;
       enum = 196;
     };
   };

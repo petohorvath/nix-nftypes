@@ -23,6 +23,8 @@ in
     elements to one defined elsewhere.
     Chains (name → chainBody), where chainBody may contain:
       type, hook, prio, dev, policy, comment, rules
+    prio is an int or a Symbolic priority such as "filter", which resolves
+    to its int for the table's family and the chain's hook.
     rules is a list (order-preserving); each element is either a bare list
     of statements or an attrset `{ statements = [...]; comment?; }`. The
     list order is the rule order, so a rule takes no `index`.

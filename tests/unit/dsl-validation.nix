@@ -1195,6 +1195,66 @@ let
         ];
       };
 
+  /*
+    A chain's Symbolic priority resolves for its family and hook. A symbol
+    nft rejects at the hook throws `compatibility.priorityValue`'s message
+    at the chain's `prio`; a symbol without a hook has nothing to resolve
+    for. A flowtable keeps an integer priority.
+  */
+  symbolicPriorityTests =
+    let
+      chain = {
+        type = "filter";
+        hook = "input";
+        prio = "dstnat";
+      };
+      command = chain // {
+        family = "ip";
+        table = "t";
+        name = "c";
+      };
+      rejectedAtInput = "family 'ip' has no priority 'dstnat' at hook 'input'\\. Valid priorities: any int, filter, mangle, raw, security, srcnat\\.$";
+      needsHook = "a Symbolic priority resolves for the chain's family and hook; give both, or an int priority$";
+    in
+    {
+      testTreeSymbolicPriorityRejectedAtHook = {
+        expr = toJson (dsl.ruleset [ (dsl.table "ip" "t" { chains.c = chain; }) ]);
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${rejectedAtInput}";
+      };
+      testAddChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.add.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${rejectedAtInput}";
+      };
+      testCreateChainSymbolicPriorityRejectedAtHook = {
+        expr = commandJson (dsl.create.chain command);
+        expectedError.msg = "^nix-nftypes: dsl\\.create\\.chain: prio: ${rejectedAtInput}";
+      };
+      testTreeSymbolicPriorityNeedsHook = {
+        expr = toJson (
+          dsl.ruleset [
+            (dsl.table "ip" "t" { chains.c = removeAttrs (chain // { prio = "filter"; }) [ "hook" ]; })
+          ]
+        );
+        expectedError.msg = "^nix-nftypes: dsl\\.table ip\\.t: chains\\.c\\.prio: ${needsHook}";
+      };
+      testAddChainSymbolicPriorityNeedsFamily = {
+        expr = commandJson (dsl.add.chain (removeAttrs (command // { prio = "filter"; }) [ "family" ]));
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.chain: prio: ${needsHook}";
+      };
+      testFlowtableSymbolicPriorityRejected = {
+        expr = commandJson (
+          dsl.add.flowtable {
+            family = "ip";
+            table = "t";
+            name = "ft";
+            hook = "ingress";
+            prio = "filter";
+          }
+        );
+        expectedError.msg = "dsl\\.add\\.flowtable\\.prio' is not of type `signed integer'";
+      };
+    };
+
   # A `.ref` takes a name or a map expression, never an inline body.
   referenceBodyTests = lib.listToAttrs (
     map (
@@ -1268,7 +1328,9 @@ let
   # nft's JSON parser requires a rule's `expr` even where it ignores it, as
   # for destroy, so each imperative renderer fills the empty list: a rule
   # command without `expr` renders as it does with `expr = [ ]`, in a raw
-  # ruleset or through `dsl.ruleset`.
+  # ruleset or through `dsl.ruleset`. nft's JSON loads an added, inserted,
+  # or replaced rule with no statements, but its text grammar has no
+  # spelling for one, so text refuses it (#96).
   rawRuleCommands = {
     add = body: { add.rule = body; };
     insert = body: { insert.rule = body; };
@@ -1283,6 +1345,11 @@ let
       };
     };
   };
+  verbsNeedingStatements = [
+    "add"
+    "insert"
+    "replace"
+  ];
   rulesets = {
     raw = command: { nftables = [ command ]; };
     dsl = command: dsl.ruleset [ command ];
@@ -1293,10 +1360,16 @@ let
       built: ruleset:
       lib.genAttrs' imperativeRenderers (
         renderer:
-        lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
-          expr = nftlib.${renderer} (ruleset (command ruleScope));
-          expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
-        }
+        if renderer != "toJson" && builtins.elem verb verbsNeedingStatements then
+          lib.nameValuePair "testRuleWithoutExprRefused_${verb}_${built}_${renderer}" {
+            expr = nftlib.${renderer} (ruleset (command ruleScope));
+            expectedError.msg = helpers.refusals.ruleWithoutStatements;
+          }
+        else
+          lib.nameValuePair "testRuleWithoutExprRendersAnEmptyExpr_${verb}_${built}_${renderer}" {
+            expr = nftlib.${renderer} (ruleset (command ruleScope));
+            expected = nftlib.${renderer} (ruleset (command (ruleScope // { expr = [ ]; })));
+          }
       )
       // {
         "testRuleWithoutExprHasAnEmptyExprInJson_${verb}_${built}" = {
@@ -1539,16 +1612,18 @@ let
         ];
       };
       # `insert.rule` places a rule and `replace.rule` replaces one by its
-      # handle, and a Selector selects by it.
+      # handle, a rule's Selector selects by it, and `delete` selects a
+      # named object by it in place of the name.
       testHandleKeptWhereNftReadsIt = {
         expr = lib.mapAttrs (_: command: builtins.fromJSON (commandJson command)) {
           insert = dsl.insert.rule (withHandle addBodies.rule);
           replace = dsl.replace.rule (withHandle addBodies.rule);
-          deleteTable = dsl.delete.table (withHandle addBodies.table);
-          deleteCounter = dsl.delete.counter (withHandle named);
-          flushChain = dsl.flush.chain (withHandle named);
-          listSet = dsl.list.set (withHandle named);
-          resetQuota = dsl.reset.quota (withHandle named);
+          deleteRule = dsl.delete.rule (withHandle ruleScope);
+          deleteTable = dsl.delete.table (withHandle {
+            family = "ip";
+          });
+          deleteCounter = dsl.delete.counter (withHandle scope);
+          deleteFlowtable = dsl.delete.flowtable (withHandle scope);
         };
         expected = lib.mapAttrs (_: command: { nftables = [ command ]; }) {
           insert.insert.rule = withHandle ruleScope // {
@@ -1557,12 +1632,22 @@ let
           replace.replace.rule = withHandle ruleScope // {
             expr = [ { accept = null; } ];
           };
-          deleteTable.delete.table = withHandle addBodies.table;
-          deleteCounter.delete.counter = withHandle named;
-          flushChain.flush.chain = withHandle named;
-          listSet.list.set = withHandle named;
-          resetQuota.reset.quota = withHandle named;
+          deleteRule.delete.rule = withHandle ruleScope // {
+            expr = [ ];
+          };
+          deleteTable.delete.table = withHandle { family = "ip"; };
+          deleteCounter.delete.counter = withHandle scope;
+          deleteFlowtable.delete.flowtable = withHandle scope;
         };
+      };
+      # With a name, nft never reads a handle: no Selector takes both.
+      testNamedSelectorHandleRejected = {
+        expr = commandJson (dsl.delete.counter (withHandle named));
+        expectedError.msg = "^nix-nftypes: dsl\\.delete\\.counter: selects by `name` or by `handle`; got both, and nft ignores a handle beside a name\\.$";
+      };
+      testListSelectorHandleRejected = {
+        expr = commandJson (dsl.list.set (withHandle scope));
+        expectedError.msg = "^nix-nftypes: dsl\\.list\\.set: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
       };
     };
 
@@ -1626,7 +1711,8 @@ let
           chains.input = {
             type = "filter";
             hook = "input";
-            prio = "x";
+            # A string is a Symbolic priority, which the DSL resolves first.
+            prio = true;
           };
         });
         expectedError.msg = "^A definition for option `\"?dsl\\.table inet\\.fw\"?\\.chains\\.input\\.prio' is not of type";
@@ -1717,7 +1803,7 @@ in
   };
 
   testRenderingValidatesLazyTable = {
-    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = "invalid"; }) ]);
+    expr = toJson (dsl.ruleset [ (dsl.table "inet" "fw" { chains.input.prio = true; }) ]);
     expectedError.msg = "chains\\.input\\.prio.*is not of type";
   };
 
@@ -1793,21 +1879,43 @@ in
 
   # The user's bug. Schema `chainBody.prio` is `nullOr int`; passing a
   # symbolic priority like "filter" used to render to `"prio":"filter"`
-  # and the kernel silently dropped the base-chain attrs.
-  testChainsCPrioStringRejected = {
-    expr = toJson (
-      dsl.ruleset [
-        (dsl.table "inet" "t" {
-          chains.c = {
-            type = "filter";
-            hook = "input";
-            policy = "drop";
-            prio = "filter";
-          };
-        })
-      ]
-    );
-    expectedError.msg = "chains\\.c\\.prio";
+  # and the kernel silently dropped the base-chain attrs. The DSL now
+  # resolves the symbol, so the JSON holds the int.
+  testChainsCPrioSymbolRendersInt = {
+    expr =
+      (builtins.fromJSON (
+        toJson (
+          dsl.ruleset [
+            (dsl.table "inet" "t" {
+              chains.c = {
+                type = "filter";
+                hook = "input";
+                policy = "drop";
+                prio = "filter";
+              };
+            })
+          ]
+        )
+      )).nftables;
+    expected = [
+      {
+        add.table = {
+          family = "inet";
+          name = "t";
+        };
+      }
+      {
+        add.chain = {
+          family = "inet";
+          table = "t";
+          name = "c";
+          type = "filter";
+          hook = "input";
+          policy = "drop";
+          prio = 0;
+        };
+      }
+    ];
   };
 
   # ----- command-builder constructors (commands.nix) --------------------
@@ -1900,13 +2008,13 @@ in
     };
   };
 
-  testCreateChainPrioStringRejected = {
+  testCreateChainPrioBoolRejected = {
     expr = commandJson (
       dsl.create.chain {
         family = "ip";
         table = "t";
         name = "c";
-        prio = "filter";
+        prio = true;
       }
     );
     expectedError.msg = "create\\.chain\\.prio";
@@ -1923,17 +2031,15 @@ in
     expectedError.msg = "delete\\.counter\\.family.*is not of type";
   };
 
-  testListMapBadTypeRejected = {
+  testListMapBadNameRejected = {
     expr = commandJson (
       dsl.list.map {
         family = "ip";
         table = "t";
-        name = "m";
-        type = 123;
-        dataType = "mark";
+        name = 123;
       }
     );
-    expectedError.msg = "list\\.map\\.type.*is not of type";
+    expectedError.msg = "list\\.map\\.name.*is not of type";
   };
 
   testRenameChainBadNewNameRejected = {
@@ -2068,7 +2174,41 @@ in
         handle = 4;
       }
     );
-    expectedError.msg = "destroy\\.counter\\.name' was accessed but has no value defined";
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.counter: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\. nft destroys by name only; dsl\\.delete\\.counter selects by handle\\.$";
+  };
+
+  # nft deletes a table, chain, set, map, flowtable, or stateful object
+  # but a ct helper by name or by handle, and reads the handle only
+  # without a name.
+  testDeleteSelectorWithNameAndHandleThrows = {
+    expr = commandJson (
+      dsl.delete.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        handle = 4;
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.set: selects by `name` or by `handle`; got both, and nft ignores a handle beside a name\\.$";
+  };
+  testDeleteSelectorWithoutNameOrHandleThrows = {
+    expr = commandJson (
+      dsl.delete.table {
+        family = "inet";
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.table: selects by `name` or by `handle`; got neither\\.$";
+  };
+  # nft reads a ct helper's name on delete, never its handle.
+  testDeleteCtHelperByHandleThrows = {
+    expr = commandJson (
+      dsl.delete.ctHelper {
+        family = "inet";
+        table = "t";
+        handle = 4;
+      }
+    );
+    expectedError.msg = "^nix-nftypes: dsl\\.delete\\.ctHelper: takes a Selector, with only `family`, `table`, and `name`; got `handle`\\.$";
   };
 
   testRenameChainMissingNewNameRejected = {
@@ -2132,16 +2272,92 @@ in
     expectedError.msg = "flush\\.table\\.family";
   };
 
-  testFlushChainBadHandleRejected = {
+  testFlushChainBadNameRejected = {
     expr = commandJson (
       dsl.flush.chain {
         family = "ip";
         table = "t";
-        name = "c";
-        handle = "not-a-number";
+        name = 4;
       }
     );
-    expectedError.msg = "flush\\.chain\\.handle.*is not of type";
+    expectedError.msg = "flush\\.chain\\.name.*is not of type";
+  };
+
+  /*
+    A selecting builder takes a Selector, which accepts no field nft
+    ignores for the verb (ADR 0009): `delete set` with elements deletes
+    the whole set, so `dsl.delete.set` throws, naming the builder and
+    pointing to `delete.element`.
+  */
+  testDeleteSetElementsThrows = {
+    expr = force (
+      dsl.delete.set {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.set: takes a Selector, with only `family`, `table`, and `name` or `handle`; got `elements`\\. To delete elements, use dsl\\.delete\\.element\\.";
+  };
+  testSelectorIgnoredFieldThrows = {
+    expr = force (
+      dsl.flush.chain {
+        family = "inet";
+        table = "t";
+        name = "c";
+        policy = "accept";
+        comment = "x";
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.flush\\.chain: takes a Selector, with only `family`, `table`, and `name`; got `comment` and `policy`\\.$";
+  };
+  # An element's Selector names the elements in the DSL spelling.
+  testDeleteElementSelectorNamesElements = {
+    expr = force (
+      dsl.reset.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elements = [ "10.0.0.1" ];
+        timeout = 5;
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.reset\\.element: takes a Selector, with only `family`, `table`, `name`, and `elements`; got `timeout`";
+  };
+  # A JSON spelling points to the DSL name before the Selector check.
+  testSelectorJsonSpellingThrows = {
+    expr = force (
+      dsl.delete.element {
+        family = "inet";
+        table = "t";
+        name = "s";
+        elem = [ "10.0.0.1" ];
+      }
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.delete\\.element: elem: is the JSON spelling; write `elements`";
+  };
+  testDeleteRuleStatementsThrows = {
+    expr = force (
+      dsl.destroy.rule (
+        ruleScope
+        // {
+          handle = 4;
+          statements = [ dsl.accept ];
+        }
+      )
+    );
+    expectedError.msg = "nix-nftypes: dsl\\.destroy\\.rule: takes a Selector, with only `family`, `table`, `chain`, and `handle`; got `statements`";
+  };
+  testListRulesetFamily = {
+    expr = map dsl.list.ruleset [
+      { }
+      { family = "ip"; }
+    ];
+    expected = [
+      { list.ruleset = null; }
+      { list.ruleset.family = "ip"; }
+    ];
   };
 
   # A flush selects its set or map by name: nft ignores the datatypes.
@@ -2150,22 +2366,21 @@ in
       dsl.flush.set {
         family = "ip";
         table = "t";
-        type = "ipv4_addr";
       }
     );
     expectedError.msg = "flush\\.set\\.name.*was accessed but has no value defined";
   };
 
-  testFlushMapBadTypeRejected = {
+  testFlushMapTypeRejected = {
     expr = commandJson (
       dsl.flush.map {
         family = "ip";
         table = "t";
         name = "m";
-        type = 42;
+        type = "ipv4_addr";
       }
     );
-    expectedError.msg = "flush\\.map\\.type.*is not of type";
+    expectedError.msg = "nix-nftypes: dsl\\.flush\\.map: takes a Selector, with only `family`, `table`, and `name`; got `type`\\.$";
   };
 
   testFlushMeterBadTableRejected = {
@@ -2589,8 +2804,8 @@ in
   };
 
   # nft's JSON parser ignores an element's statements on input, so
-  # `expr.elem` takes none; nft lists them, and `types.expression` keeps
-  # them for Read-back.
+  # `expr.elem` takes none, as `elemBody` does; nft lists them, and
+  # `elemReadBackBody` keeps them for Read-back.
   testExprElemTakesNoStatements = {
     expr = map (
       tag:
@@ -2619,11 +2834,9 @@ in
   testExprElemReadBackKeepsStatements = {
     expr = map (
       tag:
-      helpers.validates nftlib.types.expression {
-        elem = {
-          val = "10.0.0.1";
-          ${tag} = elemStatements.${tag};
-        };
+      helpers.validates nftlib.types.expressionBodies.elemReadBackBody {
+        val = "10.0.0.1";
+        ${tag} = elemStatements.${tag};
       }
     ) elemStatementKeys;
     expected = map (_: true) elemStatementKeys;
@@ -2769,6 +2982,7 @@ in
 // expressionBuilderTests
 // ctDirectionTests
 // unrefinedConstructorTests
+// symbolicPriorityTests
 // payloadL4protoTests
 // referenceBodyTests
 // matchOperatorTests

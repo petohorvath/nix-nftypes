@@ -80,7 +80,8 @@ it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 | `statement`      | one tagged rule statement                                                                                                                        |
 | `addObject`      | the 16 add-object tags; no body takes a `handle`                                                                                                 |
 | `createObject`   | add-object tags except `rule`                                                                                                                    |
-| `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; used by `delete` and `destroy`                                            |
+| `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; a named object but a ct helper by `name` or `handle`                      |
+| `destroyObject`  | the same tags as `deleteObject`; a named object by `name`                                                                                        |
 | `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                      |
 | `readBackObject` | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; each keeps its `handle` |
 | `flushObject`    | table, chain, set, map, meter, or ruleset                                                                                                        |
@@ -100,7 +101,8 @@ These namespaces hold bodies only, each named `<kind>Body`, such as
 several tags share is named for what they share (`natBody`), a variant or a
 nested part of one tag's body puts its parent first (`payloadRawBody`,
 `tunnelVxlanBody`), and the body of one command puts its verb first
-(`flushRulesetBody`, `insertRuleBody`, `selectSetBody`). A statement body
+(`flushRulesetBody`, `insertRuleBody`, `deleteSetBody`), and a Selector is
+`select<Kind>Body` (`selectSetBody`). A statement body
 includes the statement's reference forms. Type a tagged object, such as
 `{ chain = { … }; }`, with its command's union, such as `types.addObject` or
 `types.readBackObject`.
@@ -117,6 +119,17 @@ strips. `jump` and `goto` take `verdictTargetBody`, the same type as
 `types.expressionBodies.verdictTargetBody`. `accept`, `drop`, `continue`,
 `return`, and `notrack` take only `null`, so they have no body there; type
 their body with `types.nullLiteral`.
+
+`types.expressionBodies` holds two element bodies. nft lists an element's
+`counter`, `quota`, `limit`, or `last` statement as a key beside its `val`, in
+a set's or map's elements and in a rule's anonymous set alike, but its JSON
+parser reads only `val`, `timeout`, `expires`, and `comment`:
+
+- `elemBody` takes those four fields. Input commands, and `types.expression`,
+  take it, so an `add set` whose element carries a counter fails `validate`.
+- `elemReadBackBody` adds the four statement keys. `types.readBackObject`
+  takes it for a listed set, map, element, or rule, so the Read-back of a set
+  with counters validates.
 
 Each submodule takes only an attrset of its fields. Unlike `lib.types.submodule`,
 it rejects a module function, a path, and a `_module` key, so a string in a
@@ -265,10 +278,10 @@ that build one form of a body take that form only: `expr.payloadRaw`,
 `expr.payloadTunnel`, `expr.tcpOption`, and `expr.tcpOptionRaw`. `setRef`
 checks its name itself.
 
-`expr.elem` takes `val`, `timeout`, `expires`, and `comment`. nft lists an
-element's `counter`, `quota`, `limit`, or `last` beside its value, but its JSON
-parser ignores them, so `expr.elem` rejects them as unknown options, while
-`types.expressionBodies.elemBody` keeps them for Read-back.
+`expr.elem` takes `val`, `timeout`, `expires`, and `comment`, the fields of
+`types.expressionBodies.elemBody`. nft lists an element's `counter`, `quota`,
+`limit`, or `last` beside its value, but its JSON parser ignores them, so
+`expr.elem` rejects them as unknown options.
 
 Top-level match helpers include:
 
@@ -492,6 +505,22 @@ a chain's rules in order, so a rule takes no `index`; …``. To place a rule,
 use `add.rule` or `insert.rule` with its `index`. Any other entry throws, naming its path, such as `chains.input.rules.0`: write a single
 statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`.
 
+A chain's `prio` takes an int or a Symbolic priority, such as `"filter"`, in
+a table tree's `chains` and in `add.chain` and `create.chain`. The DSL resolves
+a symbol with `compatibility.priorityValue` for the chain's family and hook,
+and emits the int, because nft's JSON `prio` is an integer only. A bridge
+chain's `prio = "filter"` emits `-200` in JSON and `priority -200` in text. A
+symbol nft rejects at the hook throws the helper's message at the chain's
+`prio`, and a symbol without a `hook` throws too:
+
+```text
+nix-nftypes: dsl.table ip.t: chains.input.prio: family 'ip' has no priority 'dstnat' at hook 'input'. Valid priorities: any int, filter, mangle, raw, security, srcnat.
+```
+
+A flowtable's `prio` takes an int only: nft resolves a flowtable's symbol as
+netdev's at `ingress`, whatever its table's family, and the compatibility
+tables cover only chains.
+
 A Table tree adds its objects, so no body in it takes a `handle`: not the
 table, a chain, a rule entry, or a named object. Each throws at the handle, as
 in `nix-nftypes: dsl.table inet.t: chains.input.handle: nft ignores a handle on
@@ -556,13 +585,14 @@ See [ADR 0009](adr/0009-dsl-naming-and-argument-conventions.md).
 | `create.<kind>`                   | 15 object kinds; `rule` is excluded                                                  |
 | `delete.<kind>`, `destroy.<kind>` | 13 add-object kinds; not `ctCount`, `ctTimeout`, or `ctExpectation`                  |
 | `flush.<kind>`                    | table, chain, set, map, meter, or ruleset; nftables has no `flush flowtable` command |
-| `list.<kind>`                     | table, chain, set, map, counter, quota, limit, ctHelper, secmark, or meter           |
+| `list.<kind>`                     | table, chain, set, map, counter, quota, limit, ctHelper, secmark, meter, or ruleset  |
 | `reset.<kind>`                    | counter, quota, set, map, or element                                                 |
 | `insert.rule`, `replace.rule`     | rule-only commands                                                                   |
 | `rename.chain`                    | chain-only rename                                                                    |
 
 Each `<verb>.<kind>` builder takes one object body. `flush.ruleset { }` flushes
-every family, and `flush.ruleset { family = "ip"; }` flushes one.
+every family, and `flush.ruleset { family = "ip"; }` flushes one; `list.ruleset`
+takes the same bodies.
 
 A builder returns one command holding only the fields given, under their JSON
 keys, as a table tree's commands do: `add.limit { family = "inet"; table = "t";
@@ -620,14 +650,43 @@ handle on add, create, and rename, …`; `validate` rejects one in those
   them, the builder throws, naming the command, such as `add.rule`.
 - `rename.chain` requires `newName`.
 
-`delete`, `destroy`, `list`, `flush`, and `reset` select an object by `family`,
-`table`, and `name`, and demand no field that nft ignores for the verb: a set's
-or map's datatypes, a limit's rate, a flowtable's hook, and a synproxy's `mss`
-and `wscale` are optional there. `types.objectBodies` holds these selection
-bodies, such as `selectSetBody`. Every `delete.<kind>` but `delete.rule`
-requires `name`, though nft also deletes most kinds by `handle` alone
-([`spec-coverage.md`](spec-coverage.md)); `destroy.<kind>` requires it in nft
-too.
+`delete`, `destroy`, `list`, `flush`, and `reset` take a Selector: the fields
+nft's JSON parser reads to pick one object, and no other. A table is selected
+by `family` and `name`; a chain, set, map, meter, flowtable, or stateful object
+by `family`, `table`, and `name`; and elements by `family`, `table`, `name`,
+and `elements`. A builder given any other field throws, naming the builder and
+the fields it takes:
+
+```nix
+dsl.delete.set { family = "inet"; table = "t"; name = "s"; elements = [ "10.0.0.1" ]; }
+# error: nix-nftypes: dsl.delete.set: takes a Selector, with only `family`,
+# `table`, and `name` or `handle`; got `elements`. To delete elements, use
+# dsl.delete.element.
+```
+
+nft ignores such a field without an error, so it changes what the command
+does: `delete set` with elements deletes the whole set. `types.command` rejects
+the same raw fields. Each kind's Selector is a `select<Kind>Body` in
+`types.objectBodies`, such as `selectSetBody`.
+
+`delete` of a table, chain, set, map, flowtable, counter, quota, limit,
+secmark, or synproxy selects the object by `name` or by `handle`, a positive
+integer, and takes exactly one of them. With a name, nft never reads the
+handle, so a builder given both throws, as does one given neither:
+
+```nix
+dsl.delete.counter { family = "inet"; table = "t"; handle = 4; }
+# { delete.counter = { family = "inet"; table = "t"; handle = 4; }; }
+dsl.delete.counter { family = "inet"; table = "t"; name = "c"; handle = 4; }
+# error: nix-nftypes: dsl.delete.counter: selects by `name` or by `handle`;
+# got both, and nft ignores a handle beside a name.
+```
+
+Their Selectors are `delete<Kind>Body` in `types.objectBodies`, such as
+`deleteSetBody`. Every other Selector but a rule's requires the name: nft's
+JSON parser reads a handle in its place only on `delete`, and not for a ct
+helper. The handle is positive: nft takes handle 0 as no handle, and a
+`delete table` with one deletes every table of the family.
 
 A rule is selected by its `chain` and `handle`, which `delete.rule` and
 `destroy.rule` require as a positive integer: nft takes handle 0 as none, and
@@ -648,7 +707,10 @@ ruleset's commands in place.
 
 These three renderers give a rule without `expr` the empty list: nft's JSON
 parser requires the key on a rule even where it ignores it, as for
-`destroy.rule`, so a raw rule command may leave it out.
+`destroy.rule`, so a raw rule command may leave it out. nft's text grammar
+has no spelling for an added, inserted, replaced, or listed rule with no
+statements, so `toText` and `toTextPretty` refuse one, while `toJson` renders
+it as the empty rule nft's JSON loads.
 
 ### `toJson ruleset`
 

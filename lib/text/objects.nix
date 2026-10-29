@@ -94,7 +94,16 @@ let
     if ctx.block then
       identQuote "object name" body.name
     else
-      "${renderTableScope body} ${identQuote "object name" body.name}";
+      "${renderTableScope body} ${renderNameOrHandle "object" body}";
+
+  # An object's name, or `handle <n>` for a `delete` Selector that selects
+  # it by handle instead.
+  renderNameOrHandle =
+    what: body:
+    if (body.name or null) == null && (body.handle or null) != null then
+      "handle ${safeToken "${what} handle" body.handle}"
+    else
+      identQuote "${what} name" body.name;
 
   # SECURITY-CRITICAL: a string datatype renders bare into the set/map
   # `type <X>` clause; a list renders bare joined with ` . `. An unsafe
@@ -206,11 +215,7 @@ let
   # ---- per-kind body renderers ---------------------------------------
 
   renderTableHeader =
-    _ctx: body:
-    renderTableScope {
-      inherit (body) family;
-      table = body.name;
-    };
+    _ctx: body: "${safeToken "family" body.family} ${renderNameOrHandle "table" body}";
 
   renderTableBody =
     _ctx: body:
@@ -800,7 +805,23 @@ let
   # its own `render` because its body is a bare comma-separated value
   # list rather than the `;`-separated statement body the block helper
   # produces. A listed `metainfo` renders as null.
-  renderObject = renderObjectGeneric true;
+  renderObject =
+    ctx: kind: body:
+    renderObjectGeneric true ctx kind (if kind == "rule" then requireStatements body else body);
+
+  # nft's JSON loads an added, inserted, replaced, or listed rule with no
+  # statements as an empty rule, while its text grammar requires one
+  # (#96). A selected rule, as `delete` takes, needs none.
+  requireStatements =
+    body:
+    if builtins.isAttrs body && (body.expr or [ ]) == [ ] then
+      primitives.refuse
+        {
+          field = "rule expr";
+        }
+        "refusing to render a rule without statements: nft's JSON loads an added, inserted, replaced, or listed rule with no statements as an empty rule, while nft's text grammar requires a statement, so the text form would fail to load. Give the rule a statement, or load the ruleset as JSON."
+    else
+      body;
 
   # Render only the header — used for `delete`/`destroy`/`flush`/`reset`/
   # `list`/`create` verbs, which the text grammar does not accept with a

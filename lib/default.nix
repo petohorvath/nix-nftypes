@@ -20,8 +20,8 @@ let
       ;
   };
   # Mutual reference between `expressions` and `statements`: statements
-  # consume `expr`, and elements (defined in expressions) accept the
-  # statement keys nft lists for them. Nix's recursive `let` resolves this
+  # consume `expr`, and Read-back elements (defined in expressions) accept
+  # the statement keys nft lists for them. Nix's recursive `let` resolves this
   # lazily — both modules are constructed without forcing the
   # cross-reference, which is only forced during value validation (by
   # which point both attrsets exist).
@@ -41,12 +41,19 @@ let
       primitives
       ;
   };
+  # The statements Read-back lists, over the expressions whose elements
+  # take the statements nft lists beside them.
+  readBackStatements = import ./schema/statements.nix {
+    inherit internal lib primitives;
+    expressions = expressions.readBack;
+  };
   objects = import ./schema/objects.nix {
     inherit
       expressions
       internal
       lib
       primitives
+      readBackStatements
       statements
       ;
   };
@@ -66,19 +73,14 @@ let
       ;
   };
   tables = import ./table.nix {
-    inherit lib text;
+    inherit compatibility lib text;
     objects = objects.all;
   };
   dsl = import ./dsl {
-    inherit lib;
+    inherit compatibility lib;
     objects = objects.all;
-    listedObjectBodies = objects.listed;
     statementBodiesByTag = statements.bodiesByTag;
-    # `expr.elem` builds an element as input, without the statements nft
-    # lists beside it.
-    expressionBodiesByTag = expressions.bodiesByTag // {
-      elem = expressions.elemInputBody;
-    };
+    expressionBodiesByTag = expressions.bodiesByTag;
     expressionBodies = expressions.all;
     inherit payloadFieldsByProtocol;
     inherit (commands) resetOrder;
@@ -121,6 +123,7 @@ in
       addObject
       createObject
       deleteObject
+      destroyObject
       flushObject
       insertObject
       listObject

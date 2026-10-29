@@ -262,6 +262,35 @@ let
       ]
   );
 
+  # nft's JSON loads an added, inserted, replaced, or listed rule with no
+  # statements as an empty rule, while its text grammar rejects
+  # `add rule ip t c` as a syntax error, so text refuses it (#96).
+  ruleWithoutStatementsRefusals =
+    let
+      body = {
+        family = "ip";
+        table = "t";
+        chain = "c";
+        expr = [ ];
+      };
+    in
+    lib.mapAttrs'
+      (
+        name: command:
+        lib.nameValuePair "testRuleWithoutStatementsRefused_${name}" {
+          expr = one command;
+          expectedError.msg = helpers.refusals.ruleWithoutStatements;
+        }
+      )
+      {
+        add.add.rule = body;
+        insert.insert.rule = body;
+        replace.replace.rule = body // {
+          handle = 7;
+        };
+        listed.rule = body;
+      };
+
   # nft's JSON parser ignores element statements, both the keys nft lists
   # and a `stmt` list, so text would load statements that JSON drops (a
   # Known difference).
@@ -2642,6 +2671,45 @@ in
     expected = "delete rule ip t c handle 42\n";
   };
 
+  # `delete` selects a named object by handle, in place of its name.
+  testDeleteNamedObjectsByHandle = {
+    expr = map one [
+      {
+        delete.table = {
+          family = "ip";
+          handle = 2;
+        };
+      }
+      {
+        delete.chain = {
+          family = "ip";
+          table = "t";
+          handle = 1;
+        };
+      }
+      {
+        delete.counter = {
+          family = "inet";
+          table = "t";
+          handle = 3;
+        };
+      }
+      {
+        delete.flowtable = {
+          family = "inet";
+          table = "t";
+          handle = 4;
+        };
+      }
+    ];
+    expected = [
+      "delete table ip handle 2\n"
+      "delete chain ip t handle 1\n"
+      "delete counter inet t handle 3\n"
+      "delete flowtable inet t handle 4\n"
+    ];
+  };
+
   testRename = {
     expr = one {
       rename.chain = {
@@ -2796,4 +2864,5 @@ in
 }
 // typeKeyCtObjectMapRefusals
 // elementStatementRefusals
+// ruleWithoutStatementsRefusals
 // ctFamilyAddressKeyTests

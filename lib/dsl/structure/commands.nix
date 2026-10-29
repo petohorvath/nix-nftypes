@@ -32,8 +32,8 @@
   (e.g. `dsl.create.chain.prio' is not of type `null or signed integer'`).
 */
 {
+  compatibility,
   lib,
-  listedObjectBodies,
   objects,
   validate,
 }:
@@ -44,7 +44,8 @@ let
   ruleBody = import ../internal/rule-body.nix { inherit lib; };
   compact = import ../internal/compact.nix { inherit lib; };
   rejectHandle = import ../internal/reject-handle.nix { inherit lib; };
-  inherit (import ../internal/location.nix { inherit lib; }) builder;
+  chainPriority = import ../internal/chain-priority.nix { inherit compatibility lib; };
+  inherit (import ../internal/location.nix { inherit lib; }) builder fail;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
   # body; plural; }`). Drop the `plural` field — irrelevant here — and
@@ -79,28 +80,132 @@ let
   };
 
   /*
-    delete, destroy, list, flush, and reset select an object by family,
-    table, and name (ADR 0009): nft ignores the datatypes, rate, hook, and
-    mss that adding a set, map, limit, flowtable, or synproxy requires. A
-    rule is selected by its chain and positive handle. `selecting kinds`
-    gives each of these kinds in `kinds` its selection body, and each other
-    kind its listed body, which keeps the handle the add body rejects.
+    delete, destroy, list, flush, and reset take a Selector (ADR 0009): the
+    fields nft's JSON parser reads to pick one object, and no other, as
+    `lib/schema/objects.nix` records per kind. A table, chain, set, map,
+    meter, flowtable, or stateful object is selected by family, table, and
+    name, a rule by its chain and positive handle, and elements by their
+    set and values. `delete` selects a table, chain, set, map, flowtable,
+    or stateful object but a ct helper by name or by handle
+    (`deleteBodies`). `selecting kinds` gives each of the kinds in `kinds`
+    its Selector.
   */
   selectBodies = {
-    flowtable = objects.selectFlowtableBody;
-    limit = objects.selectLimitBody;
-    map = objects.selectMapBody;
+    table = objects.selectTableBody;
+    chain = objects.selectChainBody;
     rule = objects.selectRuleBody;
     set = objects.selectSetBody;
+    map = objects.selectMapBody;
+    meter = objects.selectMeterBody;
+    element = objects.selectElementBody;
+    flowtable = objects.selectFlowtableBody;
+    counter = objects.selectCounterBody;
+    quota = objects.selectQuotaBody;
+    ctHelper = objects.selectCtHelperBody;
+    limit = objects.selectLimitBody;
+    secmark = objects.selectSecmarkBody;
     synproxy = objects.selectSynproxyBody;
   };
-  selecting = lib.mapAttrs (
-    kind: cfg:
-    cfg
-    // {
-      body = selectBodies.${kind} or listedObjectBodies.${cfg.tag} or cfg.body;
-    }
-  );
+  deleteBodies = {
+    table = objects.deleteTableBody;
+    chain = objects.deleteChainBody;
+    set = objects.deleteSetBody;
+    map = objects.deleteMapBody;
+    flowtable = objects.deleteFlowtableBody;
+    counter = objects.deleteCounterBody;
+    quota = objects.deleteQuotaBody;
+    limit = objects.deleteLimitBody;
+    secmark = objects.deleteSecmarkBody;
+    synproxy = objects.deleteSynproxyBody;
+  };
+  selecting = selectingWith { };
+  # `selecting`, with the Selectors of `bodies` in place of those kinds'.
+  selectingWith =
+    bodies:
+    lib.mapAttrs (
+      kind: cfg:
+      cfg
+      // {
+        body = bodies.${kind} or selectBodies.${kind};
+        # Only an element's Selector has a field the DSL spells differently.
+        renameBody = if kind == "element" then keyRenames.element else keyRenames.none;
+        selector = true;
+      }
+    );
+
+  # "`a`", "`a` and `b`", or "`a`, `b`, and `c`".
+  prose = names: proseOf (map (name: "`${name}`") names);
+  # "a", "a and b", or "a, b, and c".
+  proseOf =
+    items:
+    if builtins.length items <= 2 then
+      lib.concatStringsSep " and " items
+    else
+      "${lib.concatStringsSep ", " (lib.init items)}, and ${lib.last items}";
+
+  # A Selector's fields in the order a message lists them, by their DSL
+  # names: an element's `elem` is `elements`.
+  selectorFieldOrder = [
+    "family"
+    "table"
+    "chain"
+    "name"
+    "handle"
+    "elements"
+  ];
+  dslFieldName = field: if field == "elem" then "elements" else field;
+
+  /*
+    Throw when the DSL `userBody` of the Selector `body`, for `verb`,
+    gives a field the Selector doesn't take: one nft ignores for the verb,
+    or a handle where a name selects the object. A set or map given
+    elements points to the verb's element builder, where there is one:
+    `delete set` with elements deletes the whole set. A destroy given a
+    handle points to delete, which selects by one. A Selector that takes
+    both `name` and `handle` throws unless given exactly one: nft ignores
+    a handle beside a name. Returns `userBody` otherwise, and a value that
+    isn't an attrset, for the schema to reject.
+  */
+  checkSelector =
+    location: verb: kind: body: userBody:
+    let
+      fields = map dslFieldName (builtins.attrNames (removeAttrs (body.getSubOptions [ ]) [ "_module" ]));
+      ordered =
+        builtins.filter (field: builtins.elem field fields) selectorFieldOrder
+        ++ lib.subtractLists selectorFieldOrder fields;
+      # A Selector with both takes `name` or `handle`.
+      eitherNameOrHandle = builtins.elem "name" fields && builtins.elem "handle" fields;
+      listed = map (
+        field: if eitherNameOrHandle && field == "name" then "`name` or `handle`" else "`${field}`"
+      ) (if eitherNameOrHandle then lib.remove "handle" ordered else ordered);
+      extra = lib.subtractLists fields (builtins.attrNames userBody);
+      elementHint = lib.optionalString (
+        builtins.elem kind [
+          "set"
+          "map"
+        ]
+        && builtins.elem "elements" extra
+        && builtins.elem verb [
+          "delete"
+          "destroy"
+          "reset"
+        ]
+      ) " To ${verb} elements, use dsl.${verb}.element.";
+      handleHint = lib.optionalString (
+        verb == "destroy" && deleteBodies ? ${kind} && builtins.elem "handle" extra
+      ) " nft destroys by name only; dsl.delete.${kind} selects by handle.";
+      given = field: (userBody.${field} or null) != null;
+    in
+    if !builtins.isAttrs userBody then
+      userBody
+    else if extra != [ ] then
+      fail location "takes a Selector, with only ${proseOf listed}; got ${prose extra}.${elementHint}${handleHint}"
+    else if eitherNameOrHandle && given "name" == given "handle" then
+      fail location "selects by `name` or by `handle`; got ${
+        if given "name" then "both, and nft ignores a handle beside a name" else "neither"
+      }."
+    else
+      userBody;
 
   /*
     nft mishandles delete and destroy of a ct timeout or ct expectation
@@ -108,14 +213,15 @@ let
     number as the command object type, so deleting a ct expectation deletes
     its whole table. nft 1.1.7 aborts on delete and destroy of a ct count,
     which 1.1.6 has no object for. The schema rejects all six commands.
+    `delete` takes the same kinds, and selects some by handle
+    (`deleteBodies`).
   */
-  deleteObjectKinds = selecting (
-    removeAttrs addObjectKinds [
-      "ctCount"
-      "ctExpectation"
-      "ctTimeout"
-    ]
-  );
+  destroyObjectKinds = removeAttrs addObjectKinds [
+    "ctCount"
+    "ctExpectation"
+    "ctTimeout"
+  ];
+  deleteObjectKinds = selectingWith deleteBodies destroyObjectKinds;
 
   /*
     nft's JSON `list` command has no singular rule, element, flowtable,
@@ -123,24 +229,24 @@ let
     command"), lists the whole table for a ct expectation, and aborts on a
     ct timeout. `meter` lists the dynamic set a `meter` statement creates.
   */
-  listObjectKinds = selecting (
-    removeAttrs addObjectKinds [
-      "ctCount"
-      "ctExpectation"
-      "ctTimeout"
-      "element"
-      "flowtable"
-      "rule"
-      "synproxy"
-    ]
+  listObjectKinds =
+    selecting (
+      removeAttrs addObjectKinds [
+        "ctCount"
+        "ctExpectation"
+        "ctTimeout"
+        "element"
+        "flowtable"
+        "rule"
+        "synproxy"
+      ]
+      // {
+        meter.tag = "meter";
+      }
+    )
     // {
-      meter = {
-        tag = "meter";
-        renameBody = keyRenames.none;
-        body = objects.meterBody;
-      };
-    }
-  );
+      ruleset = rulesetKind objects.listRulesetBody;
+    };
 
   /*
     `create rule` is explicitly rejected by the nftables parser with
@@ -151,14 +257,29 @@ let
   */
   createObjectKinds = removeAttrs addObjectKinds [ "rule" ];
 
+  # A chain that `add` or `create` declares takes a Symbolic priority, which
+  # resolves for its family and hook (../internal/chain-priority.nix). The
+  # other verbs select a chain and take its body as given.
+  declaredChain = addObjectKinds.chain // {
+    renameBody = location: body: chainPriority location (body.family or null) body;
+  };
+
+  /*
+    The ruleset kind of `flush` and `list`, whose `body` is either
+    `{ family; }` or the JSON `null` meaning every family. An empty attrset
+    stands for `null`, so every flush and list kind takes an attrset:
+    `flush.ruleset { }` flushes everything.
+  */
+  rulesetKind = body: {
+    tag = "ruleset";
+    renameBody = _location: value: if value == { } then null else value;
+    inherit body;
+  };
+
   /*
     `flush` accepts table, chain, set, map, meter, and ruleset
     (parser_json.c:4297-4304). `flush flowtable` is absent because the
     nftables parser rejects it ("Unknown object passed to flush command").
-
-    The ruleset body is either `{ family; }` or the JSON `null` meaning
-    every family. An empty attrset stands for `null`, so every flush kind
-    takes an attrset: `flush.ruleset { }` flushes everything.
   */
   flushObjectKinds = {
     inherit (listObjectKinds)
@@ -168,11 +289,7 @@ let
       map
       meter
       ;
-    ruleset = {
-      tag = "ruleset";
-      renameBody = _location: body: if body == { } then null else body;
-      body = objects.flushRulesetBody;
-    };
+    ruleset = rulesetKind objects.flushRulesetBody;
   };
 
   # nft's JSON path fails `reset rule` with "Operation not supported",
@@ -220,21 +337,29 @@ let
           command
           kind
         ];
-        renamed = cfg.renameBody location (
-          if
-            builtins.elem command [
-              "add"
-              "create"
-              "rename"
-            ]
-          then
-            rejectHandle location userBody
+        renamed =
+          let
+            input =
+              if
+                builtins.elem command [
+                  "add"
+                  "create"
+                  "rename"
+                ]
+              then
+                rejectHandle location userBody
+              else
+                userBody;
+            checked = cfg.renameBody location input;
+          in
+          # A JSON spelling throws first, pointing to the DSL name.
+          if cfg.selector or false then
+            builtins.seq checked (builtins.seq (checkSelector location command kind cfg.body userBody) checked)
           else
-            userBody
-        );
+            checked;
         validated = validate {
           type = cfg.body;
-          # A flush.ruleset body renames to the JSON null.
+          # A ruleset body can rename to the JSON null.
           value = if builtins.isAttrs renamed then compact renamed else renamed;
           inherit location;
         };
@@ -256,10 +381,16 @@ in
     kinds plus `meter`, `reset` the resettable kinds but `rule`, and
     `flush` the flushable kinds plus `ruleset`.
   */
-  add = mkNamespace "add" (addObjectKinds // { rule = ruleCommandKind objects.addRuleBody; });
-  create = mkNamespace "create" createObjectKinds;
+  add = mkNamespace "add" (
+    addObjectKinds
+    // {
+      chain = declaredChain;
+      rule = ruleCommandKind objects.addRuleBody;
+    }
+  );
+  create = mkNamespace "create" (createObjectKinds // { chain = declaredChain; });
   delete = mkNamespace "delete" deleteObjectKinds;
-  destroy = mkNamespace "destroy" deleteObjectKinds;
+  destroy = mkNamespace "destroy" (selecting destroyObjectKinds);
   flush = mkNamespace "flush" flushObjectKinds;
   list = mkNamespace "list" listObjectKinds;
   reset = mkNamespace "reset" resetObjectKinds;

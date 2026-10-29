@@ -341,8 +341,8 @@ in
     # `comment`, so JSON drops element statements, both the keys nft lists
     # and a `stmt` list: set `c`'s seeded counters load as fresh ones, and
     # set `o`, which declares no statement, loads plain elements. Text
-    # loads them, so the schema accepts the listed keys and text refuses
-    # them.
+    # loads them, so input commands reject the listed keys, Read-back
+    # accepts them, and text refuses them.
     {
       name = "element-statements-ignored-on-json";
       knownDifference = "docs/spec-coverage.md";
@@ -626,6 +626,43 @@ in
     }
     (ruleHandleZeroCase "delete")
     (ruleHandleZeroCase "destroy")
+    # The set parser returns before it reads `elem` on delete, so `delete
+    # set` with elements deletes the whole set. A set's Selector takes no
+    # elements; `delete element` deletes some.
+    {
+      name = "delete-set-elem-deletes-whole-set";
+      knownDifference = "docs/adr/0010-accept-what-nft-loads-as-written.md";
+      ruleset.nftables = [
+        { add.table = table; }
+        {
+          add.set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            type = "ipv4_addr";
+            elem = [
+              "10.0.0.1"
+              "10.0.0.2"
+            ];
+          };
+        }
+      ];
+      subject.nftables = [
+        {
+          delete.set = {
+            family = "inet";
+            table = "t";
+            name = "s";
+            elem = [ "10.0.0.1" ];
+          };
+        }
+      ];
+      inspect = ''
+        nft -j -f "$subject"
+        nft list table inet t
+      '';
+      misbehaviour = "table inet t {\n}\n";
+    }
     (tunnelCommandCase "delete" "cmd_evaluate_delete")
     (tunnelCommandCase "destroy" "cmd_evaluate_delete")
     (tunnelCommandCase "list" "cmd_evaluate_list")

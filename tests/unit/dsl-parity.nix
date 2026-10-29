@@ -2005,6 +2005,56 @@ in
         ];
       };
 
+  # A chain's Symbolic priority resolves for its family and hook, so a
+  # bridge chain's `filter` is -200 (man nft Table 7), and nft's JSON
+  # `prio`, an integer only, gets the int.
+  testTableTreeSymbolicPriority =
+    pr
+      (dsl.ruleset [
+        (dsl.table "bridge" "br" {
+          chains.input = {
+            type = "filter";
+            hook = "input";
+            prio = "filter";
+          };
+          chains.prerouting = {
+            type = "filter";
+            hook = "prerouting";
+            prio = "dstnat";
+          };
+        })
+      ])
+      {
+        nftables = [
+          {
+            add.table = {
+              family = "bridge";
+              name = "br";
+            };
+          }
+          {
+            add.chain = {
+              family = "bridge";
+              table = "br";
+              name = "input";
+              type = "filter";
+              hook = "input";
+              prio = -200;
+            };
+          }
+          {
+            add.chain = {
+              family = "bridge";
+              table = "br";
+              name = "prerouting";
+              type = "filter";
+              hook = "prerouting";
+              prio = -300;
+            };
+          }
+        ];
+      };
+
   # Chain with rules — verifies chain-before-rule emission order.
   testRenderChainWithRules =
     pr
@@ -3690,6 +3740,50 @@ in
         };
       };
 
+  # `add.chain` and `create.chain` resolve a Symbolic priority for the
+  # chain's family and hook, as a Table tree does.
+  testCmdAddChainSymbolicPriority =
+    pc
+      (dsl.add.chain {
+        family = "ip";
+        table = "t";
+        name = "prerouting";
+        type = "nat";
+        hook = "prerouting";
+        prio = "dstnat";
+      })
+      {
+        add.chain = {
+          family = "ip";
+          table = "t";
+          name = "prerouting";
+          type = "nat";
+          hook = "prerouting";
+          prio = -100;
+        };
+      };
+
+  testCmdCreateChainSymbolicPriority =
+    pc
+      (dsl.create.chain {
+        family = "inet";
+        table = "t";
+        name = "output";
+        type = "filter";
+        hook = "output";
+        prio = "security";
+      })
+      {
+        create.chain = {
+          family = "inet";
+          table = "t";
+          name = "output";
+          type = "filter";
+          hook = "output";
+          prio = 50;
+        };
+      };
+
   testCmdCreateTable =
     pc
       (dsl.create.table {
@@ -4008,6 +4102,7 @@ in
       "list.map"
       "list.meter"
       "list.quota"
+      "list.ruleset"
       "list.secmark"
       "list.set"
       "list.table"
@@ -4035,11 +4130,12 @@ in
   };
 
   /*
-    delete, destroy, list, flush, and reset select an object by family,
-    table, and name, and demand no field nft ignores for the verb: each
-    builder takes that selector alone. A rule is selected by its chain and
-    handle, an element by its value, a table by family and name, and
-    `flush.ruleset { }` flushes every family.
+    delete, destroy, list, flush, and reset take a Selector: an object's
+    family, table, and name, and no field nft ignores for the verb (ADR
+    0009). Each builder takes its Selector alone, and throws for any other
+    field. A rule is selected by its chain and handle, an element by its
+    value, a table by family and name, and `flush.ruleset { }` and
+    `list.ruleset { }` take every family.
   */
   testSelectingVerbsTakeOnlyTheSelector =
     let
@@ -4068,24 +4164,35 @@ in
       builds =
         verb: kind:
         (builtins.tryEval (builtins.deepSeq (dsl.${verb}.${kind} (selectorOf kind)) true)).success;
+      # The builders that still build with a field nft ignores.
+      buildsWithAnotherField =
+        verb: kind:
+        (builtins.tryEval (
+          builtins.deepSeq (dsl.${verb}.${kind} (selectorOf kind // { comment = "c"; })) true
+        )).success;
+      verbs = [
+        "delete"
+        "destroy"
+        "flush"
+        "list"
+        "reset"
+      ];
+      # `verb.kind` for each builder of `verbs` for which `test` holds.
+      buildersWhere =
+        test:
+        lib.concatMap (
+          verb: map (kind: "${verb}.${kind}") (builtins.filter (test verb) (builtins.attrNames dsl.${verb}))
+        ) verbs;
     in
     {
-      expr =
-        lib.concatMap
-          (
-            verb:
-            map (kind: "${verb}.${kind}") (
-              builtins.filter (kind: !(builds verb kind)) (builtins.attrNames dsl.${verb})
-            )
-          )
-          [
-            "delete"
-            "destroy"
-            "flush"
-            "list"
-            "reset"
-          ];
-      expected = [ ];
+      expr = {
+        failWithTheSelector = buildersWhere (verb: kind: !(builds verb kind));
+        buildWithAnotherField = buildersWhere buildsWithAnotherField;
+      };
+      expected = {
+        failWithTheSelector = [ ];
+        buildWithAnotherField = [ ];
+      };
     };
 
   # nft deletes a rule by handle, and with handle 0 (or none, through text)
@@ -4196,7 +4303,6 @@ in
         family = "inet";
         table = "t";
         name = "s";
-        type = "ipv4_addr";
       })
       {
         reset = {
@@ -4204,7 +4310,6 @@ in
             family = "inet";
             table = "t";
             name = "s";
-            type = "ipv4_addr";
           };
         };
       };
@@ -4214,8 +4319,6 @@ in
         family = "inet";
         table = "t";
         name = "m";
-        type = "ipv4_addr";
-        dataType = "mark";
       })
       {
         reset = {
@@ -4223,8 +4326,6 @@ in
             family = "inet";
             table = "t";
             name = "m";
-            type = "ipv4_addr";
-            map = "mark";
           };
         };
       };
@@ -4303,6 +4404,18 @@ in
       };
     };
   };
+  testCmdListRulesetEmptyBody = pc (dsl.list.ruleset { }) {
+    list = {
+      ruleset = null;
+    };
+  };
+  testCmdListRuleset = pc (dsl.list.ruleset { family = "ip"; }) {
+    list = {
+      ruleset = {
+        family = "ip";
+      };
+    };
+  };
   testCmdFlushTable =
     pc
       (dsl.flush.table {
@@ -4339,7 +4452,6 @@ in
         family = "inet";
         table = "t";
         name = "trusted";
-        type = "ipv4_addr";
       })
       {
         flush = {
@@ -4347,7 +4459,6 @@ in
             family = "inet";
             table = "t";
             name = "trusted";
-            type = "ipv4_addr";
           };
         };
       };
@@ -4357,8 +4468,6 @@ in
         family = "ip";
         table = "nat";
         name = "port_forward";
-        type = "inet_service";
-        dataType = "inet_service";
       })
       {
         flush = {
@@ -4366,8 +4475,6 @@ in
             family = "ip";
             table = "nat";
             name = "port_forward";
-            type = "inet_service";
-            map = "inet_service";
           };
         };
       };
@@ -4436,7 +4543,6 @@ in
           family = "ip";
           table = "t";
           name = "stale";
-          type = "ipv4_addr";
         })
         (dsl.reset.counter {
           family = "ip";
@@ -4481,7 +4587,6 @@ in
                 family = "ip";
                 table = "t";
                 name = "stale";
-                type = "ipv4_addr";
               };
             };
           }
