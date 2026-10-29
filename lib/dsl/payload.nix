@@ -17,13 +17,9 @@
 
 let
   inherit (import ./internal/location.nix { inherit lib; }) fail;
+  inherit (import ../word-list.nix { inherit lib; }) withValid;
 
   location = expression.locationOf [ "payload" ];
-
-  # Throws `message`, followed by the `valid` values with their `label`.
-  failListing =
-    message: label: valid:
-    fail location "${message}. Valid ${label}: ${lib.concatStringsSep ", " valid}.";
 
   # `body` once its string protocol and field are in the table. A
   # non-string is left to the body's type, which names its option.
@@ -35,11 +31,11 @@ let
     if !builtins.isString protocol || !builtins.isString field then
       body
     else if fields == null then
-      failListing "unknown protocol '${protocol}'" "protocols" (
-        builtins.attrNames payloadFieldsByProtocol
+      fail location (
+        withValid "unknown protocol '${protocol}'" "protocols" (builtins.attrNames payloadFieldsByProtocol)
       )
     else if !builtins.elem field fields then
-      failListing "unknown ${protocol} field '${field}'" "${protocol} fields" fields
+      fail location (withValid "unknown ${protocol} field '${field}'" "${protocol} fields" fields)
     else
       body;
 in

@@ -81,6 +81,7 @@ let
   dsl = import ./dsl {
     inherit compatibility lib;
     objects = objects.all;
+    inherit (objects) deleteBodiesByTag selectBodiesByTag;
     statementBodiesByTag = statements.bodiesByTag;
     expressionBodiesByTag = expressions.bodiesByTag;
     expressionBodies = expressions.all;
@@ -88,7 +89,10 @@ let
     inherit (commands) resetOrder;
     inherit (tables) expandTable;
   };
-  compatibility = import ./compatibility.nix { enums = primitives.enumValues; };
+  compatibility = import ./compatibility.nix {
+    enums = primitives.enumValues;
+    inherit lib;
+  };
   payloadFieldsByProtocol = import ./schema/payload-fields.nix { };
 in
 {

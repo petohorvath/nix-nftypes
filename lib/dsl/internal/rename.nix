@@ -37,6 +37,9 @@
   - `statement name location attrs`: check and rename the body of the
     statement builder `dsl.<name>`, such as `log` or `snat`
     (./builder.nix). A builder without renames takes `attrs` unchanged.
+  - `dslKey body jsonKey`: the DSL name of the JSON key `jsonKey` in
+    `body`, such as `elements` for an `element`'s `elem`, or `jsonKey`
+    when it has no rename.
 */
 { lib }:
 
@@ -185,6 +188,13 @@ in
     ;
 
   inherit none quotaObject;
+
+  dslKey =
+    body: jsonKey:
+    let
+      dslKeys = lib.mapAttrs' (dslName: jsonName: lib.nameValuePair jsonName dslName) renames.${body};
+    in
+    dslKeys.${jsonKey} or jsonKey;
 
   checkSpelling.rule = checkKeys renames.rule;
 

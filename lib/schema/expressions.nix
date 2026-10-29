@@ -22,6 +22,7 @@ let
     submodule
     taggedUnion
     ;
+  inherit (import ../word-list.nix { inherit lib; }) conjoin;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     comment
@@ -76,12 +77,6 @@ let
     "ip6 saddr"
     "ip6 daddr"
   ];
-
-  # `a, b, and c`, for a type description.
-  listed = keys: "${lib.concatStringsSep ", " (lib.init keys)}, and ${lib.last keys}";
-
-  # `a, b, or c`, for a type description.
-  listedOr = keys: "${lib.concatStringsSep ", " (lib.init keys)}, or ${lib.last keys}";
 
   # The statements nft lists beside an element's value (json.c
   # set_elem_expr_json).
@@ -354,7 +349,7 @@ let
             builtins.elem key ctDirKeys
           else
             !(builtins.elem key ctKeysNeedingDir);
-        description = "ct body with dir for ${listed ctKeysNeedingDir}, and without dir for a key other than ${listed ctDirKeys}";
+        description = "ct body with dir for ${conjoin "and" ctKeysNeedingDir}, and without dir for a key other than ${conjoin "and" ctDirKeys}";
       };
 
       numgenBody = submodule {
@@ -515,7 +510,7 @@ let
       elemBody = discriminatedSubmodule {
         options = elemOptions;
         forbidKeys = elemStatementKeys;
-        description = "element body without ${listedOr elemStatementKeys}, which nft ignores on JSON input and lists in Read-back";
+        description = "element body without ${conjoin "or" elemStatementKeys}, which nft ignores on JSON input and lists in Read-back";
       };
 
       # An element as Read-back lists it, with the statements nft lists as

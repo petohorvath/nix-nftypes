@@ -11,8 +11,10 @@
 */
 {
   compatibility,
+  deleteBodiesByTag,
   lib,
   objects,
+  selectBodiesByTag,
   expandTable,
   resetOrder,
   statementBodiesByTag,
@@ -62,8 +64,10 @@ let
   commands = import ./structure/commands.nix {
     inherit
       compatibility
+      deleteBodiesByTag
       lib
       objects
+      selectBodiesByTag
       validate
       ;
   };

@@ -47,7 +47,7 @@ let
     }:
     tags:
     let
-      fail = message: throw "nix-nftypes: ${api}: ${message}";
+      fail = import ../fail.nix { } api;
       expected = "expected a list of ${noun} tags (strings)";
       valid = lib.attrNames bodiesByTag;
       nonStrings = builtins.filter (tag: !builtins.isString tag) tags;

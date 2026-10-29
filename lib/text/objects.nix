@@ -685,7 +685,9 @@ let
   # Kinds with `noBraces = true` suppress the block wrapper entirely.
   # A kind that appears whole only in a listing, `metainfo` or `meter`,
   # gives `object ctx body` for that form instead of a body: it returns
-  # null to drop the object, or raises a Refusal.
+  # null to drop the object, or raises a Refusal. A kind may give
+  # `checkBody body`, which returns the body an added object renders
+  # with, or raises a Refusal.
   emptyBody = _ctx: _body: [ ];
 
   kinds = {
@@ -701,6 +703,7 @@ let
       header = renderRuleHeader;
       body = emptyBody;
       noBraces = true;
+      checkBody = requireStatements;
     };
     set = {
       header = renderSetHeader;
@@ -807,7 +810,7 @@ let
   # produces. A listed `metainfo` renders as null.
   renderObject =
     ctx: kind: body:
-    renderObjectGeneric true ctx kind (if kind == "rule" then requireStatements body else body);
+    renderObjectGeneric true ctx kind ((kinds.${kind}.checkBody or lib.id) body);
 
   # nft's JSON loads an added, inserted, replaced, or listed rule with no
   # statements as an empty rule, while its text grammar requires one
