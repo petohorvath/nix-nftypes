@@ -279,7 +279,7 @@ Renderers and validation:
 - `cleanValue`. The renderers still clean their input, so a raw ruleset with `null` fields or `_type` markers renders as before.
 - `types.limitUnit` and `enums.limitUnit`, which no field used. Use `types.limitRateUnit` for a limit's rate unit and `types.byteUnit` for the others.
 - `compatibility.priorityIntsDefault` and `compatibility.priorityIntsBridge`. Use `compatibility.prioritiesByFamily.<family>.<hook>`, which holds the symbols nft accepts at each hook.
-- `chainTypeFor` and `compatibility.hooksWithOifname`. `compatibility` holds only what nft accepts on load ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)), and the two encoded one consumer's conventions: the chain type a priority suggests, and the hooks where an `oifname` match can succeed, though one in `prerouting` loads. Copy them into your code, building on `compatibility.prioritiesByFamily` and `compatibility.validChainPlacement`.
+- `chainTypeFor` and `compatibility.hooksWithOifname`. `compatibility` holds only what nft accepts on load ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)), and the two encoded one consumer's conventions: the chain type a priority suggests, and the hooks where an `oifname` match can succeed, though one in `prerouting` loads. A consumer that needs them can rebuild them on `compatibility.prioritiesByFamily` and `compatibility.validChainPlacement`.
 - `dsl.rule`. Use `add.rule`, which takes the same body.
 - `within`, a second name for `inSet`. Use `inSet`, which builds the same match.
 - `match.eq`, `match.ne`, `match.lt`, `match.gt`, `match.le`, and `match.ge`, second names for the top-level operators. Use `eq`, `ne`, `lt`, `gt`, `le`, and `ge`.

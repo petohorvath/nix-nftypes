@@ -53,10 +53,10 @@ Table trees derive scope from nesting. Explicit `family` and `name` fields in a
 `dsl.table` body must match its positional arguments; `family`, `table`, and
 `name` fields on named objects and chains must match the enclosing table and
 collection key; `family`, `table`, and `chain` on rules must match their parent
-table and chain. Matching fields are accepted. Conflicts raise an error naming the field,
-for example `chains.input.rules.0.chain`, in both command and block rendering.
-Explicit command builders and raw commands remain available for independently
-chosen scope.
+table and chain. Matching fields are accepted. Conflicts raise an error naming
+the field, for example `chains.input.rules.0.chain`, in both command and block
+rendering. Explicit command builders and raw commands remain available for
+independently chosen scope.
 
 Every library error starts `nix-nftypes: <API>: `, naming what the caller
 called: a builder such as `dsl.create.ctCount`, a table tree as
@@ -80,7 +80,7 @@ it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 | `statement`      | one tagged rule statement                                                                                                                        |
 | `addObject`      | the 16 add-object tags; no body takes a `handle`                                                                                                 |
 | `createObject`   | add-object tags except `rule`                                                                                                                    |
-| `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; a named object but a ct helper by `name` or `handle`                      |
+| `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; a named object by `name` or `handle`, but a ct helper by `name` only      |
 | `destroyObject`  | the same tags as `deleteObject`; a named object by `name`                                                                                        |
 | `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                      |
 | `readBackObject` | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; each keeps its `handle` |
@@ -102,10 +102,9 @@ several tags share is named for what they share (`natBody`), a variant or a
 nested part of one tag's body puts its parent first (`payloadRawBody`,
 `tunnelVxlanBody`), and the body of one command puts its verb first
 (`flushRulesetBody`, `insertRuleBody`, `deleteSetBody`), and a Selector is
-`select<Kind>Body` (`selectSetBody`). A statement body
-includes the statement's reference forms. Type a tagged object, such as
-`{ chain = { … }; }`, with its command's union, such as `types.addObject` or
-`types.readBackObject`.
+`select<Kind>Body` (`selectSetBody`). A statement body includes the statement's
+reference forms. Type a tagged object, such as `{ chain = { … }; }`, with its
+command's union, such as `types.addObject` or `types.readBackObject`.
 
 `types.statementBodies` holds the body of each statement tag that takes more
 than `null`, the same type `types.statement` takes for that tag:
@@ -131,14 +130,14 @@ parser reads only `val`, `timeout`, `expires`, and `comment`:
   takes it for a listed set, map, element, or rule, so the Read-back of a set
   with counters validates.
 
-Each submodule takes only an attrset of its fields. Unlike `lib.types.submodule`,
-it rejects a module function, a path, and a `_module` key, so a string in a
-union with a body, such as the synproxy reference `"/sp1"`, is a name rather
-than a module file to import.
+Each submodule takes only an attrset of its fields. Unlike
+`lib.types.submodule`, it rejects a module function, a path, and a `_module`
+key, so a string in a union with a body, such as the synproxy reference
+`"/sp1"`, is a name rather than a module file to import.
 
 Primitive types include `family`, `hook`, `flowtableHook`, `chainType`,
-`chainPolicy`, `portNumber`, `prefixLength`, `ifname`, `comment`, `logPrefix`, `namedReference`
-(`"@name"`), `nullLiteral` (the JSON `null` of a body such as
+`chainPolicy`, `portNumber`, `prefixLength`, `ifname`, `comment`, `logPrefix`,
+`namedReference` (`"@name"`), `nullLiteral` (the JSON `null` of a body such as
 `{ counter = null; }`), and the enum-backed types listed in `nftlib.enums`.
 
 Type names spell their words out, even where the field they type keeps nft's
@@ -528,13 +527,14 @@ Object and chain names are emitted in sorted order; rule order remains the
 source-list order. This covers dependencies made explicit by the table tree;
 dependencies hidden in raw nested bodies remain the caller's responsibility.
 
-A rule entry is either a non-empty statement list or an attrset with a
-non-empty `statements` list and an optional `comment`. The list order is the
-rule order, so an entry's `index` throws, as in
-``nix-nftypes: dsl.table inet.t: chains.input.rules.1.index: a Table tree lists
-a chain's rules in order, so a rule takes no `index`; …``. To place a rule,
-use `add.rule` or `insert.rule` with its `index`. Any other entry throws, naming its path, such as `chains.input.rules.0`: write a single
-statement as a list, `[ dsl.drop ]`, not as the bare `dsl.drop`.
+A rule entry is either a non-empty statement list or an attrset with a non-empty
+`statements` list and an optional `comment`. The list order is the rule order,
+so an entry's `index` throws, as in ``nix-nftypes: dsl.table inet.t:
+chains.input.rules.1.index: a Table tree lists a chain's rules in order, so a
+rule takes no `index`; …``. To place a rule, use `add.rule` or `insert.rule`
+with its `index`. Any other entry throws, naming its path, such as
+`chains.input.rules.0`: write a single statement as a list, `[ dsl.drop ]`, not
+as the bare `dsl.drop`.
 
 A chain's `prio` takes an int or a Symbolic priority, such as `"filter"`, in
 a table tree's `chains` and in `add.chain` and `create.chain`. The DSL resolves
@@ -581,12 +581,12 @@ for what it holds:
   `stmt`.
 
 A field whose JSON key names something other than what it holds also takes the
-DSL word: `reject` takes `code` for `expr`, which holds the ICMP code, and a
-map takes `dataType` for `map`, which holds the data type of its values, as in
+DSL word: `reject` takes `code` for `expr`, which holds the ICMP code, and a map
+takes `dataType` for `map`, which holds the data type of its values, as in
 `maps.m = { type = "ifname"; dataType = "verdict"; }`. Other fields keep nft's
-word: a chain or flowtable's `dev` takes one device or a list. The same renames apply to statements,
-table-tree objects, and command builders, and in each a JSON spelling throws,
-pointing to the DSL name:
+word: a chain or flowtable's `dev` takes one device or a list. The same renames
+apply to statements, table-tree objects, and command builders, and in each a
+JSON spelling throws, pointing to the DSL name:
 
 ```text
 nix-nftypes: dsl.add.limit: rate_unit: is the JSON spelling; write `rateUnit`
@@ -632,10 +632,10 @@ name = "l"; rate = 10; per = "second"; }` returns those five fields under
 ruleset: `toJson (dsl.ruleset [ (dsl.add.limit { … }) ])`.
 
 In one batch, nft runs a `reset` of a counter, quota, set, map, or rule only as
-the last command: followed by any other command, it resets nothing, and nft still
-exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere else,
-and `dsl.ruleset` throws for one, whether a builder or a raw attrset made it.
-Give each one a ruleset of its own, or put it last. `reset.element` runs
+the last command: followed by any other command, it resets nothing, and nft
+still exits 0. `types.ruleset` rejects a ruleset with such a reset anywhere
+else, and `dsl.ruleset` throws for one, whether a builder or a raw attrset made
+it. Give each one a ruleset of its own, or put it last. `reset.element` runs
 anywhere.
 
 Each namespace offers only the kinds that nft runs as written, measured on
@@ -761,15 +761,15 @@ Every line ends with a newline, the last included, so renders concatenate:
 
 Render only the contents of one Table tree from `dsl.table`. These functions
 omit the outer table declaration, keep the table's `flags` and `comment` as the
-first declarations, and place rules inside their chain blocks. A Table tree's rules
-take no `index`, so every tree renders in both forms. Passing a full ruleset or
-a raw command is an error.
+first declarations, and place rules inside their chain blocks. A Table tree's
+rules take no `index`, so every tree renders in both forms. Passing a full
+ruleset or a raw command is an error.
 
 Every declaration ends with a newline, the last included, and a table with no
 declarations renders as `""`.
 
-The JSON renderer is authoritative when JSON and text grammar capabilities
-differ. See [`text-coverage.md`](text-coverage.md).
+JSON is the Compatibility target: when JSON and text grammar capabilities
+differ, JSON wins. See [`text-coverage.md`](text-coverage.md).
 
 ## Cleaning
 
