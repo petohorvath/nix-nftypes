@@ -539,6 +539,81 @@ in
         flowtable handle ignored
       '';
     }
+    /*
+      nft's JSON parser takes a number where a stateful object Reference
+      names its object, and loads it as the object named by the number's
+      digits: `{ "ct helper" = 5; }` references the helper named "5". The
+      schema takes a name, such as "5", or a map. A secmark Reference loads
+      the same way, but a secmark object needs SELinux, so the case leaves
+      it out.
+    */
+    {
+      name = "number-reference-loads-as-name";
+      knownDifference = "docs/adr/0010-accept-what-nft-loads-as-written.md";
+      ruleset.nftables =
+        let
+          object = kind: body: {
+            add.${kind} = {
+              family = "inet";
+              table = "t";
+              name = "5";
+            }
+            // body;
+          };
+          referenceRule = kind: {
+            add.rule = {
+              family = "inet";
+              table = "t";
+              chain = "c";
+              expr = [ { ${kind} = 5; } ];
+            };
+          };
+          kinds = [
+            "ct helper"
+            "ct timeout"
+            "ct expectation"
+            "synproxy"
+          ];
+        in
+        [
+          { add.table = table; }
+          {
+            add.chain = {
+              family = "inet";
+              table = "t";
+              name = "c";
+            };
+          }
+          (object "ct helper" {
+            type = "ftp";
+            protocol = "tcp";
+          })
+          (object "ct timeout" {
+            protocol = "tcp";
+            l3proto = "ip";
+            policy.established = 100;
+          })
+          (object "ct expectation" {
+            protocol = "tcp";
+            dport = 21;
+            timeout = 100;
+            size = 10;
+            l3proto = "ip";
+          })
+          (object "synproxy" {
+            mss = 1460;
+            wscale = 7;
+          })
+        ]
+        ++ map referenceRule kinds;
+      inspect = ''
+        nft -j list chain inet t c \
+          | jq -c '[.nftables[] | select(.rule) | .rule.expr[]]'
+      '';
+      misbehaviour = ''
+        [{"ct helper":"5"},{"ct timeout":"5"},{"ct expectation":"5"},{"synproxy":"5"}]
+      '';
+    }
     # nft's JSON parser rejects a listed meter, which the schema accepts
     # as Read-back, and nft's text has no meter object, so text refuses
     # one. A JSON parser that loads one fails this case.
