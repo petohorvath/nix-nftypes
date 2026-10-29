@@ -55,6 +55,76 @@ let
     lib.nameValuePair "testExprCtDirected${name}" (pe (dsl.expr.ct body) { ct = body; })
   ) ctKeysNeedingDir;
 
+  # A non-list argument throws, naming what it got, rather than failing
+  # with a bare Nix type error.
+  rulesetNonListTests =
+    lib.mapAttrs'
+      (
+        shape: case:
+        lib.nameValuePair "testRulesetRejectsNonList_${shape}" {
+          expr = toJson (dsl.ruleset case.value);
+          expectedError.msg = "nix-nftypes: dsl\\.ruleset: expected a list of children, got ${case.got}; wrap it in a list: dsl\\.ruleset \\[ … \\]";
+        }
+      )
+      {
+        tableTree = {
+          value = dsl.table "ip" "a" { };
+          got = "a Table tree";
+        };
+        ruleset = {
+          value = dsl.ruleset [ ];
+          got = "a ruleset";
+        };
+        command = {
+          value = dsl.flush.ruleset { };
+          got = "an attribute set";
+        };
+        string = {
+          value = "flush ruleset";
+          got = "a string";
+        };
+      };
+
+  # Invalid children (wrong type) must throw and name what they got.
+  # `toJson` forces evaluation: the renderer builds a lazy list and the
+  # throw wouldn't fire until a consumer walks it.
+  rulesetInvalidChildTests =
+    lib.mapAttrs'
+      (
+        shape: case:
+        lib.nameValuePair "testRulesetRejectsInvalidChild_${shape}" {
+          expr = toJson (dsl.ruleset case.children);
+          expectedError.msg = "nix-nftypes: dsl\\.ruleset: invalid child: expected a Table tree, ruleset, command attrset, or list, got ${case.got}";
+        }
+      )
+      {
+        string = {
+          children = [ "not-a-command" ];
+          got = "a string";
+        };
+        int = {
+          children = [ 42 ];
+          got = "an int";
+        };
+        bool = {
+          children = [ true ];
+          got = "a bool";
+        };
+        null = {
+          children = [ null ];
+          got = "null";
+        };
+        # Recursion reaches a child nested inside a list.
+        nested = {
+          children = [ [ "bad" ] ];
+          got = "a string";
+        };
+        # And one inside a ruleset passed as a child.
+        inRuleset = {
+          children = [ { nftables = [ 42 ]; } ];
+          got = "an int";
+        };
+      };
 in
 {
   # =========================================================================
@@ -2307,33 +2377,38 @@ in
         ];
       };
 
-  # Invalid children (wrong type) must throw. `toJson` forces evaluation:
-  # the renderer builds a lazy list and the throw wouldn't fire until a
-  # consumer walks it.
-  testRenderRejectString = {
-    expr = toJson (dsl.ruleset [ "not-a-command" ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
-  };
-
-  testRenderRejectInt = {
-    expr = toJson (dsl.ruleset [ 42 ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
-  };
-
-  testRenderRejectBool = {
-    expr = toJson (dsl.ruleset [ true ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
-  };
-
-  testRenderRejectNull = {
-    expr = toJson (dsl.ruleset [ null ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
-  };
-
-  # Invalid child nested inside a list is detected too (recursion reaches it).
-  testRenderRejectNestedInvalid = {
-    expr = toJson (dsl.ruleset [ [ "bad" ] ]);
-    expectedError.msg = "dsl\\.ruleset: invalid child";
+  # A ruleset passed as a child splices its commands in place, so rulesets
+  # compose: nft rejects a ruleset nested inside another.
+  testRulesetSplicesRulesetChildren = {
+    expr = builtins.fromJSON (
+      toJson (
+        dsl.ruleset [
+          (dsl.ruleset [ (dsl.table "ip" "a" { }) ])
+          [ (dsl.ruleset [ (dsl.table "ip" "b" { }) ]) ]
+          { nftables = [ (dsl.table "ip" "c" { }) ]; }
+        ]
+      )
+    );
+    expected.nftables = [
+      {
+        add.table = {
+          family = "ip";
+          name = "a";
+        };
+      }
+      {
+        add.table = {
+          family = "ip";
+          name = "b";
+        };
+      }
+      {
+        add.table = {
+          family = "ip";
+          name = "c";
+        };
+      }
+    ];
   };
 
   # Table with an empty `chains` attrset emits only the table-add command.
@@ -4303,3 +4378,5 @@ in
   }
 ) internal.dslObjectKinds
 // ctDirectionTests
+// rulesetNonListTests
+// rulesetInvalidChildTests

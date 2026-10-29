@@ -37,11 +37,14 @@ check runs before it returns, however deep. A mismatch throws the module
 system's error, whose option path starts with `validate`, such as
 `validate.nftables."[definition 1-entry 2]".add.chain.policy`.
 
-`dsl.ruleset` accepts table nodes, nested lists, and raw command attrsets. Table
-nodes are expanded and validated; raw command attrsets are deliberately passed
-through as an escape hatch. Only the order of the commands is checked: a reset
-that nft would ignore throws (see [Commands](#commands)). A statement that a
-builder or match operator made is validated by it, inside a raw command too.
+`dsl.ruleset` takes a list of Table trees, rulesets, raw command attrsets, and
+nested lists of these. Table trees are expanded and validated, and a ruleset's
+commands are spliced in place, so `dsl.ruleset [ base extra ]` composes two
+rulesets; raw command attrsets are deliberately passed through as an escape
+hatch. A non-list argument or any other child throws, naming what it got. Only
+the order of the commands is checked: a reset that nft would ignore throws (see
+[Commands](#commands)). A statement that a builder or match operator made is
+validated by it, inside a raw command too.
 
 Table trees derive scope from nesting. Explicit `family` and `name` fields in a
 `dsl.table` body must match its positional arguments; `family`, `table`, and
@@ -537,9 +540,11 @@ and names itself in its errors, as in `nix-nftypes: toTextBlock: `.
 
 `toJson`, `toText`, and `toTextPretty` take only a ruleset,
 `{ nftables = [ … ]; }`, and throw on anything else. A lone command throws, and
-so does a `dsl.table` value passed alone or among the `nftables` commands; each
-error asks for `dsl.ruleset`. Build a ruleset with `dsl.ruleset [ … ]`, which
-takes commands and table trees and expands each tree into commands.
+so does a `dsl.table` value passed alone or among the `nftables` commands, and
+a ruleset nested among them, which nft rejects; each error asks for
+`dsl.ruleset`. Build a ruleset with `dsl.ruleset [ … ]`, which takes commands,
+Table trees, and rulesets, expands each tree into commands, and splices each
+ruleset's commands in place.
 
 These three renderers give a rule without `expr` the empty list: nft's JSON
 parser requires the key on a rule even where it ignores it, as for
