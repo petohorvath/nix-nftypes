@@ -22,11 +22,20 @@
 
   Each throws on an empty name and on a value that is neither a name nor,
   for `objectReference`, a map expression, `{ map = …; }`.
+
+  A name that declares or selects an object is no Reference, and nft
+  looks up `"@s"` there as a set literally named `@s`:
+
+  - `normaliseBareName location body`: `body` with its `name`, if a
+    string, without a leading `@`, for `add.element`'s `name`, a
+    Selector's, and `meter`'s. Throws on the name `"@"`; a name that
+    isn't a string passes through, for the schema to reject. Returns the
+    body.
 */
 { lib }:
 
 let
-  inherit (import ./location.nix { inherit lib; }) fail;
+  inherit (import ./location.nix { inherit lib; }) fail within;
 
   nameOf =
     location: expected: name:
@@ -64,6 +73,13 @@ let
 in
 {
   inherit atReference mapData objectReference;
+
+  normaliseBareName =
+    location: body:
+    body
+    // lib.optionalAttrs (builtins.isString (body.name or null)) {
+      name = nameOf (within location [ "name" ]) "a name" body.name;
+    };
 
   normaliseAtReference =
     field: location: body:

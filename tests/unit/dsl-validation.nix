@@ -1786,6 +1786,161 @@ let
         expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: chains\\.input\\.rules\\.1\\.index: a Table tree lists a chain's rules in order, so a rule takes no `index`; order the rules in the list, or place one with `add\\.rule` or `insert\\.rule` and its `index`$";
       };
     };
+
+  /*
+    A name that declares or selects an object is no Reference (ADR 0009):
+    nft looks up `"@s"` there as a set literally named `@s`. The builders
+    take the name with or without its `@` and emit the bare name; a Table
+    tree's object key, which no builder spells, throws on a leading `@`.
+    The schema takes a raw name as written.
+  */
+  namePositionTests =
+    let
+      scope = {
+        family = "inet";
+        table = "t";
+      };
+      # The command's object body, in the JSON `commandJson` renders.
+      objectOf =
+        command:
+        let
+          rendered = builtins.head (builtins.fromJSON (commandJson command)).nftables;
+          verb = builtins.head (builtins.attrNames rendered);
+        in
+        builtins.head (builtins.attrValues rendered.${verb});
+      # The name a builder emits for each spelling.
+      namesFor = build: {
+        bare = (objectOf (build "s")).name;
+        at = (objectOf (build "@s")).name;
+      };
+      bothBare = {
+        bare = "s";
+        at = "s";
+      };
+      # Every Selector with a name: each kind of each selecting verb but
+      # the rule, which a handle selects, and the ruleset.
+      selectorBody =
+        kind: name:
+        if kind == "table" then
+          {
+            family = "inet";
+            inherit name;
+          }
+        else
+          scope
+          // {
+            inherit name;
+          }
+          // lib.optionalAttrs (kind == "element") { elements = [ "192.0.2.1" ]; };
+      selectorNames = lib.concatMapAttrs (
+        verb: _:
+        lib.mapAttrs'
+          (kind: build: lib.nameValuePair "${verb}.${kind}" (namesFor (name: build (selectorBody kind name))))
+          (
+            removeAttrs dsl.${verb} [
+              "rule"
+              "ruleset"
+            ]
+          )
+      ) (lib.genAttrs [ "delete" "destroy" "list" "flush" "reset" ] lib.id);
+      meterNamed =
+        name:
+        dsl.meter {
+          inherit name;
+          key = dsl.fields.ip.saddr;
+          statement = dsl.counter.auto;
+        };
+      tree = body: dsl.ruleset [ (dsl.table "inet" "fw" body) ];
+    in
+    {
+      testAddElementTakesBareName = {
+        expr = {
+          add = namesFor (name: dsl.add.element (selectorBody "element" name));
+          create = namesFor (name: dsl.create.element (selectorBody "element" name));
+        };
+        expected = {
+          add = bothBare;
+          create = bothBare;
+        };
+      };
+
+      # Every name-selecting kind, so a kind added later is covered.
+      testSelectorTakesBareName = {
+        expr = {
+          wrong = builtins.attrNames (lib.filterAttrs (_: names: names != bothBare) selectorNames);
+          inherit (selectorNames)
+            "delete.set"
+            "destroy.table"
+            "flush.meter"
+            "reset.element"
+            ;
+        };
+        expected = {
+          wrong = [ ];
+          "delete.set" = bothBare;
+          "destroy.table" = bothBare;
+          "flush.meter" = bothBare;
+          "reset.element" = bothBare;
+        };
+      };
+
+      testMeterTakesBareName = {
+        expr = {
+          bare = (meterNamed "m").meter.name;
+          at = (meterNamed "@m").meter.name;
+        };
+        expected = {
+          bare = "m";
+          at = "m";
+        };
+      };
+
+      testNamePositionRejectsBareAt = {
+        expr = commandJson (dsl.add.element (selectorBody "element" "@"));
+        expectedError.msg = "^nix-nftypes: dsl\\.add\\.element: name: expected a name, got \"@\"$";
+      };
+      testMeterRejectsBareAt = {
+        expr = meterNamed "@";
+        expectedError.msg = "^nix-nftypes: dsl\\.meter: name: expected a name, got \"@\"$";
+      };
+
+      # A non-string name reaches the schema, which names the option.
+      testNamePositionLeavesNonStringToSchema = {
+        expr = commandJson (dsl.delete.set (scope // { name = 5; }));
+        expectedError.msg = "dsl\\.delete\\.set\\.name' is not of type";
+      };
+
+      testTreeObjectKeyWithAtThrows = {
+        expr = toJson (tree {
+          sets."@s".type = "ipv4_addr";
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: sets\\.@s: a Table tree declares an object by its bare name; drop the leading `@`, which only a Reference adds$";
+      };
+      testTreeCounterKeyWithAtThrows = {
+        expr = toJson (tree {
+          counters."@c" = { };
+        });
+        expectedError.msg = "^nix-nftypes: dsl\\.table inet\\.fw: counters\\.@c: a Table tree declares an object by its bare name";
+      };
+
+      # A raw command's name passes the schema as written.
+      testRawNameKeepsAt = {
+        expr =
+          (builtins.head
+            (builtins.fromJSON (toJson {
+              nftables = [
+                {
+                  add.element = scope // {
+                    name = "@s";
+                    elem = [ "192.0.2.1" ];
+                  };
+                }
+              ];
+            })).nftables
+          ).add.element.name;
+        expected = "@s";
+      };
+    };
 in
 {
   # Building a table or ruleset stays lazy; only rendering validates.
@@ -2992,3 +3147,4 @@ in
 // notARulesetTests
 // refusalNamesTheRendererTests
 // tableTreeTests
+// namePositionTests

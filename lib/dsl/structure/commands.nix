@@ -45,6 +45,7 @@ let
   compact = import ../internal/compact.nix { inherit lib; };
   rejectHandle = import ../internal/reject-handle.nix { inherit lib; };
   chainPriority = import ../internal/chain-priority.nix { inherit compatibility lib; };
+  reference = import ../internal/reference.nix { inherit lib; };
   inherit (import ../internal/location.nix { inherit lib; }) builder fail;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
@@ -354,9 +355,16 @@ let
           in
           # A JSON spelling throws first, pointing to the DSL name.
           if cfg.selector or false then
-            builtins.seq checked (builtins.seq (checkSelector location command kind cfg.body userBody) checked)
+            builtins.seq checked (
+              builtins.seq (checkSelector location command kind cfg.body userBody) (bareName checked)
+            )
+          else if kind == "element" then
+            bareName checked
           else
             checked;
+        # A Selector's `name` and `add.element`'s select an object, so
+        # they take the bare name (../internal/reference.nix).
+        bareName = body: if builtins.isAttrs body then reference.normaliseBareName location body else body;
         validated = validate {
           type = cfg.body;
           # A ruleset body can rename to the JSON null.

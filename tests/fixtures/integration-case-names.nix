@@ -23,6 +23,7 @@
   "dormant-table-with-comment"
   "element-and-chain-commands"
   "element-options"
+  "element-through-at-name"
   "example-basic-firewall"
   "example-basic-firewall-dsl"
   "example-home-router-dsl"

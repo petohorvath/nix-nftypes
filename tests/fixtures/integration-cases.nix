@@ -646,6 +646,35 @@ rec {
       ];
     }
 
+    # -- elements through a set's `@name` -----------------------------------
+    # `add.element` and a Selector take the set's name with its `@` and
+    # emit the bare name; nft would look up a set literally named `@s`.
+    {
+      name = "element-through-at-name";
+      children = [
+        (dsl.table "inet" "t" {
+          sets.s = {
+            type = "ipv4_addr";
+          };
+        })
+        (dsl.add.element {
+          family = "inet";
+          table = "t";
+          name = "@s";
+          elements = [
+            "192.0.2.1"
+            "192.0.2.2"
+          ];
+        })
+        (delete.element {
+          family = "inet";
+          table = "t";
+          name = "@s";
+          elements = [ "192.0.2.2" ];
+        })
+      ];
+    }
+
     # -- list.table ------------------------------------------------------
     # A table the same batch creates. `list-commands` lists loaded objects
     # of the other kinds.

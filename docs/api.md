@@ -329,6 +329,14 @@ object by key. `inSet` and `notInSet` are the exception: their
 right side need not be a set, so they take `"@name"` and throw on a string
 without `@`.
 
+A name that declares or selects an object is no Reference, and nft looks up
+`"@s"` there as a set literally named `@s`. `add.element`'s and
+`create.element`'s `name`, a Selector's `name`, and `meter`'s `name` take the
+name with or without its leading `@` and emit the bare name, so
+`add.element { …; name = "@s"; }` adds to set `s`. A Table tree's object key
+that starts with `@`, such as `sets."@s"`, throws naming the key. The schema
+takes a raw name as written.
+
 ### Statements
 
 Verdicts are values:
@@ -476,6 +484,9 @@ Recognized table-body keys are:
 A set or map takes its elements in its own body, as `sets.<name>.elements`.
 To add elements to a set defined elsewhere, put `add.element` in a
 `dsl.ruleset` after the set.
+
+An object's key is its bare name: a key that starts with `@`, such as
+`sets."@s"`, throws, since a Reference adds the `@`.
 
 A quota object takes its threshold in `bytes`. `val`, the quota statement's
 word, throws and points to `bytes`, in a Table tree's `quotas` and in
