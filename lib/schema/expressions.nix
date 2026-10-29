@@ -18,6 +18,7 @@ let
     discriminatedSubmodule
     listOfLen
     listOfMinLen
+    restrictedUnion
     submodule
     taggedUnion
     ;
@@ -615,27 +616,12 @@ let
       names them. Throws at *type construction* time on unknown kinds so
       typos surface immediately rather than at module evaluation.
     */
-    expressionOf =
-      kinds:
-      let
-        valid = lib.attrNames bodiesByTag;
-        invalid = lib.subtractLists valid kinds;
-        renderList = xs: lib.concatMapStringsSep ", " (k: ''"${k}"'') xs;
-      in
-      if !(builtins.isList kinds) then
-        throw "nix-nftypes: types.expressionOf: argument must be a list of strings"
-      else if kinds == [ ] then
-        throw "nix-nftypes: types.expressionOf: kinds list must be non-empty"
-      else if invalid != [ ] then
-        throw (
-          "nix-nftypes: types.expressionOf: unknown expression kind(s): "
-          + "${renderList invalid}. Valid kinds: ${renderList valid}."
-        )
-      else
-        taggedUnion (lib.getAttrs kinds bodiesByTag)
-        // {
-          description = "tagged expression (one of: ${renderList kinds})";
-        };
+    expressionOf = restrictedUnion {
+      api = "types.expressionOf";
+      noun = "expression";
+      label = "tagged expression";
+      inherit bodiesByTag;
+    };
   };
 in
 {
@@ -645,7 +631,6 @@ in
     expression
     expressionOf
     mapDataExpression
-    taggedExpression
     verdictTargetBody
     ;
   all = removeAttrs exprs [
