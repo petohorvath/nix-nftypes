@@ -105,11 +105,7 @@ in
         (
           form: render:
           let
-            ruleset = pkgs.writeText "${name}-${form}.nft" ''
-              table ${table.family} ${table.name} {
-              ${render table}
-              }
-            '';
+            ruleset = pkgs.writeText "${name}-${form}.nft" "table ${table.family} ${table.name} {\n${render table}}\n";
           in
           lib.nameValuePair "${name}-${form}" (inNamespace {
             command = "nft -c -f ${ruleset}";

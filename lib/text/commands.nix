@@ -163,11 +163,34 @@ let
             primitives.refuseNoTextSpelling "${tag} metainfo" "A metainfo appears only in a listing, and nft rejects `${tag} metainfo` in text and JSON."
           else
             verbRenderers.${tag} ctx cmd.${tag}
-        else
+        else if builtins.elem tag objects.renderableKinds then
           # Bare list-object (no verb). Render as the object itself —
           # body is meaningful here (this is the form `nft -j list` emits).
-          renderListedObject ctx tag cmd.${tag};
+          renderListedObject ctx tag cmd.${tag}
+        else
+          fail "unknown command or listed object '${tag}'";
+
+  # The table a command acts in, as `{ family; name; }`, or null for a
+  # command outside any table, such as `flush ruleset`. Pretty imperative
+  # form separates one table's commands from the next one's. Called after
+  # `renderCommand` accepted the command.
+  tableOf =
+    cmd:
+    let
+      tag = builtins.head (builtins.attrNames cmd);
+      object = if verbRenderers ? ${tag} then cmd.${tag} else { ${tag} = cmd.${tag}; };
+      kind = builtins.head (builtins.attrNames object);
+      body = object.${kind};
+      name = if kind == "table" then body.name or null else body.table or null;
+    in
+    if builtins.isAttrs body && name != null then
+      {
+        inherit name;
+        family = body.family or null;
+      }
+    else
+      null;
 in
 {
-  inherit renderCommand;
+  inherit renderCommand tableOf;
 }

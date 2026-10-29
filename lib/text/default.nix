@@ -100,11 +100,24 @@ let
       ctx = context.mkCtx { inherit pretty; };
     in
     ruleset:
-    lib.concatStringsSep "\n" (
+    let
       # A dropped command, such as a listing's metainfo, renders as null.
-      builtins.filter (line: line != null) (
-        map (commands.renderCommand ctx) (prepareRuleset api ruleset).nftables
-      )
+      rendered = builtins.filter (entry: entry.text != null) (
+        map (cmd: {
+          text = commands.renderCommand ctx cmd;
+          table = commands.tableOf cmd;
+        }) (prepareRuleset api ruleset).nftables
+      );
+      # Pretty form puts a blank line where the commands move to another
+      # table.
+      startsTable =
+        index: entry: pretty && index > 0 && (builtins.elemAt rendered (index - 1)).table != entry.table;
+    in
+    # Every line ends with a newline, so renders concatenate.
+    lib.concatStrings (
+      lib.imap0 (
+        index: entry: lib.optionalString (startsTable index entry) "\n" + "${entry.text}\n"
+      ) rendered
     );
 
   # The modules the test-suite internals below read. Every renderer's
@@ -120,17 +133,20 @@ in
     builds it. It is cleaned first but not fully type-checked; anything
     else throws, a lone command or a table tree included.
 
-    Returns the `.nft` text as a string.
+    Returns the `.nft` text as a string, every line ending with a newline,
+    so renders concatenate; an empty ruleset renders as "".
   */
   toText = renderRuleset "toText" false;
 
   /*
     Render a ruleset to multi-line imperative nftables text with indented
-    brace blocks.
+    brace blocks, and a blank line where the commands move to another
+    table.
 
     The argument is a ruleset, handled as in `toText`.
 
-    Returns the `.nft` text as a string.
+    Returns the `.nft` text as a string, every line ending with a newline;
+    an empty ruleset renders as "".
   */
   toTextPretty = renderRuleset "toTextPretty" true;
 
@@ -139,7 +155,8 @@ in
     exposed by nftlib. `api` names the block renderer in errors, `pretty`
     selects multi-line output, and `table` is the table module's prepared
     `{ body, chains, objects }`. Returns the block-form text, without the
-    `table <family> <name> { … }` wrapper.
+    `table <family> <name> { … }` wrapper, every line ending with a
+    newline.
   */
   renderTableBlock =
     api: pretty:

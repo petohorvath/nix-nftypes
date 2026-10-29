@@ -15,11 +15,13 @@ let
   inherit (import ../../lib/table-tree-marker.nix { }) isTableTree;
 
   # A table node in block form, wrapped as a host module would wrap it.
-  # Any other child stays an imperative command.
+  # Any other child stays an imperative command, rendered alone: the block
+  # form concatenates the children's renders as they are, so it also
+  # loads `toText a + toText b`.
   renderBlockChild =
     child:
     if isTableTree child then
-      "table ${child.family} ${child.name} {\n${nftlib.toTextBlock child}\n}"
+      "table ${child.family} ${child.name} {\n${nftlib.toTextBlock child}}\n"
     else
       nftlib.toText { nftables = [ child ]; };
 
@@ -45,8 +47,7 @@ rec {
     json = case: nftlib.toJson case.ruleset;
     compact = case: withDefines case (nftlib.toText case.ruleset);
     pretty = case: withDefines case (nftlib.toTextPretty case.ruleset);
-    block =
-      case: withDefines case (lib.concatMapStringsSep "\n" renderBlockChild (lib.flatten case.children));
+    block = case: withDefines case (lib.concatMapStrings renderBlockChild (lib.flatten case.children));
   };
 
   # The forms a case has.
