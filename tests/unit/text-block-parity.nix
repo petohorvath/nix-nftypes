@@ -49,7 +49,7 @@ in
       dsl.table "inet" "t" {
         maps.m = {
           type = "ipv4_addr";
-          map = "verdict";
+          dataType = "verdict";
           comment = "per-host verdicts";
         };
       }

@@ -39,7 +39,7 @@ let
             [
               (dsl.setStmt {
                 op = "add";
-                elem = "1.2.3.4";
+                element = "1.2.3.4";
                 set = name;
               })
             ]
@@ -60,7 +60,7 @@ let
             [
               (dsl.mapStmt {
                 op = "update";
-                elem = "1.2.3.4";
+                key = "1.2.3.4";
                 data = 1;
                 map = name;
               })

@@ -125,7 +125,7 @@ ruleset [
 
     maps.iif_zone = {
       type = "ifname";
-      map = "verdict";
+      dataType = "verdict";
       elements = [
         [
           "eth0"
@@ -284,7 +284,7 @@ ruleset [
         "ipv4_addr"
         "inet_service"
       ];
-      map = [
+      dataType = [
         "ipv4_addr"
         "inet_service"
       ];
