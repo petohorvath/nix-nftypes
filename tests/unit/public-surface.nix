@@ -255,11 +255,9 @@ in
   testCompatibilityExports = {
     expr = builtins.attrNames nftlib.compatibility;
     expected = [
-      "chainTypeFor"
       "familiesByChainType"
       "hooksByChainType"
       "hooksByFamily"
-      "hooksWithOifname"
       "prioritiesByFamily"
       "priorityName"
       "priorityValue"

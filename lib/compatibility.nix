@@ -2,11 +2,18 @@
   compatibility — static reference data for nftables family×hook,
   family×chain-type, chain-type×hook, and family×hook×priority tables,
   plus helpers that look placements and priorities up in them:
-  `priorityValue` (symbol → int), `priorityName` (int → symbol),
-  `chainTypeFor` (derive chain type from a `(family, hook, priority)`
-  placement), and `validChainPlacement` ((family, chainType, hook) →
-  bool). Every helper throws on a family, chain type, hook, or priority
-  outside its table.
+  `priorityValue` (symbol → int), `priorityName` (int → symbol), and
+  `validChainPlacement` ((family, chainType, hook) → bool). Every helper
+  throws on a family, chain type, hook, or priority outside its table.
+
+  Scope: what nft accepts on load. Conventions built on top of it, such
+  as which chain type a priority suggests or the hooks where an
+  `oifname` match can succeed, belong to the consumer.
+
+  The known families, chain types, and hooks are the schema's `enums`,
+  so the tables cannot drift from `types.family`, `types.chainType`,
+  and `types.hook`.
+
   Sources: `man nft` Tables 6 (default families) and 7 (bridge
   family overrides), cross-checked against
   `include/uapi/linux/netfilter_ipv4.h` /
@@ -25,15 +32,11 @@
     nftypes.lib.compatibility.priorityName "bridge" "input" (-200)
     # → "filter"
 
-    nftypes.lib.compatibility.chainTypeFor "ip" "postrouting" "srcnat"
-    # → "nat"
-
-    nftypes.lib.compatibility.chainTypeFor "bridge" "postrouting" 300
-    # → "filter"  (bridge has no nat chains)
-
     nftypes.lib.compatibility.validChainPlacement "ip" "nat" "forward"
     # → false  (nat does not attach at forward)
 */
+
+{ enums }:
 
 let
   /*
@@ -98,14 +101,7 @@ let
     output`).
   */
   familiesByChainType = {
-    filter = [
-      "ip"
-      "ip6"
-      "inet"
-      "bridge"
-      "netdev"
-      "arp"
-    ];
+    filter = enums.family;
     nat = [
       "ip"
       "ip6"
@@ -117,17 +113,6 @@ let
       "inet"
     ];
   };
-
-  # Every hook a family can expose, the hooks of `enums.hook`.
-  knownHooks = [
-    "prerouting"
-    "input"
-    "forward"
-    "output"
-    "postrouting"
-    "ingress"
-    "egress"
-  ];
 
   /*
     Per-chain-type kernel hook restriction. `filter` may attach at
@@ -144,7 +129,7 @@ let
     registrations in `net/netfilter/nf_tables_api.c`.
   */
   hooksByChainType = {
-    filter = knownHooks;
+    filter = enums.hook;
     nat = [
       "prerouting"
       "input"
@@ -196,7 +181,7 @@ let
     family, indexed like `hooksByFamily`: arp and netdev accept only
     `filter`, bridge has its own table, and ip, ip6, and inet the
     default one. The same tables back `priorityValue` (symbol → int) and
-    the reverse lookups `priorityName` and `chainTypeFor`.
+    the reverse lookup `priorityName`.
   */
   prioritiesByFamily =
     let
@@ -218,18 +203,6 @@ let
         }) hooks
       )
     ) hooksByFamily;
-
-  /*
-    Hooks at which the kernel has made a routing decision and
-    `oifname` resolves to a real interface. Useful for validators
-    that want to flag a `oifname` match in a hook where the result
-    is always empty (`prerouting`, `input`).
-  */
-  hooksWithOifname = [
-    "forward"
-    "output"
-    "postrouting"
-  ];
 
   # `value` quoted when it's a string or an int, else its type.
   describe =
@@ -258,8 +231,6 @@ let
     else
       fail caller "unknown ${what} ${describe value}" whats valid;
 
-  knownFamilies = builtins.attrNames hooksByFamily;
-
   /*
     The int of `priority` at `hook` of `family`, and `name`, the symbol
     nft accepts for it there, or null. An int passes through once the
@@ -271,7 +242,7 @@ let
   lookupPriority =
     caller: family: hook: priority:
     let
-      hooks = hooksByFamily.${knownOrThrow caller "family" "families" knownFamilies family};
+      hooks = hooksByFamily.${knownOrThrow caller "family" "families" enums.family family};
       priorities =
         if builtins.isString hook && builtins.elem hook hooks then
           prioritiesByFamily.${family}.${hook}
@@ -353,61 +324,20 @@ let
     family: chainType: hook:
     let
       caller = "validChainPlacement";
-      knownFamily = knownOrThrow caller "family" "families" knownFamilies family;
-      knownType =
-        knownOrThrow caller "chain type" "chain types" (builtins.attrNames familiesByChainType)
-          chainType;
-      knownHook = knownOrThrow caller "hook" "hooks" knownHooks hook;
+      knownFamily = knownOrThrow caller "family" "families" enums.family family;
+      knownType = knownOrThrow caller "chain type" "chain types" enums.chainType chainType;
+      knownHook = knownOrThrow caller "hook" "hooks" enums.hook hook;
     in
     builtins.elem knownFamily familiesByChainType.${knownType}
     && builtins.elem knownHook hooksByFamily.${knownFamily}
     && builtins.elem knownHook hooksByChainType.${knownType};
 
-  /*
-    chainTypeFor :: family -> hook -> (int | symbol) -> chainType
-
-    Classify a `(family, hook, priority)` placement according to this
-    library's conventional `"filter"` / `"nat"` / `"route"` policy, and
-    never return a type `validChainPlacement` rejects for the placement.
-
-    Mapping (via `prioritiesByFamily.<family>.<hook>`, so an int counts
-    as a symbol only where nft accepts that symbol):
-      - priority == srcnat || priority == dstnat
-          → "nat"
-      - priority == mangle
-          → "route"
-      - otherwise
-          → "filter"
-
-    When `validChainPlacement` rejects the classified type at `hook`,
-    the result is `"filter"`: nat doesn't attach in the arp, bridge, or
-    netdev family; route attaches only at output in ip, ip6, and inet.
-    So `prerouting` at `mangle` is a filter chain that mangles, and
-    bridge `srcnat` (300, not 100) is a filter chain.
-
-    Throws as `priorityValue` does.
-  */
-  chainTypeFor =
-    family: hook: priority:
-    let
-      inherit (lookupPriority "chainTypeFor" family hook priority) name;
-      classified =
-        if name == "srcnat" || name == "dstnat" then
-          "nat"
-        else if name == "mangle" then
-          "route"
-        else
-          "filter";
-    in
-    if validChainPlacement family classified hook then classified else "filter";
 in
 {
   inherit
-    chainTypeFor
     familiesByChainType
     hooksByChainType
     hooksByFamily
-    hooksWithOifname
     prioritiesByFamily
     priorityName
     priorityValue
