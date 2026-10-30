@@ -497,7 +497,10 @@ strips the TCP option `expr`, the only expression nft's reset statement takes:
 `resetStmt (expr.tcpOption { name = "sack"; })`. Like `flow`, `setStmt` and
 `mapStmt` take the set, map, or flowtable name with or without its leading `@`.
 `setStmt` takes the `element` it adds, and `mapStmt` takes the `key` and `data`
-it writes. `flow` takes the flowtable alone, because nft's only flow operation
+it writes. Their `statements`, a set's or map's `statements`, and `meter`'s
+`statement` take only a Stateful statement, an inline `counter`, `quota`,
+`limit`, `ctCount`, or `last`, which nft keeps for each element: nft rejects
+any other statement there, a `.ref` included. `flow` takes the flowtable alone, because nft's only flow operation
 is `add`:
 
 ```nix

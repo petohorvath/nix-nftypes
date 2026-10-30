@@ -192,6 +192,99 @@ let
       description = "${name} body with addr or port";
     };
 
+  # The inline forms of the stateful statements; their bodies below add
+  # the reference forms, and `statefulStatement` takes these alone.
+  counterInline = internal.discriminatedSubmodule {
+    requireKeys = [
+      "packets"
+      "bytes"
+    ];
+    description = "inline counter with packets and bytes";
+    options = {
+      packets = mkOption {
+        type = types.ints.unsigned;
+        description = "initial packet counter";
+      };
+      bytes = mkOption {
+        type = types.ints.unsigned;
+        description = "initial byte counter";
+      };
+    };
+  };
+
+  quotaInline = submodule {
+    options = {
+      val = mkOption {
+        type = types.ints.unsigned;
+        description = "quota value";
+      };
+      val_unit = mkOption {
+        type = types.nullOr byteUnit;
+        default = null;
+        description = "unit of val; defaults to bytes";
+      };
+      used = mkOption {
+        type = types.nullOr types.ints.unsigned;
+        default = null;
+        description = "initial used value";
+      };
+      used_unit = mkOption {
+        type = types.nullOr byteUnit;
+        default = null;
+        description = "unit of used; defaults to bytes";
+      };
+      inv = mkOption {
+        type = types.nullOr types.bool;
+        default = null;
+        description = "invert match semantics";
+      };
+    };
+  };
+
+  # Inline limit: `rate` and `per` are required together (parser_json.c:2084).
+  limitInline = submodule {
+    options = {
+      rate = mkOption {
+        type = types.ints.positive;
+        description = "rate value";
+      };
+      per = mkOption {
+        type = timeUnit;
+        description = "time unit (required for inline form)";
+      };
+      rate_unit = mkOption {
+        type = types.nullOr limitRateUnit;
+        default = null;
+        description = "unit of rate; defaults to packets";
+      };
+      burst = mkOption {
+        type = types.nullOr types.ints.unsigned;
+        default = null;
+        description = "burst value; defaults to 0";
+      };
+      burst_unit = mkOption {
+        type = types.nullOr byteUnit;
+        default = null;
+        description = ''
+          unit of a byte rate's burst; defaults to bytes. nft ignores it on
+          a packet-rate limit
+        '';
+      };
+      inv = mkOption {
+        type = types.nullOr types.bool;
+        default = null;
+        description = "invert match semantics";
+      };
+    };
+  };
+
+  lastInline = submodule {
+    options.used = mkOption {
+      type = types.int;
+      description = "time in ms since last match (-1 = never matched)";
+    };
+  };
+
   # The inline forms of the ct count and synproxy statements; their
   # bodies below add the reference forms.
   ctCountInline = submodule {
@@ -226,6 +319,34 @@ let
     };
   };
 
+  /*
+    A Stateful statement, as nft's `STMT_F_STATEFUL` marks one: an inline
+    counter, quota, limit, ct count, or last. The `stmt` of a set, a map,
+    a set or map statement, and a meter takes only these: nft's parser
+    rejects any other statement in a set's ("Unsupported set statements
+    array"), and its evaluator in a meter's ("meter statement must be
+    stateful"). A Reference is no Stateful statement. Taking any
+    statement also made the schema a cycle, through the set, map, and
+    meter bodies, which overflowed the stack when NixOS rendered the
+    documentation of a statement-typed option.
+  */
+  statefulStatement =
+    let
+      bodiesByTag = {
+        counter = types.either nullLiteral counterInline;
+        quota = quotaInline;
+        limit = limitInline;
+        "ct count" = ctCountInline;
+        last = types.either nullLiteral lastInline;
+      };
+    in
+    internal.restrictedUnion {
+      api = "statefulStatement";
+      noun = "statement";
+      label = "stateful statement";
+      inherit bodiesByTag;
+    } (builtins.attrNames bodiesByTag);
+
   bodies = rec {
     # jump and goto take the same body as the verdict expressions.
     inherit (expressions) verdictTargetBody;
@@ -255,25 +376,7 @@ let
     */
     counterBody = types.oneOf [
       nullLiteral
-      (refOrInline (
-        internal.discriminatedSubmodule {
-          requireKeys = [
-            "packets"
-            "bytes"
-          ];
-          description = "inline counter with packets and bytes";
-          options = {
-            packets = mkOption {
-              type = types.ints.unsigned;
-              description = "initial packet counter";
-            };
-            bytes = mkOption {
-              type = types.ints.unsigned;
-              description = "initial byte counter";
-            };
-          };
-        }
-      ))
+      (refOrInline counterInline)
     ];
 
     mangleBody = submodule {
@@ -289,71 +392,9 @@ let
       };
     };
 
-    quotaBody = refOrInline (submodule {
-      options = {
-        val = mkOption {
-          type = types.ints.unsigned;
-          description = "quota value";
-        };
-        val_unit = mkOption {
-          type = types.nullOr byteUnit;
-          default = null;
-          description = "unit of val; defaults to bytes";
-        };
-        used = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "initial used value";
-        };
-        used_unit = mkOption {
-          type = types.nullOr byteUnit;
-          default = null;
-          description = "unit of used; defaults to bytes";
-        };
-        inv = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "invert match semantics";
-        };
-      };
-    });
+    quotaBody = refOrInline quotaInline;
 
-    # Inline limit: `rate` and `per` are required together (parser_json.c:2084).
-    limitBody = refOrInline (submodule {
-      options = {
-        rate = mkOption {
-          type = types.ints.positive;
-          description = "rate value";
-        };
-        per = mkOption {
-          type = timeUnit;
-          description = "time unit (required for inline form)";
-        };
-        rate_unit = mkOption {
-          type = types.nullOr limitRateUnit;
-          default = null;
-          description = "unit of rate; defaults to packets";
-        };
-        burst = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "burst value; defaults to 0";
-        };
-        burst_unit = mkOption {
-          type = types.nullOr byteUnit;
-          default = null;
-          description = ''
-            unit of a byte rate's burst; defaults to bytes. nft ignores it on
-            a packet-rate limit
-          '';
-        };
-        inv = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "invert match semantics";
-        };
-      };
-    });
+    limitBody = refOrInline limitInline;
 
     fwdBody = submodule {
       options = {
@@ -463,7 +504,7 @@ let
           description = "set reference (\"@name\")";
         };
         stmt = mkOption {
-          type = types.nullOr (types.listOf statement);
+          type = types.nullOr (types.listOf statefulStatement);
           default = null;
           description = "stateful statements to attach on add/update";
         };
@@ -490,7 +531,7 @@ let
           description = "map reference (\"@name\")";
         };
         stmt = mkOption {
-          type = types.nullOr (types.listOf statement);
+          type = types.nullOr (types.listOf statefulStatement);
           default = null;
           description = "stateful statements attached to the element";
         };
@@ -543,8 +584,8 @@ let
           description = "meter key";
         };
         stmt = mkOption {
-          type = statement;
-          description = "statement executed when meter passes";
+          type = statefulStatement;
+          description = "stateful statement each key runs";
         };
         size = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -599,12 +640,7 @@ let
       };
     };
 
-    lastBody = types.either nullLiteral (submodule {
-      options.used = mkOption {
-        type = types.int;
-        description = "time in ms since last match (-1 = never matched)";
-      };
-    });
+    lastBody = types.either nullLiteral lastInline;
 
     flowBody = submodule {
       options = {
@@ -734,6 +770,7 @@ let
 in
 {
   inherit (bodies) bodiesByTag statement statementOf;
+  inherit statefulStatement;
   # The DSL's match operators tell a swapped match apart with it.
   inherit isKeySide;
   all = removeAttrs bodies [

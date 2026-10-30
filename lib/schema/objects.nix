@@ -229,7 +229,7 @@ let
       description = "auto-merge adjacent intervals";
     };
     stmt = mkOption {
-      type = types.nullOr (types.listOf stmt);
+      type = types.nullOr (types.listOf statements.statefulStatement);
       default = null;
       description = ''
         stateful statements (counter/limit/quota/…) attached to elements

@@ -32,6 +32,7 @@ in
   schema = import ./schema.nix testContext;
   schema-option-tree = import ./schema-option-tree.nix testContext;
   set-datatype-safety = import ./set-datatype-safety.nix testContext;
+  stateful-statements = import ./stateful-statements.nix testContext;
   statement-bodies = import ./statement-bodies.nix testContext;
   text-block-parity = import ./text-block-parity.nix testContext;
   text-parity = import ./text-parity.nix testContext;
