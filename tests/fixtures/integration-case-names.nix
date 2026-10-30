@@ -11,7 +11,6 @@
   "binop-precedence"
   "chain-object-references"
   "chain-with-rules"
-  "commented-set-and-map"
   "conntrack-statements"
   "create-supported-kinds"
   "ct-count-objects"

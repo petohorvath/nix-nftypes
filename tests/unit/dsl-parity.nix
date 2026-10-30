@@ -3882,49 +3882,30 @@ in
         };
       };
 
-  testCmdAddSetComment =
-    pc
-      (dsl.add.set {
-        family = "inet";
-        table = "t";
-        name = "s";
-        type = "ipv4_addr";
-        comment = "blocked hosts";
-      })
-      {
-        add = {
-          set = {
-            family = "inet";
-            table = "t";
-            name = "s";
-            type = "ipv4_addr";
-            comment = "blocked hosts";
-          };
-        };
-      };
+  # nft's JSON parser ignores a set's or map's comment, so input takes
+  # none; Read-back does (docs/spec-coverage.md).
+  testCmdAddSetCommentThrows = {
+    expr = dsl.add.set {
+      family = "inet";
+      table = "t";
+      name = "s";
+      type = "ipv4_addr";
+      comment = "blocked hosts";
+    };
+    expectedError.msg = "The option `dsl\\.add\\.set\\.comment' does not exist";
+  };
 
-  testCmdAddMapComment =
-    pc
-      (dsl.add.map {
-        family = "inet";
-        table = "t";
-        name = "m";
-        type = "ipv4_addr";
-        dataType = "verdict";
-        comment = "per-host verdicts";
-      })
-      {
-        add = {
-          map = {
-            family = "inet";
-            table = "t";
-            name = "m";
-            type = "ipv4_addr";
-            map = "verdict";
-            comment = "per-host verdicts";
-          };
-        };
-      };
+  testCmdAddMapCommentThrows = {
+    expr = dsl.add.map {
+      family = "inet";
+      table = "t";
+      name = "m";
+      type = "ipv4_addr";
+      dataType = "verdict";
+      comment = "per-host verdicts";
+    };
+    expectedError.msg = "The option `dsl\\.add\\.map\\.comment' does not exist";
+  };
 
   # Delete and destroy select by name: nft ignores a set's or map's
   # datatypes, a limit's rate, and a flowtable's hook on delete.

@@ -130,7 +130,7 @@ Renderers and validation:
 
 - `validate type value` checks a value against a schema type and returns it unchanged, ready to render. It forces the whole value, so every check runs, and replaces the `lib.evalModules` pattern the docs showed.
 - `add.<kind>`, a command builder for each of the 16 add-object kinds, like `create.<kind>`.
-- Sets and maps accept a `comment`, so `types.ruleset` validates the Read-back of a commented set or map. nft's JSON parser ignores it on input.
+- Listed sets and maps accept a `comment`, so `types.ruleset` validates the Read-back of a commented set or map. nft's JSON parser ignores it on input, so input commands, the DSL's builders, and a Table tree's `sets` and `maps` reject one.
 - ct helper, timeout, and expectation objects accept `l3proto = "inet"`, which nft lists for one in an inet table. Their `l3proto` has its own type, `types.ctL3Protocol`, with values under `enums.ctL3Protocol`.
 - `types.deleteObject` and `types.destroyObject`, the object unions of `delete` and `destroy` commands, and `types.readBackObject`, a bare listed object in a ruleset, as `nft -j list` emits.
 - `types.insertObject`, `types.replaceObject`, and `types.renameObject`, the object unions of `insert`, `replace`, and `rename` commands, and the bodies they take, `types.objectBodies.insertRuleBody`, `replaceRuleBody`, and `renameChainBody`.
@@ -288,6 +288,7 @@ Renderers and validation:
 - The synproxy statement takes any of `mss`, `wscale`, and `flags`, at least one, in `types.statementBodies.synproxyBody` and `synproxy { … }`, and text writes only those given, as in `synproxy mss 1460`. It required both `mss` and `wscale`, while nft's parser reads each optionally and lists a statement with only some of them, so `types.ruleset` rejected nft's own listing of `synproxy mss 1460`. `synproxy { }`, which nft rejects ("Malformed object"), throws and points to `synproxy.auto`. A synproxy object still takes both.
 - `replace.rule` and `types.objectBodies.replaceRuleBody` take no `index`, and `insert.rule` and `insertRuleBody` take at most one of `handle` and `index`, and only a positive handle. nft ignores an index beside a handle, so `replace` replaced the rule in place and `insert` inserted it before the handle's rule, wherever the index pointed, and text dropped the index without a word. nft takes handle 0 on `insert` as none and inserts the rule first.
 - `counter`, `quota`, `limit`, `synproxy`, and `ctCount` given a map expression, such as `quota (expr.map fields.tcp.dport "q")`, throw and point to `.ref`, as a string does. `quota`, `limit`, `synproxy`, and `ctCount` took it as a second spelling of `.ref`, and `counter` failed asking for packets and bytes.
+- A set's or map's `comment` is Read-back only: `add.set`, `create.set`, `add.map`, `create.map`, a Table tree's `sets` and `maps`, and input commands reject one, while a listed set or map takes it. nft's JSON parser drops the comment, so JSON loaded the set without it while text refused it, as it does for every other field nft's parser ignores on input.
 
 ### Removed
 

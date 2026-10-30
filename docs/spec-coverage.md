@@ -277,9 +277,9 @@ A listed rule takes it, through `types.statementBodies.xtBody`, while
 builder.
 
 A set or map `comment` is a Read-back shape: nft lists it, but its JSON parser
-ignores it on input, in nftables 1.1.6 and 1.1.7. The schema accepts it, JSON
-input loads the set or map without it, and the text renderer refuses it, because
-text would load it. The `set-comment-ignored-on-json` case of
+ignores it on input, in nftables 1.1.6 and 1.1.7. Read-back sets and maps accept
+it, input commands, the DSL's builders, and a Table tree reject it, and the text
+renderer refuses it in a raw attrset, because text would load it. The `set-comment-ignored-on-json` case of
 `integration-nft-misbehaviour` asserts that nft still ignores it.
 
 Element statements are a Read-back shape too: nft lists each element's stateful

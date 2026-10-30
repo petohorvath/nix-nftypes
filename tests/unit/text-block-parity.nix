@@ -77,9 +77,9 @@ let
     ) cases;
 in
 {
-  # nft's JSON parser ignores a set or map comment, so block form refuses
-  # it as imperative text does.
-  testSetCommentRefused = {
+  # nft's JSON parser ignores a set or map comment, so a Table tree takes
+  # none, and block form never sees one.
+  testSetCommentRejected = {
     expr = toTextBlock (
       dsl.table "inet" "t" {
         sets.s = {
@@ -88,10 +88,10 @@ in
         };
       }
     );
-    expectedError.msg = helpers.refusals.jsonIgnored "set comment";
+    expectedError.msg = "option `\"dsl\\.table inet\\.t\"\\.sets\\.s\\.comment' does not exist";
   };
 
-  testMapCommentRefused = {
+  testMapCommentRejected = {
     expr = toTextBlockPretty (
       dsl.table "inet" "t" {
         maps.m = {
@@ -101,7 +101,7 @@ in
         };
       }
     );
-    expectedError.msg = helpers.refusals.jsonIgnored "map comment";
+    expectedError.msg = "option `\"dsl\\.table inet\\.t\"\\.maps\\.m\\.comment' does not exist";
   };
 
   # Without an address, nft's JSON parser fails on a NAT family other than

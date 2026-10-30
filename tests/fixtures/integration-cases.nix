@@ -1088,25 +1088,6 @@ rec {
         })
       ];
     }
-    # nft's JSON parser ignores a set or map comment, so JSON loads them
-    # without it and every text form refuses it.
-    {
-      name = "commented-set-and-map";
-      children = [
-        (dsl.table "inet" "t" {
-          sets.hosts = {
-            type = "ipv4_addr";
-            comment = "blocked hosts";
-          };
-          maps.actions = {
-            type = "ipv4_addr";
-            dataType = "verdict";
-            comment = "per-host verdicts";
-          };
-        })
-      ];
-    }
-
     # Set-level statements give each element its own instance, which nft
     # lists as a statement key beside the element's `val`, so the round
     # trip validates element statements too.

@@ -1565,13 +1565,10 @@ let
   # whole.
   refusalNamesTheRendererTests =
     let
-      # The schema takes a set comment, which nft's JSON parser ignores, so
-      # text refuses it (ADR 0010).
+      # JSON takes any name, but nft's text lexer reads `counter` there as
+      # a keyword, so text refuses it.
       tree = dsl.table "inet" "t" {
-        sets.s = {
-          type = "ipv4_addr";
-          comment = "c";
-        };
+        sets.counter.type = "ipv4_addr";
       };
       renderers = {
         toText = nftlib.toText (dsl.ruleset [ tree ]);

@@ -186,9 +186,7 @@ let
 
   # Shared by sets and maps (parser_json.c:3307-3436 — both routed to
   # json_parse_cmd_add_set, the only difference is the `map` field).
-  # A comment is a Read-back shape: nft's JSON parser ignores it.
   setMapCommonOptions = namedInTableOptions // {
-    inherit (commentOption) comment;
     type = mkOption {
       type = setDatatype;
       description = "set datatype";
@@ -1077,11 +1075,13 @@ let
   readBackHolderBodies =
     let
       # A listed set's or map's options: its elements take the statements
-      # nft lists beside each value, and nftables 1.1.7 lists `count`, the
-      # number of elements, beside a `size`. nft's parser reads neither.
+      # nft lists beside each value, it takes the `comment` nft lists, and
+      # nftables 1.1.7 lists `count`, the number of elements, beside a
+      # `size`. nft's JSON parser reads none of them on input.
       listedSetOptions =
         options:
         options
+        // commentOption
         // {
           elem = options.elem // {
             type = types.nullOr readBackSetElem;

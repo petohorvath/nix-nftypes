@@ -404,7 +404,7 @@ in
     (partialChainCase "chain-dev-without-hook" { dev = "lo"; })
     # The set parser never reads `comment`, so JSON loads a commented set
     # or map without it. nft lists the comment of one loaded through text,
-    # so the schema accepts it and text refuses it.
+    # so Read-back accepts it, input rejects it, and text refuses it.
     {
       name = "set-comment-ignored-on-json";
       knownDifference = "docs/spec-coverage.md";

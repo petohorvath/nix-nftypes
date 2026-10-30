@@ -56,9 +56,7 @@ a universal 1:1 guarantee for every schema value.
 `tests/fixtures/render-equivalence.nix` lists every exception, and the suite
 asserts each one still holds, so a stale exception fails:
 
-- **Refusals.**
-  - Every text form refuses `commented-set-and-map`, because nft's JSON parser
-    ignores a set or map comment (see [Fields JSON input ignores](#fields-json-input-ignores)).
+- **Refusals.** None: every Integration case renders in every text form.
 - **Per-version expectations.** `ct-count-objects` uses the `ct count` object
   from nftables 1.1.7, so the suite expects every form to be rejected on an
   older `nft`.
@@ -163,7 +161,7 @@ ruleset loaded through text:
   nft lists beside an element's `val`, or a raw `stmt` list.
 
 The schema accepts the comment and the listed element keys as Read-back
-shapes, and input commands reject the element keys. Text would load them while
+shapes, and input commands reject both. Text would load them while
 JSON drops them, so the text renderer refuses them and names the field (`set
 comment`, `map comment`, or `element counter`). Set-level statements, such as `counter;`, render as before.
 
