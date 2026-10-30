@@ -102,7 +102,11 @@ let
   exprsWith =
     { readBack }:
     rec {
-      concatBody = types.listOf expression;
+      # nft rejects a concatenation of fewer than two expressions
+      # ("Expected concatenation", "Invalid set elem").
+      concatBody = listOfMinLen 2 expression // {
+        description = "list of two or more expressions";
+      };
 
       # Anonymous set: an expression or a list of them (mappings are
       # 2-tuples).

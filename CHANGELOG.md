@@ -289,6 +289,7 @@ Renderers and validation:
 - `replace.rule` and `types.objectBodies.replaceRuleBody` take no `index`, and `insert.rule` and `insertRuleBody` take at most one of `handle` and `index`, and only a positive handle. nft ignores an index beside a handle, so `replace` replaced the rule in place and `insert` inserted it before the handle's rule, wherever the index pointed, and text dropped the index without a word. nft takes handle 0 on `insert` as none and inserts the rule first.
 - `counter`, `quota`, `limit`, `synproxy`, and `ctCount` given a map expression, such as `quota (expr.map fields.tcp.dport "q")`, throw and point to `.ref`, as a string does. `quota`, `limit`, `synproxy`, and `ctCount` took it as a second spelling of `.ref`, and `counter` failed asking for packets and bytes.
 - A set's or map's `comment` is Read-back only: `add.set`, `create.set`, `add.map`, `create.map`, a Table tree's `sets` and `maps`, and input commands reject one, while a listed set or map takes it. nft's JSON parser drops the comment, so JSON loaded the set without it while text refused it, as it does for every other field nft's parser ignores on input.
+- A log statement's `group` excludes `level` and `flags`, a reject statement's `tcp reset` takes no `code` (the JSON `expr`), and a concatenation takes two or more expressions, in the schema and the DSL. They validated, and nft rejected each: "level and group are mutually exclusive", "flags and group are mutually exclusive", "No symbol type information", and "Expected concatenation" or "Invalid set elem".
 
 ### Removed
 

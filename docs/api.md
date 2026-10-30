@@ -463,7 +463,12 @@ forms take `inv` to match once the quota is exceeded. A quota object given
 
 `reject` takes `{ type?; code?; }`: `type` is the answer, such as `"icmp"`,
 `"icmpv6"`, the family-independent `"icmpx"`, or `"tcp reset"`, and `code` the
-ICMP code, which JSON calls `expr`. `reject { }` sends nft's default answer.
+ICMP code, which JSON calls `expr`. `reject { }` sends nft's default answer. A
+TCP reset carries no ICMP code, so `"tcp reset"` with a `code` throws.
+
+`log` writes to a netlink `group` or to the kernel log at a `level` with
+`flags`, not both: nft rejects a `group` beside a `level` or `flags`, and so
+does `log`. A concatenation, `expr.concat`, joins two or more expressions.
 
 The conntrack statements are `ctHelper.ref`, `ctTimeout.ref`, and
 `ctExpectation.ref`, which assign a named ct helper, timeout, or expectation to

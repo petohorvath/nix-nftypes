@@ -2998,6 +2998,76 @@ textDriftTests
     };
 
   /*
+    Statement rules nft enforces across fields: a log group excludes a
+    level and flags, a TCP reset takes no ICMP code, and a concatenation
+    holds at least two expressions.
+  */
+  testFieldCombinationsNftRejects =
+    let
+      saddr.payload = {
+        protocol = "ip";
+        field = "saddr";
+      };
+      statement = helpers.validates nftlib.types.statement;
+    in
+    {
+      expr = [
+        (statement { log.group = 1; })
+        (statement {
+          log = {
+            group = 1;
+            prefix = "x ";
+          };
+        })
+        (statement {
+          log = {
+            group = 1;
+            level = "info";
+          };
+        })
+        (statement {
+          log = {
+            group = 1;
+            flags = "all";
+          };
+        })
+        (statement { reject.type = "tcp reset"; })
+        (statement {
+          reject = {
+            type = "icmpx";
+            expr = "admin-prohibited";
+          };
+        })
+        (statement {
+          reject = {
+            type = "tcp reset";
+            expr = "admin-prohibited";
+          };
+        })
+        (helpers.validates nftlib.types.expression {
+          concat = [
+            saddr
+            saddr
+          ];
+        })
+        (helpers.validates nftlib.types.expression { concat = [ saddr ]; })
+        (helpers.validates nftlib.types.expression { concat = [ ]; })
+      ];
+      expected = [
+        true
+        true
+        false
+        false
+        true
+        true
+        false
+        true
+        false
+        false
+      ];
+    };
+
+  /*
     nft ignores an index beside a handle: `insert rule` inserts before the
     rule with the handle, and `replace rule` replaces it in place. Handle 0
     on `insert` is none, so the rule went first.

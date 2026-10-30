@@ -507,20 +507,26 @@ let
       };
     });
 
-    rejectBody = orNull (submodule {
-      options = {
-        type = mkOption {
-          type = types.nullOr rejectType;
-          default = null;
-          description = "reject mechanism";
+    # A TCP reset carries no ICMP code: nft rejects one ("No symbol type
+    # information").
+    rejectBody = orNull (
+      internal.discriminatedSubmodule {
+        invariant = body: (body.type or null) != "tcp reset" || (body.expr or null) == null;
+        description = "reject body whose tcp reset has no code";
+        options = {
+          type = mkOption {
+            type = types.nullOr rejectType;
+            default = null;
+            description = "reject mechanism";
+          };
+          expr = mkOption {
+            type = types.nullOr expr;
+            default = null;
+            description = "ICMP code (when type is icmp/icmpx/icmpv6)";
+          };
         };
-        expr = mkOption {
-          type = types.nullOr expr;
-          default = null;
-          description = "ICMP code (when type is icmp/icmpx/icmpv6)";
-        };
-      };
-    });
+      }
+    );
 
     setBody = submodule {
       options = {
@@ -571,40 +577,49 @@ let
       };
     };
 
-    logBody = orNull (submodule {
-      options = {
-        prefix = mkOption {
-          type = types.nullOr logPrefix;
-          default = null;
-          description = "log prefix";
+    # nft logs to a group or at a level with flags, not both ("level and
+    # group are mutually exclusive", "flags and group are mutually
+    # exclusive").
+    logBody = orNull (
+      internal.discriminatedSubmodule {
+        invariant =
+          body:
+          (body.group or null) == null || ((body.level or null) == null && (body.flags or null) == null);
+        description = "log body whose group excludes level and flags";
+        options = {
+          prefix = mkOption {
+            type = types.nullOr logPrefix;
+            default = null;
+            description = "log prefix";
+          };
+          group = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "log group";
+          };
+          snaplen = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "snaplen";
+          };
+          "queue-threshold" = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "queue threshold";
+          };
+          level = mkOption {
+            type = types.nullOr logLevel;
+            default = null;
+            description = "log level; defaults to warn";
+          };
+          flags = mkOption {
+            type = types.nullOr (listOrSingleton logFlag);
+            default = null;
+            description = "log flags";
+          };
         };
-        group = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "log group";
-        };
-        snaplen = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "snaplen";
-        };
-        "queue-threshold" = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "queue threshold";
-        };
-        level = mkOption {
-          type = types.nullOr logLevel;
-          default = null;
-          description = "log level; defaults to warn";
-        };
-        flags = mkOption {
-          type = types.nullOr (listOrSingleton logFlag);
-          default = null;
-          description = "log flags";
-        };
-      };
-    });
+      }
+    );
 
     meterBody = submodule {
       options = {
