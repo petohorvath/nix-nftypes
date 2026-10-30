@@ -5,7 +5,8 @@
     variant name base extras
       `name`   is the builder's name under `dsl`, for its errors
       `base`   is the function called when the result is invoked:
-               `(variant base …) args  ==  base args`
+               `(variant name base …) args  ==  base args`, but for a
+               string where `extras` has a `.ref`
       `extras` is a plain attrset of named variants reachable by attribute
                access: `.auto`, `.ref`, `.icmp`, …
 
@@ -25,6 +26,7 @@
                         ⇒ base { packets = 0; bytes = 0; }  (via __functor)
     counter.auto        ⇒ { counter = null; }
     counter.ref "pkts"  ⇒ { counter = "pkts"; }
+    counter "pkts"      ⇒ throws, pointing to `counter.ref "pkts"`
 */
 { lib }:
 

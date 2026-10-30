@@ -68,7 +68,7 @@ let
       # A `@name` reference's name may hold a `/`, as nft's text and
       # JSON read it; any other string with one would load as a prefix.
       else if lib.hasPrefix "@" v then
-        "@${primitives.checkName "reference" "expression" (lib.removePrefix "@" v)}"
+        "@${primitives.assertNotKeyword "reference" "expression" (lib.removePrefix "@" v)}"
       else if lib.hasInfix "/" v then
         primitives.refuseBarePrefix "expression" v
       else
@@ -517,12 +517,12 @@ let
 
   renderElem = renderElemIn plainSlot;
 
-  # Verdict target is a chain name; route through `primitives.name` so the
+  # Verdict target is a chain name; route through `primitives.safeName` so the
   # renderer's `assertSafeString` assert catches the parser-meta injection set
   # ('"', '\', control chars) and other invalid bytes land in the
   # quoted-form fallback that nft rejects in identifier position.
-  renderJump = _ctx: { target }: "jump ${primitives.name "identifier" "jump target" target}";
-  renderGoto = _ctx: { target }: "goto ${primitives.name "identifier" "goto target" target}";
+  renderJump = _ctx: { target }: "jump ${primitives.safeName "identifier" "jump target" target}";
+  renderGoto = _ctx: { target }: "goto ${primitives.safeName "identifier" "goto target" target}";
 
   # Bare verdicts as expressions (vmap data position).
   renderVerdict =

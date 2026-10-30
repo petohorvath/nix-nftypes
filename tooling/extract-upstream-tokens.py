@@ -81,8 +81,8 @@ import sys
 #                   keyword of an unguarded rule, which every inclusive
 #                   (`%s`) start condition shares, or of a `<*>` rule,
 #                   which every one does; with a "state", each one a
-#                   `<…,STATE,…>` rule or block guards. A rule that returns STRING is a name, not a
-#                   keyword. (scanner.l)
+#                   `<…,STATE,…>` rule or block guards. A rule that
+#                   returns STRING is a name, not a keyword. (scanner.l)
 REGISTRY = {
     "family": {
         "file": "src/parser_json.c",
@@ -296,13 +296,18 @@ def template_tokens_by_index(block, spec):
 KEYWORD = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
 
 
+def guarded_states(prefix):
+    """Return the start conditions of a `<A,B>` prefix; `*` is None."""
+    return [None if s == "*" else s for s in prefix.split(",")]
+
+
 def scanner_keywords(rules, state):
     """Return the keywords of the scanner rules `rules` for `state`.
 
     `state` None takes the unguarded and `<*>` rules, which every
     inclusive start condition shares; a state name takes the rules a
-    `<…>` prefix or block lists it in. A rule's keyword is its quoted pattern, when identifier-shaped and
-    not returned as a STRING.
+    `<…>` prefix or block lists it in. A rule's keyword is its quoted
+    pattern, when identifier-shaped and not returned as a STRING.
     """
     tokens = []
     block_states = None
@@ -317,12 +322,11 @@ def scanner_keywords(rules, state):
             continue
         m = re.match(r"^<([A-Z0-9_,*]+)>\{\s*$", line)
         if m:
-            block_states = [None if s == "*" else s for s in m.group(1).split(",")]
+            block_states = guarded_states(m.group(1))
             continue
         m = re.match(r'^<([A-Z0-9_,*]+)>"([^"]+)"\s+(.*)', line)
         if m:
-            states = [None if s == "*" else s for s in m.group(1).split(",")]
-            if state in states:
+            if state in guarded_states(m.group(1)):
                 tokens.append((m.group(2), m.group(3)))
             continue
         m = re.match(r'^"([^"]+)"\s+(.*)', line)

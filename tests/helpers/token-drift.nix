@@ -3,11 +3,10 @@
   patched nftables source with the model's token lists: the enums, the
   ct keys that take a direction, the statement and expression tags, the
   payload fields, each as `<protocol> <field>`, and the text lexer's
-  keywords. Takes the model lists
-  and the extracted tables, `{ <table> = [ <token> … ]; }`, and returns
-  per model list the tokens only one side has, beyond the documented
-  `modelOnly` and `sourceOnly` extras. Every list is empty when the model
-  and the source agree.
+  keywords. Takes the model lists and the extracted tables,
+  `{ <table> = [ <token> … ]; }`, and returns per model list the tokens
+  only one side has, beyond the documented `modelOnly` and `sourceOnly`
+  extras. Every list is empty when the model and the source agree.
 */
 { lib, nftlib }:
 let

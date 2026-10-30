@@ -112,6 +112,9 @@ let
     else
       tag != null && (builtins.elem tag (keyTags ++ [ "map" ]) || holdsKeyIn v.${tag});
 
+  # Its own name, as the generated schema tests read a type's name to
+  # build a value it takes: a string, which `expr`'s name gives, isn't a
+  # left side, while it is a right side, so `matchRight` keeps `expr`'s.
   matchLeft = types.addCheck expr isKeySide // {
     name = "matchLeft";
     description = "match left side: a key such as a payload, meta, or ct expression, an operation on one, or a concatenation of them (did you swap the left and right sides?)";

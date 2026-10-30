@@ -14,10 +14,13 @@
                      asserted to be a name the kernel could give a device.
     safeToken      — render a value written bare: an integer, or a string
                      asserted safe to emit as a bare token, unchanged.
-    name           — render an object name in a position (`identifier`,
-                     `reference`, or an object kind such as `counter`):
-                     refused when nft's lexer reads it there as a keyword,
-                     else as `identQuote` renders it.
+    assertNotKeyword
+                   — assert that a name is no keyword nft's lexer reads in
+                     its position (`identifier`, `reference`, or an object
+                     kind such as `counter`), and return it.
+    safeName       — render an object name in a position: refused when
+                     nft's lexer reads it there as a keyword, else as
+                     `identQuote` renders it.
     namedReference — assert that a string is `@` and a safe bare name that
                      is no keyword in its position, as a set, map or
                      flowtable reference, and return it.
@@ -91,7 +94,7 @@ let
     };
 
   # `s`, refused when nft's lexer reads it as a keyword at `position`.
-  checkName =
+  assertNotKeyword =
     position: field: s:
     if builtins.elem s keywordsByPosition.${position} then
       refuse
@@ -195,9 +198,9 @@ let
 
   identQuote = field: s: if isBareIdent s then s else quoteString field s;
 
-  name =
+  safeName =
     position: field: s:
-    identQuote field (checkName position field s);
+    identQuote field (assertNotKeyword position field s);
 
   /*
     SECURITY-CRITICAL: every value the renderer writes bare (payload
@@ -236,7 +239,7 @@ let
         }
         "refusing to render a named reference without its `@`. A set, map or flowtable reference is stored as `@<name>`, as nft's JSON requires; build it with the DSL, which adds the `@`."
     else
-      "@${checkName position field (safeToken field (lib.removePrefix "@" s))}";
+      "@${assertNotKeyword position field (safeToken field (lib.removePrefix "@" s))}";
 
   # Render a listOrSingleton flag value, each flag through `safeToken`.
   # The default separator matches `nft list ruleset` output (`, `); some
@@ -359,13 +362,12 @@ let
 in
 {
   inherit
+    assertNotKeyword
     assertSafeString
     flags
     identQuote
     isBareIdent
-    checkName
     isWrittenSymbol
-    name
     namedReference
     priority
     quoteIfname
@@ -376,6 +378,7 @@ in
     refuseJsonIgnored
     refuseNoTextSpelling
     refuseUnidentified
+    safeName
     safeToken
     ;
 }

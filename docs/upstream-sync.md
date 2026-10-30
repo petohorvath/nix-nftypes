@@ -138,8 +138,8 @@ state a name follows, such as the counter's. Each keyword list holds the
 keywords of every tested nftables release, so a keyword only one release has
 is no Drift there, while a keyword the package set's lexer has and the list
 lacks is: the text renderer would write it as a name nft can't parse. The
-model's extra tokens that the parser accepts outside the
-table, such as the `secpath` meta alias, are listed there with their reason,
+model's extra tokens that the parser accepts outside the table, such as the
+`secpath` meta alias, are listed there with their reason,
 and so are the table's tokens the model leaves out because nft does not load
 them as written, such as `ip l4proto`.
 

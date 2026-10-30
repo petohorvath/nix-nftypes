@@ -81,7 +81,7 @@ let
   # Names are emitted bare; the text parser expects an identifier (not a
   # quoted string) in the table/chain/set position after `add <kind>`.
   # A name nft's lexer reads as a keyword there, such as a set named
-  # `counter`, is refused (`primitives.name`): no quoting form works in
+  # `counter`, is refused (`primitives.safeName`): no quoting form works in
   # this position. `position` is the kind's, as `keywordsByPosition` in
   # ./primitives.nix names it.
   #
@@ -90,11 +90,12 @@ let
   # object's name. `renderTableScope` is unaffected — the only caller (the
   # table header itself) is never rendered in block form.
   renderTableScope =
-    body: "${safeToken "family" body.family} ${primitives.name "identifier" "table name" body.table}";
+    body:
+    "${safeToken "family" body.family} ${primitives.safeName "identifier" "table name" body.table}";
   renderObjectScope =
     position: ctx: body:
     if ctx.block then
-      primitives.name position "object name" body.name
+      primitives.safeName position "object name" body.name
     else
       "${renderTableScope body} ${renderNameOrHandle position "object" body}";
 
@@ -105,7 +106,7 @@ let
     if (body.name or null) == null && (body.handle or null) != null then
       "handle ${safeToken "${what} handle" body.handle}"
     else
-      primitives.name position "${what} name" body.name;
+      primitives.safeName position "${what} name" body.name;
 
   # SECURITY-CRITICAL: a string datatype renders bare into the set/map
   # `type <X>` clause; a list renders bare joined with ` . `. An unsafe
@@ -274,7 +275,7 @@ let
   # their usual body without inline rules.
   renderChainBlock =
     ctx: body: rules:
-    "chain ${primitives.name "identifier" "chain name" body.name}${
+    "chain ${primitives.safeName "identifier" "chain name" body.name}${
       block ctx (renderChainBody ctx body ++ map (renderRuleStmtsAndComment ctx) rules)
     }";
 
@@ -358,7 +359,7 @@ let
           "";
     in
     "${renderTableScope body} ${
-      primitives.name "identifier" "chain name" body.chain
+      primitives.safeName "identifier" "chain name" body.chain
     }${pos} ${renderRuleStmtsAndComment ctx body}";
 
   # Shared body renderer for set and map objects. They differ only in the

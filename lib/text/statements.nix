@@ -400,7 +400,7 @@ let
       stmt,
       size ? null,
     }:
-    "meter ${primitives.name "identifier" "meter name" name}"
+    "meter ${primitives.safeName "identifier" "meter name" name}"
     + optionalString (size != null) " size ${safeToken "meter size" size}"
     + " { ${renderInnerExpression ctx key} ${renderStatement (resetPrec ctx) stmt} }";
 
