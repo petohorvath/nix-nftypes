@@ -681,7 +681,7 @@ let
 
       The result is `types.attrTag` of the requested tags, with
       `description` overridden to name the allowed tags so error
-      messages read "value is not of type 'statement (one of: match)'"
+      messages read "value is not of type `statement (one of: "match")'"
       instead of the generic "attribute-tagged union".
     */
     statementOf = restrictedUnion {

@@ -83,7 +83,7 @@ it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 | `createObject`   | add-object tags except `rule`                                                                                                                    |
 | `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; a named object by `name` or `handle`, but a ct helper by `name` only      |
 | `destroyObject`  | the same tags as `deleteObject`; a named object by `name`                                                                                        |
-| `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                      |
+| `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, meter, or ruleset                                                             |
 | `readBackObject` | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; each keeps its `handle` |
 | `flushObject`    | table, chain, set, map, meter, or ruleset                                                                                                        |
 | `resetObject`    | counter, quota, rule, set, map, or element                                                                                                       |
@@ -294,7 +294,7 @@ Top-level match helpers include:
 - `eq`, `ne`, `lt`, `gt`, `le`, `ge`;
 - `inSet`, `notInSet`;
 - `hasAnyFlag`, nft's `in` operator, which matches when any of the given flags
-  is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn,ack`.
+  is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn, ack`.
 
 Together they cover nft's seven match operators. Each validates its match
 statement when called, as the statement builders do (see

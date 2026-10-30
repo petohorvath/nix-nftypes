@@ -82,7 +82,7 @@ let
   /*
     Source-of-truth value lists for every primitive enum. Consumed
     twice: by the `types.enum` calls below (producing `types.<name>`)
-    and re-exported under `nftypes.lib.enums` via `default.nix`. A
+    and re-exported under `nftlib.enums` via `default.nix`. A
     single binding prevents the two surfaces drifting. The enum
     extraction suite compares the table-backed lists with the patched
     nftables source.

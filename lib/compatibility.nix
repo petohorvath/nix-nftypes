@@ -23,16 +23,16 @@
   `std_prio_family_hook_compat` in nftables `src/rule.c`.
 
   Example:
-    nftypes.lib.compatibility.hooksByFamily.netdev
+    nftlib.compatibility.hooksByFamily.netdev
     # → [ "ingress" "egress" ]
 
-    nftypes.lib.compatibility.priorityValue "bridge" "input" "filter"
+    nftlib.compatibility.priorityValue "bridge" "input" "filter"
     # → -200
 
-    nftypes.lib.compatibility.priorityName "bridge" "input" (-200)
+    nftlib.compatibility.priorityName "bridge" "input" (-200)
     # → "filter"
 
-    nftypes.lib.compatibility.validChainPlacement "ip" "nat" "forward"
+    nftlib.compatibility.validChainPlacement "ip" "nat" "forward"
     # → false  (nat does not attach at forward)
 */
 

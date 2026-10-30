@@ -1,5 +1,5 @@
 {
-  description = "Nix type definitions mirroring the libnftables-json schema";
+  description = "Strict types, a DSL, and pure renderers for nftables rulesets";
 
   # `nixpkgs` is the NixOS stable release consumers deploy on. The project
   # policy reruns the checks with its stable and unstable pins overriding it.

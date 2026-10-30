@@ -10,7 +10,7 @@ The schema accepts what nft loads as written and rejects what it loads as someth
 
 ### Upgrading from 0.1.0
 
-Each row gives a 0.1.0 name or form and what replaces it in 0.2.0. The entries under Changed and Removed give the reasons. Names removed without a replacement, such as the builders of commands nft rejects or mishandles, are listed under Removed only.
+Each row gives a 0.1.0 name or form and what replaces it in 0.2.0. The entries under Changed and Removed give the reasons. Names removed without a replacement, such as the builders of commands nft rejects or mishandles, are listed under Removed only; the two compatibility helpers that encoded one consumer's conventions are in the table, pointing to a copy in the caller's code.
 
 DSL builders:
 
