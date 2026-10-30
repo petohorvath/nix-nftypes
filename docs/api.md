@@ -442,6 +442,11 @@ Other top-level constructors include `snat`, `dnat`, `masquerade`, `redirect`,
 `last`, and `notrack`, which exempts the packet from connection tracking.
 `notrack` is a statement, not a verdict: a `vmap` rejects it as data.
 
+In an `inet` table, give `snat`, `dnat`, and `tproxy` a `family`, `"ip"` or
+`"ip6"`, with an address: nft fails without one unless an earlier match in the
+rule, such as `fields.ip.saddr`, fixes the family, and the DSL leaves that to
+nft ([`spec-coverage.md`](spec-coverage.md#2-schema-intentionally-more-permissive)).
+
 `snat`, `dnat`, and `tproxy` take `addr`, `port`, or both: the kernel refuses
 an snat or dnat with neither, and nft an empty tproxy, so `snat { }` and
 `tproxy { }` throw. A builder's other required fields are those its schema body
