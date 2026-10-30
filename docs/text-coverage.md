@@ -352,6 +352,12 @@ Refusal guards a raw attrset. nft's JSON parser
 rejects such a string as a hostname, while text would load it as a prefix, so
 a typo could widen a match to every address.
 
+A bare string that text reads as a range, two numbers or two addresses joined
+by `-`, such as `"1000-2000"`, is refused the same way, and the Refusal points
+to `dsl.expr.range`. nft's JSON parser rejects it as a service or hostname, and
+`types.expression` rejects it too. A word with a hyphen, such as
+`"echo-request"`, lexes as one name and renders bare.
+
 Each of these Refusals names the field, such as `chain policy`, `match
 right`, or `element`.
 

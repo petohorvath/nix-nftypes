@@ -578,14 +578,13 @@ let
   };
 
   # Strings nft's lexer reads as something else: a number (`010` loads as
-  # `8`, `0x10` as `16`), a variable, an expression (`a|b` loads as `c`), a
-  # range, or several tokens.
+  # `8`, `0x10` as `16`), a variable, an expression (`a|b` loads as `c`),
+  # or several tokens. A range has its own Refusal (`rangeTests`).
   misreadElements = {
     octal = "010";
     hex = "0x10";
     variable = "$lan";
     bitor = "a|b";
-    range = "1-5";
     leadingDigit = "0eth";
     leadingDash = "-x";
     mapElement = "a:b:c";
@@ -624,6 +623,12 @@ let
     ) writtenElements;
 
   unidentifiedTests = elementTests // {
+    # A range such as `1-5` loads as a range in text, in an identified
+    # position too, where JSON rejects the string.
+    testElementCommandRefusesRange = {
+      expr = toText (rawElementCommand [ "1-5" ]);
+      expectedError.msg = refusals.bareRange "element";
+    };
     testElementCommandRendersInteger = {
       expr = toText (rawElementCommand [ 8 ]);
       expected = "add element inet t s { 8 }\n";

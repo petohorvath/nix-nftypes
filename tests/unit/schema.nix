@@ -2994,6 +2994,52 @@ textDriftTests
       ];
     };
 
+  /*
+    A range written as a string, two numbers or two addresses joined by
+    `-`, loads as a range in text, while nft's JSON parser rejects it as a
+    service or hostname. A hyphenated word stays a string.
+  */
+  testExpressionStringRangeRejected =
+    let
+      dport.payload = {
+        protocol = "tcp";
+        field = "dport";
+      };
+      match = right: {
+        match = {
+          op = "==";
+          left = dport;
+          inherit right;
+        };
+      };
+    in
+    {
+      expr = map (helpers.validates nftlib.types.statement) [
+        (match "1000-2000")
+        (match { set = [ "0x10-0x20" ]; })
+        { dnat.addr = "10.0.0.1-10.0.0.5"; }
+        { snat.addr = "2001:db8::1-2001:db8::9"; }
+        (match "ssh-http")
+        (match "echo-request")
+        {
+          match = {
+            op = "==";
+            left.meta.key = "iifname";
+            right = "wg-home";
+          };
+        }
+      ];
+      expected = [
+        false
+        false
+        false
+        false
+        true
+        true
+        true
+      ];
+    };
+
   # ------------------------------------------------------------------
   # `destroy` command (like delete but idempotent)
   # ------------------------------------------------------------------

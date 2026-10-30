@@ -23,6 +23,7 @@ let
     taggedUnion
     ;
   inherit (import ../word-list.nix { inherit lib; }) conjoin;
+  inherit (import ../range-string.nix { }) isRangeString;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     comment
@@ -600,11 +601,15 @@ let
         A string expression. nft's JSON parser reads `10.0.0.0/8` as a
         hostname and rejects it, while text loads it as a prefix, so a
         string takes no `/` unless it is a `@name` reference, whose name
-        may contain one. A prefix is a prefix expression.
+        may contain one. A prefix is a prefix expression. Likewise a range
+        written as a string, `1000-2000` (../range-string.nix), is a range
+        expression.
       */
-      expressionString = types.addCheck types.str (s: lib.hasPrefix "@" s || !lib.hasInfix "/" s) // {
-        description = "string without `/`";
-      };
+      expressionString =
+        types.addCheck types.str (s: lib.hasPrefix "@" s || !(lib.hasInfix "/" s || isRangeString s))
+        // {
+          description = "string without `/` that is not a range such as `1000-2000`";
+        };
 
       # The generated description names each branch's description, and
       # the list branch's names `expression` again, so a type error on a
@@ -618,7 +623,7 @@ let
           taggedExpression
         ]
         // {
-          description = "nft expression (string without `/`, integer, boolean, list of expressions, or tagged expression; write a prefix as { prefix = { addr; len; }; }, which dsl.expr.prefix builds)";
+          description = "nft expression (string without `/` that is not a range such as `1000-2000`, integer, boolean, list of expressions, or tagged expression; write a prefix as { prefix = { addr; len; }; }, which dsl.expr.prefix builds, and a range as { range = [ low high ]; }, which dsl.expr.range builds)";
         };
 
       # The data of a map lookup or a vmap: an expression, but not a bare

@@ -344,6 +344,12 @@ statement such as `dnat`: nft's JSON parser reads `"10.0.0.0/8"` as a
 hostname and rejects it, while text loads it as a prefix. Write a prefix with
 `expr.prefix "10.0.0.0" 8`. A `@name` reference keeps a `/` in its name.
 
+Nor is a string expression a range: two numbers or two addresses joined by
+`-`, such as `"1000-2000"` or `"10.0.0.1-10.0.0.5"`, load as a range in text,
+while nft's JSON parser rejects them as a service or hostname. Write a range
+with `expr.range 1000 2000`. A word with a hyphen, such as `"echo-request"` or
+the interface `"wg-home"`, stays a string.
+
 `expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` returns the
 reference string `"@name"`, the shape nft lists, for the right side of a
 match. The map lookup is `expr.map key data`. Its data is a named map's name,
