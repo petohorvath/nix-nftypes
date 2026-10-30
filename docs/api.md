@@ -36,9 +36,10 @@ value leaves unset stays absent. `validate` forces the whole value, so every
 check runs before it returns, however deep. A mismatch throws the module
 system's error, whose option path starts with `validate`, such as
 `validate.nftables."[definition 1-entry 2]".add.chain.policy`. Swapped
-arguments, a first argument that is not a schema type, and a table tree as
-the value throw a `nix-nftypes: validate:` error instead; expand a table tree
-with `dsl.ruleset [ … ]`.
+arguments, a first argument that is not a schema type, a table tree as the
+value, and a module property such as `lib.mkIf` in the value throw a
+`nix-nftypes: validate:` error instead; expand a table tree with
+`dsl.ruleset [ … ]`.
 
 `dsl.ruleset` takes a list of Table trees, rulesets, raw command attrsets, and
 nested lists of these. Table trees are expanded and validated, and a ruleset's
@@ -110,7 +111,9 @@ command's union, such as `types.addObject` or `types.readBackObject`.
 
 `types.statementBodies` holds the body of each statement tag that takes more
 than `null`, the same type `types.statement` takes for that tag:
-`statementBodies.logBody` accepts `null` as `{ log = null; }` does. `ct helper`,
+`statementBodies.logBody` accepts `null` as `{ log = null; }` does. `xtBody`
+is the exception: `types.statement` rejects `xt`, and only a Read-back rule
+takes it ([below](#statements)). `ct helper`,
 `ct timeout`, `ct expectation`, `secmark`, and `tunnel` share `objectReferenceBody`,
 a Reference: the object's name, such as `"ftp"`, or a map expression that
 selects it. Every stateful statement's Reference, a counter's or a synproxy's
@@ -389,9 +392,11 @@ A name that declares or selects an object is no Reference, and nft looks up
 `"@s"` there as a set literally named `@s`. `add.element`'s and
 `create.element`'s `name`, a Selector's `name`, and `meter`'s `name` take the
 name with or without its leading `@` and emit the bare name, so
-`add.element { …; name = "@s"; }` adds to set `s`. A Table tree's object key
-that starts with `@`, such as `sets."@s"`, throws naming the key. The schema
-takes a raw name as written.
+`add.element { …; name = "@s"; }` adds to set `s`. A name that declares an
+object throws on a leading `@`, since no Reference could name the object
+without ambiguity: the `name` of a set, map, flowtable, or stateful object
+in `add` and `create`, and a Table tree's object key, such as `sets."@s"`.
+The schema takes a raw name as written.
 
 ### Statements
 

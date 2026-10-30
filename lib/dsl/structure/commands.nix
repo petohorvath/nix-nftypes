@@ -48,7 +48,7 @@ let
   rejectHandle = import ../internal/reject-handle.nix { inherit lib; };
   chainPriority = import ../internal/chain-priority.nix { inherit compatibility lib; };
   reference = import ../internal/reference.nix { inherit lib; };
-  inherit (import ../internal/location.nix { inherit lib; }) builder fail;
+  inherit (import ../internal/location.nix { inherit lib; }) builder fail within;
   inherit (import ../../word-list.nix { inherit lib; }) conjoin;
 
   # Shared object-kind registry (singular DSL keys → `{ tag; renameBody;
@@ -314,6 +314,34 @@ let
   );
 
   /*
+    `kinds`, whose named objects, the kinds a Table tree declares, throw
+    for a `name` with a leading `@`, as in `add` and `create`. Their `name`
+    declares the object, so it is the bare name: `add.set { name = "@s"; }`
+    would declare a set no Reference could name without ambiguity, as a
+    Table tree's `sets."@s"` would (ADR 0009).
+  */
+  declaring = lib.mapAttrs (
+    kind: cfg:
+    if sharedKinds ? ${kind} then
+      cfg
+      // {
+        renameBody =
+          location: body:
+          let
+            name = body.name or null;
+          in
+          if builtins.isString name && lib.hasPrefix "@" name then
+            fail (within location [
+              "name"
+            ]) "a declared object takes its bare name; drop the leading `@`, which only a Reference adds"
+          else
+            cfg.renameBody location body;
+      }
+    else
+      cfg
+  );
+
+  /*
     Build one command namespace. `command` is the command tag (`"create"`,
     `"delete"`, …) and `kinds` the registry of object kinds it accepts.
 
@@ -378,15 +406,19 @@ in
     `rule`, and `flush` the flushable kinds plus `ruleset`.
   */
   add = mkNamespace "add" (
-    withoutHandle (
-      addObjectKinds
-      // {
-        chain = declaredChain;
-        rule = ruleCommandKind objects.addRuleBody;
-      }
+    declaring (
+      withoutHandle (
+        addObjectKinds
+        // {
+          chain = declaredChain;
+          rule = ruleCommandKind objects.addRuleBody;
+        }
+      )
     )
   );
-  create = mkNamespace "create" (withoutHandle (createObjectKinds // { chain = declaredChain; }));
+  create = mkNamespace "create" (
+    declaring (withoutHandle (createObjectKinds // { chain = declaredChain; }))
+  );
   delete = mkNamespace "delete" deleteObjectKinds;
   destroy = mkNamespace "destroy" (selecting destroyObjectKinds);
   flush = mkNamespace "flush" flushObjectKinds;
