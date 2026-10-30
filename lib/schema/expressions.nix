@@ -341,7 +341,7 @@ let
             description = "direction; required for the keys nft loads only with one";
           };
         };
-        extraCheck =
+        invariant =
           body:
           let
             key = body.key or null;
@@ -422,7 +422,7 @@ let
             description = "FIB lookup flags; saddr or daddr among them";
           };
         };
-        extraCheck =
+        invariant =
           body: builtins.any (flag: flag == "saddr" || flag == "daddr") (lib.toList (body.flags or [ ]));
         description = "fib body with saddr or daddr among its flags";
       };
@@ -471,7 +471,7 @@ let
             description = "SA index (0-255)";
           };
         };
-        extraCheck = body: (body.dir or null) != null;
+        invariant = body: (body.dir or null) != null;
         description = "ipsec body with dir";
       };
 

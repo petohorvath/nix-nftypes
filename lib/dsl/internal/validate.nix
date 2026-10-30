@@ -99,7 +99,7 @@ let
           config
           ;
       in
-      if target.check body then
+      if target.check body && (target.invariant or (_: true)) config then
         config
       else
         # A field's own error names the field, so it goes first: an

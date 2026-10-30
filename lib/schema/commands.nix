@@ -70,7 +70,7 @@ in
   verbs = builtins.attrNames commandBodies;
 
   ruleset = discriminatedSubmodule {
-    extraCheck =
+    invariant =
       value:
       let
         entries = value.nftables or [ ];

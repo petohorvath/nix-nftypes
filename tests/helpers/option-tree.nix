@@ -167,6 +167,10 @@ let
 
   isOptional = option: option.type.name == "nullOr" || option ? default;
 
+  # Whether a body passes its type's check and the invariant the type
+  # applies to a merged value, such as a NAT body's address or port.
+  passes = type: value: type.check value && (type.invariant or (_: true)) value;
+
   # The smallest body that passes the body's own check: its required
   # fields, plus the first optional field (other than `omitted`) that a
   # body-level check needs, such as a NAT address.
@@ -184,7 +188,7 @@ let
         builtins.filter (name: fields.${name}.type.name == "nullOr") optionalNames
       );
     in
-    findFirst type.check (throw "option-tree: no body of `${type.description}' passes its check") (
+    findFirst (passes type) (throw "option-tree: no body of `${type.description}' passes its check") (
       [ required ] ++ withOne
     );
 
@@ -432,7 +436,7 @@ in
             if type.name == "attrTag" then [ { } ] else bodies
           );
         in
-        findFirst type.check (builtins.head candidates) candidates;
+        findFirst (passes type) (builtins.head candidates) candidates;
     in
     lib.listToAttrs (
       map (member: {

@@ -13,6 +13,7 @@ let
     discriminatedSubmodule
     submodule
     taggedUnion
+    withInvariant
     wrap
     ;
   inherit (primitives) listOrSingleton;
@@ -153,7 +154,7 @@ let
           description = "${kind} handle, or null to select it by name";
         };
       };
-      extraCheck = v: ((v.name or null) != null) != ((v.handle or null) != null);
+      invariant = v: ((v.name or null) != null) != ((v.handle or null) != null);
       description = "${kind} Selector with exactly one of name and handle";
     };
   # The scope a delete Selector of a kind in a table names it in.
@@ -374,12 +375,16 @@ let
         }
         // lib.optionalAttrs (description != null) { inherit description; };
     in
-    withCheck (
-      types.submoduleWith {
-        shorthandOnlyDefinesConfig = true;
-        modules = body.getSubModules ++ [ { options = { inherit (identityCore) handle; }; } ];
-      }
-    );
+    withInvariant (if description != null then description else body.description)
+      (body.invariant or null)
+      (
+        withCheck (
+          types.submoduleWith {
+            shorthandOnlyDefinesConfig = true;
+            modules = body.getSubModules ++ [ { options = { inherit (identityCore) handle; }; } ];
+          }
+        )
+      );
 
   chainPlacementDescription = "chain body with type, hook and prio all set (a base chain) or all unset, and dev and policy only on a base chain";
 
@@ -407,7 +412,7 @@ let
       take a base chain too.
     */
     chainBody = inputBody "chain" {
-      extraCheck =
+      invariant =
         body:
         let
           setFields = builtins.filter (field: (body.${field} or null) != null);

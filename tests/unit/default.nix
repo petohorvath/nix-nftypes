@@ -20,6 +20,7 @@ in
   expr-token-safety = import ./expr-token-safety.nix testContext;
   ifname-safety = import ./ifname-safety.nix testContext;
   log-prefix-safety = import ./log-prefix-safety.nix testContext;
+  merged-definitions = import ./merged-definitions.nix testContext;
   module-properties = import ./module-properties.nix testContext;
   named-ref-safety = import ./named-ref-safety.nix testContext;
   parse-check-inputs = import ./parse-check-inputs.nix testContext;

@@ -188,7 +188,7 @@ let
     name: options:
     internal.discriminatedSubmodule {
       inherit options;
-      extraCheck = body: (body.addr or null) != null || (body.port or null) != null;
+      invariant = body: (body.addr or null) != null || (body.port or null) != null;
       description = "${name} body with addr or port";
     };
 

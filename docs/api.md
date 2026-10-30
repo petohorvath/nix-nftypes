@@ -131,6 +131,13 @@ parser reads only `val`, `timeout`, `expires`, and `comment`:
   takes it for a listed set, map, element, or rule, so the Read-back of a set
   with counters validates.
 
+A schema type can type a NixOS option that several modules define. A rule
+across a body's fields, such as a delete Selector's one of `name` and
+`handle`, a base chain's `type`, `hook`, and `prio`, or a ruleset's reset as
+its last command, holds for the merged value: one module can set a base
+chain's placement and another its `policy`, and two modules that give a
+Selector a name and a handle fail.
+
 Each submodule takes only an attrset of its fields. Unlike
 `lib.types.submodule`, it rejects a module function, a path, and a `_module`
 key, so a string in a union with a body, such as the synproxy reference

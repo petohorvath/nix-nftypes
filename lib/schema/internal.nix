@@ -77,18 +77,52 @@ let
   isData = v: builtins.isAttrs v && !(v ? _module);
 
   /*
+    `withInvariant description invariant type`: `type`, whose merged value
+    must satisfy `invariant`, a predicate on the merged config, or `null`
+    for none. The module system runs a type's `check` on each definition
+    alone, so a rule across a body's fields held only within each
+    definition: two modules could each define half of a delete Selector,
+    the name in one and the handle in the other, or a reset before another
+    command. A value that breaks the rule fails as a failed check does,
+    naming `description`. The type carries `invariant`, so the DSL, which
+    checks a body's fields apart from the body, applies it too.
+  */
+  withInvariant =
+    description: invariant: type:
+    if invariant == null then
+      type
+    else
+      type
+      // {
+        inherit invariant;
+        merge =
+          loc: defs:
+          let
+            merged = type.merge loc defs;
+          in
+          if invariant merged then
+            merged
+          else
+            throw "A definition for option `${lib.showOption loc}' is not of type `${description}'. Definition values:${lib.options.showDefs defs}";
+        substSubModules = modules: withInvariant description invariant (type.substSubModules modules);
+      };
+
+  /*
     Submodule with a key-presence (and optional value) discriminator. Wraps
     the submodule in addCheck so `types.oneOf` can route correctly between
     siblings that share the same nominal shape (e.g. raw / tunnel / named
     payload, ERSPAN v1 / v2, …), and so a body declared directly (an
-    attrTag tag) rejects a value that fails the check. `description`
-    names the constraint in that error.
+    attrTag tag) rejects a value that fails the check. `invariant` is a
+    rule across the body's fields that its merged value must satisfy
+    (`withInvariant`), rather than a discriminator. `description` names
+    the constraint in either error.
 
       discriminatedSubmodule {
         options = { … };
         requireKeys = [ "base" "offset" "len" ];
         forbidKeys  = [ "tunnel" ];
         extraCheck  = v: (v.version or null) == 2;   # optional value check
+        invariant   = v: v.name != null || v.handle != null;
       }
   */
   discriminatedSubmodule =
@@ -97,6 +131,7 @@ let
       requireKeys ? [ ],
       forbidKeys ? [ ],
       extraCheck ? null,
+      invariant ? null,
       description ? null,
     }:
     let
@@ -113,10 +148,10 @@ let
         }
         // lib.optionalAttrs (description != null) { inherit description; };
     in
-    withCheck (types.submodule { inherit options; });
+    withInvariant description invariant (withCheck (types.submodule { inherit options; }));
 in
 {
-  inherit discriminatedSubmodule;
+  inherit discriminatedSubmodule withInvariant;
 
   # `types.submodule` for a schema body: it takes only an attrset of its
   # fields (see `isData`), so a string in a union with a body is always a
