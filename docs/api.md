@@ -102,8 +102,9 @@ These namespaces hold bodies only, each named `<kind>Body`, such as
 several tags share is named for what they share (`natBody`), a variant or a
 nested part of one tag's body puts its parent first (`payloadRawBody`,
 `tunnelVxlanBody`), and the body of one command puts its verb first
-(`flushRulesetBody`, `insertRuleBody`, `deleteSetBody`), and a Selector is
-`select<Kind>Body` (`selectSetBody`). A statement body includes the statement's
+(`insertRuleBody`, `deleteSetBody`), and a Selector is `select<Kind>Body`
+(`selectSetBody`), as is one that several verbs share, such as
+`selectRulesetBody` for `flush ruleset` and `list ruleset`. A statement body includes the statement's
 reference forms. Type a tagged object, such as `{ chain = { … }; }`, with its
 command's union, such as `types.addObject` or `types.readBackObject`.
 

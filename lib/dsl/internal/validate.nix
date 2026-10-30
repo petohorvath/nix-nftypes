@@ -22,7 +22,7 @@
   have. Each throws an error naming its path, as does a module property
   such as `lib.mkIf` anywhere in `value` (../../module-property.nix).
 
-  A union such as `flushRulesetBody`, `oneOf [ nullLiteral, submodule {
+  A union such as `selectRulesetBody`, `oneOf [ nullLiteral, submodule {
   family; } ]`, or a statement's `logBody`, is checked against the branch
   the module system merges `value` with (`branchFor`). Then two cases:
     - submodule types (every body in lib/schema/objects.nix, and the

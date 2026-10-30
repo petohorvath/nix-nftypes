@@ -489,10 +489,6 @@ let
 
     # A listed rule, with the `handle` nft assigned, whose elements take
     # no statements; `readBackObject` lists a rule's elements with theirs.
-    ruleBody = submodule {
-      options = ruleOptions;
-    };
-
     /*
       `insert rule` puts the rule before the rule with `handle`, at `index`,
       or, with neither, first in the chain. nft reads the handle and
@@ -956,11 +952,9 @@ let
       };
     };
 
-    # `ruleset` body is `null` (operate on all) OR `{ family = "ip"; }`.
-    flushRulesetBody = rulesetSelector;
-
-    # `list ruleset` takes the same body as `flush ruleset`.
-    listRulesetBody = rulesetSelector;
+    # The Selector of `flush ruleset` and `list ruleset`: `null` for every
+    # family, or `{ family = "ip"; }` for one.
+    selectRulesetBody = rulesetSelector;
 
     # Meter object body: meters are anonymous sets internally
     # (parser_json.c routes meter to json_parse_cmd_add_set), so the
@@ -992,11 +986,10 @@ let
 
   addObject = taggedUnion addObjectBodies;
 
-  # Each add-object kind as Read-back lists it, with the handle nft
-  # assigned, but with input elements, which the selecting verbs take. A
-  # listed rule is `ruleBody`, and an element has no handle.
-  # `readBackObjectBodies` gives the kinds that hold elements their
-  # Read-back statements.
+  # Each add-object kind but a rule as Read-back lists it, with the handle
+  # nft assigned, but with input elements, which the selecting verbs take;
+  # an element has no handle. `readBackObjectBodies` gives the kinds that
+  # hold elements, a rule among them, their Read-back statements.
   listedObjectBodies =
     lib.mapAttrs (_: listedBody null) (
       removeAttrs addObjectBodies [
@@ -1008,7 +1001,6 @@ let
     // {
       chain = listedBody chainPlacementDescription addObjectBodies.chain;
       inherit (addObjectBodies) element;
-      rule = bodies.ruleBody;
     };
 
   /*
@@ -1178,7 +1170,7 @@ let
       ] (builtins.attrNames readBackObjectBodies)
     )
     // {
-      ruleset = bodies.listRulesetBody;
+      ruleset = bodies.selectRulesetBody;
     }
   );
 
@@ -1195,7 +1187,7 @@ let
       "meter"
     ]
     // {
-      ruleset = bodies.flushRulesetBody;
+      ruleset = bodies.selectRulesetBody;
     }
   );
 
