@@ -482,25 +482,24 @@ let
     + optionalString (family != null) " ${safeToken "tproxy family" family}"
     + renderNatTo ctx addr port;
 
-  # synproxy: bare / inline / named-reference (expr).
+  # synproxy: bare / inline, with any of mss, wscale, and flags /
+  # named-reference (expr), a name or a map expression.
   renderSynproxy =
     ctx: body:
     if body == null then
       "synproxy"
-    else if builtins.isAttrs body && body ? mss && body ? wscale then
-      let
-        head = "synproxy mss ${safeToken "synproxy mss" body.mss} wscale ${safeToken "synproxy wscale" body.wscale}";
-        flagsClause =
-          if (body.flags or null) == null then
-            ""
-          else
-            " "
-            + primitives.flags {
-              field = "synproxy flags";
-              sep = " ";
-            } body.flags;
-      in
-      head + flagsClause
+    else if builtins.isAttrs body && !(body ? map) then
+      lib.concatStringsSep " " (
+        [ "synproxy" ]
+        ++ lib.optional ((body.mss or null) != null) "mss ${safeToken "synproxy mss" body.mss}"
+        ++ lib.optional ((body.wscale or null) != null) "wscale ${safeToken "synproxy wscale" body.wscale}"
+        ++ lib.optional ((body.flags or null) != null) (
+          primitives.flags {
+            field = "synproxy flags";
+            sep = " ";
+          } body.flags
+        )
+      )
     else
       # Named-reference expression. nft accepts either a bare name or a
       # quoted string.

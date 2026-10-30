@@ -440,6 +440,11 @@ are all optional takes `{ }` for its empty form, for example `log { }` or
 throws. `last { used = …; }` seeds the last-used time, and `last.auto` is the
 unseeded form.
 
+Nor has `synproxy`: it takes any of `mss`, `wscale`, and `flags`, as nft lists
+them, such as `synproxy { mss = 1460; }`, but nft rejects an empty body, so
+`synproxy { }` throws and points to `synproxy.auto`. A synproxy object, in a
+Table tree's `synproxies` or `add.synproxy`, takes both `mss` and `wscale`.
+
 The quota statement and the quota object name their threshold differently, as
 nft's JSON does:
 

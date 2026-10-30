@@ -70,13 +70,12 @@ branch. Differences fall into four groups.
 
 ### 1. Parser input accepted but schema rejected
 
-The packaged nftables statement corpus currently exercises 2 baselined
-categories:
+The packaged nftables statement corpus currently exercises 1 baselined
+category:
 
-| Category         | Schema limitation                                                                                   |
-| ---------------- | --------------------------------------------------------------------------------------------------- |
-| unary negation   | match operator `!` is not in the operator enum                                                      |
-| partial synproxy | a flags-only synproxy statement is rejected because the schema requires `mss` and `wscale` together |
+| Category       | Schema limitation                              |
+| -------------- | ---------------------------------------------- |
+| unary negation | match operator `!` is not in the operator enum |
 
 The executable baseline is `knownDivergences` in
 [`tests/helpers/corpus-drift.nix`](../tests/helpers/corpus-drift.nix). A

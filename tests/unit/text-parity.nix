@@ -1934,6 +1934,28 @@ in
     three with `;` takes the grammar's other branch, which every tested nft
     reads correctly. The flags must follow `wscale N;` directly.
   */
+  # nft's text takes any of a synproxy statement's mss, wscale, and flags.
+  testSynproxyStatementPartialForms = {
+    expr = map (synproxy: one (ipRule [ { inherit synproxy; } ])) [
+      { mss = 1460; }
+      {
+        wscale = 7;
+        flags = "timestamp";
+      }
+      {
+        flags = [
+          "timestamp"
+          "sack-perm"
+        ];
+      }
+    ];
+    expected = [
+      "add rule ip t c synproxy mss 1460\n"
+      "add rule ip t c synproxy wscale 7 timestamp\n"
+      "add rule ip t c synproxy timestamp sack-perm\n"
+    ];
+  };
+
   testSynproxyObject = {
     expr = one {
       add.synproxy = {

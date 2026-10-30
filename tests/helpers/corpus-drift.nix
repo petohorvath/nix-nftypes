@@ -33,8 +33,6 @@ let
       "op-negation"
     else if builtins.isAttrs body && body ? map then
       "stmt-map:${tag}"
-    else if tag == "synproxy" && body ? flags && !(body ? mss) then
-      "synproxy-flags-only"
     else
       "UNCLASSIFIED";
 
@@ -45,8 +43,6 @@ let
   knownDivergences = {
     "op-negation" =
       "match `op:\"!\"` (unary negation); missing from the `matchOperator` enum (strcmp-parsed, so the table extractor cannot see it)";
-    "synproxy-flags-only" =
-      "`synproxy` with only `flags` (no mss/wscale); schema over-requires mss/wscale";
   };
   knownCategories = builtins.attrNames knownDivergences;
 

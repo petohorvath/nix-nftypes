@@ -301,14 +301,30 @@ let
     };
   };
 
-  synproxyInline = submodule {
+  /*
+    nft's parser reads the statement's `mss`, `wscale`, and `flags` each
+    optionally (json_parse_synproxy_stmt), and lists a statement with
+    only some of them, but rejects one with none ("Malformed object").
+    The synproxy object requires `mss` and `wscale`.
+  */
+  synproxyInline = internal.discriminatedSubmodule {
+    invariant =
+      body:
+      lib.any (field: (body.${field} or null) != null) [
+        "mss"
+        "wscale"
+        "flags"
+      ];
+    description = "synproxy body with mss, wscale, or flags";
     options = {
       mss = mkOption {
-        type = types.ints.unsigned;
+        type = types.nullOr types.ints.unsigned;
+        default = null;
         description = "maximum segment size";
       };
       wscale = mkOption {
-        type = types.ints.unsigned;
+        type = types.nullOr types.ints.unsigned;
+        default = null;
         description = "window scale";
       };
       flags = mkOption {

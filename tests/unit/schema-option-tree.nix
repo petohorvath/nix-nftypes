@@ -172,7 +172,7 @@ generatedTests
       body = 103;
       wrongType = 705;
       accepted = 230;
-      omitted = 235;
+      omitted = 237;
       lowest = 112;
       belowLowest = 112;
       highest = 9;

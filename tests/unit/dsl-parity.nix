@@ -1361,6 +1361,22 @@ in
       };
   testSynproxyAuto = ps dsl.synproxy.auto { synproxy = null; };
   testSynproxyRef = ps (dsl.synproxy.ref "sp1") { synproxy = "sp1"; };
+  # nft takes any of mss, wscale, and flags, and lists such a statement.
+  testSynproxyMssOnly = ps (dsl.synproxy { mss = 1460; }) { synproxy.mss = 1460; };
+  testSynproxyFlagsOnly = ps (dsl.synproxy { flags = [ "sack-perm" ]; }) {
+    synproxy.flags = [ "sack-perm" ];
+  };
+  testSynproxyEmptyThrows = {
+    expr = dsl.synproxy { };
+    expectedError = {
+      type = "ThrownError";
+      msg = "^nix-nftypes: dsl\\.synproxy: nft rejects an empty synproxy body; give mss, wscale, or flags, or use synproxy\\.auto for the null form$";
+    };
+  };
+  testSynproxyRawEmptyRejected = {
+    expr = helpers.validates nftlib.types.statement { synproxy = { }; };
+    expected = false;
+  };
 
   # queue
   testQueueBase =
