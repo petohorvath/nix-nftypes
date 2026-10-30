@@ -112,6 +112,39 @@ let
     else
       tag != null && (builtins.elem tag (keyTags ++ [ "map" ]) || holdsKeyIn v.${tag});
 
+  /*
+    Whether `v` holds an element outside a set's members. nft takes an
+    `elem` as a set member, or as the key or value of a map member's
+    pair, and nowhere else: as a match's right side, nftables 1.1.6
+    aborts ("BUG: invalid expression type set element") and 1.1.7 fails,
+    and as a mangle value 1.1.7 aborts.
+  */
+  holdsStrayElement =
+    v:
+    let
+      tag = tagOf v;
+      holdsIn =
+        body:
+        lib.any holdsStrayElement (
+          if builtins.isAttrs body then builtins.attrValues body else lib.toList body
+        );
+      # An element in a member's place holds a stray one only in its value.
+      inMemberPlace =
+        part:
+        if tagOf part == "elem" then holdsStrayElement (part.elem.val or null) else holdsStrayElement part;
+      # A set member, or a map member's [ key value ] pair.
+      inMember =
+        member: if builtins.isList member then lib.any inMemberPlace member else inMemberPlace member;
+    in
+    if builtins.isList v then
+      lib.any holdsStrayElement v
+    else if tag == "elem" then
+      true
+    else if tag == "set" then
+      lib.any inMember (lib.toList v.set)
+    else
+      tag != null && holdsIn v.${tag};
+
   # Its own name, as the generated schema tests read a type's name to
   # build a value it takes: a string, which `expr`'s name gives, isn't a
   # left side, while it is a right side, so `matchRight` keeps `expr`'s.
@@ -120,8 +153,12 @@ let
     description = "match left side: a key such as a payload, meta, or ct expression, an operation on one, or a concatenation of them";
   };
 
-  matchRight = types.addCheck expr (v: !(holdsKey v)) // {
-    description = "match right side: a value, with no payload, meta, ct, or other key and no map lookup";
+  matchRight = types.addCheck expr (v: !(holdsKey v || holdsStrayElement v)) // {
+    description = "match right side: a value, with no payload, meta, ct, or other key, no map lookup, and no element outside a set";
+  };
+
+  mangleValue = types.addCheck expr (v: !(holdsStrayElement v)) // {
+    description = "mangle value: an expression with no element outside a set";
   };
 
   # nft's parser takes these keys in a mangle statement (CTX_F_MANGLE);
@@ -246,7 +283,7 @@ let
           description = "payload/meta/ct field to change";
         };
         value = mkOption {
-          type = expr;
+          type = mangleValue;
           description = "new value";
         };
       };

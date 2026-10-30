@@ -320,6 +320,46 @@ let
 in
 {
   cases = [
+    # An element outside a set, as a match's right side: nftables 1.1.6
+    # aborts, and 1.1.7 rejects it. The schema rejects it.
+    {
+      name = "match-right-element-aborts";
+      knownDifference = "docs/spec-coverage.md";
+      ruleset.nftables = [
+        { add.table = table; }
+        {
+          add.chain = table // {
+            table = "t";
+            name = "c";
+          };
+        }
+      ];
+      subject.nftables = [
+        {
+          add.rule = {
+            family = "inet";
+            table = "t";
+            chain = "c";
+            expr = [
+              {
+                match = {
+                  op = "==";
+                  left.payload = {
+                    protocol = "tcp";
+                    field = "dport";
+                  };
+                  right.elem.val = 22;
+                };
+              }
+            ];
+          };
+        }
+      ];
+      inspect = loadSubject;
+      misbehaviour = "exit status 134\nBUG: invalid expression type set element\nexpr_evaluate_relational: Assertion `0' failed\n";
+      fixedFrom = "1.1.7";
+      fixed = "exit status 1\nError: Right hand side of relational expression (==) must be constant\n";
+    }
     (keywordNameCase "keyword-map-name-fails-in-text" "fwd" ipTable
       "add map ip t fwd { type inet_service : ipv4_addr; }"
     )

@@ -4255,6 +4255,83 @@ textDriftTests
       ];
     };
 
+  /*
+    nft takes an element as a set member, or in a map member's pair, and
+    aborts or fails on one anywhere else in a match's right side or a
+    mangle value. A set statement's element stays an element.
+  */
+  testStrayElementRejected =
+    let
+      dport.payload = {
+        protocol = "tcp";
+        field = "dport";
+      };
+      element = val: {
+        elem = {
+          inherit val;
+          timeout = 10;
+        };
+      };
+      match = right: {
+        match = {
+          op = "==";
+          left = dport;
+          inherit right;
+        };
+      };
+    in
+    {
+      expr = map (helpers.validates nftlib.types.statement) [
+        (match (element 22))
+        (match [ (element 22) ])
+        (match {
+          prefix = {
+            addr = element "10.0.0.0";
+            len = 8;
+          };
+        })
+        {
+          mangle = {
+            key.meta.key = "mark";
+            value = element 1;
+          };
+        }
+        (match {
+          set = [
+            (element 22)
+            23
+          ];
+        })
+        {
+          vmap = {
+            key = dport;
+            data.set = [
+              [
+                (element 22)
+                { accept = null; }
+              ]
+            ];
+          };
+        }
+        {
+          set = {
+            op = "add";
+            elem = element "192.0.2.1";
+            set = "@s";
+          };
+        }
+      ];
+      expected = [
+        false
+        false
+        false
+        false
+        true
+        true
+        true
+      ];
+    };
+
   testWrongExpressionIsATypeError = {
     expr = builtins.deepSeq (helpers.validate nftlib.types.statement {
       match = {

@@ -285,7 +285,9 @@ that build one form of a body take that form only: `expr.payloadRaw`,
 checks its name itself.
 
 `expr.elem` takes `val`, `timeout`, `expires`, and `comment`, the fields of
-`types.expressionBodies.elemBody`. nft lists an element's `counter`, `quota`,
+`types.expressionBodies.elemBody`. An element goes in a set, as a member or in
+a map member's pair, or in `setStmt` and `mapStmt`; anywhere else in a match's
+right side or a mangle value it throws, since nft aborts or fails on one there. nft lists an element's `counter`, `quota`,
 `limit`, or `last` beside its value, but its JSON parser ignores them, so
 `expr.elem` rejects them as unknown options.
 

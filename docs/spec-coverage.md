@@ -106,7 +106,13 @@ Additional command and selector differences are not statement-corpus shapes:
   deletes every rule in the chain, a Known difference that the
   `delete-rule-handle-zero-deletes-every-rule` and
   `destroy-rule-handle-zero-deletes-every-rule` live tests assert nft still
-  shows (nftables 1.1.6 and 1.1.7).
+  shows (nftables 1.1.6 and 1.1.7);
+- a match's right side and a mangle value take an `elem` only as a set
+  member or in a map member's pair, though the parser takes one anywhere:
+  as a match's right side, nftables 1.1.6 aborts with
+  `BUG: invalid expression type set element` and 1.1.7 rejects it, which
+  the `match-right-element-aborts` live test asserts, and as a mangle value
+  1.1.7 aborts. A set statement's element and a set's members keep theirs.
 
 Use direct JSON only when one of these parser forms is required, and validate
 it with the real packaged parser.

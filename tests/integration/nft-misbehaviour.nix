@@ -68,6 +68,7 @@ lib.listToAttrs (
       "list-ct-timeout-aborts"
       "list-tunnel-aborts"
       "listed-meter-rejected-on-json"
+      "match-right-element-aborts"
       "number-reference-loads-as-name"
       "payload-l4proto-loads-header-field"
       "reset-before-another-command-resets-nothing"
