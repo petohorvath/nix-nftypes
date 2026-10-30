@@ -70,13 +70,12 @@ branch. Differences fall into four groups.
 
 ### 1. Parser input accepted but schema rejected
 
-The packaged nftables statement corpus currently exercises 2 baselined
-categories:
+The packaged nftables statement corpus currently exercises 1 baselined
+category:
 
-| Category         | Schema limitation                                                                                   |
-| ---------------- | --------------------------------------------------------------------------------------------------- |
-| unary negation   | match operator `!` is not in the operator enum                                                      |
-| partial synproxy | a flags-only synproxy statement is rejected because the schema requires `mss` and `wscale` together |
+| Category       | Schema limitation                              |
+| -------------- | ---------------------------------------------- |
+| unary negation | match operator `!` is not in the operator enum |
 
 The executable baseline is `knownDivergences` in
 [`tests/helpers/corpus-drift.nix`](../tests/helpers/corpus-drift.nix). A
@@ -257,9 +256,9 @@ supported`. The reach check names the `dccp option` expression as a Named
   Depending on the order, a set or map lists without its elements, as after
   `list chain`, or a `list set` before a `list map` fails with `No such file
 or directory`. Give each `list` whose output matters a ruleset of its own;
-- a named payload body takes any protocol and field string. `expr.payload`
-  takes only those of `enums.payloadFieldsByProtocol`, which leaves out two
-  forms nft's parser takes: `l4proto` on `ip`, `ip6`, `gre`, and `gretap`,
+- a named payload body takes any protocol and field string. The Field leaves
+  cover the fields nft loads as written, which leaves out two forms nft's
+  parser takes: `l4proto` on `ip`, `ip6`, `gre`, and `gretap`,
   which loads as the header bits at offset 0, so `ip l4proto 6` loads as
   `ip version 0 ip hdrlength 6`, and the `vxlan` and `geneve` fields, which
   load only in the tunnel form. The `payload-l4proto-loads-header-field` case
@@ -271,15 +270,16 @@ accept the resulting ruleset. Live-parser and real-load tests remain necessary.
 
 ### 3. Read-back/input asymmetries
 
-`xt` is modelled because listed legacy rules can contain it, but the JSON parser
-rejects `xt` as new input and instructs callers to use `iptables-nft`. No
-Integration case can load it, so the reach check names the `xt` statement as a
-Named exclusion. The DSL has no `xt` builder.
+`xt` is a Read-back shape: nft lists it for a rule an xtables tool added, but
+its JSON parser rejects it as input and instructs callers to use `iptables-nft`.
+A listed rule takes it, through `types.statementBodies.xtBody`, while
+`types.statement` and every input command reject it. The DSL has no `xt`
+builder.
 
 A set or map `comment` is a Read-back shape: nft lists it, but its JSON parser
-ignores it on input, in nftables 1.1.6 and 1.1.7. The schema accepts it, JSON
-input loads the set or map without it, and the text renderer refuses it, because
-text would load it. The `set-comment-ignored-on-json` case of
+ignores it on input, in nftables 1.1.6 and 1.1.7. Read-back sets and maps accept
+it, input commands, the DSL's builders, and a Table tree reject it, and the text
+renderer refuses it in a raw attrset, because text would load it. The `set-comment-ignored-on-json` case of
 `integration-nft-misbehaviour` asserts that nft still ignores it.
 
 Element statements are a Read-back shape too: nft lists each element's stateful
@@ -292,6 +292,10 @@ reject them through `elemBody`, no element takes a `stmt` list, and the text
 renderer refuses them. Set-level statements load identically through JSON and
 text, and give each element its own instance. The `element-statements-ignored-on-json` case of
 `integration-nft-misbehaviour` asserts that nft still ignores them.
+
+A set's or map's `count` is a Read-back shape: nftables 1.1.7 lists the number
+of elements beside a `size`, and its JSON parser never reads one. Read-back
+sets and maps accept it, and input commands reject it.
 
 A ct expression's `family` is not a Read-back shape: nft's JSON parser
 ignores it on input and its printer never writes it (`json_parse_ct_expr` and

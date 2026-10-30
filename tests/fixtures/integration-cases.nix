@@ -76,7 +76,8 @@ let
     }
   '';
 
-  # `==` matches on every right-hand shape except a bitmask.
+  # `==` matches on every right-hand shape except a bitmask; `inSet`
+  # writes it for a set.
   shapeMatches =
     let
       inherit (dsl.expr)
@@ -91,12 +92,12 @@ let
       (dsl.eq tcp.dport 22)
       (dsl.eq ip.saddr (prefix "10.0.0.0" 8))
       (dsl.eq tcp.dport (range 1024 65535))
-      (dsl.eq tcp.dport (set [
+      (dsl.inSet tcp.dport (set [
         22
         80
       ]))
-      (dsl.eq ip.saddr (setRef "allowed"))
-      (dsl.eq
+      (dsl.inSet ip.saddr (setRef "allowed"))
+      (dsl.inSet
         (concat [
           ip.saddr
           tcp.dport
@@ -1088,25 +1089,6 @@ rec {
         })
       ];
     }
-    # nft's JSON parser ignores a set or map comment, so JSON loads them
-    # without it and every text form refuses it.
-    {
-      name = "commented-set-and-map";
-      children = [
-        (dsl.table "inet" "t" {
-          sets.hosts = {
-            type = "ipv4_addr";
-            comment = "blocked hosts";
-          };
-          maps.actions = {
-            type = "ipv4_addr";
-            dataType = "verdict";
-            comment = "per-host verdicts";
-          };
-        })
-      ];
-    }
-
     # Set-level statements give each element its own instance, which nft
     # lists as a statement key beside the element's `val`, so the round
     # trip validates element statements too.
@@ -1367,11 +1349,11 @@ rec {
               ]) (ifnameValues ++ [ "eth*" ])
               ++ [
                 [
-                  (dsl.ne meta.oifname (dsl.expr.set ifnameValues))
+                  (dsl.notInSet meta.oifname (dsl.expr.set ifnameValues))
                   accept
                 ]
                 [
-                  (dsl.eq (dsl.expr.concat [
+                  (dsl.inSet (dsl.expr.concat [
                     meta.iifname
                     ip.saddr
                   ]) (dsl.expr.set ifnameAddressPairs))
@@ -1631,7 +1613,7 @@ rec {
                   (tcpRule (dsl.ctHelper.ref (reference "ftpHelper")))
                   (tcpRule (dsl.ctTimeout.ref (reference "shortTcp")))
                   (tcpRule (dsl.ctExpectation.ref (reference "sshExpectation")))
-                  [ (dsl.eq ip.saddr (dsl.expr.setRef (reference "allowed"))) ]
+                  [ (dsl.inSet ip.saddr (dsl.expr.setRef (reference "allowed"))) ]
                   [ (dsl.mangle meta.mark (dsl.expr.map ip.saddr (reference "marks"))) ]
                   [ (dsl.vmap ip.saddr (reference "verdicts")) ]
                 ])
@@ -1857,7 +1839,7 @@ rec {
               (dsl.eq (dsl.expr.exthdr { name = "dst"; }) true)
               (dsl.eq (dsl.expr.exthdr { name = "mh"; }) true)
               (dsl.eq meta.mark (-1))
-              (dsl.eq meta.mark (
+              (dsl.inSet meta.mark (
                 dsl.expr.set [
                   (-2)
                   3

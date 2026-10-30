@@ -121,6 +121,43 @@ let
       value = dsl.quota "q";
       msg = "^nix-nftypes: dsl\\.quota: .*`quota\\.ref \"q\"`";
     };
+    # A map expression selects an object, which `.ref` references; the
+    # inline form took it as a second spelling of `.ref`.
+    quotaMapExpression = {
+      value = dsl.quota (dsl.expr.map dsl.fields.tcp.dport "q");
+      msg = "^nix-nftypes: dsl\\.quota: a map expression selects an object by key; reference it with `quota\\.ref \\(expr\\.map …\\)`";
+    };
+    counterMapExpression = {
+      value = dsl.counter (dsl.expr.map dsl.fields.tcp.dport "c");
+      msg = "^nix-nftypes: dsl\\.counter: a map expression selects an object by key; reference it with `counter\\.ref";
+    };
+    limitMapExpression = {
+      value = dsl.limit (dsl.expr.map dsl.fields.tcp.dport "l");
+      msg = "^nix-nftypes: dsl\\.limit: a map expression selects";
+    };
+    # A set on the right of `eq` or `ne` is a membership test, which
+    # `inSet` or `notInSet` names, and one value on the right of `inSet`
+    # or `notInSet` a comparison, which `eq` or `ne` names.
+    eqNamedSet = {
+      value = dsl.eq dsl.fields.ip.saddr "@trusted";
+      msg = "^nix-nftypes: dsl\\.eq: the right side is a set, which makes the match a membership test; write `inSet`";
+    };
+    eqAnonymousSet = {
+      value = dsl.eq dsl.fields.tcp.dport (dsl.expr.set [ 22 ]);
+      msg = "^nix-nftypes: dsl\\.eq: the right side is a set, .*write `inSet`";
+    };
+    neNamedSet = {
+      value = dsl.ne dsl.fields.ip.saddr "@trusted";
+      msg = "^nix-nftypes: dsl\\.ne: the right side is a set, .*write `notInSet`";
+    };
+    inSetOneValue = {
+      value = dsl.inSet dsl.fields.tcp.dport 22;
+      msg = "^nix-nftypes: dsl\\.inSet: the right side is one value, not a set; compare with it using `eq`";
+    };
+    notInSetOneValue = {
+      value = dsl.notInSet dsl.fields.ip.saddr (dsl.expr.prefix "10.0.0.0" 8);
+      msg = "^nix-nftypes: dsl\\.notInSet: the right side is one value, not a set; compare with it using `ne`";
+    };
     rulesetUncalledBuilder = {
       value = dsl.ruleset [ dsl.flush.ruleset ];
       msg = "^nix-nftypes: dsl\\.ruleset: .*got a function, such as a builder not yet called; call it";
@@ -901,7 +938,7 @@ let
         field = "key";
       };
       vmap = {
-        wrong = dsl.vmap notAnExpression { };
+        wrong = dsl.vmap notAnExpression "m";
         field = "key";
       };
       # `flow` builds its `op` and its `@` reference itself.
@@ -1016,10 +1053,6 @@ let
       range = {
         wrong = dsl.expr.range notAnExpression 1;
         field = "value";
-      };
-      payload = {
-        wrong = dsl.expr.payload 1 "dport";
-        field = "protocol";
       };
       dccpOption = {
         wrong = dsl.expr.dccpOption "x";
@@ -1336,17 +1369,6 @@ let
     ) referencingStatements
   );
 
-  # nft's parser takes `l4proto` on these protocols but loads a header
-  # field at offset 0 instead, a Known difference, so `expr.payload`
-  # rejects it.
-  payloadL4protoTests = lib.genAttrs' [ "ip" "ip6" "gre" ] (
-    protocol:
-    lib.nameValuePair "testExprPayloadL4protoThrows_${protocol}" {
-      expr = force (dsl.expr.payload protocol "l4proto");
-      expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown ${protocol} field 'l4proto'";
-    }
-  );
-
   # The match operators, which build a match statement from its sides.
   matchOperators = [
     "eq"
@@ -1360,6 +1382,19 @@ let
     "notInSet"
   ];
 
+  # `inSet` and `notInSet` take a set on the right, which wraps `value`.
+  membershipValue =
+    name: value:
+    if
+      builtins.elem name [
+        "inSet"
+        "notInSet"
+      ]
+    then
+      [ value ]
+    else
+      value;
+
   # Each match operator validates both sides, naming the operator and the
   # side.
   matchOperatorTests =
@@ -1369,14 +1404,14 @@ let
         lib.genAttrs' matchOperators (
           name:
           lib.nameValuePair "testMatchOperatorWrongSideThrows_${name}_${side}" {
-            expr = force (build dsl.${name});
-            expectedError.msg = "`dsl\\.${name}\\.${side}' is not of type";
+            expr = force (build name);
+            expectedError.msg = "`dsl\\.${name}\\.${side}(\\.[^']*)?' is not of type";
           }
         )
       )
       {
-        left = operator: operator notAnExpression 1;
-        right = operator: operator expression notAnExpression;
+        left = name: dsl.${name} notAnExpression (membershipValue name 1);
+        right = name: dsl.${name} expression (membershipValue name notAnExpression);
       };
 
   # The imperative renderers, each of which names itself in its errors
@@ -1551,13 +1586,10 @@ let
   # whole.
   refusalNamesTheRendererTests =
     let
-      # The schema takes a set comment, which nft's JSON parser ignores, so
-      # text refuses it (ADR 0010).
+      # JSON takes any name, but nft's text lexer reads `counter` there as
+      # a keyword, so text refuses it.
       tree = dsl.table "inet" "t" {
-        sets.s = {
-          type = "ipv4_addr";
-          comment = "c";
-        };
+        sets.counter.type = "ipv4_addr";
       };
       renderers = {
         toText = nftlib.toText (dsl.ruleset [ tree ]);
@@ -2843,51 +2875,41 @@ in
     };
   };
 
-  # ----- expr.payload: nft's protocol and field table -----------------
+  # ----- Field leaves: nft's payload protocols and fields ---------------
 
-  # A protocol nft's JSON parser does not know fails at evaluation, and
-  # the error lists the ones it does.
-  testExprPayloadUnknownProtocolThrows = {
-    expr = force (dsl.expr.payload "ipv4" "saddr");
-    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown protocol 'ipv4'. Valid protocols: ah, arp, comp, dccp, esp, ether, gre, icmp, icmpv6, igmp, ip, ip6, sctp, tcp, th, udp, udplite, vlan.";
-  };
+  # The Field leaves cover every payload field nft's JSON parser loads as
+  # written, and only those: an `expr` constructor for a named payload
+  # would be a second name for a leaf. `vlan cfi` is nft's alias of `dei`,
+  # which has the leaf.
+  testPayloadFieldLeavesAreTheFieldTable =
+    let
+      leaves = lib.concatLists (
+        lib.mapAttrsToList (
+          _: group:
+          lib.mapAttrsToList (_: leaf: "${leaf.payload.protocol} ${leaf.payload.field}") (
+            lib.filterAttrs (_: leaf: leaf ? payload) group
+          )
+        ) dsl.fields
+      );
+      table = lib.concatLists (
+        lib.mapAttrsToList (protocol: map (field: "${protocol} ${field}")) internal.payloadFieldsByProtocol
+      );
+      aliases = [ "vlan cfi" ];
+    in
+    {
+      expr = {
+        withoutLeaf = lib.subtractLists (leaves ++ aliases) table;
+        notInTable = lib.subtractLists table leaves;
+      };
+      expected = {
+        withoutLeaf = [ ];
+        notInTable = [ ];
+      };
+    };
 
-  # A field the protocol lacks, such as a Field leaf's camelCase name,
-  # fails at evaluation, and the error lists the protocol's fields in
-  # nft's spelling.
-  testExprPayloadUnknownFieldThrows = {
-    expr = force (dsl.expr.payload "ip" "fragOff");
-    expectedError.msg = lib.escapeRegex "nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.";
-  };
-
-  # A tunnel header loads only through `expr.payloadTunnel`; nft fails
-  # its named form.
-  testExprPayloadTunnelHeaderThrows = {
-    expr = force (dsl.expr.payload "vxlan" "vni");
-    expectedError.msg = "nix-nftypes: dsl\\.expr\\.payload: unknown protocol 'vxlan'";
-  };
-
-  # A protocol or field that is not a string still fails the payload
-  # body's type, at the field's option.
-  testExprPayloadNonStringFieldThrows = {
-    expr = force (dsl.expr.payload "tcp" 1);
-    expectedError.msg = "`dsl\\.expr\\.payload\\.field' is not of type";
-  };
-
-  # Every payload Field leaf is a protocol and field in the table, so
-  # `expr.payload` rebuilds it.
-  testEveryPayloadFieldLeafBuilds = {
-    expr =
-      lib.filterAttrs (_: leaf: dsl.expr.payload leaf.payload.protocol leaf.payload.field != leaf)
-        (
-          lib.concatMapAttrs (
-            protocol: leaves:
-            lib.mapAttrs' (name: leaf: lib.nameValuePair "${protocol}.${name}" leaf) (
-              lib.filterAttrs (_: leaf: leaf ? payload) leaves
-            )
-          ) dsl.fields
-        );
-    expected = { };
+  testExprHasNoNamedPayloadConstructor = {
+    expr = dsl.expr ? payload;
+    expected = false;
   };
 
   # ----- the flat namespace --------------------------------------------
@@ -3208,7 +3230,6 @@ in
 // ctDirectionTests
 // unrefinedConstructorTests
 // symbolicPriorityTests
-// payloadL4protoTests
 // referenceBodyTests
 // matchOperatorTests
 // missingRuleExprTests

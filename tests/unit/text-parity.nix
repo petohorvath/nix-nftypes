@@ -1934,6 +1934,28 @@ in
     three with `;` takes the grammar's other branch, which every tested nft
     reads correctly. The flags must follow `wscale N;` directly.
   */
+  # nft's text takes any of a synproxy statement's mss, wscale, and flags.
+  testSynproxyStatementPartialForms = {
+    expr = map (synproxy: one (ipRule [ { inherit synproxy; } ])) [
+      { mss = 1460; }
+      {
+        wscale = 7;
+        flags = "timestamp";
+      }
+      {
+        flags = [
+          "timestamp"
+          "sack-perm"
+        ];
+      }
+    ];
+    expected = [
+      "add rule ip t c synproxy mss 1460\n"
+      "add rule ip t c synproxy wscale 7 timestamp\n"
+      "add rule ip t c synproxy timestamp sack-perm\n"
+    ];
+  };
+
   testSynproxyObject = {
     expr = one {
       add.synproxy = {
@@ -2121,7 +2143,7 @@ in
   # listed object such as `nft -j list` emits.
   testUnknownCommandThrows = {
     expr = one { ad.table = { }; };
-    expectedError.msg = "^nix-nftypes: toText: unknown command or listed object 'ad'$";
+    expectedError.msg = "^nix-nftypes: toText: nftables\\.0: expected a command, a verb such as `add` holding one object kind, or a listed object, such as `table`, got an attribute set with ad$";
   };
 
   # nft has no command that takes a metainfo: text and JSON both reject

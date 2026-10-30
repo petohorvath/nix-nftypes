@@ -85,7 +85,10 @@ let
       # the offenders verbatim, which makes the failure output
       # self-explanatory.
       missing = xs: ys: lib.subtractLists ys xs;
-      statementTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
+      # The statement a listed rule takes, which adds the Read-back-only
+      # `xt` to `types.statement`'s tags; text renders a listed rule too.
+      listedRule = (nftlib.types.readBackObject.getSubOptions [ ]).rule.type;
+      statementTags = helpers.tagsOf (listedRule.getSubOptions [ ]).expr.type.nestedTypes.elemType;
       expressionTags = helpers.tagsOf nftlib.types.expression;
       # Renderable object kinds: every union tag in addObject ∪
       # readBackObject (the latter adds `metainfo`, `meter`, and the
@@ -2989,6 +2992,202 @@ textDriftTests
         false
         false
         false
+        true
+        true
+      ];
+    };
+
+  /*
+    Statement rules nft enforces across fields: a log group excludes a
+    level and flags, a TCP reset takes no ICMP code, and a concatenation
+    holds at least two expressions.
+  */
+  testFieldCombinationsNftRejects =
+    let
+      saddr.payload = {
+        protocol = "ip";
+        field = "saddr";
+      };
+      statement = helpers.validates nftlib.types.statement;
+    in
+    {
+      expr = [
+        (statement { log.group = 1; })
+        (statement {
+          log = {
+            group = 1;
+            prefix = "x ";
+          };
+        })
+        (statement {
+          log = {
+            group = 1;
+            level = "info";
+          };
+        })
+        (statement {
+          log = {
+            group = 1;
+            flags = "all";
+          };
+        })
+        (statement { reject.type = "tcp reset"; })
+        (statement {
+          reject = {
+            type = "icmpx";
+            expr = "admin-prohibited";
+          };
+        })
+        (statement {
+          reject = {
+            type = "tcp reset";
+            expr = "admin-prohibited";
+          };
+        })
+        (helpers.validates nftlib.types.expression {
+          concat = [
+            saddr
+            saddr
+          ];
+        })
+        (helpers.validates nftlib.types.expression { concat = [ saddr ]; })
+        (helpers.validates nftlib.types.expression { concat = [ ]; })
+      ];
+      expected = [
+        true
+        true
+        false
+        false
+        true
+        true
+        false
+        true
+        false
+        false
+      ];
+    };
+
+  /*
+    nft ignores an index beside a handle: `insert rule` inserts before the
+    rule with the handle, and `replace rule` replaces it in place. Handle 0
+    on `insert` is none, so the rule went first.
+  */
+  testRulePositions =
+    let
+      rule =
+        extra:
+        {
+          family = "inet";
+          table = "t";
+          chain = "c";
+          expr = [ { accept = null; } ];
+        }
+        // extra;
+      command = verb: extra: helpers.validates nftlib.types.command { ${verb}.rule = rule extra; };
+    in
+    {
+      expr = [
+        (command "insert" { handle = 4; })
+        (command "insert" { index = 0; })
+        (command "insert" { })
+        (command "insert" {
+          handle = 4;
+          index = 0;
+        })
+        (command "insert" { handle = 0; })
+        (command "replace" { handle = 3; })
+        (command "replace" {
+          handle = 3;
+          index = 2;
+        })
+      ];
+      expected = [
+        true
+        true
+        true
+        false
+        false
+        true
+        false
+      ];
+    };
+
+  # nftables 1.1.7 lists a set's or map's `count`, its number of
+  # elements, beside a `size`; its parser reads no `count` on input.
+  testListedSetCount =
+    let
+      set = {
+        family = "inet";
+        table = "t";
+        name = "s";
+        type = "ipv4_addr";
+        size = 10;
+        count = 2;
+      };
+    in
+    {
+      expr = map (value: helpers.validates nftlib.types.ruleset { nftables = [ value ]; }) [
+        {
+          set = set // {
+            handle = 1;
+          };
+        }
+        {
+          map = set // {
+            handle = 2;
+            map = "mark";
+          };
+        }
+        { add = { inherit set; }; }
+      ];
+      expected = [
+        true
+        true
+        false
+      ];
+    };
+
+  /*
+    A range written as a string, two numbers or two addresses joined by
+    `-`, loads as a range in text, while nft's JSON parser rejects it as a
+    service or hostname. A hyphenated word stays a string.
+  */
+  testExpressionStringRangeRejected =
+    let
+      dport.payload = {
+        protocol = "tcp";
+        field = "dport";
+      };
+      match = right: {
+        match = {
+          op = "==";
+          left = dport;
+          inherit right;
+        };
+      };
+    in
+    {
+      expr = map (helpers.validates nftlib.types.statement) [
+        (match "1000-2000")
+        (match { set = [ "0x10-0x20" ]; })
+        { dnat.addr = "10.0.0.1-10.0.0.5"; }
+        { snat.addr = "2001:db8::1-2001:db8::9"; }
+        (match "ssh-http")
+        (match "echo-request")
+        {
+          match = {
+            op = "==";
+            left.meta.key = "iifname";
+            right = "wg-home";
+          };
+        }
+      ];
+      expected = [
+        false
+        false
+        false
+        false
+        true
         true
         true
       ];

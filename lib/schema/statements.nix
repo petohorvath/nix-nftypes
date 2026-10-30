@@ -1,8 +1,14 @@
+/*
+  The statement schema. `readBack` builds the statements Read-back lists,
+  over `expressions` that do the same: they add `xt`, which nft lists for
+  a rule an xtables tool added but its JSON parser rejects as input.
+*/
 {
   lib,
   internal,
   primitives,
   expressions,
+  readBack ? false,
 }:
 
 let
@@ -188,9 +194,102 @@ let
     name: options:
     internal.discriminatedSubmodule {
       inherit options;
-      extraCheck = body: (body.addr or null) != null || (body.port or null) != null;
+      invariant = body: (body.addr or null) != null || (body.port or null) != null;
       description = "${name} body with addr or port";
     };
+
+  # The inline forms of the stateful statements; their bodies below add
+  # the reference forms, and `statefulStatement` takes these alone.
+  counterInline = internal.discriminatedSubmodule {
+    requireKeys = [
+      "packets"
+      "bytes"
+    ];
+    description = "inline counter with packets and bytes";
+    options = {
+      packets = mkOption {
+        type = types.ints.unsigned;
+        description = "initial packet counter";
+      };
+      bytes = mkOption {
+        type = types.ints.unsigned;
+        description = "initial byte counter";
+      };
+    };
+  };
+
+  quotaInline = submodule {
+    options = {
+      val = mkOption {
+        type = types.ints.unsigned;
+        description = "quota value";
+      };
+      val_unit = mkOption {
+        type = types.nullOr byteUnit;
+        default = null;
+        description = "unit of val; defaults to bytes";
+      };
+      used = mkOption {
+        type = types.nullOr types.ints.unsigned;
+        default = null;
+        description = "initial used value";
+      };
+      used_unit = mkOption {
+        type = types.nullOr byteUnit;
+        default = null;
+        description = "unit of used; defaults to bytes";
+      };
+      inv = mkOption {
+        type = types.nullOr types.bool;
+        default = null;
+        description = "invert match semantics";
+      };
+    };
+  };
+
+  # Inline limit: `rate` and `per` are required together (parser_json.c:2084).
+  limitInline = submodule {
+    options = {
+      rate = mkOption {
+        type = types.ints.positive;
+        description = "rate value";
+      };
+      per = mkOption {
+        type = timeUnit;
+        description = "time unit (required for inline form)";
+      };
+      rate_unit = mkOption {
+        type = types.nullOr limitRateUnit;
+        default = null;
+        description = "unit of rate; defaults to packets";
+      };
+      burst = mkOption {
+        type = types.nullOr types.ints.unsigned;
+        default = null;
+        description = "burst value; defaults to 0";
+      };
+      burst_unit = mkOption {
+        type = types.nullOr byteUnit;
+        default = null;
+        description = ''
+          unit of a byte rate's burst; defaults to bytes. nft ignores it on
+          a packet-rate limit
+        '';
+      };
+      inv = mkOption {
+        type = types.nullOr types.bool;
+        default = null;
+        description = "invert match semantics";
+      };
+    };
+  };
+
+  lastInline = submodule {
+    options.used = mkOption {
+      type = types.int;
+      description = "time in ms since last match (-1 = never matched)";
+    };
+  };
 
   # The inline forms of the ct count and synproxy statements; their
   # bodies below add the reference forms.
@@ -208,14 +307,30 @@ let
     };
   };
 
-  synproxyInline = submodule {
+  /*
+    nft's parser reads the statement's `mss`, `wscale`, and `flags` each
+    optionally (json_parse_synproxy_stmt), and lists a statement with
+    only some of them, but rejects one with none ("Malformed object").
+    The synproxy object requires `mss` and `wscale`.
+  */
+  synproxyInline = internal.discriminatedSubmodule {
+    invariant =
+      body:
+      lib.any (field: (body.${field} or null) != null) [
+        "mss"
+        "wscale"
+        "flags"
+      ];
+    description = "synproxy body with mss, wscale, or flags";
     options = {
       mss = mkOption {
-        type = types.ints.unsigned;
+        type = types.nullOr types.ints.unsigned;
+        default = null;
         description = "maximum segment size";
       };
       wscale = mkOption {
-        type = types.ints.unsigned;
+        type = types.nullOr types.ints.unsigned;
+        default = null;
         description = "window scale";
       };
       flags = mkOption {
@@ -225,6 +340,45 @@ let
       };
     };
   };
+
+  /*
+    A Stateful statement, as nft's `STMT_F_STATEFUL` marks one: an inline
+    counter, quota, limit, ct count, or last. The `stmt` of a set, a map,
+    a set or map statement, and a meter takes only these: nft's parser
+    rejects any other statement in a set's ("Unsupported set statements
+    array"), and its evaluator in a meter's ("meter statement must be
+    stateful"). A Reference is no Stateful statement. Taking any
+    statement also made the schema a cycle, through the set, map, and
+    meter bodies, which overflowed the stack when NixOS rendered the
+    documentation of a statement-typed option.
+  */
+  statefulStatement =
+    let
+      bodiesByTag = {
+        counter = types.either nullLiteral counterInline;
+        quota = quotaInline;
+        limit = limitInline;
+        "ct count" = ctCountInline;
+        last = types.either nullLiteral lastInline;
+      };
+    in
+    internal.restrictedUnion {
+      api = "statefulStatement";
+      noun = "statement";
+      label = "stateful statement";
+      inherit bodiesByTag;
+    } (builtins.attrNames bodiesByTag);
+
+  # A vmap's data: a named map, or an anonymous map whose values are
+  # verdicts.
+  vmapData =
+    types.addCheck expressions.mapDataExpression (
+      data:
+      !(builtins.isAttrs data && builtins.isList (data.set or null)) || expressions.verdictPairs data.set
+    )
+    // {
+      description = "verdict map data (a named map's \"@name\", or an anonymous map { set = [ [ key verdict ] … ]; } whose values are verdicts, such as { accept = null; })";
+    };
 
   bodies = rec {
     # jump and goto take the same body as the verdict expressions.
@@ -255,25 +409,7 @@ let
     */
     counterBody = types.oneOf [
       nullLiteral
-      (refOrInline (
-        internal.discriminatedSubmodule {
-          requireKeys = [
-            "packets"
-            "bytes"
-          ];
-          description = "inline counter with packets and bytes";
-          options = {
-            packets = mkOption {
-              type = types.ints.unsigned;
-              description = "initial packet counter";
-            };
-            bytes = mkOption {
-              type = types.ints.unsigned;
-              description = "initial byte counter";
-            };
-          };
-        }
-      ))
+      (refOrInline counterInline)
     ];
 
     mangleBody = submodule {
@@ -289,71 +425,9 @@ let
       };
     };
 
-    quotaBody = refOrInline (submodule {
-      options = {
-        val = mkOption {
-          type = types.ints.unsigned;
-          description = "quota value";
-        };
-        val_unit = mkOption {
-          type = types.nullOr byteUnit;
-          default = null;
-          description = "unit of val; defaults to bytes";
-        };
-        used = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "initial used value";
-        };
-        used_unit = mkOption {
-          type = types.nullOr byteUnit;
-          default = null;
-          description = "unit of used; defaults to bytes";
-        };
-        inv = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "invert match semantics";
-        };
-      };
-    });
+    quotaBody = refOrInline quotaInline;
 
-    # Inline limit: `rate` and `per` are required together (parser_json.c:2084).
-    limitBody = refOrInline (submodule {
-      options = {
-        rate = mkOption {
-          type = types.ints.positive;
-          description = "rate value";
-        };
-        per = mkOption {
-          type = timeUnit;
-          description = "time unit (required for inline form)";
-        };
-        rate_unit = mkOption {
-          type = types.nullOr limitRateUnit;
-          default = null;
-          description = "unit of rate; defaults to packets";
-        };
-        burst = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "burst value; defaults to 0";
-        };
-        burst_unit = mkOption {
-          type = types.nullOr byteUnit;
-          default = null;
-          description = ''
-            unit of a byte rate's burst; defaults to bytes. nft ignores it on
-            a packet-rate limit
-          '';
-        };
-        inv = mkOption {
-          type = types.nullOr types.bool;
-          default = null;
-          description = "invert match semantics";
-        };
-      };
-    });
+    limitBody = refOrInline limitInline;
 
     fwdBody = submodule {
       options = {
@@ -433,20 +507,26 @@ let
       };
     });
 
-    rejectBody = orNull (submodule {
-      options = {
-        type = mkOption {
-          type = types.nullOr rejectType;
-          default = null;
-          description = "reject mechanism";
+    # A TCP reset carries no ICMP code: nft rejects one ("No symbol type
+    # information").
+    rejectBody = orNull (
+      internal.discriminatedSubmodule {
+        invariant = body: (body.type or null) != "tcp reset" || (body.expr or null) == null;
+        description = "reject body whose tcp reset has no code";
+        options = {
+          type = mkOption {
+            type = types.nullOr rejectType;
+            default = null;
+            description = "reject mechanism";
+          };
+          expr = mkOption {
+            type = types.nullOr expr;
+            default = null;
+            description = "ICMP code (when type is icmp/icmpx/icmpv6)";
+          };
         };
-        expr = mkOption {
-          type = types.nullOr expr;
-          default = null;
-          description = "ICMP code (when type is icmp/icmpx/icmpv6)";
-        };
-      };
-    });
+      }
+    );
 
     setBody = submodule {
       options = {
@@ -463,7 +543,7 @@ let
           description = "set reference (\"@name\")";
         };
         stmt = mkOption {
-          type = types.nullOr (types.listOf statement);
+          type = types.nullOr (types.listOf statefulStatement);
           default = null;
           description = "stateful statements to attach on add/update";
         };
@@ -490,47 +570,56 @@ let
           description = "map reference (\"@name\")";
         };
         stmt = mkOption {
-          type = types.nullOr (types.listOf statement);
+          type = types.nullOr (types.listOf statefulStatement);
           default = null;
           description = "stateful statements attached to the element";
         };
       };
     };
 
-    logBody = orNull (submodule {
-      options = {
-        prefix = mkOption {
-          type = types.nullOr logPrefix;
-          default = null;
-          description = "log prefix";
+    # nft logs to a group or at a level with flags, not both ("level and
+    # group are mutually exclusive", "flags and group are mutually
+    # exclusive").
+    logBody = orNull (
+      internal.discriminatedSubmodule {
+        invariant =
+          body:
+          (body.group or null) == null || ((body.level or null) == null && (body.flags or null) == null);
+        description = "log body whose group excludes level and flags";
+        options = {
+          prefix = mkOption {
+            type = types.nullOr logPrefix;
+            default = null;
+            description = "log prefix";
+          };
+          group = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "log group";
+          };
+          snaplen = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "snaplen";
+          };
+          "queue-threshold" = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "queue threshold";
+          };
+          level = mkOption {
+            type = types.nullOr logLevel;
+            default = null;
+            description = "log level; defaults to warn";
+          };
+          flags = mkOption {
+            type = types.nullOr (listOrSingleton logFlag);
+            default = null;
+            description = "log flags";
+          };
         };
-        group = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "log group";
-        };
-        snaplen = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "snaplen";
-        };
-        "queue-threshold" = mkOption {
-          type = types.nullOr types.ints.unsigned;
-          default = null;
-          description = "queue threshold";
-        };
-        level = mkOption {
-          type = types.nullOr logLevel;
-          default = null;
-          description = "log level; defaults to warn";
-        };
-        flags = mkOption {
-          type = types.nullOr (listOrSingleton logFlag);
-          default = null;
-          description = "log flags";
-        };
-      };
-    });
+      }
+    );
 
     meterBody = submodule {
       options = {
@@ -543,8 +632,8 @@ let
           description = "meter key";
         };
         stmt = mkOption {
-          type = statement;
-          description = "statement executed when meter passes";
+          type = statefulStatement;
+          description = "stateful statement each key runs";
         };
         size = mkOption {
           type = types.nullOr types.ints.unsigned;
@@ -576,7 +665,7 @@ let
           description = "map key";
         };
         data = mkOption {
-          type = expressions.mapDataExpression;
+          type = vmapData;
           description = "key → verdict mapping expression";
         };
       };
@@ -599,12 +688,7 @@ let
       };
     };
 
-    lastBody = types.either nullLiteral (submodule {
-      options.used = mkOption {
-        type = types.int;
-        description = "time in ms since last match (-1 = never matched)";
-      };
-    });
+    lastBody = types.either nullLiteral lastInline;
 
     flowBody = submodule {
       options = {
@@ -694,7 +778,6 @@ let
       queue = queueBody;
       vmap = vmapBody;
       "ct count" = ctCountBody;
-      xt = xtBody;
       # Statements found in parser_json.c but absent from the in-repo adoc:
       last = lastBody;
       flow = flowBody;
@@ -703,7 +786,8 @@ let
       reset = resetBody;
       secmark = objectReferenceBody;
       tunnel = objectReferenceBody;
-    };
+    }
+    // lib.optionalAttrs readBack { xt = xtBody; };
 
     statement = taggedUnion bodiesByTag;
 
@@ -734,6 +818,7 @@ let
 in
 {
   inherit (bodies) bodiesByTag statement statementOf;
+  inherit statefulStatement;
   # The DSL's match operators tell a swapped match apart with it.
   inherit isKeySide;
   all = removeAttrs bodies [

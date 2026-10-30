@@ -34,6 +34,7 @@ let
   # Surface 1: match RHS as a bare scalar string against a non-ifname
   # LHS. ifname LHSs route through `isIfnameLhs` and quote the value;
   # non-ifname LHSs (ct.state, mark, etc.) fall through to renderScalar.
+  # A named set's `@name` is a membership test, which `inSet` builds.
   rulesetWithMatchRhs =
     rhs:
     dsl.ruleset [
@@ -44,7 +45,7 @@ let
           prio = 0;
           rules = [
             [
-              (dsl.eq dsl.fields.ct.state rhs)
+              ((if lib.hasPrefix "@" rhs then dsl.inSet else dsl.eq) dsl.fields.ct.state rhs)
               dsl.accept
             ]
           ];
@@ -223,13 +224,13 @@ let
 
   typo = "198.51.100.7/0";
 
-  # Field label → a raw ruleset with `typo` in that position.
-  barePrefixCases = {
-    "match right" = matchSaddr typo;
+  # Field label → a raw ruleset with the string `bad` in that position.
+  casesWith = bad: {
+    "match right" = matchSaddr bad;
     "set element" = rawObject "set" {
       type = "ipv4_addr";
       flags = [ "interval" ];
-      elem = [ typo ];
+      elem = [ bad ];
     };
     "map element" = rawObject "map" {
       type = "ipv4_addr";
@@ -237,7 +238,7 @@ let
       flags = [ "interval" ];
       elem = [
         [
-          typo
+          bad
           1
         ]
       ];
@@ -248,11 +249,11 @@ let
       elem = [
         [
           1
-          typo
+          bad
         ]
       ];
     };
-    "match right set element" = matchSaddr { set = [ typo ]; };
+    "match right set element" = matchSaddr { set = [ bad ]; };
     "map lookup key" = rawRule [
       {
         mangle = {
@@ -261,7 +262,7 @@ let
             key = saddr;
             data.set = [
               [
-                typo
+                bad
                 1
               ]
             ];
@@ -272,10 +273,16 @@ let
     # Where the renderer knows no slot, the Refusal names the expression.
     expression = rawRule [
       {
-        snat.addr = typo;
+        snat.addr = bad;
       }
     ];
   };
+
+  barePrefixCases = casesWith typo;
+
+  # A range written as a string, which text loads as a range and JSON
+  # rejects as a hostname.
+  bareRangeCases = casesWith "198.51.100.1-198.51.100.9";
 
   # The elements of a set on the right of a match share its field.
   fieldOf = name: if name == "match right set element" then "match right" else name;
@@ -300,6 +307,26 @@ let
       };
     };
 
+  bareRangeTests =
+    lib.mapAttrs' (name: ruleset: {
+      name = "testRefusesBareRange_${lib.replaceStrings [ " " ] [ "_" ] name}";
+      value = {
+        expr = nftlib.toText ruleset;
+        expectedError.msg = helpers.refusals.bareRange (fieldOf name);
+      };
+    }) bareRangeCases
+    // {
+      testRangeExpressionRenders = {
+        expr = nftlib.toText (matchSaddr {
+          range = [
+            "198.51.100.1"
+            "198.51.100.9"
+          ];
+        });
+        expected = "add rule inet t c ip saddr == 198.51.100.1-198.51.100.9\n";
+      };
+    };
+
   # Predicate-level coverage — pin the byte set directly so a future
   # refactor that loosens it breaks here.
   predicateTests = lib.listToAttrs (
@@ -320,6 +347,7 @@ let
   );
 in
 barePrefixTests
+// bareRangeTests
 // rejectionTests
 // prettyRejectionTests
 // acceptanceTests

@@ -48,6 +48,7 @@ let
   readBackStatements = import ./schema/statements.nix {
     inherit internal lib primitives;
     expressions = expressions.readBack;
+    readBack = true;
   };
   objects = import ./schema/objects.nix {
     inherit
@@ -61,7 +62,12 @@ let
   };
   commands = import ./schema/commands.nix { inherit internal lib objects; };
   clean = import ./clean.nix { inherit lib; };
-  prepareRuleset = import ./prepare-ruleset.nix { inherit clean lib; };
+  rulesetEntry = import ./ruleset-entry.nix {
+    inherit lib;
+    inherit (commands) verbs;
+    inherit (objects) readBackTags;
+  };
+  prepareRuleset = import ./prepare-ruleset.nix { inherit clean lib rulesetEntry; };
   json = import ./json { inherit prepareRuleset; };
   text = import ./text {
     inherit
@@ -86,15 +92,14 @@ let
     isMatchKey = statements.isKeySide;
     expressionBodiesByTag = expressions.bodiesByTag;
     expressionBodies = expressions.all;
-    inherit payloadFieldsByProtocol;
     inherit (commands) resetOrder;
+    inherit rulesetEntry;
     inherit (tables) expandTable;
   };
   compatibility = import ./compatibility.nix {
     enums = primitives.enumValues;
     inherit lib;
   };
-  payloadFieldsByProtocol = import ./schema/payload-fields.nix { };
 in
 {
   /*
@@ -149,12 +154,8 @@ in
     binding the `types.enum` definitions read. Useful for downstream
     consumers (zone libraries, validators, doc generators) that want
     the raw list without reaching into `types.<x>.functor.payload.values`.
-    `payloadFieldsByProtocol` is the one table among them: the fields
-    `dsl.expr.payload` takes for each protocol.
   */
-  enums = primitives.enumValues // {
-    inherit payloadFieldsByProtocol;
-  };
+  enums = primitives.enumValues;
 
   /*
     Kernel/man reference data — family×hook compatibility, chain-type

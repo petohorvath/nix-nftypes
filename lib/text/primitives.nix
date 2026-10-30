@@ -32,6 +32,9 @@
                    — refuse a bare expression string containing `/`, but
                      a `@name` reference, which text would load as a
                      prefix.
+    refuseBareRange
+                   — refuse a bare expression string that text would load
+                     as a range, such as `1000-2000`.
     refuseJsonIgnored
                    — refuse a field that nft's JSON parser ignores, which
                      text would load (ADR 0010).
@@ -278,6 +281,21 @@ let
       "refusing to render a bare string containing `/` at expression position. nft's text loads it as a prefix, while its JSON parser rejects it as a hostname. Write a prefix as a prefix expression, `{ prefix = { addr = …; len = …; }; }`, which `dsl.expr.prefix` builds.";
 
   /*
+    A bare string that nft's text lexer reads as a range, such as
+    `1000-2000` (../range-string.nix). nft's JSON parser reads it as a
+    service or hostname and rejects it. The schema's expression strings
+    reject them too; text refuses them in a raw attrset.
+  */
+  refuseBareRange =
+    field: s:
+    refuse
+      {
+        inherit field;
+        value = s;
+      }
+      "refusing to render a string that nft's text reads as a range at expression position. nft's JSON parser rejects it as a service or hostname. Write a range as a range expression, `{ range = [ low high ]; }`, which `dsl.expr.range` builds.";
+
+  /*
     Whether nft's lexer (scanner.l) reads the bare string `s` as one token
     whose text is `s`, the symbol JSON makes of a string: a name (the
     `string` rule, with an optional trailing `*`), an IPv4, IPv6 or MAC
@@ -375,6 +393,7 @@ in
     quoteString
     refuse
     refuseBarePrefix
+    refuseBareRange
     refuseJsonIgnored
     refuseNoTextSpelling
     refuseUnidentified

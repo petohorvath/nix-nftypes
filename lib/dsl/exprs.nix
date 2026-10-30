@@ -76,7 +76,9 @@ in
   */
   set =
     xs:
-    if builtins.isString xs then
+    if xs == [ ] then
+      reference.failEmptyList (exprBuilder "set") "the set"
+    else if builtins.isString xs then
       fail (exprBuilder "set") "a bare string (${builtins.toJSON xs}) is not an anonymous-set body, which is a list; reference a named set with `expr.setRef ${builtins.toJSON xs}`, or pass \"@${xs}\" to inSet or notInSet"
     else
       expression.tagged { name = "set"; } xs;
@@ -91,9 +93,10 @@ in
 
   /*
     Build a map lookup. `key` is the lookup expression and `data` a list
-    of key-value pairs, another map expression, or a named map's name with
-    or without its leading `@`. Returns a map expression whose data is the
-    anonymous map `{ set = data; }` for a list and `"@<name>"` for a name.
+    of `[ key value ]` pairs, an anonymous map `{ set = [ … ]; }`, or a
+    named map's name with or without its leading `@`. Returns a map
+    expression whose data is the anonymous map `{ set = data; }` for a list
+    and `"@<name>"` for a name.
   */
   map =
     key: data:

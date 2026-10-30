@@ -351,11 +351,26 @@ in
   # Escape hatches
   # =========================================================================
 
-  testPayloadEscape = pe (dsl.expr.payload "tcp" "dport") {
-    payload = {
-      protocol = "tcp";
-      field = "dport";
-    };
+  # nft's neighbour discovery target and destination addresses.
+  testIcmpv6NeighbourAddressLeaves = {
+    expr = [
+      dsl.fields.icmpv6.taddr
+      dsl.fields.icmpv6.daddr
+    ];
+    expected = [
+      {
+        payload = {
+          protocol = "icmpv6";
+          field = "taddr";
+        };
+      }
+      {
+        payload = {
+          protocol = "icmpv6";
+          field = "daddr";
+        };
+      }
+    ];
   };
 
   testPayloadRaw =
@@ -498,7 +513,7 @@ in
 
   # Named-set reference: the name with or without its `@` becomes the
   # reference string `"@<name>"`, the shape nft lists.
-  testExprSetRef = ps (dsl.eq dsl.fields.ip.saddr (dsl.expr.setRef "trusted_v4")) {
+  testExprSetRef = ps (dsl.inSet dsl.fields.ip.saddr (dsl.expr.setRef "trusted_v4")) {
     match = {
       op = "==";
       left.payload = {
@@ -1361,6 +1376,22 @@ in
       };
   testSynproxyAuto = ps dsl.synproxy.auto { synproxy = null; };
   testSynproxyRef = ps (dsl.synproxy.ref "sp1") { synproxy = "sp1"; };
+  # nft takes any of mss, wscale, and flags, and lists such a statement.
+  testSynproxyMssOnly = ps (dsl.synproxy { mss = 1460; }) { synproxy.mss = 1460; };
+  testSynproxyFlagsOnly = ps (dsl.synproxy { flags = [ "sack-perm" ]; }) {
+    synproxy.flags = [ "sack-perm" ];
+  };
+  testSynproxyEmptyThrows = {
+    expr = dsl.synproxy { };
+    expectedError = {
+      type = "ThrownError";
+      msg = "^nix-nftypes: dsl\\.synproxy: nft rejects an empty synproxy body; give mss, wscale, or flags, or use synproxy\\.auto for the null form$";
+    };
+  };
+  testSynproxyRawEmptyRejected = {
+    expr = helpers.validates nftlib.types.statement { synproxy = { }; };
+    expected = false;
+  };
 
   # queue
   testQueueBase =
@@ -2787,7 +2818,7 @@ in
             policy = "drop";
             rules = [
               [
-                (dsl.eq dsl.fields.ip.saddr "@blocklist")
+                (dsl.inSet dsl.fields.ip.saddr "@blocklist")
                 dsl.drop
               ]
             ];
@@ -3866,49 +3897,30 @@ in
         };
       };
 
-  testCmdAddSetComment =
-    pc
-      (dsl.add.set {
-        family = "inet";
-        table = "t";
-        name = "s";
-        type = "ipv4_addr";
-        comment = "blocked hosts";
-      })
-      {
-        add = {
-          set = {
-            family = "inet";
-            table = "t";
-            name = "s";
-            type = "ipv4_addr";
-            comment = "blocked hosts";
-          };
-        };
-      };
+  # nft's JSON parser ignores a set's or map's comment, so input takes
+  # none; Read-back does (docs/spec-coverage.md).
+  testCmdAddSetCommentThrows = {
+    expr = dsl.add.set {
+      family = "inet";
+      table = "t";
+      name = "s";
+      type = "ipv4_addr";
+      comment = "blocked hosts";
+    };
+    expectedError.msg = "The option `dsl\\.add\\.set\\.comment' does not exist";
+  };
 
-  testCmdAddMapComment =
-    pc
-      (dsl.add.map {
-        family = "inet";
-        table = "t";
-        name = "m";
-        type = "ipv4_addr";
-        dataType = "verdict";
-        comment = "per-host verdicts";
-      })
-      {
-        add = {
-          map = {
-            family = "inet";
-            table = "t";
-            name = "m";
-            type = "ipv4_addr";
-            map = "verdict";
-            comment = "per-host verdicts";
-          };
-        };
-      };
+  testCmdAddMapCommentThrows = {
+    expr = dsl.add.map {
+      family = "inet";
+      table = "t";
+      name = "m";
+      type = "ipv4_addr";
+      dataType = "verdict";
+      comment = "per-host verdicts";
+    };
+    expectedError.msg = "The option `dsl\\.add\\.map\\.comment' does not exist";
+  };
 
   # Delete and destroy select by name: nft ignores a set's or map's
   # datatypes, a limit's rate, and a flowtable's hook on delete.

@@ -1,13 +1,14 @@
 /*
   Ruleset envelope. For command builders (add, create, delete, destroy,
-  flush, list, rename, reset, replace, insert) see ./commands.nix. The
-  ruleset renderer passes any bare command attrset through unchanged, so
-  users can always drop to raw JSON if needed.
+  flush, list, rename, reset, replace, insert) see ./commands.nix. A raw
+  command passes through unvalidated, so users can always drop to raw JSON
+  if needed; only its shape is checked (../../ruleset-entry.nix).
 */
 {
   expandTable,
   lib,
   resetOrder,
+  rulesetEntry,
 }:
 
 let
@@ -16,31 +17,49 @@ let
 
   inherit (import ../../describe.nix { inherit lib; }) describe;
   fail = import ../../fail.nix { } "dsl.ruleset";
+  inherit (import ../../module-property.nix { inherit lib; })
+    findModuleProperty
+    modulePropertyMessage
+    ;
 
   # Table preparation belongs to the table module. The ruleset only knows
   # how to combine tables, rulesets, nested lists, and the raw-command
   # escape hatch. A ruleset's commands are spliced in place, since nft
   # rejects a ruleset nested inside another.
+  # `path` locates `child` among the children, for an error.
   flattenChild =
-    child:
+    path: child:
+    let
+      moduleProperty = findModuleProperty child;
+      entryProblem = rulesetEntry.entryProblem child;
+      at = lib.concatStringsSep "." path;
+    in
     if isTableTree child then
       expandTable child
     else if isRuleset child then
-      flattenChildren child.nftables
+      flattenChildren (path ++ [ "nftables" ]) child.nftables
     else if builtins.isList child then
-      flattenChildren child
+      flattenChildren path child
     else if builtins.isFunction child || child ? __functor then
       fail "invalid child: expected a Table tree, ruleset, command attrset, or list, got a function, such as a builder not yet called; call it, as in `flush.ruleset { }`"
     # A command's values are bodies, so one holding a function is a
     # namespace of builders, such as `dsl.flush`.
     else if builtins.isAttrs child && lib.any builtins.isFunction (builtins.attrValues child) then
       fail "invalid child: expected a Table tree, ruleset, command attrset, or list, got a namespace of builders with ${lib.concatStringsSep ", " (builtins.attrNames child)}; call one of them, as in `flush.ruleset { }`"
+    else if moduleProperty != null then
+      fail "${
+        lib.concatStringsSep "." (path ++ moduleProperty.path)
+      }: ${modulePropertyMessage moduleProperty}"
+    else if builtins.isAttrs child && entryProblem != null then
+      fail "${at}: ${entryProblem}"
     else if builtins.isAttrs child then
       [ child ]
     else
       fail "invalid child: expected a Table tree, ruleset, command attrset, or list, got ${describe child}";
 
-  flattenChildren = children: lib.concatMap flattenChild children;
+  flattenChildren =
+    path: children:
+    lib.concatLists (lib.imap0 (index: flattenChild (path ++ [ (toString index) ])) children);
 in
 {
   /*
@@ -59,7 +78,7 @@ in
     let
       commands =
         if builtins.isList children then
-          flattenChildren children
+          flattenChildren [ ] children
         else
           fail "expected a list of children, got ${describe children}; wrap it in a list: dsl.ruleset [ … ]";
     in

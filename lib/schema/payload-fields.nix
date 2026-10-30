@@ -1,9 +1,11 @@
 /*
-  The protocols and fields `dsl.expr.payload` takes: each payload protocol
-  nft's JSON parser looks up (proto_lookup_byname in src/parser_json.c),
-  with the fields it looks up in the protocol's templates (src/proto.c),
-  in nft's spelling and in template order. The enum extraction suite
-  compares the table with the patched nftables source.
+  The payload protocols nft's JSON parser looks up (proto_lookup_byname in
+  src/parser_json.c), with the fields it looks up in the protocol's
+  templates (src/proto.c), in nft's spelling and in template order. Every
+  field has a Field leaf, such as `fields.ip.fragOff` for `ip frag-off`,
+  but an alias nft lists under another name (`vlan cfi`, for `dei`). The
+  table is internal: the unit tests hold the leaves to it, and the enum
+  extraction suite compares it with the patched nftables source.
 
   The parser also takes forms nft does not load as written, which the
   table leaves out (tests/helpers/token-drift.nix lists them):
@@ -12,7 +14,7 @@
     0, such as `ip version 0 ip hdrlength 6` for `ip l4proto 6`; `gretap`
     has no other field;
   - `vxlan` and `geneve`, whose fields nft loads only through the tunnel
-    form, `expr.payloadTunnel`.
+    form, `dsl.expr.payloadTunnel`.
 */
 _: {
   ether = [

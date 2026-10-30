@@ -28,6 +28,7 @@
 let
   inherit (context) resetPrec withPrec;
   inherit (primitives) safeToken;
+  inherit (import ../range-string.nix { }) isRangeString;
 
   # C-style precedence of the binary operators. Higher = tighter binding.
   # `nft -f` accepts redundant parens, so adding more is always safe; we
@@ -71,6 +72,8 @@ let
         "@${primitives.assertNotKeyword "reference" "expression" (lib.removePrefix "@" v)}"
       else if lib.hasInfix "/" v then
         primitives.refuseBarePrefix "expression" v
+      else if isRangeString v then
+        primitives.refuseBareRange "expression" v
       else
         v
     else
@@ -172,8 +175,9 @@ let
       lib.optional (builtins.isString v) v;
 
   # A value of `slot` that isn't quoted. A bare string with a `/`, but a
-  # `@name` reference, would load as a prefix, so it is refused. In an
-  # unidentified slot, so is a string nft's lexer reads as something else.
+  # `@name` reference, would load as a prefix, and one such as `1000-2000`
+  # as a range, so each is refused. In an unidentified slot, so is a string
+  # nft's lexer reads as something else.
   renderUnquotedIn =
     slot: ctx: v:
     let
@@ -182,6 +186,8 @@ let
     in
     if builtins.isString v && !(lib.hasPrefix "@" v) && lib.hasInfix "/" v then
       primitives.refuseBarePrefix slot.field v
+    else if isRangeString v then
+      primitives.refuseBareRange slot.field v
     else if (slot.identified or true) || misreadString == null then
       rendered
     else

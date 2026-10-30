@@ -12,6 +12,7 @@
 let
   tagsOf = import ./tags-of.nix;
   keywords = import ../../lib/text/keywords.nix;
+  payloadFieldsByProtocol = import ../../lib/schema/payload-fields.nix { };
 
   # The ct keys the ct body takes a direction for, as the schema decides.
   ctDirKeys = builtins.filter (
@@ -38,9 +39,7 @@ let
     ctDirKey = ctDirKeys;
     expressionTag = tagsOf nftlib.types.expression;
     payloadField = lib.concatLists (
-      lib.mapAttrsToList (
-        protocol: map (field: "${protocol} ${field}")
-      ) nftlib.enums.payloadFieldsByProtocol
+      lib.mapAttrsToList (protocol: map (field: "${protocol} ${field}")) payloadFieldsByProtocol
     );
     statementTag = tagsOf nftlib.types.statement;
     textKeyword = keywords.global;
@@ -92,12 +91,9 @@ let
       "obriport"
       "secpath"
     ];
-    # json_parse_stmt handles `vmap` before the table and rejects `xt` as
-    # input; the model keeps `xt` for Read-back.
-    statementTag = [
-      "vmap"
-      "xt"
-    ];
+    # json_parse_stmt handles `vmap` before the table. It rejects `xt` as
+    # input, which `types.statement` leaves to Read-back too.
+    statementTag = [ "vmap" ];
   };
 
   # Tokens the source table holds that the model lacks, because nft does

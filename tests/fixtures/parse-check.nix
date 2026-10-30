@@ -180,6 +180,9 @@ let
       "meta.obrname" = bridge;
       "meta.secmark".statement = dsl.mangle { ct.key = "secmark"; };
       "payload.arp".family = "arp";
+      # A neighbour discovery message's target and destination addresses.
+      "payload.icmpv6.daddr" = ip6Address;
+      "payload.icmpv6.taddr" = ip6Address;
       "payload.ip6.daddr" = ip6Address;
       "payload.ip6.saddr" = ip6Address;
       prefix.statement =

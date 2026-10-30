@@ -13,6 +13,7 @@ let
     discriminatedSubmodule
     submodule
     taggedUnion
+    withInvariant
     wrap
     ;
   inherit (primitives) listOrSingleton;
@@ -153,7 +154,7 @@ let
           description = "${kind} handle, or null to select it by name";
         };
       };
-      extraCheck = v: ((v.name or null) != null) != ((v.handle or null) != null);
+      invariant = v: ((v.name or null) != null) != ((v.handle or null) != null);
       description = "${kind} Selector with exactly one of name and handle";
     };
   # The scope a delete Selector of a kind in a table names it in.
@@ -185,9 +186,7 @@ let
 
   # Shared by sets and maps (parser_json.c:3307-3436 — both routed to
   # json_parse_cmd_add_set, the only difference is the `map` field).
-  # A comment is a Read-back shape: nft's JSON parser ignores it.
   setMapCommonOptions = namedInTableOptions // {
-    inherit (commentOption) comment;
     type = mkOption {
       type = setDatatype;
       description = "set datatype";
@@ -228,12 +227,22 @@ let
       description = "auto-merge adjacent intervals";
     };
     stmt = mkOption {
-      type = types.nullOr (types.listOf stmt);
+      type = types.nullOr (types.listOf statements.statefulStatement);
       default = null;
       description = ''
         stateful statements (counter/limit/quota/…) attached to elements
       '';
     };
+  };
+
+  # A verdict map's elements map each key to a verdict.
+  verdictMap = {
+    invariant =
+      body:
+      (body.map or null) != "verdict"
+      || (body.elem or null) == null
+      || expressions.verdictPairs body.elem;
+    description = "map body whose elements, for a verdict map, are [ key verdict ] pairs";
   };
 
   mapOptions = setMapCommonOptions // {
@@ -374,12 +383,16 @@ let
         }
         // lib.optionalAttrs (description != null) { inherit description; };
     in
-    withCheck (
-      types.submoduleWith {
-        shorthandOnlyDefinesConfig = true;
-        modules = body.getSubModules ++ [ { options = { inherit (identityCore) handle; }; } ];
-      }
-    );
+    withInvariant (if description != null then description else body.description)
+      (body.invariant or null)
+      (
+        withCheck (
+          types.submoduleWith {
+            shorthandOnlyDefinesConfig = true;
+            modules = body.getSubModules ++ [ { options = { inherit (identityCore) handle; }; } ];
+          }
+        )
+      );
 
   chainPlacementDescription = "chain body with type, hook and prio all set (a base chain) or all unset, and dev and policy only on a base chain";
 
@@ -407,7 +420,7 @@ let
       take a base chain too.
     */
     chainBody = inputBody "chain" {
-      extraCheck =
+      invariant =
         body:
         let
           setFields = builtins.filter (field: (body.${field} or null) != null);
@@ -474,14 +487,23 @@ let
 
     # A listed rule, with the `handle` nft assigned, whose elements take
     # no statements; `readBackObject` lists a rule's elements with theirs.
-    ruleBody = submodule {
-      options = ruleOptions;
-    };
-
-    # `insert rule` puts the rule before the rule with `handle`, at `index`,
-    # or, with neither, first in the chain.
-    insertRuleBody = submodule {
-      options = ruleOptions;
+    /*
+      `insert rule` puts the rule before the rule with `handle`, at `index`,
+      or, with neither, first in the chain. nft reads the handle and
+      ignores an index beside it, and takes handle 0 as none, inserting
+      the rule first, so a body takes at most one of them, and a positive
+      handle.
+    */
+    insertRuleBody = discriminatedSubmodule {
+      options = ruleOptions // {
+        handle = mkOption {
+          type = types.nullOr types.ints.positive;
+          default = null;
+          description = "handle of the rule to insert before";
+        };
+      };
+      invariant = body: (body.handle or null) == null || (body.index or null) == null;
+      description = "insert rule body with at most one of handle and index";
     };
 
     # `add rule` takes no handle: nft 1.1.6's JSON parser ignores one and
@@ -491,11 +513,14 @@ let
       options = ruleOptions;
     };
 
-    # `replace rule` (parser_json.c, json_parse_cmd_replace) needs the
-    # handle of the rule it replaces, and takes handle 0 as missing ("Handle
-    # is required when replacing a rule.").
+    /*
+      `replace rule` (parser_json.c, json_parse_cmd_replace) needs the
+      handle of the rule it replaces, and takes handle 0 as missing
+      ("Handle is required when replacing a rule."). It replaces the rule
+      in place and ignores an index, so the body takes none.
+    */
     replaceRuleBody = submodule {
-      options = ruleOptions // {
+      options = removeAttrs ruleOptions [ "index" ] // {
         handle = mkOption {
           type = types.ints.positive;
           description = "handle of the rule to replace";
@@ -508,6 +533,7 @@ let
     };
 
     mapBody = inputBody "map" {
+      inherit (verdictMap) invariant description;
       options = mapOptions;
     };
 
@@ -924,11 +950,9 @@ let
       };
     };
 
-    # `ruleset` body is `null` (operate on all) OR `{ family = "ip"; }`.
-    flushRulesetBody = rulesetSelector;
-
-    # `list ruleset` takes the same body as `flush ruleset`.
-    listRulesetBody = rulesetSelector;
+    # The Selector of `flush ruleset` and `list ruleset`: `null` for every
+    # family, or `{ family = "ip"; }` for one.
+    selectRulesetBody = rulesetSelector;
 
     # Meter object body: meters are anonymous sets internally
     # (parser_json.c routes meter to json_parse_cmd_add_set), so the
@@ -960,11 +984,10 @@ let
 
   addObject = taggedUnion addObjectBodies;
 
-  # Each add-object kind as Read-back lists it, with the handle nft
-  # assigned, but with input elements, which the selecting verbs take. A
-  # listed rule is `ruleBody`, and an element has no handle.
-  # `readBackObjectBodies` gives the kinds that hold elements their
-  # Read-back statements.
+  # Each add-object kind but a rule as Read-back lists it, with the handle
+  # nft assigned, but with input elements, which the selecting verbs take;
+  # an element has no handle. `readBackObjectBodies` gives the kinds that
+  # hold elements, a rule among them, their Read-back statements.
   listedObjectBodies =
     lib.mapAttrs (_: listedBody null) (
       removeAttrs addObjectBodies [
@@ -976,7 +999,6 @@ let
     // {
       chain = listedBody chainPlacementDescription addObjectBodies.chain;
       inherit (addObjectBodies) element;
-      rule = bodies.ruleBody;
     };
 
   /*
@@ -1052,24 +1074,35 @@ let
   */
   readBackHolderBodies =
     let
-      withReadBackElements =
+      # A listed set's or map's options: its elements take the statements
+      # nft lists beside each value, it takes the `comment` nft lists, and
+      # nftables 1.1.7 lists `count`, the number of elements, beside a
+      # `size`. nft's JSON parser reads none of them on input.
+      listedSetOptions =
         options:
         options
+        // commentOption
         // {
           elem = options.elem // {
             type = types.nullOr readBackSetElem;
+          };
+          count = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "number of elements, which nft lists beside size";
           };
         };
     in
     {
       set = listedBody null (
         inputBody "set" {
-          options = withReadBackElements setMapCommonOptions;
+          options = listedSetOptions setMapCommonOptions;
         }
       );
       map = listedBody null (
         inputBody "map" {
-          options = withReadBackElements mapOptions;
+          inherit (verdictMap) invariant description;
+          options = listedSetOptions mapOptions;
         }
       );
       element = submodule {
@@ -1109,6 +1142,9 @@ let
 
   readBackObject = taggedUnion readBackObjectBodies;
 
+  # The tags of a bare listed object, for the renderers' entry check.
+  readBackTags = builtins.attrNames readBackObjectBodies;
+
   /*
     The `list` command (parser_json.c, json_parse_cmd_list): the listed
     kinds (`meter` is singular; the plural list forms are not modelled, see
@@ -1134,7 +1170,7 @@ let
       ] (builtins.attrNames readBackObjectBodies)
     )
     // {
-      ruleset = bodies.listRulesetBody;
+      ruleset = bodies.selectRulesetBody;
     }
   );
 
@@ -1151,7 +1187,7 @@ let
       "meter"
     ]
     // {
-      ruleset = bodies.flushRulesetBody;
+      ruleset = bodies.selectRulesetBody;
     }
   );
 
@@ -1185,6 +1221,7 @@ in
     insertObject
     listObject
     readBackObject
+    readBackTags
     renameObject
     replaceObject
     resetObject

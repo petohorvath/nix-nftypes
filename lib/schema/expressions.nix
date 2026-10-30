@@ -23,6 +23,7 @@ let
     taggedUnion
     ;
   inherit (import ../word-list.nix { inherit lib; }) conjoin;
+  inherit (import ../range-string.nix { }) isRangeString;
   inherit (primitives) listOrSingleton;
   inherit (primitives.types)
     comment
@@ -101,11 +102,21 @@ let
   exprsWith =
     { readBack }:
     rec {
-      concatBody = types.listOf expression;
+      # nft rejects a concatenation of fewer than two expressions
+      # ("Expected concatenation", "Invalid set elem").
+      concatBody = listOfMinLen 2 expression // {
+        description = "list of two or more expressions";
+      };
 
       # Anonymous set: an expression or a list of them (mappings are
       # 2-tuples).
-      setBody = types.either expression (types.listOf expression);
+      # nft rejects an anonymous set without elements, which would match
+      # nothing.
+      setBody =
+        types.addCheck (types.either expression (types.listOf expression)) (body: body != [ ])
+        // {
+          description = "set body (a non-empty list of elements, or a named set's \"@name\")";
+        };
 
       mapBody = submodule {
         options = {
@@ -341,7 +352,7 @@ let
             description = "direction; required for the keys nft loads only with one";
           };
         };
-        extraCheck =
+        invariant =
           body:
           let
             key = body.key or null;
@@ -422,7 +433,7 @@ let
             description = "FIB lookup flags; saddr or daddr among them";
           };
         };
-        extraCheck =
+        invariant =
           body: builtins.any (flag: flag == "saddr" || flag == "daddr") (lib.toList (body.flags or [ ]));
         description = "fib body with saddr or daddr among its flags";
       };
@@ -471,7 +482,7 @@ let
             description = "SA index (0-255)";
           };
         };
-        extraCheck = body: (body.dir or null) != null;
+        invariant = body: (body.dir or null) != null;
         description = "ipsec body with dir";
       };
 
@@ -594,11 +605,15 @@ let
         A string expression. nft's JSON parser reads `10.0.0.0/8` as a
         hostname and rejects it, while text loads it as a prefix, so a
         string takes no `/` unless it is a `@name` reference, whose name
-        may contain one. A prefix is a prefix expression.
+        may contain one. A prefix is a prefix expression. Likewise a range
+        written as a string, `1000-2000` (../range-string.nix), is a range
+        expression.
       */
-      expressionString = types.addCheck types.str (s: lib.hasPrefix "@" s || !lib.hasInfix "/" s) // {
-        description = "string without `/`";
-      };
+      expressionString =
+        types.addCheck types.str (s: lib.hasPrefix "@" s || !(lib.hasInfix "/" s || isRangeString s))
+        // {
+          description = "string without `/` that is not a range such as `1000-2000`";
+        };
 
       # The generated description names each branch's description, and
       # the list branch's names `expression` again, so a type error on a
@@ -612,7 +627,7 @@ let
           taggedExpression
         ]
         // {
-          description = "nft expression (string without `/`, integer, boolean, list of expressions, or tagged expression; write a prefix as { prefix = { addr; len; }; }, which dsl.expr.prefix builds)";
+          description = "nft expression (string without `/` that is not a range such as `1000-2000`, integer, boolean, list of expressions, or tagged expression; write a prefix as { prefix = { addr; len; }; }, which dsl.expr.prefix builds, and a range as { range = [ low high ]; }, which dsl.expr.range builds)";
         };
 
       # The data of a map lookup or a vmap: an expression, but not a bare
@@ -654,10 +669,40 @@ let
       };
     };
 
+  # The verdicts, the values a verdict map holds.
+  verdictTags = [
+    "accept"
+    "drop"
+    "continue"
+    "return"
+    "jump"
+    "goto"
+  ];
+
+  /*
+    Whether `elements`, a verdict map's, is a list of `[ key verdict ]`
+    pairs. nft's JSON parser rejects any other value, such as the string
+    "accept", which text loads as the verdict ("Could not parse netfilter
+    verdict").
+  */
+  verdictPairs =
+    elements:
+    builtins.isList elements
+    && builtins.all (
+      element:
+      builtins.isList element
+      && builtins.length element == 2
+      && builtins.isAttrs (builtins.elemAt element 1)
+      && builtins.attrNames (builtins.elemAt element 1) != [ ]
+      && builtins.length (builtins.attrNames (builtins.elemAt element 1)) == 1
+      && builtins.elem (builtins.head (builtins.attrNames (builtins.elemAt element 1))) verdictTags
+    ) elements;
+
   exprs = exprsWith { readBack = false; };
   readBackExprs = exprsWith { readBack = true; };
 in
 {
+  inherit verdictPairs;
   inherit (exprs)
     bodiesByTag
     expression
@@ -668,6 +713,7 @@ in
   # Internal: the expressions Read-back lists, whose elements take
   # `elemReadBackBody`, for the Read-back statements and objects.
   readBack = {
+    inherit verdictPairs;
     inherit (readBackExprs)
       bodiesByTag
       expression

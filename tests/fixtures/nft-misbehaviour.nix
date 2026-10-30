@@ -404,7 +404,7 @@ in
     (partialChainCase "chain-dev-without-hook" { dev = "lo"; })
     # The set parser never reads `comment`, so JSON loads a commented set
     # or map without it. nft lists the comment of one loaded through text,
-    # so the schema accepts it and text refuses it.
+    # so Read-back accepts it, input rejects it, and text refuses it.
     {
       name = "set-comment-ignored-on-json";
       knownDifference = "docs/spec-coverage.md";
@@ -886,7 +886,7 @@ in
       The payload parser looks a field up among all of a protocol's
       templates, the `meta l4proto` dependency's included, so `ip l4proto`
       loads as the header bits at offset 0: `ip version` and `ip
-      hdrlength`. `expr.payload` takes only the fields nft loads as
+      hdrlength`. The Field leaves cover only the fields nft loads as
       written (lib/schema/payload-fields.nix).
     */
     {

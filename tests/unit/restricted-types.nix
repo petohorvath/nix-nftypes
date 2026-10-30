@@ -254,7 +254,6 @@ let
     "queue"
     "vmap"
     "ct count"
-    "xt"
     "last"
     "flow"
     "tproxy"
@@ -308,6 +307,11 @@ let
     testStatementOfEveryKindConstructible = {
       expr = map (kind: builtins.seq (types.statementOf [ kind ]) kind) statementKinds;
       expected = statementKinds;
+    };
+    # `xt` is Read-back only, so no input statement type takes it.
+    testStatementOfXtThrows = {
+      expr = types.statementOf [ "xt" ];
+      expectedError.msg = "nix-nftypes: types\\.statementOf: unknown statement tag\\(s\\): \"xt\"";
     };
     testExpressionOfEveryKindConstructible = {
       expr = map (kind: builtins.seq (types.expressionOf [ kind ]) kind) expressionKinds;

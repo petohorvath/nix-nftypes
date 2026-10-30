@@ -38,6 +38,7 @@ in
       namedReference = refusal "refusing to render a named reference without its `@`";
       keywordName = refusal "refusing to render a name that nft's text lexer reads as the keyword";
       barePrefix = refusal "refusing to render a bare string containing `/`[^\n]*which `dsl\\.expr\\.prefix` builds";
+      bareRange = refusal "refusing to render a string that nft's text reads as a range[^\n]*which `dsl\\.expr\\.range` builds";
       unidentified = refusal "refusing to render a string that nft's text would misread";
       noTextSpelling = refusal "refusing to render a value that nft's text has no spelling for";
       typeofMapValue = refusal "refusing to render a map with a datatype key and a typeof value" "map type";

@@ -231,7 +231,7 @@ let
       }
     )
     // {
-      ruleset = rulesetKind objects.listRulesetBody;
+      ruleset = rulesetKind objects.selectRulesetBody;
     };
 
   /*
@@ -275,7 +275,7 @@ let
       map
       meter
       ;
-    ruleset = rulesetKind objects.flushRulesetBody;
+    ruleset = rulesetKind objects.selectRulesetBody;
   };
 
   # nft's JSON path fails `reset rule` with "Operation not supported",

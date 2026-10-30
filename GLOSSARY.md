@@ -28,6 +28,10 @@ The fields that pick one existing object for a `delete`, `destroy`, `list`, `flu
 **Ruleset**:
 The ordered commands and listed objects that `nft` loads as one batch. The DSL builds one from commands and table trees.
 
+**Stateful statement**:
+A statement that keeps state per packet flow or per element, as nft marks one: an inline counter, quota, limit, ct count, or last. Only a stateful statement can attach to a set's elements or to a meter; a Reference to a named object is not one.
+_Avoid_: stateful object (that is a named object)
+
 **Restricted type**:
 A statement or expression type narrowed to a chosen set of tags, so a downstream option can reject every other tag.
 _Avoid_: subset

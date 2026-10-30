@@ -15,7 +15,9 @@
     becomes `"@<name>"` as for `atReference`, a list becomes the anonymous
     map `{ set = data; }`, since nft rejects a bare list there, an
     anonymous map passes through, and any other attrset, such as
-    `{ eth0 = accept; }`, throws.
+    `{ eth0 = accept; }`, and the empty list throw.
+  - `failEmptyList location what`: throw for an empty list given as
+    `what`, which nft rejects as an anonymous set or map.
   - `objectReference location ref`: a stateful object reference, such as
     a counter's. Returns the bare name, which nft looks up as written, so
     `"@c"` names no object; a map expression, which selects the object by
@@ -63,9 +65,20 @@ let
         if builtins.isAttrs ref then "an attribute set without the one key `map`" else builtins.typeOf ref
       }";
 
+  /*
+    Throw at `location` for an empty list given as `what`, such as "the
+    right side": nft rejects an empty anonymous set or map, and a set
+    without elements matches nothing.
+  */
+  failEmptyList =
+    location: what:
+    fail location "${what} is an empty list, which nft rejects as an anonymous set or map; leave the rule out when the list is empty, as with `lib.optional (xs != [ ]) rule`";
+
   mapData =
     location: data:
-    if builtins.isString data then
+    if data == [ ] then
+      failEmptyList location "the data"
+    else if builtins.isString data then
       atReference location data
     else if builtins.isList data then
       { set = data; }
@@ -75,7 +88,12 @@ let
       data;
 in
 {
-  inherit atReference mapData objectReference;
+  inherit
+    atReference
+    failEmptyList
+    mapData
+    objectReference
+    ;
 
   normaliseBareName =
     location: body:

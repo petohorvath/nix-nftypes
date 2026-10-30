@@ -63,17 +63,7 @@ rec {
   # Forms that raise a Refusal, which ADR 0001 allows instead of loading:
   # `<case>.<form>` is a pattern the refusal's message matches. The probe
   # skips these forms and the suite asserts they still refuse.
-  refusals = {
-    commented-set-and-map =
-      let
-        jsonIgnored = "nix-nftypes: toText(Pretty|Block|BlockPretty)?: refusing\\s+to\\s+render\\s+a\\s+field\\s+that\\s+nft's\\s+JSON\\s+parser\\s+ignores[\\s\\S]*Field: (set|map) comment\\.";
-      in
-      {
-        compact = jsonIgnored;
-        pretty = jsonIgnored;
-        block = jsonIgnored;
-      };
-  };
+  refusals = { };
 
   /*
     Named exclusions: forms whose listing differs from the JSON listing.
