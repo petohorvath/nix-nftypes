@@ -29,6 +29,12 @@ let
       flattenChildren child.nftables
     else if builtins.isList child then
       flattenChildren child
+    else if builtins.isFunction child || child ? __functor then
+      fail "invalid child: expected a Table tree, ruleset, command attrset, or list, got a function, such as a builder not yet called; call it, as in `flush.ruleset { }`"
+    # A command's values are bodies, so one holding a function is a
+    # namespace of builders, such as `dsl.flush`.
+    else if builtins.isAttrs child && lib.any builtins.isFunction (builtins.attrValues child) then
+      fail "invalid child: expected a Table tree, ruleset, command attrset, or list, got a namespace of builders with ${lib.concatStringsSep ", " (builtins.attrNames child)}; call one of them, as in `flush.ruleset { }`"
     else if builtins.isAttrs child then
       [ child ]
     else

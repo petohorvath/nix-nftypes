@@ -111,6 +111,32 @@ let
       value = dsl.notInSet dsl.fields.ip.saddr "blocked";
       msg = "notInSet: .*\"blocked\".*expr\\.setRef";
     };
+    # A string names an object, which a Variant namespace references with
+    # `.ref`.
+    counterString = {
+      value = dsl.counter "c";
+      msg = "^nix-nftypes: dsl\\.counter: a string names an object; reference it with `counter\\.ref \"c\"`";
+    };
+    quotaString = {
+      value = dsl.quota "q";
+      msg = "^nix-nftypes: dsl\\.quota: .*`quota\\.ref \"q\"`";
+    };
+    rulesetUncalledBuilder = {
+      value = dsl.ruleset [ dsl.flush.ruleset ];
+      msg = "^nix-nftypes: dsl\\.ruleset: .*got a function, such as a builder not yet called; call it";
+    };
+    rulesetBuilderNamespace = {
+      value = dsl.ruleset [ dsl.flush ];
+      msg = "^nix-nftypes: dsl\\.ruleset: .*got a namespace of builders with chain, .*; call one of them";
+    };
+    vmapAttrsetData = {
+      value = dsl.vmap dsl.fields.meta.iifname { eth0 = dsl.accept; };
+      msg = "^nix-nftypes: dsl\\.vmap: the data is a map name, .*not an attribute set with eth0";
+    };
+    mapAttrsetData = {
+      value = dsl.expr.map dsl.fields.tcp.dport { "22" = 1; };
+      msg = "^nix-nftypes: dsl\\.expr\\.map: the data is a map name";
+    };
     swappedMatch = {
       value = dsl.eq 22 dsl.fields.tcp.dport;
       msg = "dsl\\.eq\\.right' is not of type `match right side.*did you swap the left and right sides";

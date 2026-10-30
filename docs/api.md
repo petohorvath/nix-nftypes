@@ -44,7 +44,8 @@ with `dsl.ruleset [ … ]`.
 nested lists of these. Table trees are expanded and validated, and a ruleset's
 commands are spliced in place, so `dsl.ruleset [ base extra ]` composes two
 rulesets; raw command attrsets are deliberately passed through as an escape
-hatch. A non-list argument or any other child throws, naming what it got. Only
+hatch. A non-list argument or any other child throws, naming what it got; a
+builder not yet called, such as `dsl.flush.ruleset`, throws asking to call it. Only
 the order of the commands is checked: a reset that nft would ignore throws (see
 [Commands](#commands)). A statement that a builder or match operator made is
 validated by it, inside a raw command too.
@@ -333,7 +334,8 @@ match. The map lookup is `expr.map key data`. Its data is a named map's name,
 with or without its `@`, or an anonymous map. A list of key-value pairs
 becomes the anonymous map `{ set = [ ... ]; }`, as `inSet` wraps a list in an
 anonymous set, because nft rejects a bare list there. `vmap key data` takes
-its data the same way:
+its data the same way, and throws on any other attribute set, such as
+`{ eth0 = accept; }`, listing the forms it takes:
 
 ```nix
 expr.map fields.tcp.dport "ports"
@@ -394,7 +396,9 @@ limit { rate = 10; per = "minute"; burst = 5; }
 ```
 
 `.ref name` references a named object, by its name or by a map expression
-that selects one by key; it throws for any other attribute set. `ctHelper`,
+that selects one by key; it throws for any other attribute set. A name given
+to the statement itself, as in `counter "c"`, throws and points to
+`counter.ref "c"`. `ctHelper`,
 `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` have no other form, so
 calling one directly throws and points to its `.ref`. `.auto` is the
 null-body form, such as `{ counter = null; }`, that `nft -j list --stateless`

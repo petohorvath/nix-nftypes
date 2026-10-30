@@ -234,6 +234,9 @@ Renderers and validation:
 - Log prefixes have their own type, `types.logPrefix`: 1 to 127 bytes with no `$`, besides the quoted-string rules. The schema accepted 0 and 128 bytes, which nft rejects, and `$`, which nft's text expands from a `define` (`"$x"` fails without one) while JSON loads it literally. Text refuses such a prefix in a raw attrset, naming the field; give a literal `$` through raw JSON.
 - The DSL throws, naming the field, instead of dropping or misreading input:
   - `inSet` and `notInSet` with a string without `@`, such as `"blocked"`, which they matched as one value. The error points to `expr.setRef`.
+  - `counter`, `quota`, `limit`, `synproxy`, and `ctCount` given a string, such as `counter "c"`, which failed asking for an attribute set. The error points to `counter.ref "c"`.
+  - `vmap` and `expr.map` given an attribute set other than an anonymous map, such as `{ eth0 = accept; }`, which failed with the schema's description of every expression. The error lists the forms the data takes.
+  - `dsl.ruleset` given a builder not yet called, such as `dsl.flush.ruleset`, or a namespace of builders, such as `dsl.flush`, which it named as a function or passed through as a raw command. The error asks to call it.
   - `eq`, `ne`, `lt`, `gt`, `le`, and `ge` with a list on the right, which nft reads as one combination of flags: `eq ct.state [ "established" "related" ]` loaded and never matched, and `eq tcp.dport [ 22 80 ]` failed to load. The error points to `inSet`, `hasAnyFlag`, and `expr.bitOr`.
   - A `dsl.table` body whose `family` or `name` differs from the positional arguments, a scope conflict. The body's values were ignored.
   - Module keys in a body, such as `imports`, `key`, or `freeformType`, which the module system consumed, and `_module`, which could turn off the unknown-field check.
