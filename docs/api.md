@@ -109,7 +109,7 @@ command's union, such as `types.addObject` or `types.readBackObject`.
 `types.statementBodies` holds the body of each statement tag that takes more
 than `null`, the same type `types.statement` takes for that tag:
 `statementBodies.logBody` accepts `null` as `{ log = null; }` does. `ct helper`,
-`ct timeout`, `ct expectation`, `secmark`, and `tunnel` share `objectRefBody`,
+`ct timeout`, `ct expectation`, `secmark`, and `tunnel` share `objectReferenceBody`,
 a Reference: the object's name, such as `"ftp"`, or a map expression that
 selects it. Every stateful statement's Reference, a counter's or a synproxy's
 included, takes only these two forms, so a number or a boolean fails.

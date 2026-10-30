@@ -537,7 +537,7 @@ let
         };
       };
 
-      binaryOpBody = listOfMinLen 2 expression;
+      binaryOperationBody = listOfMinLen 2 expression;
 
       /*
         Map of tag → body type. Single source of truth for the private
@@ -580,11 +580,11 @@ let
         jump = verdictTargetBody;
         goto = verdictTargetBody;
         # Binary operators
-        "|" = binaryOpBody;
-        "^" = binaryOpBody;
-        "&" = binaryOpBody;
-        "<<" = binaryOpBody;
-        ">>" = binaryOpBody;
+        "|" = binaryOperationBody;
+        "^" = binaryOperationBody;
+        "&" = binaryOperationBody;
+        "<<" = binaryOperationBody;
+        ">>" = binaryOperationBody;
       };
 
       # Tagged union of everything represented as `{ <key>: <body> }`.

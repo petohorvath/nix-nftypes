@@ -512,7 +512,7 @@ let
     # ct helper, ct timeout, ct expectation, secmark, and tunnel name an
     # object: nft parses each body into an objref statement's expression
     # (src/parser_json.c), the object's name or a map that selects it.
-    objectRefBody = objectRef;
+    objectReferenceBody = objectRef;
 
     /*
       Map of tag → body type. Single source of truth for the full
@@ -546,9 +546,9 @@ let
       set = setBody;
       map = mapBody;
       log = logBody;
-      "ct helper" = objectRefBody;
-      "ct timeout" = objectRefBody;
-      "ct expectation" = objectRefBody;
+      "ct helper" = objectReferenceBody;
+      "ct timeout" = objectReferenceBody;
+      "ct expectation" = objectReferenceBody;
       meter = meterBody;
       queue = queueBody;
       vmap = vmapBody;
@@ -560,8 +560,8 @@ let
       tproxy = tproxyBody;
       synproxy = synproxyBody;
       reset = resetBody;
-      secmark = objectRefBody;
-      tunnel = objectRefBody;
+      secmark = objectReferenceBody;
+      tunnel = objectReferenceBody;
     };
 
     statement = taggedUnion bodiesByTag;
