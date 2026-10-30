@@ -567,6 +567,13 @@ Object and chain names are emitted in sorted order; rule order remains the
 source-list order. This covers dependencies made explicit by the table tree;
 dependencies hidden in raw nested bodies remain the caller's responsibility.
 
+`dsl.ruleset` expands each Table tree in list order and doesn't merge two
+trees of the same table, so modules that each contribute a tree of one table
+compose only when the tree that declares a base chain comes first. A tree that
+only adds rules to the chain declares it a regular chain, and a later tree's
+base chain of the same name then fails to load. Put the base chain's tree
+first, as with `lib.mkBefore` on a list option that collects the trees.
+
 A rule entry is either a non-empty statement list or an attrset with a non-empty
 `statements` list and an optional `comment`. The list order is the rule order,
 so an entry's `index` throws, as in ``nix-nftypes: dsl.table inet.t:
