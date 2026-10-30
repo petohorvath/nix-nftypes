@@ -313,6 +313,11 @@ exact combination with `expr.bitOr`, as in
 reference such as `"@trusted"`. A string without `@` throws and points to
 `expr.setRef`: nft would match it as one value, such as a hostname.
 
+A string expression takes no `/`, in a match, a set or map element, or a
+statement such as `dnat`: nft's JSON parser reads `"10.0.0.0/8"` as a
+hostname and rejects it, while text loads it as a prefix. Write a prefix with
+`expr.prefix "10.0.0.0" 8`. A `@name` reference keeps a `/` in its name.
+
 `expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` returns the
 reference string `"@name"`, the shape nft lists, for the right side of a
 match. The map lookup is `expr.map key data`. Its data is a named map's name,

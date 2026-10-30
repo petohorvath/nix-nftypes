@@ -324,7 +324,9 @@ refuse a log prefix containing `$` or outside that length. Give a literal `$`
 through a raw JSON attrset.
 
 A bare expression string containing `/`, such as `"198.51.100.7/0"`, is
-refused, and the Refusal points to `dsl.expr.prefix`. nft's JSON parser
+refused, and the Refusal points to `dsl.expr.prefix`. `types.expression`
+rejects one too, so the DSL and `validate` catch it before rendering; the
+Refusal guards a raw attrset. nft's JSON parser
 rejects such a string as a hostname, while text would load it as a prefix, so
 a typo could widen a match to every address.
 

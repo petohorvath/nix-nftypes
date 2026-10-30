@@ -209,8 +209,9 @@ let
   /*
     A bare string containing `/`. nft's JSON parser reads `10.0.0.0/8` as
     a hostname and rejects it, but text loads it as a prefix, so a typo
-    such as `198.51.100.7/0` would match every address. The schema can't
-    reject such strings (ADR 0004), so text refuses them.
+    such as `198.51.100.7/0` would match every address. The schema's
+    expression strings reject them too; text refuses them in a raw
+    attrset, which bypasses the schema.
   */
   refuseBarePrefix =
     field: s:

@@ -2939,12 +2939,60 @@ textDriftTests
   testNetmapNatFlag = {
     expr = roundtrip nftlib.types.statement {
       dnat = {
-        addr = "10.0.0.0/24";
+        addr.prefix = {
+          addr = "10.0.0.0";
+          len = 24;
+        };
         flags = [ "netmap" ];
       };
     };
-    expected = ''{"dnat":{"addr":"10.0.0.0/24","flags":["netmap"]}}'';
+    expected = ''{"dnat":{"addr":{"prefix":{"addr":"10.0.0.0","len":24}},"flags":["netmap"]}}'';
   };
+
+  /*
+    nft's JSON parser reads a string with `/` as a hostname and rejects
+    it, while text loads it as a prefix, so an expression string takes no
+    `/` but in a `@name` reference, whose name may hold one.
+  */
+  testExpressionStringPrefixRejected =
+    let
+      payload.payload = {
+        protocol = "ip";
+        field = "saddr";
+      };
+      match = right: {
+        match = {
+          op = "==";
+          left = payload;
+          inherit right;
+        };
+      };
+    in
+    {
+      expr = map (helpers.validates nftlib.types.statement) [
+        (match "10.0.0.0/8")
+        (match [ "10.0.0.0/8" ])
+        (match { set = [ "2001:db8::/32" ]; })
+        { dnat.addr = "10.0.0.0/24"; }
+        {
+          vmap = {
+            key = payload;
+            data = "m/x";
+          };
+        }
+        (match "@my/set")
+        (match "10.0.0.1")
+      ];
+      expected = [
+        false
+        false
+        false
+        false
+        false
+        true
+        true
+      ];
+    };
 
   # ------------------------------------------------------------------
   # `destroy` command (like delete but idempotent)
@@ -3093,14 +3141,17 @@ textDriftTests
   testNatTypeFlags = {
     expr = roundtrip nftlib.types.statement {
       dnat = {
-        addr = "10.0.0.0/24";
+        addr.prefix = {
+          addr = "10.0.0.0";
+          len = 24;
+        };
         type_flags = [
           "interval"
           "prefix"
         ];
       };
     };
-    expected = "{\"dnat\":{\"addr\":\"10.0.0.0/24\",\"type_flags\":[\"interval\",\"prefix\"]}}";
+    expected = "{\"dnat\":{\"addr\":{\"prefix\":{\"addr\":\"10.0.0.0\",\"len\":24}},\"type_flags\":[\"interval\",\"prefix\"]}}";
   };
 
   # ip option expression (parser_json.c:822)

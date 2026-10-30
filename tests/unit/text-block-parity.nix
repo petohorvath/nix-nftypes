@@ -339,7 +339,7 @@ in
       dsl.table "inet" "fw" {
         sets.interfaces = {
           type = "ifname";
-          elements = [ "eth/0" ];
+          elements = [ "eth:0" ];
         };
       }
     );
