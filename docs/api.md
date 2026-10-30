@@ -332,6 +332,13 @@ exact combination with `expr.bitOr`, as in
 reference such as `"@trusted"`. A string without `@` throws and points to
 `expr.setRef`: nft would match it as one value, such as a hostname.
 
+An anonymous set or map holds at least one element: nft rejects an empty one,
+which would match nothing. `inSet`, `notInSet`, `vmap`, `expr.map`, and
+`expr.set` throw on an empty list, and `types.expression` rejects
+`{ set = [ ]; }`. Leave the rule out when the list is empty, as with
+`lib.optional (ports != [ ]) [ (inSet tcp.dport ports) accept ]`. A named set
+or map can start without elements.
+
 A string expression takes no `/`, in a match, a set or map element, or a
 statement such as `dnat`: nft's JSON parser reads `"10.0.0.0/8"` as a
 hostname and rejects it, while text loads it as a prefix. Write a prefix with

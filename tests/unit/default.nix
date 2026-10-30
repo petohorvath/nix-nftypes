@@ -12,6 +12,7 @@ let
 in
 {
   comment-safety = import ./comment-safety.nix testContext;
+  anonymous-sets = import ./anonymous-sets.nix testContext;
   ct-timeout-policy-safety = import ./ct-timeout-policy-safety.nix testContext;
   dsl-parity = import ./dsl-parity.nix testContext;
   dsl-validation = import ./dsl-validation.nix testContext;

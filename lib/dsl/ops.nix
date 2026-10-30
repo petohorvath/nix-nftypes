@@ -16,6 +16,7 @@
 
 let
   location = import ./internal/location.nix { inherit lib; };
+  reference = import ./internal/reference.nix { inherit lib; };
 
   /*
     The match statement `left <op> right` of the operator `dsl.<name>`.
@@ -52,12 +53,14 @@ let
     Wrap a right-hand side for set membership: list → anonymous set
     expression; anything else ("@name" references, pre-built set
     expressions, flag values, …) passes through. A string without `@` would
-    be matched as one value, such as a hostname, so it throws; `name`
-    names the operator in the error.
+    be matched as one value, such as a hostname, so it throws, as does an
+    empty list, which nft rejects; `name` names the operator in the error.
   */
   wrapSet =
     name: rhs:
-    if builtins.isList rhs then
+    if rhs == [ ] then
+      reference.failEmptyList (location.builder [ name ]) "the right side"
+    else if builtins.isList rhs then
       { set = rhs; }
     else if builtins.isString rhs && !(lib.hasPrefix "@" rhs) then
       location.fail (location.builder [ name ])

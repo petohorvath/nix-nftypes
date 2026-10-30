@@ -76,7 +76,9 @@ in
   */
   set =
     xs:
-    if builtins.isString xs then
+    if xs == [ ] then
+      reference.failEmptyList (exprBuilder "set") "the set"
+    else if builtins.isString xs then
       fail (exprBuilder "set") "a bare string (${builtins.toJSON xs}) is not an anonymous-set body, which is a list; reference a named set with `expr.setRef ${builtins.toJSON xs}`, or pass \"@${xs}\" to inSet or notInSet"
     else
       expression.tagged { name = "set"; } xs;

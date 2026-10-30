@@ -105,7 +105,13 @@ let
 
       # Anonymous set: an expression or a list of them (mappings are
       # 2-tuples).
-      setBody = types.either expression (types.listOf expression);
+      # nft rejects an anonymous set without elements, which would match
+      # nothing.
+      setBody =
+        types.addCheck (types.either expression (types.listOf expression)) (body: body != [ ])
+        // {
+          description = "set body (a non-empty list of elements, or a named set's \"@name\")";
+        };
 
       mapBody = submodule {
         options = {
