@@ -225,10 +225,10 @@ fields. The schema checks useful local types but leaves the final condition to
 - `snat`, `dnat`, and `tproxy` in an `inet` table need an address family for
   an address or an address map, as `family = "ip"`, unless an earlier match in
   the rule, such as `ip saddr` or `meta nfproto ipv4`, fixes it: nft fails
-  without one, from JSON and text alike, with "specify `dnat ip' or 'dnat
-ip6' in inet table to disambiguate". A port alone needs none. The schema
-  would have to follow the protocol context through the rule, so it leaves
-  the condition to `nft`;
+  without one, from JSON and text alike, with
+  ``specify `dnat ip' or 'dnat ip6' in inet table to disambiguate``. A port
+  alone needs none. The schema would have to follow the protocol context
+  through the rule, so it leaves the condition to `nft`;
 - tunnel `type` and its nested tunnel-parameter body are typed independently,
   so agreement between them remains a parser check;
 - some NAT, reject, and object-field combinations are meaningful only in

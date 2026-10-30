@@ -532,6 +532,9 @@ let
     "textParity.testMatchSetRef".state = ''
       add set inet t trusted { type ifname; }
     '';
+    "textParity.testSlashReferenceBare".state = ''
+      add set ip t a/b { type ipv4_addr; }
+    '';
     "textParity.testFlowNamedReference".state = ''
       add flowtable inet t ft { hook ingress priority 0; devices = { eth0 }; }
     '';
