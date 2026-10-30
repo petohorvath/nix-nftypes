@@ -41,7 +41,9 @@ lib.listToAttrs (
     expected = [
       "add-handle-ignored"
       "add-rule-handle-ignored-on-json"
+      "chain-dev-without-hook"
       "chain-hook-without-type"
+      "chain-policy-without-hook"
       "chain-prio-without-hook"
       "chain-type-without-hook"
       "chain-without-hook"

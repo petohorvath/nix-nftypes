@@ -2241,6 +2241,50 @@ textDriftTests
       ];
     };
 
+  /*
+    nft's chain parser reads dev and policy only with type, hook and prio,
+    so JSON loads a regular chain without them, and text fails. The schema
+    takes them on a base chain only, in commands and in Read-back.
+  */
+  testDevAndPolicyNeedABaseChain =
+    let
+      chain = {
+        family = "netdev";
+        table = "t";
+        name = "c";
+      };
+      base = {
+        type = "filter";
+        hook = "ingress";
+        prio = 0;
+      };
+      fields = [
+        { policy = "drop"; }
+        { dev = "lo"; }
+      ];
+      validatesIn = body: {
+        add = helpers.validates nftlib.types.command { add.chain = chain // body; };
+        create = helpers.validates nftlib.types.command { create.chain = chain // body; };
+        readBack = helpers.validates nftlib.types.ruleset {
+          nftables = [ { chain = chain // body // { handle = 1; }; } ];
+        };
+      };
+      everywhere = accepted: {
+        add = accepted;
+        create = accepted;
+        readBack = accepted;
+      };
+    in
+    {
+      expr = map validatesIn (fields ++ map (field: base // field) fields);
+      expected = [
+        (everywhere false)
+        (everywhere false)
+        (everywhere true)
+        (everywhere true)
+      ];
+    };
+
   testBaseChainWithoutTypeNamesTheConstraint = {
     expr = helpers.validate nftlib.types.command {
       add.chain = {

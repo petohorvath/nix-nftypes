@@ -668,6 +668,8 @@ when the body lacks a field nft requires for the verb, naming the field:
 - A chain sets `type`, `hook`, and `prio` together (a base chain) or none of
   them, in every builder and in a table tree's `chains`. nft loads a chain
   with only some of them as a regular chain whose rules never see packets.
+  `policy` and `dev` take a base chain too: nft's JSON loads a regular chain
+  without them, and its text rejects one.
 
 - `add.flowtable` and `create.flowtable` require `hook` and `prio`. The hook
   is `ingress`, the only one nft accepts for a flowtable in any family

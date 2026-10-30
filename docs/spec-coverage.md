@@ -147,8 +147,12 @@ A chain body sets `type`, `hook`, and `prio` together, a base chain, or none of
 them, a regular chain. nft's JSON parser reads the three as one optional group,
 so it loads a chain with only some of them as a regular chain whose rules never
 see packets, in nftables 1.1.6 and 1.1.7. The schema rejects such a chain, which
-is stricter than the parser (ADR 0010). The six `chain-*` cases of
-`integration-nft-misbehaviour`, one for each partial placement, assert that nft
+is stricter than the parser (ADR 0010). The parser reads `dev` and `policy`
+only in the same group, so it loads a regular chain without them, while nft's
+text rejects one ("Operation not supported" for a policy, "No such file or
+directory" for devices); the schema takes them on a base chain only. The eight
+`chain-*` cases of `integration-nft-misbehaviour`, one for each partial
+placement and one each for `dev` and `policy` without one, assert that nft
 still loads a regular chain.
 
 #### Handles on `add`, `create`, and `rename`

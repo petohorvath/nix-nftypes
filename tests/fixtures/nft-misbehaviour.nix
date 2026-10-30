@@ -26,8 +26,10 @@ let
   /*
     The chain parser unpacks `type`, `hook`, and `prio` as one optional
     group, so a chain with only some of them (`placement`) loads as a
-    regular chain that sees no packets. The schema takes all three or
-    none.
+    regular chain that sees no packets. The parser reads `dev` and
+    `policy` only in that group, so JSON drops them from a regular chain.
+    The schema takes all three or none, and `dev` and `policy` only with
+    them.
   */
   partialChainCase = name: placement: {
     inherit name;
@@ -301,6 +303,8 @@ in
       type = "filter";
       prio = 0;
     })
+    (partialChainCase "chain-policy-without-hook" { policy = "drop"; })
+    (partialChainCase "chain-dev-without-hook" { dev = "lo"; })
     # The set parser never reads `comment`, so JSON loads a commented set
     # or map without it. nft lists the comment of one loaded through text,
     # so the schema accepts it and text refuses it.
