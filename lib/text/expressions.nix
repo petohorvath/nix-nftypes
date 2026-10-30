@@ -67,6 +67,8 @@ let
           "refusing to render a scalar string at expression position that contains a character unsafe for nft's bare-token grammar (any of: whitespace, ',', ';', '{', '}', '\"', '\\', '#', control character, byte above 0x7F). The renderer emits the value verbatim, so an unsafe byte either splits the token or breaks the parser context — at rule scope a newline + statement payload silently appends attacker-controlled commands."
       else if lib.hasInfix "/" v then
         primitives.refuseBarePrefix "expression" v
+      else if lib.hasPrefix "@" v then
+        "@${primitives.checkName "reference" "expression" (lib.removePrefix "@" v)}"
       else
         v
     else
@@ -513,12 +515,12 @@ let
 
   renderElem = renderElemIn plainSlot;
 
-  # Verdict target is a chain name; route through identQuote so the
+  # Verdict target is a chain name; route through `primitives.name` so the
   # renderer's `assertSafeString` assert catches the parser-meta injection set
   # ('"', '\', control chars) and other invalid bytes land in the
   # quoted-form fallback that nft rejects in identifier position.
-  renderJump = _ctx: { target }: "jump ${primitives.identQuote "jump target" target}";
-  renderGoto = _ctx: { target }: "goto ${primitives.identQuote "goto target" target}";
+  renderJump = _ctx: { target }: "jump ${primitives.name "identifier" "jump target" target}";
+  renderGoto = _ctx: { target }: "goto ${primitives.name "identifier" "goto target" target}";
 
   # Bare verdicts as expressions (vmap data position).
   renderVerdict =

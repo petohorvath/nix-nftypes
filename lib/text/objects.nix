@@ -37,7 +37,7 @@ let
     renderSetElementIn
     slotOfDatatype
     ;
-  inherit (primitives) identQuote quoteIfname safeToken;
+  inherit (primitives) quoteIfname safeToken;
   inherit (statements) renderRuleExpr;
 
   renderInnerExpression = ctx: e: renderExpression (resetPrec ctx) e;
@@ -80,30 +80,32 @@ let
   #
   # Names are emitted bare; the text parser expects an identifier (not a
   # quoted string) in the table/chain/set position after `add <kind>`.
-  # If a name happens to collide with an nftables keyword (e.g. a
-  # flowtable named "offload"), the user has to rename — there's no
-  # quoting form that works in this position.
+  # A name nft's lexer reads as a keyword there, such as a set named
+  # `counter`, is refused (`primitives.name`): no quoting form works in
+  # this position. `position` is the kind's, as `keywordsByPosition` in
+  # ./primitives.nix names it.
   #
   # In block-form rendering (`ctx.block`), the enclosing `table { ... }`
   # implies family/table, so `renderObjectScope` collapses to just the
   # object's name. `renderTableScope` is unaffected — the only caller (the
   # table header itself) is never rendered in block form.
-  renderTableScope = body: "${safeToken "family" body.family} ${identQuote "table name" body.table}";
+  renderTableScope =
+    body: "${safeToken "family" body.family} ${primitives.name "identifier" "table name" body.table}";
   renderObjectScope =
-    ctx: body:
+    position: ctx: body:
     if ctx.block then
-      identQuote "object name" body.name
+      primitives.name position "object name" body.name
     else
-      "${renderTableScope body} ${renderNameOrHandle "object" body}";
+      "${renderTableScope body} ${renderNameOrHandle position "object" body}";
 
   # An object's name, or `handle <n>` for a `delete` Selector that selects
   # it by handle instead.
   renderNameOrHandle =
-    what: body:
+    position: what: body:
     if (body.name or null) == null && (body.handle or null) != null then
       "handle ${safeToken "${what} handle" body.handle}"
     else
-      identQuote "${what} name" body.name;
+      primitives.name position "${what} name" body.name;
 
   # SECURITY-CRITICAL: a string datatype renders bare into the set/map
   # `type <X>` clause; a list renders bare joined with ` . `. An unsafe
@@ -215,7 +217,7 @@ let
   # ---- per-kind body renderers ---------------------------------------
 
   renderTableHeader =
-    _ctx: body: "${safeToken "family" body.family} ${renderNameOrHandle "table" body}";
+    _ctx: body: "${safeToken "family" body.family} ${renderNameOrHandle "identifier" "table" body}";
 
   renderTableBody =
     _ctx: body:
@@ -226,7 +228,7 @@ let
       "comment ${primitives.quoteString "table comment" body.comment}"
     ];
 
-  renderChainHeader = ctx: body: renderObjectScope ctx body;
+  renderChainHeader = ctx: body: renderObjectScope "identifier" ctx body;
 
   # Shared between renderRuleHeader (imperative `add rule …`) and the
   # block-form rule lines folded into a chain's brace block: the
@@ -272,7 +274,7 @@ let
   # their usual body without inline rules.
   renderChainBlock =
     ctx: body: rules:
-    "chain ${identQuote "chain name" body.name}${
+    "chain ${primitives.name "identifier" "chain name" body.name}${
       block ctx (renderChainBody ctx body ++ map (renderRuleStmtsAndComment ctx) rules)
     }";
 
@@ -355,7 +357,9 @@ let
         else
           "";
     in
-    "${renderTableScope body} ${identQuote "chain name" body.chain}${pos} ${renderRuleStmtsAndComment ctx body}";
+    "${renderTableScope body} ${
+      primitives.name "identifier" "chain name" body.chain
+    }${pos} ${renderRuleStmtsAndComment ctx body}";
 
   # Shared body renderer for set and map objects. They differ only in the
   # type clause: sets emit `type <K>`; maps emit `type <K> : <V>` (or
@@ -405,12 +409,12 @@ let
 
   # set: header `<family> <table> <name>`; body covers type/flags/policy/
   # size/timeout/gc-interval/auto-merge/elements/stmt.
-  renderSetHeader = ctx: body: renderObjectScope ctx body;
+  renderSetHeader = ctx: body: renderObjectScope "identifier" ctx body;
   renderSetBody = renderSetOrMapBody "set" renderSetTypeLine;
 
   # map: same as set but the type clause is `type K : V` and elements are
   # `k : v` pairs (handled by renderSetElementIn).
-  renderMapHeader = ctx: body: renderObjectScope ctx body;
+  renderMapHeader = ctx: body: renderObjectScope "identifier" ctx body;
   renderMapBody = renderSetOrMapBody "map" renderMapTypeLine;
 
   # element: `<family> <table> <set-name> { <elem>, <elem>, ... }`. The
@@ -422,10 +426,10 @@ let
       elemList = if builtins.isList body.elem then body.elem else [ body.elem ];
       inner = lib.concatMapStringsSep ", " (renderElementCommandValue (resetPrec ctx)) elemList;
     in
-    "element ${renderObjectScope ctx body} { ${inner} }";
+    "element ${renderObjectScope "identifier" ctx body} { ${inner} }";
 
   # flowtable: `hook <hook> priority <prio>; devices = { ... };`.
-  renderFlowtableHeader = ctx: body: renderObjectScope ctx body;
+  renderFlowtableHeader = ctx: body: renderObjectScope "identifier" ctx body;
 
   renderFlowtableBody =
     _ctx: body:
@@ -449,7 +453,7 @@ let
     hookLine ++ devLine;
 
   # counter: bare body (`add counter ...`) or with packets/bytes/comment.
-  renderCounterHeader = ctx: body: renderObjectScope ctx body;
+  renderCounterHeader = ctx: body: renderObjectScope "counter" ctx body;
 
   # `packets N bytes N`, or "" without counts; shared with the positional
   # `create counter`. nft's text takes the counts only as a pair, and JSON
@@ -476,7 +480,7 @@ let
     ) "comment ${primitives.quoteString "counter comment" body.comment}";
 
   # quota object: `[over] <bytes> bytes [used N bytes]`.
-  renderQuotaHeader = ctx: body: renderObjectScope ctx body;
+  renderQuotaHeader = ctx: body: renderObjectScope "quota" ctx body;
 
   # `[over] <bytes> bytes [used <used> bytes]`, shared with the positional
   # `create quota`. JSON's `bytes` defaults to 0, and text needs one.
@@ -501,7 +505,7 @@ let
 
   # ct count object: `over <val>` (inv) or `until <val>`; the grammar
   # requires one of the two keywords.
-  renderCtCountHeader = ctx: body: renderObjectScope ctx body;
+  renderCtCountHeader = ctx: body: renderObjectScope "ct count" ctx body;
 
   renderCtCountBody =
     _ctx: body:
@@ -515,13 +519,13 @@ let
     ) "comment ${primitives.quoteString "ct count comment" body.comment}";
 
   # Limit clauses and comments are spelled by limit.nix.
-  renderLimitHeader = ctx: body: renderObjectScope ctx body;
+  renderLimitHeader = ctx: body: renderObjectScope "limit" ctx body;
 
   # ct helper object. nft text wants `type "T" protocol P` joined as a
   # single statement (the parser only accepts a `type` clause when
   # `protocol` follows it inline, no separator). `l3proto` and `comment`
   # are then separate statements with their own `;`.
-  renderCtHelperHeader = ctx: body: renderObjectScope ctx body;
+  renderCtHelperHeader = ctx: body: renderObjectScope "ct helper" ctx body;
 
   renderCtHelperBody =
     _ctx: body:
@@ -549,7 +553,7 @@ let
 
   # ct timeout object:
   # `protocol tcp; l3proto ip; policy = { established: 300, ... };`.
-  renderCtTimeoutHeader = ctx: body: renderObjectScope ctx body;
+  renderCtTimeoutHeader = ctx: body: renderObjectScope "ct timeout" ctx body;
 
   renderCtTimeoutBody =
     _ctx: body:
@@ -582,7 +586,7 @@ let
       (body.comment or null) != null
     ) "comment ${primitives.quoteString "ct timeout comment" body.comment}";
 
-  renderCtExpectationHeader = ctx: body: renderObjectScope ctx body;
+  renderCtExpectationHeader = ctx: body: renderObjectScope "ct expectation" ctx body;
 
   renderCtExpectationBody =
     _ctx: body:
@@ -601,7 +605,7 @@ let
       (body.comment or null) != null
     ) "comment ${primitives.quoteString "ct expectation comment" body.comment}";
 
-  renderSecmarkHeader = ctx: body: renderObjectScope ctx body;
+  renderSecmarkHeader = ctx: body: renderObjectScope "identifier" ctx body;
 
   renderSecmarkBody =
     _ctx: body:
@@ -612,7 +616,7 @@ let
       (body.comment or null) != null
     ) "comment ${primitives.quoteString "secmark comment" body.comment}";
 
-  renderSynproxyHeader = ctx: body: renderObjectScope ctx body;
+  renderSynproxyHeader = ctx: body: renderObjectScope "synproxy" ctx body;
 
   /*
     `mss N; wscale N[; <flags>]`, one body statement, shared with the
@@ -664,7 +668,7 @@ let
 
   # meter (for list/flush): family/table/name only. Meters are created
   # by the `meter` statement, and nft lists one as a dynamic set.
-  renderMeterHeader = ctx: body: renderObjectScope ctx body;
+  renderMeterHeader = ctx: body: renderObjectScope "identifier" ctx body;
 
   # nft's text has no meter object, and its JSON parser rejects a listed
   # one ("Unknown object passed to add command").

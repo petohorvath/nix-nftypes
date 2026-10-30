@@ -6,7 +6,9 @@
   json_parse_ct_expr takes a direction for (ct_dir_keys, by their
   ct_templates tokens), JSON dispatch tables (stmt_parser_tbl,
   cb_tbl), and the payload protocols and their fields (proto_lookup_byname's
-  proto_tbl, by each protocol's templates). Each `testEnumDrift_*` test
+  proto_tbl, by each protocol's templates), and the text lexer's keywords
+  (src/scanner.l, of every state and of each state a name follows). Each
+  `testEnumDrift_*` test
   compares one model list with its table (tests/helpers/token-drift.nix;
   the byte units and a limit's rate units both check data_unit) and fails
   on a token only one side has. A token the parser accepts but the model

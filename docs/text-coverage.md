@@ -86,9 +86,26 @@ of each such time before the comparison: `last used 1d3ms` lists as
 
 The JSON API can represent strings without relying on the text lexer's keyword
 and identifier rules. A JSON-valid object name may therefore lack a safe text
-spelling. For example, the text grammar reserves `offload` in the
-flowtable-name and flowtable-reference positions, so a flowtable named
-`offload` loads only through JSON.
+spelling. nft's lexer reads a keyword where a name belongs, such as a map named
+`fwd` in `add map ip nat fwd`, and the parse fails, quoted or not. The text
+renderer refuses such a name in every position where it writes one bare: a
+table, chain, set, map, flowtable, secmark, meter, or stateful object name, a
+rule's chain, a `jump` or `goto` target, and a `@name` reference. The keywords
+depend on the position, as `lib/text/keywords.nix` and the scanner states of
+nftables 1.1.6 and 1.1.7 decide them:
+
+| Position                                                                                               | Refused keywords                                                                               |
+| ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| a table, chain, set, map, flowtable, secmark, or meter name, a rule's chain, a `jump` or `goto` target | every scanner state's keyword but `last`, which nft's parser takes as a name                   |
+| a `@name` set or map reference                                                                         | those, and `ll` and `nh`                                                                       |
+| a `flow add @name` reference                                                                           | every scanner state's keyword, `last` included, and `ll` and `nh`                              |
+| a counter, quota, or ct helper name                                                                    | the first row's, and the keywords of the object's scanner state, such as a counter's `packets` |
+| a limit, synproxy, ct timeout, ct expectation, or ct count name                                        | every scanner state's keyword, `last` included, and those of the object's scanner state        |
+
+A reference to a stateful object in a statement, as in `counter name "c"`, is
+quoted, which nft parses whatever the name. The text grammar also reserves
+`offload` in the flowtable-name and flowtable-reference positions, so a
+flowtable named `offload` loads only through JSON.
 
 The same applies to map datatypes. The text renderer accepts identifier-shaped
 datatypes only, so it rejects a map whose `map` value is an object kind with a

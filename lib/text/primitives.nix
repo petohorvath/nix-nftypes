@@ -14,8 +14,13 @@
                      asserted to be a name the kernel could give a device.
     safeToken      — render a value written bare: an integer, or a string
                      asserted safe to emit as a bare token, unchanged.
-    namedReference — assert that a string is `@` and a safe bare name, as
-                     a set, map or flowtable reference, and return it.
+    name           — render an object name in a position (`identifier`,
+                     `reference`, or an object kind such as `counter`):
+                     refused when nft's lexer reads it there as a keyword,
+                     else as `identQuote` renders it.
+    namedReference — assert that a string is `@` and a safe bare name that
+                     is no keyword in its position, as a set, map or
+                     flowtable reference, and return it.
     flags          — render a flag value that the schema accepts as either a
                      bare string or a list (listOrSingleton), each flag a
                      safe bare token. Joined with `, ` by default.
@@ -54,6 +59,49 @@
 }:
 
 let
+  keywords = import ./keywords.nix;
+
+  /*
+    The keywords nft's lexer reads in place of a name, by the position the
+    name takes: an `identifier` (a table, chain, set, map, flowtable,
+    secmark, or meter name, or a jump target), a set or map `reference`
+    after `@`, a `flowtableReference` after `flow add @`, and each stateful
+    object kind's name, which follows the keyword that opens the kind's
+    scanner state. The parser takes `last` as an identifier, but not where
+    the kind's state is still open after it, nor after `flow add @`.
+    Measured with nftables 1.1.6.
+  */
+  keywordsByPosition =
+    let
+      identifier = lib.remove "last" keywords.global;
+    in
+    {
+      inherit identifier;
+      reference = identifier ++ keywords.at;
+      flowtableReference = keywords.global ++ keywords.at;
+      counter = identifier ++ keywords.counter;
+      quota = identifier ++ keywords.quota;
+      "ct helper" = identifier ++ keywords.ct;
+      "ct timeout" = keywords.global ++ keywords.ct;
+      "ct expectation" = keywords.global ++ keywords.ct;
+      "ct count" = keywords.global ++ keywords.ct;
+      limit = keywords.global ++ keywords.limit;
+      synproxy = keywords.global ++ keywords.synproxy;
+    };
+
+  # `s`, refused when nft's lexer reads it as a keyword at `position`.
+  checkName =
+    position: field: s:
+    if builtins.elem s keywordsByPosition.${position} then
+      refuse
+        {
+          inherit field;
+          value = s;
+        }
+        "refusing to render a name that nft's text lexer reads as the keyword `${s}` in this position, where it fails to parse, quoted or not. Rename the object, or load the ruleset as JSON, which takes any name."
+    else
+      s;
+
   # Matches the part of nftables scanner.l's string-token rule that's safe
   # to emit unquoted in scope (table/chain/set/object name) positions.
   # Names in those positions are *required* to be bare — `nft -c -f -`
@@ -147,6 +195,10 @@ let
 
   identQuote = field: s: if isBareIdent s then s else quoteString field s;
 
+  name =
+    position: field: s:
+    identQuote field (checkName position field s);
+
   /*
     SECURITY-CRITICAL: every value the renderer writes bare (payload
     protocol and field, ct key, enum fields such as a chain policy,
@@ -175,7 +227,7 @@ let
   # A stored named reference (`@blocked`) prints as is. Without its `@`
   # nft would read the name as something else, so it is refused.
   namedReference =
-    field: s:
+    position: field: s:
     if !(builtins.isString s && lib.hasPrefix "@" s) then
       refuse
         {
@@ -184,7 +236,7 @@ let
         }
         "refusing to render a named reference without its `@`. A set, map or flowtable reference is stored as `@<name>`, as nft's JSON requires; build it with the DSL, which adds the `@`."
     else
-      "@${safeToken field (lib.removePrefix "@" s)}";
+      "@${checkName position field (safeToken field (lib.removePrefix "@" s))}";
 
   # Render a listOrSingleton flag value, each flag through `safeToken`.
   # The default separator matches `nft list ruleset` output (`, `); some
@@ -311,7 +363,9 @@ in
     flags
     identQuote
     isBareIdent
+    checkName
     isWrittenSymbol
+    name
     namedReference
     priority
     quoteIfname

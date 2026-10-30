@@ -19,6 +19,127 @@ let
   # Wrap a single command in a ruleset so toText's entry contract is met.
   one = cmd: toText { nftables = [ cmd ]; };
 
+  # A rule in chain `c` of the ip table `t` with the statements `expr`.
+  ipRule = expr: {
+    add.rule = {
+      family = "ip";
+      table = "t";
+      chain = "c";
+      inherit expr;
+    };
+  };
+
+  /*
+    nft's lexer reads a keyword where a name belongs, and fails to parse
+    it, quoted or not (lib/text/keywords.nix). Which keywords depends on
+    the position: a global keyword but `last` everywhere, `ll` and `nh`
+    after `@`, and a stateful object's own keywords after its kind, with
+    `last` too where the kind's scanner state stays open. The accepted
+    names are parse-checked against nft as pinned text.
+  */
+  keywordNameTests =
+    let
+      ipObject = kind: name: extra: {
+        add.${kind} = {
+          family = "ip";
+          table = "t";
+          inherit name;
+        }
+        // extra;
+      };
+      ipv4Set.type = "ipv4_addr";
+      refused = field: cmd: {
+        expr = one cmd;
+        expectedError.msg = helpers.refusals.keywordName field;
+      };
+    in
+    {
+      testKeywordTableNameRefused = refused "table name" {
+        add.table = {
+          family = "ip";
+          name = "fwd";
+        };
+      };
+      testKeywordSetNameRefused = refused "object name" (ipObject "set" "counter" ipv4Set);
+      testKeywordChainNameRefused = refused "object name" (ipObject "chain" "meta" { });
+      testKeywordRuleChainRefused = refused "chain name" {
+        add.rule = {
+          family = "ip";
+          table = "t";
+          chain = "accept";
+          expr = [ { accept = null; } ];
+        };
+      };
+      testKeywordJumpTargetRefused = refused "jump target" (ipRule [ { jump.target = "drop"; } ]);
+      testKeywordReferenceRefused = refused "expression" (ipRule [
+        {
+          match = {
+            op = "==";
+            left.payload = {
+              protocol = "ip";
+              field = "saddr";
+            };
+            right = "@ll";
+          };
+        }
+      ]);
+      testKeywordSetStatementReferenceRefused = refused "set reference" (ipRule [
+        {
+          set = {
+            op = "add";
+            elem.payload = {
+              protocol = "ip";
+              field = "saddr";
+            };
+            set = "@counter";
+          };
+        }
+      ]);
+      testLastFlowtableReferenceRefused = refused "flowtable reference" (ipRule [
+        {
+          flow = {
+            op = "add";
+            flowtable = "@last";
+          };
+        }
+      ]);
+      testCounterKeywordCounterNameRefused = refused "object name" (ipObject "counter" "packets" { });
+      testLastLimitNameRefused = refused "object name" (
+        ipObject "limit" "last" {
+          rate = 1;
+          per = "second";
+        }
+      );
+      testCtKeywordCtHelperNameRefused = refused "object name" (
+        ipObject "ct helper" "state" {
+          type = "ftp";
+          protocol = "tcp";
+        }
+      );
+      testKeywordBlockNameRefused = {
+        expr = nftlib.toTextBlock (nftlib.dsl.table "ip" "t" { sets.counter = ipv4Set; });
+        expectedError.msg = helpers.refusals.keywordName "object name";
+      };
+      # Accepted: a state keyword outside its state, and `last`, which
+      # nft's parser takes as an identifier.
+      testStateKeywordSetNameAccepted = {
+        expr = one (ipObject "set" "bytes" ipv4Set);
+        expected = "add set ip t bytes { type ipv4_addr; }\n";
+      };
+      testLastSetNameAccepted = {
+        expr = one (ipObject "set" "last" ipv4Set);
+        expected = "add set ip t last { type ipv4_addr; }\n";
+      };
+      testLastChainNameAccepted = {
+        expr = one (ipObject "chain" "last" { });
+        expected = "add chain ip t last\n";
+      };
+      testLastCounterNameAccepted = {
+        expr = one (ipObject "counter" "last" { });
+        expected = "add counter ip t last\n";
+      };
+    };
+
   # Two ip tables, for output that spans tables.
   tableA = {
     family = "ip";
@@ -2862,6 +2983,7 @@ in
     expected = "flush ruleset\nadd table ip t\nadd chain ip t c\n";
   };
 }
+// keywordNameTests
 // typeKeyCtObjectMapRefusals
 // elementStatementRefusals
 // ruleWithoutStatementsRefusals

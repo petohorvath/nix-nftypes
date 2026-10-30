@@ -25,7 +25,7 @@ let
       (lib.mapAttrs (_: test: test.expr))
     ];
 
-  inherit (helpers.tokenDrift) models tables;
+  inherit (helpers.tokenDrift) models tables unionLists;
   extracted = builtins.fromJSON runs.control.output;
 
   # The Drift of one table whose model list `edit` changes.
@@ -47,6 +47,13 @@ let
     payloadField = "igmp mrt";
     rtKey = "ipsec";
     statementTag = "tproxy";
+    textKeyword = "counter";
+    textKeywordAt = "nh";
+    textKeywordCounter = "packets";
+    textKeywordCt = "helper";
+    textKeywordLimit = "burst";
+    textKeywordQuota = "until";
+    textKeywordSynproxy = "wscale";
   };
 
   # Runs whose source lacks one entry of a table, by table.
@@ -73,12 +80,13 @@ lib.mapAttrs' (
     expected = lib.mapAttrs (_: token: [ token ]) modelTokens;
   };
 
-  # A model token that no table holds is Drift too.
+  # A model token that no table holds is Drift too, but in a list that
+  # holds every tested release's tokens.
   testEnumDriftFindsTokenMissingFromSource = {
     expr = lib.mapAttrs (
       name: _: (editedModelDrift name (tokens: tokens ++ [ "wug" ])).missingFromSource
     ) models;
-    expected = lib.mapAttrs (_: _: [ "wug" ]) models;
+    expected = lib.mapAttrs (name: _: if builtins.elem name unionLists then [ ] else [ "wug" ]) models;
   };
 
   # A source-only token that leaves the source is stale.
@@ -130,6 +138,13 @@ lib.mapAttrs' (
       "missingEntry_payloadField"
       "missingEntry_rtKey"
       "missingEntry_statementTag"
+      "missingEntry_textKeyword"
+      "missingEntry_textKeywordAt"
+      "missingEntry_textKeywordCounter"
+      "missingEntry_textKeywordCt"
+      "missingEntry_textKeywordLimit"
+      "missingEntry_textKeywordQuota"
+      "missingEntry_textKeywordSynproxy"
       "renamedTable"
       "unparsableCorpusRecord"
       "unreadableTable"
