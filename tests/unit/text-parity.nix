@@ -134,6 +134,28 @@ let
         expr = one (ipObject "chain" "last" { });
         expected = "add chain ip t last\n";
       };
+      # nft's lexer reads a name with `/` as one string, bare, as the set's
+      # name and in a `@name` reference; a bare string with `/` elsewhere
+      # is a prefix, which text refuses.
+      testSlashSetNameBare = {
+        expr = one (ipObject "set" "a/b" ipv4Set);
+        expected = "add set ip t a/b { type ipv4_addr; }\n";
+      };
+      testSlashReferenceBare = {
+        expr = one (ipRule [
+          {
+            match = {
+              op = "==";
+              left.payload = {
+                protocol = "ip";
+                field = "saddr";
+              };
+              right = "@a/b";
+            };
+          }
+        ]);
+        expected = "add rule ip t c ip saddr == @a/b\n";
+      };
       testLastCounterNameAccepted = {
         expr = one (ipObject "counter" "last" { });
         expected = "add counter ip t last\n";

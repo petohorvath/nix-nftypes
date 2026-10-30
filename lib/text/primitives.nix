@@ -26,8 +26,9 @@
                      safe bare token. Joined with `, ` by default.
     refuse         — raise a Refusal; every other refusing helper calls it.
     refuseBarePrefix
-                   — refuse a bare expression string containing `/`,
-                     which text would load as a prefix.
+                   — refuse a bare expression string containing `/`, but
+                     a `@name` reference, which text would load as a
+                     prefix.
     refuseJsonIgnored
                    — refuse a field that nft's JSON parser ignores, which
                      text would load (ADR 0010).
@@ -102,13 +103,12 @@ let
     else
       s;
 
-  # Matches the part of nftables scanner.l's string-token rule that's safe
-  # to emit unquoted in scope (table/chain/set/object name) positions.
-  # Names in those positions are *required* to be bare — `nft -c -f -`
-  # rejects `add table inet "main"` with `unexpected quoted string`.
-  # nft accepts hyphens and underscores; this regex conservatively
-  # covers the names typically used in rulesets.
-  bareIdentRegex = "[A-Za-z_][A-Za-z0-9_-]*";
+  # nftables scanner.l's string-token rule, `({letter}|[_.])({letter}|
+  # {digit}|[/\-_\.])*`, which a name in a scope (table/chain/set/object
+  # name) position must match bare: `nft -c -f -` rejects
+  # `add table inet "main"` with `unexpected quoted string`, and loads
+  # `add set ip t a/b`, which a `@a/b` reference names.
+  bareIdentRegex = "[A-Za-z_.][A-Za-z0-9/_.-]*";
 
   isBareIdent = s: builtins.match bareIdentRegex s != null;
 
