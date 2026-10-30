@@ -121,6 +121,20 @@ let
       value = dsl.quota "q";
       msg = "^nix-nftypes: dsl\\.quota: .*`quota\\.ref \"q\"`";
     };
+    # A map expression selects an object, which `.ref` references; the
+    # inline form took it as a second spelling of `.ref`.
+    quotaMapExpression = {
+      value = dsl.quota (dsl.expr.map dsl.fields.tcp.dport "q");
+      msg = "^nix-nftypes: dsl\\.quota: a map expression selects an object by key; reference it with `quota\\.ref \\(expr\\.map …\\)`";
+    };
+    counterMapExpression = {
+      value = dsl.counter (dsl.expr.map dsl.fields.tcp.dport "c");
+      msg = "^nix-nftypes: dsl\\.counter: a map expression selects an object by key; reference it with `counter\\.ref";
+    };
+    limitMapExpression = {
+      value = dsl.limit (dsl.expr.map dsl.fields.tcp.dport "l");
+      msg = "^nix-nftypes: dsl\\.limit: a map expression selects";
+    };
     rulesetUncalledBuilder = {
       value = dsl.ruleset [ dsl.flush.ruleset ];
       msg = "^nix-nftypes: dsl\\.ruleset: .*got a function, such as a builder not yet called; call it";

@@ -423,7 +423,9 @@ limit { rate = 10; per = "minute"; burst = 5; }
 ```
 
 `.ref name` references a named object, by its name or by a map expression
-that selects one by key; it throws for any other attribute set. A name given
+that selects one by key; it throws for any other attribute set. The inline
+form takes neither: `counter "c"` and `quota (expr.map fields.tcp.dport "q")`
+throw and point to `.ref`. A name given
 to the statement itself, as in `counter "c"`, throws and points to
 `counter.ref "c"`. `ctHelper`,
 `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` have no other form, so

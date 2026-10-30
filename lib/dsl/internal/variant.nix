@@ -11,8 +11,10 @@
                access: `.auto`, `.ref`, `.icmp`, …
 
   Returns `extras` plus a `__functor` that delegates to `base`. A string
-  given to a namespace with a `.ref` names an object, so it throws and
-  points to `.ref` instead of reaching `base`.
+  given to a namespace with a `.ref` names an object, and a map
+  expression, `{ map = …; }`, selects one, so each throws and points to
+  `.ref` instead of reaching `base`, which would take the map expression
+  as a second spelling of `.ref`.
 
   Example:
     counter = variant "counter"
@@ -41,6 +43,9 @@ extras
     if builtins.isString arg && extras ? ref then
       location.fail (location.builder [ name ])
         "a string names an object; reference it with `${name}.ref ${builtins.toJSON arg}`, or give the statement's fields as an attribute set"
+    else if builtins.isAttrs arg && builtins.attrNames arg == [ "map" ] && extras ? ref then
+      location.fail (location.builder [ name ])
+        "a map expression selects an object by key; reference it with `${name}.ref (expr.map …)`, or give the statement's fields as an attribute set"
     else
       base arg;
 }
