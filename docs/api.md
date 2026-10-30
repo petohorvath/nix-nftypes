@@ -630,6 +630,16 @@ such as `create.counter "c1"`, throws naming its path, and a string in a name or
 reference position, such as `synproxy.ref "/sp1"`, is a name. Module keys such
 as `imports` are unknown fields, and `_module` throws.
 
+Only an option definition resolves a module property, such as `lib.mkIf`,
+`lib.mkMerge`, `lib.mkDefault`, or `lib.mkBefore`, so none is a value here. A
+builder, a Table tree, `dsl.ruleset`, `validate`, and the renderers throw on
+one anywhere in their argument, naming where it sits; build the value with
+`lib.optional`, `lib.optionalAttrs`, or `//`:
+
+```text
+nix-nftypes: dsl.log: prefix: got lib.mkIf, which only the module system resolves; build the value with lib.optional, lib.optionalAttrs, or `//`
+```
+
 A builder takes positional arguments only when every argument is required and
 there are at most two, as in `eq left right`, `vmap key data`, `expr.map key
 data`, `expr.payload protocol field`, `expr.prefix addr len`, and

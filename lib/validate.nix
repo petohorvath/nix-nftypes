@@ -22,14 +22,17 @@
   Submodule checks are lazy, so the checked value is forced in full before
   `value` is returned: every check runs, however deep. A mismatch throws
   the module system's error, whose option path starts with `validate`.
-  Swapped arguments, a first argument that is no schema type, and a Table
-  tree as `value` throw a `nix-nftypes: validate:` error instead.
+  Swapped arguments, a first argument that is no schema type, a Table tree
+  as `value`, and a module property such as `lib.mkIf` anywhere in it
+  throw a `nix-nftypes: validate:` error instead.
 */
 type: value:
 let
   fail = import ./fail.nix { } "validate";
   inherit (import ./describe.nix { inherit lib; }) describe;
   inherit (import ./table-tree-marker.nix { }) isTableTree;
+  inherit (import ./module-property.nix { inherit lib; }) findModuleProperty modulePropertyMessage;
+  moduleProperty = findModuleProperty value;
 
   checked =
     (lib.evalModules {
@@ -50,5 +53,9 @@ else if !(lib.isOptionType type) then
   fail "expected a schema type, such as `types.ruleset`, as the first argument, got ${describe type}; call it as `validate type value`"
 else if isTableTree value then
   fail "got a Table tree, which no schema type takes; expand it into a ruleset with `dsl.ruleset [ … ]`, which validates its bodies"
+else if moduleProperty != null then
+  fail "${
+    lib.optionalString (moduleProperty.path != [ ]) "${lib.concatStringsSep "." moduleProperty.path}: "
+  }${modulePropertyMessage moduleProperty}"
 else
   builtins.deepSeq checked value

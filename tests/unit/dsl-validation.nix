@@ -901,7 +901,7 @@ let
         field = "key";
       };
       vmap = {
-        wrong = dsl.vmap notAnExpression { };
+        wrong = dsl.vmap notAnExpression "m";
         field = "key";
       };
       # `flow` builds its `op` and its `@` reference itself.

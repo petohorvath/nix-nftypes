@@ -350,6 +350,7 @@ Renderers and validation:
 - A wrong value in an expression field, such as a match's `left`, is a type error naming the field. `types.expression` described itself in its own description, so evaluation failed with "infinite recursion encountered" instead.
 - `vmap` and `expr.map` wrap a list given as data in an anonymous map, `{ set = list; }`, as `inSet` wraps a list in an anonymous set, so `vmap fields.tcp.dport [ [ 22 accept ] [ 80 drop ] ]` loads. They passed the bare list on, which nft's JSON parser rejects and text rendered as `tcp dport vmap 22, accept, 80, drop`, which nft can't parse.
 - Text writes every ct key of `types.ctKey` as nft lists it, the keys whose name holds a space included, as in `ct original ip saddr 192.0.2.1`. It refused `ip saddr`, `ip daddr`, `ip6 saddr`, and `ip6 daddr` as unsafe tokens, so a rule that `toJson` rendered threw in `toText`. Raw input with any other ct key holding a space is still refused.
+- `validate`, every DSL builder, a Table tree, `dsl.ruleset`, and the renderers throw on a module property, such as `lib.mkIf`, `lib.mkMerge`, `lib.mkDefault`, or `lib.mkBefore`, naming where it sits: ``nix-nftypes: validate: nftables.0.add.table: got lib.mkMerge, which only the module system resolves; build the value with lib.optional, lib.optionalAttrs, or `//` ``. The module system checked the resolved value but returned the property, so `validate` passed it and the renderers wrote it as `{"contents": …}` or `{"condition": …}`, and text dropped a field JSON kept.
 
 ## [0.1.0] - 2026-10-13
 

@@ -3,7 +3,8 @@
   only a ruleset. None of its parts is validation (ADR 0003): the commands
   inside go unchecked.
 
-  - Its shape is checked: an attrset with just an `nftables` list.
+  - Its shape is checked: an attrset with just an `nftables` list, and no
+    module property such as `lib.mkIf` anywhere (./module-property.nix).
   - It is cleaned (./clean.nix).
   - A rule body without `expr`, listed or under a command verb, gets
     `expr = [ ]`. nft's JSON parser requires the key on every rule but a
@@ -19,6 +20,7 @@ let
   inherit (import ./table-tree-marker.nix { }) isTableTree;
   inherit (import ./describe.nix { inherit lib; }) describe;
   fail = import ./fail.nix { };
+  inherit (import ./module-property.nix { inherit lib; }) findModuleProperty modulePropertyMessage;
 
   withExpr = body: if builtins.isAttrs body && !(body ? expr) then body // { expr = [ ]; } else body;
 
@@ -55,6 +57,11 @@ else if !(isRuleset value) then
   fail api "expected a ruleset { nftables = [ … ]; }, got ${describe value}; build one with dsl.ruleset [ … ]"
 else if builtins.any (command: builtins.isAttrs command && command ? nftables) value.nftables then
   fail api "got a ruleset { nftables = [ … ]; } nested among a ruleset's commands, which nft rejects; splice it in with dsl.ruleset [ … ]"
+else if findModuleProperty value != null then
+  let
+    found = findModuleProperty value;
+  in
+  fail api "${lib.concatStringsSep "." found.path}: ${modulePropertyMessage found}"
 else
   let
     cleaned = clean value;

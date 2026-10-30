@@ -19,7 +19,8 @@
   `value` is data, never a module (see ./require-body.nix): a string such
   as `"c1"` or `"/sp1"` is not imported as a module file, and module keys
   such as `imports`, `key`, or `freeformType` are fields the schema doesn't
-  have. Each throws an error naming its path.
+  have. Each throws an error naming its path, as does a module property
+  such as `lib.mkIf` anywhere in `value` (../../module-property.nix).
 
   A union such as `flushRulesetBody`, `oneOf [ nullLiteral, submodule {
   family; } ]`, or a statement's `logBody`, is checked against the branch
@@ -75,7 +76,12 @@ let
   subOptions = removeAttrs rawSubOptions [ "_module" ];
   isFlatSubmodule = subOptions != { };
   requireBody = import ./require-body.nix { inherit lib; };
-  inherit (import ./location.nix { inherit lib; }) fail;
+  inherit (import ./location.nix { inherit lib; }) fail within;
+  inherit (import ../../module-property.nix { inherit lib; })
+    findModuleProperty
+    modulePropertyMessage
+    ;
+  moduleProperty = findModuleProperty value;
   body = requireBody location value;
   prefix = location.optionPrefix;
   checked =
@@ -115,4 +121,7 @@ let
         ];
       }).config.value;
 in
-builtins.deepSeq checked value
+if moduleProperty != null then
+  fail (within location moduleProperty.path) (modulePropertyMessage moduleProperty)
+else
+  builtins.deepSeq checked value
