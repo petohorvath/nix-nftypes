@@ -2241,6 +2241,50 @@ textDriftTests
       ];
     };
 
+  /*
+    nft's chain parser reads dev and policy only with type, hook and prio,
+    so JSON loads a regular chain without them, and text fails. The schema
+    takes them on a base chain only, in commands and in Read-back.
+  */
+  testDevAndPolicyNeedABaseChain =
+    let
+      chain = {
+        family = "netdev";
+        table = "t";
+        name = "c";
+      };
+      base = {
+        type = "filter";
+        hook = "ingress";
+        prio = 0;
+      };
+      fields = [
+        { policy = "drop"; }
+        { dev = "lo"; }
+      ];
+      validatesIn = body: {
+        add = helpers.validates nftlib.types.command { add.chain = chain // body; };
+        create = helpers.validates nftlib.types.command { create.chain = chain // body; };
+        readBack = helpers.validates nftlib.types.ruleset {
+          nftables = [ { chain = chain // body // { handle = 1; }; } ];
+        };
+      };
+      everywhere = accepted: {
+        add = accepted;
+        create = accepted;
+        readBack = accepted;
+      };
+    in
+    {
+      expr = map validatesIn (fields ++ map (field: base // field) fields);
+      expected = [
+        (everywhere false)
+        (everywhere false)
+        (everywhere true)
+        (everywhere true)
+      ];
+    };
+
   testBaseChainWithoutTypeNamesTheConstraint = {
     expr = helpers.validate nftlib.types.command {
       add.chain = {
@@ -2895,12 +2939,60 @@ textDriftTests
   testNetmapNatFlag = {
     expr = roundtrip nftlib.types.statement {
       dnat = {
-        addr = "10.0.0.0/24";
+        addr.prefix = {
+          addr = "10.0.0.0";
+          len = 24;
+        };
         flags = [ "netmap" ];
       };
     };
-    expected = ''{"dnat":{"addr":"10.0.0.0/24","flags":["netmap"]}}'';
+    expected = ''{"dnat":{"addr":{"prefix":{"addr":"10.0.0.0","len":24}},"flags":["netmap"]}}'';
   };
+
+  /*
+    nft's JSON parser reads a string with `/` as a hostname and rejects
+    it, while text loads it as a prefix, so an expression string takes no
+    `/` but in a `@name` reference, whose name may hold one.
+  */
+  testExpressionStringPrefixRejected =
+    let
+      payload.payload = {
+        protocol = "ip";
+        field = "saddr";
+      };
+      match = right: {
+        match = {
+          op = "==";
+          left = payload;
+          inherit right;
+        };
+      };
+    in
+    {
+      expr = map (helpers.validates nftlib.types.statement) [
+        (match "10.0.0.0/8")
+        (match [ "10.0.0.0/8" ])
+        (match { set = [ "2001:db8::/32" ]; })
+        { dnat.addr = "10.0.0.0/24"; }
+        {
+          vmap = {
+            key = payload;
+            data = "m/x";
+          };
+        }
+        (match "@my/set")
+        (match "10.0.0.1")
+      ];
+      expected = [
+        false
+        false
+        false
+        false
+        false
+        true
+        true
+      ];
+    };
 
   # ------------------------------------------------------------------
   # `destroy` command (like delete but idempotent)
@@ -3049,14 +3141,17 @@ textDriftTests
   testNatTypeFlags = {
     expr = roundtrip nftlib.types.statement {
       dnat = {
-        addr = "10.0.0.0/24";
+        addr.prefix = {
+          addr = "10.0.0.0";
+          len = 24;
+        };
         type_flags = [
           "interval"
           "prefix"
         ];
       };
     };
-    expected = "{\"dnat\":{\"addr\":\"10.0.0.0/24\",\"type_flags\":[\"interval\",\"prefix\"]}}";
+    expected = "{\"dnat\":{\"addr\":{\"prefix\":{\"addr\":\"10.0.0.0\",\"len\":24}},\"type_flags\":[\"interval\",\"prefix\"]}}";
   };
 
   # ip option expression (parser_json.c:822)
@@ -4058,6 +4153,185 @@ textDriftTests
   # A wrong value in an expression field is a type error naming the
   # field. The recursive `expression` type's description used to recurse
   # without end, so the error was "infinite recursion encountered".
+  /*
+    nft refuses a match whose left side holds no key and one whose right
+    side holds a key or a map lookup, so a swapped match fails to load,
+    and takes only payload, meta, ct, and header-option keys in a mangle
+    statement. The Read-back shapes, a key, an operation on one, or a
+    concatenation of them on the left, still validate.
+  */
+  testSwappedOperandsRejected =
+    let
+      mark.meta.key = "mark";
+      ctMark.ct.key = "mark";
+      dport.payload = {
+        protocol = "tcp";
+        field = "dport";
+      };
+      match = left: right: {
+        match = {
+          op = "==";
+          inherit left right;
+        };
+      };
+      mangle = key: value: { mangle = { inherit key value; }; };
+    in
+    {
+      expr = map (helpers.validates nftlib.types.statement) [
+        (match 22 dport)
+        (match "@s" dport)
+        (match { set = [ 1 ]; } 1)
+        (match {
+          "&" = [
+            255
+            mark
+          ];
+        } 3)
+        (match mark ctMark)
+        (match mark { set = [ ctMark ]; })
+        (match mark {
+          map = {
+            key = dport;
+            data = "@m";
+          };
+        })
+        (mangle 42 mark)
+        (mangle { rt.key = "mtu"; } 1)
+        (match dport 22)
+        (match {
+          "&" = [
+            mark
+            255
+          ];
+        } 3)
+        (match
+          {
+            concat = [
+              mark
+              ctMark
+            ];
+          }
+          {
+            set = [
+              {
+                concat = [
+                  1
+                  2
+                ];
+              }
+            ];
+          }
+        )
+        (match mark {
+          "|" = [
+            1
+            2
+          ];
+        })
+        (mangle mark ctMark)
+        (mangle {
+          "tcp option" = {
+            name = "maxseg";
+            field = "size";
+          };
+        } { rt.key = "mtu"; })
+      ];
+      expected = [
+        false
+        false
+        false
+        false
+        false
+        false
+        false
+        false
+        false
+        true
+        true
+        true
+        true
+        true
+        true
+      ];
+    };
+
+  /*
+    nft takes an element as a set member, or in a map member's pair, and
+    aborts or fails on one anywhere else in a match's right side or a
+    mangle value. A set statement's element stays an element.
+  */
+  testStrayElementRejected =
+    let
+      dport.payload = {
+        protocol = "tcp";
+        field = "dport";
+      };
+      element = val: {
+        elem = {
+          inherit val;
+          timeout = 10;
+        };
+      };
+      match = right: {
+        match = {
+          op = "==";
+          left = dport;
+          inherit right;
+        };
+      };
+    in
+    {
+      expr = map (helpers.validates nftlib.types.statement) [
+        (match (element 22))
+        (match [ (element 22) ])
+        (match {
+          prefix = {
+            addr = element "10.0.0.0";
+            len = 8;
+          };
+        })
+        {
+          mangle = {
+            key.meta.key = "mark";
+            value = element 1;
+          };
+        }
+        (match {
+          set = [
+            (element 22)
+            23
+          ];
+        })
+        {
+          vmap = {
+            key = dport;
+            data.set = [
+              [
+                (element 22)
+                { accept = null; }
+              ]
+            ];
+          };
+        }
+        {
+          set = {
+            op = "add";
+            elem = element "192.0.2.1";
+            set = "@s";
+          };
+        }
+      ];
+      expected = [
+        false
+        false
+        false
+        false
+        true
+        true
+        true
+      ];
+    };
+
   testWrongExpressionIsATypeError = {
     expr = builtins.deepSeq (helpers.validate nftlib.types.statement {
       match = {
@@ -4068,7 +4342,7 @@ textDriftTests
     }) true;
     expectedError = {
       type = "ThrownError";
-      msg = "validate\\.match\\.left' is not of type `nft expression";
+      msg = "validate\\.match\\.left' is not of type `match left side";
     };
   };
 

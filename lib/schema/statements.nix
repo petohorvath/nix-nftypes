@@ -31,6 +31,147 @@ let
     ;
   expr = expressions.expression;
 
+  /*
+    The tags of an expression that reads the packet or its metadata, a
+    key, which nft takes on the left of a match and never on the right.
+    nft refuses a match whose left side holds no key ("No symbol type
+    information", "has constant value") and one whose right side holds a
+    key or a map lookup ("not allowed in context (RHS)", "must be
+    constant"), so a swapped match fails to load.
+  */
+  keyTags = [
+    "ct"
+    "dccp option"
+    "exthdr"
+    "fib"
+    "ip option"
+    "ipsec"
+    "jhash"
+    "meta"
+    "numgen"
+    "osf"
+    "payload"
+    "rt"
+    "sctp chunk"
+    "socket"
+    "symhash"
+    "tcp option"
+    "tunnel"
+  ];
+
+  binaryOperatorTags = [
+    "|"
+    "^"
+    "&"
+    "<<"
+    ">>"
+  ];
+
+  # The one tag of a tagged expression, or null for any other value.
+  tagOf =
+    v:
+    if builtins.isAttrs v && builtins.length (builtins.attrNames v) == 1 then
+      builtins.head (builtins.attrNames v)
+    else
+      null;
+
+  /*
+    Whether `v` is a match's left side as nft loads it: a key, a binary
+    operation on one, such as `meta mark & 255`, or a concatenation of
+    such sides.
+  */
+  isKeySide =
+    v:
+    let
+      tag = tagOf v;
+      body = v.${tag};
+    in
+    tag != null
+    && (
+      builtins.elem tag keyTags
+      || (
+        builtins.elem tag binaryOperatorTags
+        && builtins.isList body
+        && body != [ ]
+        && isKeySide (builtins.head body)
+      )
+      || (tag == "concat" && builtins.isList body && body != [ ] && lib.all isKeySide body)
+    );
+
+  # Whether `v` holds a key or a map lookup at any depth.
+  holdsKey =
+    v:
+    let
+      tag = tagOf v;
+      holdsKeyIn =
+        body:
+        lib.any holdsKey (if builtins.isAttrs body then builtins.attrValues body else lib.toList body);
+    in
+    if builtins.isList v then
+      lib.any holdsKey v
+    else
+      tag != null && (builtins.elem tag (keyTags ++ [ "map" ]) || holdsKeyIn v.${tag});
+
+  /*
+    Whether `v` holds an element outside a set's members. nft takes an
+    `elem` as a set member, or as the key or value of a map member's
+    pair, and nowhere else: as a match's right side, nftables 1.1.6
+    aborts ("BUG: invalid expression type set element") and 1.1.7 fails,
+    and as a mangle value 1.1.7 aborts.
+  */
+  holdsStrayElement =
+    v:
+    let
+      tag = tagOf v;
+      holdsIn =
+        body:
+        lib.any holdsStrayElement (
+          if builtins.isAttrs body then builtins.attrValues body else lib.toList body
+        );
+      # An element in a member's place holds a stray one only in its value.
+      inMemberPlace =
+        part:
+        if tagOf part == "elem" then holdsStrayElement (part.elem.val or null) else holdsStrayElement part;
+      # A set member, or a map member's [ key value ] pair.
+      inMember =
+        member: if builtins.isList member then lib.any inMemberPlace member else inMemberPlace member;
+    in
+    if builtins.isList v then
+      lib.any holdsStrayElement v
+    else if tag == "elem" then
+      true
+    else if tag == "set" then
+      lib.any inMember (lib.toList v.set)
+    else
+      tag != null && holdsIn v.${tag};
+
+  # Its own name, as the generated schema tests read a type's name to
+  # build a value it takes: a string, which `expr`'s name gives, isn't a
+  # left side, while it is a right side, so `matchRight` keeps `expr`'s.
+  matchLeft = types.addCheck expr isKeySide // {
+    name = "matchLeft";
+    description = "match left side: a key such as a payload, meta, or ct expression, an operation on one, or a concatenation of them";
+  };
+
+  matchRight = types.addCheck expr (v: !(holdsKey v || holdsStrayElement v)) // {
+    description = "match right side: a value, with no payload, meta, ct, or other key, no map lookup, and no element outside a set";
+  };
+
+  mangleValue = types.addCheck expr (v: !(holdsStrayElement v)) // {
+    description = "mangle value: an expression with no element outside a set";
+  };
+
+  # nft's parser takes these keys in a mangle statement (CTX_F_MANGLE);
+  # any other fails with "Invalid mangle statement key".
+  mangleKey = expressions.expressionOf [
+    "ct"
+    "ip option"
+    "meta"
+    "payload"
+    "sctp chunk"
+    "tcp option"
+  ];
+
   # A reference to a named stateful object: its name, or a map expression
   # that selects the name (`quota name tcp dport map { … }`).
   objectRef = types.either types.str (expressions.expressionOf [ "map" ]);
@@ -92,11 +233,11 @@ let
     matchBody = submodule {
       options = {
         left = mkOption {
-          type = expr;
+          type = matchLeft;
           description = "left-hand expression";
         };
         right = mkOption {
-          type = expr;
+          type = matchRight;
           description = "right-hand expression";
         };
         op = mkOption {
@@ -138,11 +279,11 @@ let
     mangleBody = submodule {
       options = {
         key = mkOption {
-          type = expr;
+          type = mangleKey;
           description = "payload/meta/ct field to change";
         };
         value = mkOption {
-          type = expr;
+          type = mangleValue;
           description = "new value";
         };
       };
@@ -512,7 +653,7 @@ let
     # ct helper, ct timeout, ct expectation, secmark, and tunnel name an
     # object: nft parses each body into an objref statement's expression
     # (src/parser_json.c), the object's name or a map that selects it.
-    objectRefBody = objectRef;
+    objectReferenceBody = objectRef;
 
     /*
       Map of tag → body type. Single source of truth for the full
@@ -546,9 +687,9 @@ let
       set = setBody;
       map = mapBody;
       log = logBody;
-      "ct helper" = objectRefBody;
-      "ct timeout" = objectRefBody;
-      "ct expectation" = objectRefBody;
+      "ct helper" = objectReferenceBody;
+      "ct timeout" = objectReferenceBody;
+      "ct expectation" = objectReferenceBody;
       meter = meterBody;
       queue = queueBody;
       vmap = vmapBody;
@@ -560,8 +701,8 @@ let
       tproxy = tproxyBody;
       synproxy = synproxyBody;
       reset = resetBody;
-      secmark = objectRefBody;
-      tunnel = objectRefBody;
+      secmark = objectReferenceBody;
+      tunnel = objectReferenceBody;
     };
 
     statement = taggedUnion bodiesByTag;
@@ -580,7 +721,7 @@ let
 
       The result is `types.attrTag` of the requested tags, with
       `description` overridden to name the allowed tags so error
-      messages read "value is not of type 'statement (one of: match)'"
+      messages read "value is not of type `statement (one of: "match")'"
       instead of the generic "attribute-tagged union".
     */
     statementOf = restrictedUnion {
@@ -593,6 +734,8 @@ let
 in
 {
   inherit (bodies) bodiesByTag statement statementOf;
+  # The DSL's match operators tell a swapped match apart with it.
+  inherit isKeySide;
   all = removeAttrs bodies [
     "bodiesByTag"
     "statement"

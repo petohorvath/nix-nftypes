@@ -111,6 +111,67 @@ let
       value = dsl.notInSet dsl.fields.ip.saddr "blocked";
       msg = "notInSet: .*\"blocked\".*expr\\.setRef";
     };
+    # A string names an object, which a Variant namespace references with
+    # `.ref`.
+    counterString = {
+      value = dsl.counter "c";
+      msg = "^nix-nftypes: dsl\\.counter: a string names an object; reference it with `counter\\.ref \"c\"`";
+    };
+    quotaString = {
+      value = dsl.quota "q";
+      msg = "^nix-nftypes: dsl\\.quota: .*`quota\\.ref \"q\"`";
+    };
+    rulesetUncalledBuilder = {
+      value = dsl.ruleset [ dsl.flush.ruleset ];
+      msg = "^nix-nftypes: dsl\\.ruleset: .*got a function, such as a builder not yet called; call it";
+    };
+    rulesetBuilderNamespace = {
+      value = dsl.ruleset [ dsl.flush ];
+      msg = "^nix-nftypes: dsl\\.ruleset: .*got a namespace of builders with chain, .*; call one of them";
+    };
+    vmapAttrsetData = {
+      value = dsl.vmap dsl.fields.meta.iifname { eth0 = dsl.accept; };
+      msg = "^nix-nftypes: dsl\\.vmap: the data is a map name, .*not an attribute set with eth0";
+    };
+    mapAttrsetData = {
+      value = dsl.expr.map dsl.fields.tcp.dport { "22" = 1; };
+      msg = "^nix-nftypes: dsl\\.expr\\.map: the data is a map name";
+    };
+    # A value on the left with a key on the right asks to swap the sides;
+    # a key on both sides fails the schema's right-side check.
+    swappedMatch = {
+      value = dsl.eq 22 dsl.fields.tcp.dport;
+      msg = "^nix-nftypes: dsl\\.eq: the right side is a key, such as a Field leaf, and the left side is not; .*swap the sides";
+    };
+    keyOnBothSides = {
+      value = dsl.eq dsl.fields.meta.mark dsl.fields.ct.mark;
+      msg = "dsl\\.eq\\.right' is not of type `match right side: a value";
+    };
+    swappedMangle = {
+      value = dsl.mangle 42 dsl.fields.meta.mark;
+      msg = "dsl\\.mangle\\.key";
+    };
+    # A list is nft's flag combination: `ct state == established|related`
+    # loads and never matches, and `tcp dport == 22,80` fails to load.
+    eqList = {
+      value = dsl.eq dsl.fields.ct.state [
+        "established"
+        "related"
+      ];
+      msg = "^nix-nftypes: dsl\\.eq: the right side is a list.*`inSet`.*`hasAnyFlag`.*`expr\\.bitOr`";
+    };
+  }
+  // lib.genAttrs' [ "ne" "lt" "gt" "le" "ge" ] (op: {
+    name = "${op}List";
+    value = {
+      value = dsl.${op} dsl.fields.tcp.dport [
+        22
+        80
+      ];
+      msg = "^nix-nftypes: dsl\\.${op}: the right side is a list";
+    };
+  })
+  // {
     treeSetGcIntervalJsonSpelling = {
       value = dsl.ruleset [
         (dsl.table "inet" "t" {

@@ -106,7 +106,13 @@ Additional command and selector differences are not statement-corpus shapes:
   deletes every rule in the chain, a Known difference that the
   `delete-rule-handle-zero-deletes-every-rule` and
   `destroy-rule-handle-zero-deletes-every-rule` live tests assert nft still
-  shows (nftables 1.1.6 and 1.1.7).
+  shows (nftables 1.1.6 and 1.1.7);
+- a match's right side and a mangle value take an `elem` only as a set
+  member or in a map member's pair, though the parser takes one anywhere:
+  as a match's right side, nftables 1.1.6 aborts with
+  `BUG: invalid expression type set element` and 1.1.7 rejects it, which
+  the `match-right-element-aborts` live test asserts, and as a mangle value
+  1.1.7 aborts. A set statement's element and a set's members keep theirs.
 
 Use direct JSON only when one of these parser forms is required, and validate
 it with the real packaged parser.
@@ -147,8 +153,12 @@ A chain body sets `type`, `hook`, and `prio` together, a base chain, or none of
 them, a regular chain. nft's JSON parser reads the three as one optional group,
 so it loads a chain with only some of them as a regular chain whose rules never
 see packets, in nftables 1.1.6 and 1.1.7. The schema rejects such a chain, which
-is stricter than the parser (ADR 0010). The six `chain-*` cases of
-`integration-nft-misbehaviour`, one for each partial placement, assert that nft
+is stricter than the parser (ADR 0010). The parser reads `dev` and `policy`
+only in the same group, so it loads a regular chain without them, while nft's
+text rejects one ("Operation not supported" for a policy, "No such file or
+directory" for devices); the schema takes them on a base chain only. The eight
+`chain-*` cases of `integration-nft-misbehaviour`, one for each partial
+placement and one each for `dev` and `policy` without one, assert that nft
 still loads a regular chain.
 
 #### Handles on `add`, `create`, and `rename`
@@ -214,8 +224,17 @@ fields. The schema checks useful local types but leaves the final condition to
 - FIB flags have parser-level mutual-exclusion rules;
 - tunnel source and destination fields must form one same-family pair;
 - set/map datatypes are strings rather than exhaustive enums;
-- `mangle.key` and the `reset` statement accept broader expression shapes than
-  the parser, while `concat` does not enforce its minimum of two operands;
+- `concat` does not enforce its minimum of two operands;
+- `mangle.key` takes the keys nft's parser takes there, `ip option` and
+  `sctp chunk` included, though the kernel refuses to change either with
+  `Operation not supported`;
+- `snat`, `dnat`, and `tproxy` in an `inet` table need an address family for
+  an address or an address map, as `family = "ip"`, unless an earlier match in
+  the rule, such as `ip saddr` or `meta nfproto ipv4`, fixes it: nft fails
+  without one, from JSON and text alike, with
+  ``specify `dnat ip' or 'dnat ip6' in inet table to disambiguate``. A port
+  alone needs none. The schema would have to follow the protocol context
+  through the rule, so it leaves the condition to `nft`;
 - tunnel `type` and its nested tunnel-parameter body are typed independently,
   so agreement between them remains a parser check;
 - some NAT, reject, and object-field combinations are meaningful only in

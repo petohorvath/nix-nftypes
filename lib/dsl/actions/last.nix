@@ -19,7 +19,7 @@ in
     last statement; `last { … }` throws when its body doesn't validate.
   */
   last =
-    variant
+    variant "last"
       (statement.fromFields {
         name = "last";
         prepare =

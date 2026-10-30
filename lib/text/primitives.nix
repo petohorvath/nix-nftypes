@@ -14,15 +14,24 @@
                      asserted to be a name the kernel could give a device.
     safeToken      — render a value written bare: an integer, or a string
                      asserted safe to emit as a bare token, unchanged.
-    namedReference — assert that a string is `@` and a safe bare name, as
-                     a set, map or flowtable reference, and return it.
+    assertNotKeyword
+                   — assert that a name is no keyword nft's lexer reads in
+                     its position (`identifier`, `reference`, or an object
+                     kind such as `counter`), and return it.
+    safeName       — render an object name in a position: refused when
+                     nft's lexer reads it there as a keyword, else as
+                     `identQuote` renders it.
+    namedReference — assert that a string is `@` and a safe bare name that
+                     is no keyword in its position, as a set, map or
+                     flowtable reference, and return it.
     flags          — render a flag value that the schema accepts as either a
                      bare string or a list (listOrSingleton), each flag a
                      safe bare token. Joined with `, ` by default.
     refuse         — raise a Refusal; every other refusing helper calls it.
     refuseBarePrefix
-                   — refuse a bare expression string containing `/`,
-                     which text would load as a prefix.
+                   — refuse a bare expression string containing `/`, but
+                     a `@name` reference, which text would load as a
+                     prefix.
     refuseJsonIgnored
                    — refuse a field that nft's JSON parser ignores, which
                      text would load (ADR 0010).
@@ -54,13 +63,55 @@
 }:
 
 let
-  # Matches the part of nftables scanner.l's string-token rule that's safe
-  # to emit unquoted in scope (table/chain/set/object name) positions.
-  # Names in those positions are *required* to be bare — `nft -c -f -`
-  # rejects `add table inet "main"` with `unexpected quoted string`.
-  # nft accepts hyphens and underscores; this regex conservatively
-  # covers the names typically used in rulesets.
-  bareIdentRegex = "[A-Za-z_][A-Za-z0-9_-]*";
+  keywords = import ./keywords.nix;
+
+  /*
+    The keywords nft's lexer reads in place of a name, by the position the
+    name takes: an `identifier` (a table, chain, set, map, flowtable,
+    secmark, or meter name, or a jump target), a set or map `reference`
+    after `@`, a `flowtableReference` after `flow add @`, and each stateful
+    object kind's name, which follows the keyword that opens the kind's
+    scanner state. The parser takes `last` as an identifier, but not where
+    the kind's state is still open after it, nor after `flow add @`.
+    Measured with nftables 1.1.6.
+  */
+  keywordsByPosition =
+    let
+      identifier = lib.remove "last" keywords.global;
+    in
+    {
+      inherit identifier;
+      reference = identifier ++ keywords.at;
+      flowtableReference = keywords.global ++ keywords.at;
+      counter = identifier ++ keywords.counter;
+      quota = identifier ++ keywords.quota;
+      "ct helper" = identifier ++ keywords.ct;
+      "ct timeout" = keywords.global ++ keywords.ct;
+      "ct expectation" = keywords.global ++ keywords.ct;
+      "ct count" = keywords.global ++ keywords.ct;
+      limit = keywords.global ++ keywords.limit;
+      synproxy = keywords.global ++ keywords.synproxy;
+    };
+
+  # `s`, refused when nft's lexer reads it as a keyword at `position`.
+  assertNotKeyword =
+    position: field: s:
+    if builtins.elem s keywordsByPosition.${position} then
+      refuse
+        {
+          inherit field;
+          value = s;
+        }
+        "refusing to render a name that nft's text lexer reads as the keyword `${s}` in this position, where it fails to parse, quoted or not. Rename the object, or load the ruleset as JSON, which takes any name."
+    else
+      s;
+
+  # nftables scanner.l's string-token rule, `({letter}|[_.])({letter}|
+  # {digit}|[/\-_\.])*`, which a name in a scope (table/chain/set/object
+  # name) position must match bare: `nft -c -f -` rejects
+  # `add table inet "main"` with `unexpected quoted string`, and loads
+  # `add set ip t a/b`, which a `@a/b` reference names.
+  bareIdentRegex = "[A-Za-z_.][A-Za-z0-9/_.-]*";
 
   isBareIdent = s: builtins.match bareIdentRegex s != null;
 
@@ -147,6 +198,10 @@ let
 
   identQuote = field: s: if isBareIdent s then s else quoteString field s;
 
+  safeName =
+    position: field: s:
+    identQuote field (assertNotKeyword position field s);
+
   /*
     SECURITY-CRITICAL: every value the renderer writes bare (payload
     protocol and field, ct key, enum fields such as a chain policy,
@@ -175,7 +230,7 @@ let
   # A stored named reference (`@blocked`) prints as is. Without its `@`
   # nft would read the name as something else, so it is refused.
   namedReference =
-    field: s:
+    position: field: s:
     if !(builtins.isString s && lib.hasPrefix "@" s) then
       refuse
         {
@@ -184,7 +239,7 @@ let
         }
         "refusing to render a named reference without its `@`. A set, map or flowtable reference is stored as `@<name>`, as nft's JSON requires; build it with the DSL, which adds the `@`."
     else
-      "@${safeToken field (lib.removePrefix "@" s)}";
+      "@${assertNotKeyword position field (safeToken field (lib.removePrefix "@" s))}";
 
   # Render a listOrSingleton flag value, each flag through `safeToken`.
   # The default separator matches `nft list ruleset` output (`, `); some
@@ -209,8 +264,9 @@ let
   /*
     A bare string containing `/`. nft's JSON parser reads `10.0.0.0/8` as
     a hostname and rejects it, but text loads it as a prefix, so a typo
-    such as `198.51.100.7/0` would match every address. The schema can't
-    reject such strings (ADR 0004), so text refuses them.
+    such as `198.51.100.7/0` would match every address. The schema's
+    expression strings reject them too; text refuses them in a raw
+    attrset, which bypasses the schema.
   */
   refuseBarePrefix =
     field: s:
@@ -306,6 +362,7 @@ let
 in
 {
   inherit
+    assertNotKeyword
     assertSafeString
     flags
     identQuote
@@ -321,6 +378,7 @@ in
     refuseJsonIgnored
     refuseNoTextSpelling
     refuseUnidentified
+    safeName
     safeToken
     ;
 }

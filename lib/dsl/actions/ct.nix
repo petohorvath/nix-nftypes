@@ -50,7 +50,7 @@ in
     when its body doesn't validate.
   */
   ctCount =
-    variant
+    variant "ctCount"
       (statement.fromFields {
         name = "ctCount";
         tag = "ct count";

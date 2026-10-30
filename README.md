@@ -77,7 +77,7 @@ add rule inet filter input tcp dport == 22 accept
 
 Load the text with `sudo nft -f result`. To produce libnftables JSON, the compatibility target, render with `nftlib.toJson` instead and load the result with `sudo nft -j -f result`.
 
-The [`examples`](examples) directory holds longer rulesets, each a function of `nftlib`:
+The [`examples`](examples) directory holds longer rulesets, each a function that takes `{ nftlib }`:
 
 - [`basic-firewall-dsl.nix`](examples/basic-firewall-dsl.nix): a small firewall with sets, maps, NAT, logging, and rate limits.
 - [`basic-firewall.nix`](examples/basic-firewall.nix): a similar firewall written as raw attrsets.

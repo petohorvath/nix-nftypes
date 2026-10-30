@@ -23,16 +23,16 @@
   `std_prio_family_hook_compat` in nftables `src/rule.c`.
 
   Example:
-    nftypes.lib.compatibility.hooksByFamily.netdev
+    nftlib.compatibility.hooksByFamily.netdev
     # → [ "ingress" "egress" ]
 
-    nftypes.lib.compatibility.priorityValue "bridge" "input" "filter"
+    nftlib.compatibility.priorityValue "bridge" "input" "filter"
     # → -200
 
-    nftypes.lib.compatibility.priorityName "bridge" "input" (-200)
+    nftlib.compatibility.priorityName "bridge" "input" (-200)
     # → "filter"
 
-    nftypes.lib.compatibility.validChainPlacement "ip" "nat" "forward"
+    nftlib.compatibility.validChainPlacement "ip" "nat" "forward"
     # → false  (nat does not attach at forward)
 */
 
@@ -265,14 +265,14 @@ let
     };
 
   /*
-    resolvePriority :: (string -> never) -> family -> hook
+    priorityValueWith :: (string -> never) -> family -> hook
       -> (int | symbol) -> int
 
     `priorityValue` with its errors thrown by `throwError`, which takes
     the message without the helper's prefix. Internal: the DSL resolves a
     chain's Symbolic priority with it, so the error names the chain.
   */
-  resolvePriority =
+  priorityValueWith =
     throwError: family: hook: priority:
     (lookupPriority throwError family hook priority).value;
 
@@ -289,7 +289,7 @@ let
     as `"filter"`, not an expression such as `"filter + 10"`; add an
     offset with Nix arithmetic: `priorityValue "ip" "input" "filter" + 10`.
   */
-  priorityValue = resolvePriority (helperError "priorityValue");
+  priorityValue = priorityValueWith (helperError "priorityValue");
 
   /*
     priorityName :: family -> hook -> (int | symbol) -> (symbol | int)
@@ -351,7 +351,7 @@ in
     prioritiesByFamily
     priorityName
     priorityValue
-    resolvePriority
+    priorityValueWith
     validChainPlacement
     ;
 }

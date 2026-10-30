@@ -125,6 +125,17 @@ let
     payloadField."proto.c" = "/\\[IGMPHDR_MRT\\]/d";
     rtKey."parser_json.c" = "/{ \"ipsec\", NFT_RT_XFRM },/d";
     statementTag."parser_json.c" = "/{ \"tproxy\", json_parse_tproxy_stmt },/d";
+    # nftables 1.1.7 writes a keyword of every state as `<*>"counter"`.
+    textKeyword."scanner.l" = "/^\\(<\\*>\\)\\?\"counter\"\t/d";
+    textKeywordAt."scanner.l" = "/^\t\"nh\"\t/d";
+    textKeywordCounter."scanner.l" = "/\"packets\"\t/d";
+    textKeywordSynproxy."scanner.l" = "/^\t\"wscale\"\t/d";
+    # nftables 1.1.7 adds keywords to these states, so one fewer keyword
+    # stays above the locked floor there; the state's name changes, which
+    # drops all of them.
+    textKeywordCt."scanner.l" = "s/SCANSTATE_CT\\b/SCANSTATE_DOCTORED/g";
+    textKeywordLimit."scanner.l" = "s/SCANSTATE_LIMIT\\b/SCANSTATE_DOCTORED/g";
+    textKeywordQuota."scanner.l" = "s/SCANSTATE_QUOTA\\b/SCANSTATE_DOCTORED/g";
   };
 
   # Rewrites entries as designated initializers with the token last:
@@ -148,7 +159,7 @@ let
     ''
       mkdir -p ${dir}/src
       cp ${nftablesSource}/src/{ct,meta,parser_json,proto,statement}.c \
-        ${dir}/src/
+        ${nftablesSource}/src/scanner.l ${dir}/src/
       chmod +w ${dir}/src/*
     ''
     + lib.concatStrings (

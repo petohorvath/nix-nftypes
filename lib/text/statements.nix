@@ -318,7 +318,9 @@ let
         else
           " " + lib.concatMapStringsSep " " (renderStatement (resetPrec ctx)) stmt;
     in
-    "${safeToken "set op" op} ${primitives.namedReference "set reference" set} { ${renderInnerExpression ctx elem}${stmts} }";
+    "${safeToken "set op" op} ${
+      primitives.namedReference "reference" "set reference" set
+    } { ${renderInnerExpression ctx elem}${stmts} }";
 
   renderMapStatement =
     ctx:
@@ -336,7 +338,9 @@ let
         else
           " " + lib.concatMapStringsSep " " (renderStatement (resetPrec ctx)) stmt;
     in
-    "${safeToken "map op" op} ${primitives.namedReference "map reference" map} { ${renderInnerExpression ctx elem} : ${renderInnerExpression ctx data}${stmts} }";
+    "${safeToken "map op" op} ${
+      primitives.namedReference "reference" "map reference" map
+    } { ${renderInnerExpression ctx elem} : ${renderInnerExpression ctx data}${stmts} }";
 
   # nft's text takes one log flag group per `flags` clause, its tcp flags
   # comma-joined (`flags tcp sequence,options flags skuid`), and ORs the
@@ -396,7 +400,7 @@ let
       stmt,
       size ? null,
     }:
-    "meter ${primitives.identQuote "meter name" name}"
+    "meter ${primitives.safeName "identifier" "meter name" name}"
     + optionalString (size != null) " size ${safeToken "meter size" size}"
     + " { ${renderInnerExpression ctx key} ${renderStatement (resetPrec ctx) stmt} }";
 
@@ -462,7 +466,9 @@ let
   renderFlow =
     _ctx:
     { op, flowtable }:
-    "flow ${safeToken "flow op" op} ${primitives.namedReference "flowtable reference" flowtable}";
+    "flow ${safeToken "flow op" op} ${
+      primitives.namedReference "flowtableReference" "flowtable reference" flowtable
+    }";
 
   # tproxy: like dnat, but `to` syntax.
   renderTproxy =

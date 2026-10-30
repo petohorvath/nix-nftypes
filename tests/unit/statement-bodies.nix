@@ -36,9 +36,9 @@ let
     set = "setBody";
     map = "mapBody";
     log = "logBody";
-    "ct helper" = "objectRefBody";
-    "ct timeout" = "objectRefBody";
-    "ct expectation" = "objectRefBody";
+    "ct helper" = "objectReferenceBody";
+    "ct timeout" = "objectReferenceBody";
+    "ct expectation" = "objectReferenceBody";
     meter = "meterBody";
     queue = "queueBody";
     vmap = "vmapBody";
@@ -49,8 +49,8 @@ let
     tproxy = "tproxyBody";
     synproxy = "synproxyBody";
     reset = "resetBody";
-    secmark = "objectRefBody";
-    tunnel = "objectRefBody";
+    secmark = "objectReferenceBody";
+    tunnel = "objectReferenceBody";
   };
 
   # The tags whose only body is the JSON null. They have no body under

@@ -8,7 +8,7 @@ docs/upstream-sync.md). Extracts the accepted tokens of the cleanly
 structured C tables in the selected package set's patched nftables source
 tree: the primitive enums the JSON parser reads from a table, the ct keys
 it takes a direction for, and the statement and expression dispatch
-tables. The enum extraction suite
+tables, and the keywords of nft's text lexer. The enum extraction suite
 (tests/integration/nftables-enum-extraction.nix) compares each table with the
 model's list; this script only reads the source. The byte units come from
 `data_unit`, the table nft lists them from; the JSON parser's
@@ -45,6 +45,8 @@ import sys
 #             defines each protocol
 #   "within"  optional: the function whose body holds the table, for a
 #             local table whose name another function's table shares
+#   "state"   for the "scannerKeywords" shape, the start condition whose
+#             keywords to take, or None for those of every state
 #   "floor"   the token count at the locked nixpkgs, so losing a single
 #             entry fails the extraction
 #
@@ -73,6 +75,14 @@ import sys
 #                   take `<name> <field>` for each field of each protocol,
 #                   its `.name` and the first string of each entry of its
 #                   `.templates`, from the "resolve" file. (proto_tbl)
+#   "scannerKeywords"
+#                   the rules section of the flex scanner, between its two
+#                   `%%` lines: with no "state", each identifier-shaped
+#                   keyword of an unguarded rule, which every inclusive
+#                   (`%s`) start condition shares, or of a `<*>` rule,
+#                   which every one does; with a "state", each one a
+#                   `<…,STATE,…>` rule or block guards. A rule that
+#                   returns STRING is a name, not a keyword. (scanner.l)
 REGISTRY = {
     "family": {
         "file": "src/parser_json.c",
@@ -162,6 +172,52 @@ REGISTRY = {
         "resolve": {"file": "src/proto.c"},
         "floor": 107,
     },
+    # The text lexer's keywords, which nft reads as a keyword where the
+    # text renderer writes a name, as `add set ip t counter`: those of
+    # every state, then those of each state a name follows. A keyword
+    # name fails to parse, quoted or not.
+    "textKeyword": {
+        "file": "src/scanner.l",
+        "shape": "scannerKeywords",
+        "state": None,
+        "floor": 161,
+    },
+    "textKeywordAt": {
+        "file": "src/scanner.l",
+        "shape": "scannerKeywords",
+        "state": "SCANSTATE_AT",
+        "floor": 2,
+    },
+    "textKeywordCounter": {
+        "file": "src/scanner.l",
+        "shape": "scannerKeywords",
+        "state": "SCANSTATE_COUNTER",
+        "floor": 3,
+    },
+    "textKeywordCt": {
+        "file": "src/scanner.l",
+        "shape": "scannerKeywords",
+        "state": "SCANSTATE_CT",
+        "floor": 25,
+    },
+    "textKeywordLimit": {
+        "file": "src/scanner.l",
+        "shape": "scannerKeywords",
+        "state": "SCANSTATE_LIMIT",
+        "floor": 9,
+    },
+    "textKeywordQuota": {
+        "file": "src/scanner.l",
+        "shape": "scannerKeywords",
+        "state": "SCANSTATE_QUOTA",
+        "floor": 5,
+    },
+    "textKeywordSynproxy": {
+        "file": "src/scanner.l",
+        "shape": "scannerKeywords",
+        "state": "SCANSTATE_STMT_SYNPROXY",
+        "floor": 7,
+    },
 }
 
 
@@ -237,6 +293,52 @@ def template_tokens_by_index(block, spec):
     return {m.group(1): m.group(2) or m.group(3) for m in entry.finditer(block)}
 
 
+KEYWORD = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+
+
+def guarded_states(prefix):
+    """Return the start conditions of a `<A,B>` prefix; `*` is None."""
+    return [None if s == "*" else s for s in prefix.split(",")]
+
+
+def scanner_keywords(rules, state):
+    """Return the keywords of the scanner rules `rules` for `state`.
+
+    `state` None takes the unguarded and `<*>` rules, which every
+    inclusive start condition shares; a state name takes the rules a
+    `<…>` prefix or block lists it in. A rule's keyword is its quoted
+    pattern, when identifier-shaped and not returned as a STRING.
+    """
+    tokens = []
+    block_states = None
+    for line in rules.splitlines():
+        if block_states is not None:
+            if re.match(r"^\}\s*$", line):
+                block_states = None
+                continue
+            m = re.match(r'^\s+"([^"]+)"\s+(.*)', line)
+            if m and state in block_states:
+                tokens.append((m.group(1), m.group(2)))
+            continue
+        m = re.match(r"^<([A-Z0-9_,*]+)>\{\s*$", line)
+        if m:
+            block_states = guarded_states(m.group(1))
+            continue
+        m = re.match(r'^<([A-Z0-9_,*]+)>"([^"]+)"\s+(.*)', line)
+        if m:
+            if state in guarded_states(m.group(1)):
+                tokens.append((m.group(2), m.group(3)))
+            continue
+        m = re.match(r'^"([^"]+)"\s+(.*)', line)
+        if m and state is None:
+            tokens.append((m.group(1), m.group(2)))
+    return [
+        token
+        for token, action in tokens
+        if KEYWORD.fullmatch(token) and "return STRING" not in action
+    ]
+
+
 def tokens_from_block(block, spec, read):
     shape = spec["shape"]
     if shape == "pair":
@@ -286,7 +388,17 @@ def tokens_from_block(block, spec, read):
         for symbol in re.findall(r"&\s*([A-Za-z_][A-Za-z0-9_]*)", block):
             tokens.extend(protocol_fields(text, symbol))
         return tokens
+    if shape == "scannerKeywords":
+        return scanner_keywords(block, spec["state"])
     raise ValueError(f"unknown shape '{shape}'")
+
+
+def rules_section(text, rel):
+    """Return the rules section of the flex scanner `text`."""
+    parts = re.split(r"^%%$", text, flags=re.MULTILINE)
+    if len(parts) < 3:
+        raise LookupError(f"{rel} has no rules section between two %% lines")
+    return parts[1]
 
 
 def extract(src_root):
@@ -301,14 +413,20 @@ def extract(src_root):
 
     tables = {}
     for name, spec in sorted(REGISTRY.items()):
-        block = extract_block(read(spec["file"]), spec["symbol"], spec.get("within"))
+        if spec["shape"] == "scannerKeywords":
+            block = rules_section(read(spec["file"]), spec["file"])
+        else:
+            block = extract_block(
+                read(spec["file"]), spec["symbol"], spec.get("within")
+            )
         # Filter empties (placeholder template slots) and dedupe, order-stable.
         tokens = list(
             dict.fromkeys(t for t in tokens_from_block(block, spec, read) if t)
         )
         if len(tokens) < spec["floor"]:
             raise LookupError(
-                f"{spec['symbol']} yielded {len(tokens)} token(s), below its "
+                f"{spec.get('symbol', spec['file'])} yielded {len(tokens)} "
+                f"token(s) for {name}, below its "
                 f"floor of {spec['floor']}: an entry was removed, or the "
                 f"table shape changed and the extractor no longer reads it."
             )

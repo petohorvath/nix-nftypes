@@ -374,8 +374,8 @@ in
     offers only the kinds nft runs as written (ADR 0009): `add` accepts
     every add-object kind, `create` omits `rule`, `delete` and `destroy`
     omit the ct count, timeout, and expectation, `list` takes the listable
-    kinds plus `meter`, `reset` the resettable kinds but `rule`, and
-    `flush` the flushable kinds plus `ruleset`.
+    kinds plus `meter` and `ruleset`, `reset` the resettable kinds but
+    `rule`, and `flush` the flushable kinds plus `ruleset`.
   */
   add = mkNamespace "add" (
     withoutHandle (

@@ -132,8 +132,14 @@ keys that take a direction, which the schema's ct body decides, check
 `ct_dir_keys`, the keys nft's JSON parser reads a direction for. The payload
 fields, `enums.payloadFieldsByProtocol` as `<protocol> <field>` tokens, check
 the protocols in `proto_lookup_byname`'s table and each protocol's templates in
-`src/proto.c`. The model's extra tokens that the parser accepts outside the
-table, such as the `secpath` meta alias, are listed there with their reason,
+`src/proto.c`. The text lexer's keywords, `lib/text/keywords.nix`, check the
+rules of `src/scanner.l`: the keywords of every scanner state, and those of each
+state a name follows, such as the counter's. Each keyword list holds the
+keywords of every tested nftables release, so a keyword only one release has
+is no Drift there, while a keyword the package set's lexer has and the list
+lacks is: the text renderer would write it as a name nft can't parse. The
+model's extra tokens that the parser accepts outside the table, such as the
+`secpath` meta alias, are listed there with their reason,
 and so are the table's tokens the model leaves out because nft does not load
 them as written, such as `ip l4proto`.
 

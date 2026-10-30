@@ -83,6 +83,7 @@ let
     objects = objects.all;
     inherit (objects) deleteBodiesByTag selectBodiesByTag;
     statementBodiesByTag = statements.bodiesByTag;
+    isMatchKey = statements.isKeySide;
     expressionBodiesByTag = expressions.bodiesByTag;
     expressionBodies = expressions.all;
     inherit payloadFieldsByProtocol;
@@ -98,7 +99,7 @@ in
 {
   /*
     All schema types in one namespace, mirroring `lib.types`. Primitive
-    enums (family, hook, portNumber, …) sit alongside composable
+    enums (family, hook, chainType, …) sit alongside composable
     submodule types (expression, statement, command, …) and per-variant
     body namespaces (expressionBodies, statementBodies, objectBodies).
   */

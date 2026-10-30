@@ -2,7 +2,7 @@
 
 # A realistic inet-family firewall demonstrating: table/chain, named set of
 # IPv4 prefixes, named map for port forwarding, SNAT+DNAT, reject with icmp
-# code, logging, and a vmap dispatching on input interface.
+# code, and logging.
 #
 # Hand-written raw-attrset form — kept as a reference for users who prefer
 # to bypass the DSL. For DSL-style authoring see

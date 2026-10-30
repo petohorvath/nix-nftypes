@@ -36,6 +36,7 @@ in
       logPrefix = refusal "refusing to render a log prefix that nft's text would not";
       jsonIgnored = refusal "refusing to render a field that nft's JSON parser ignores";
       namedReference = refusal "refusing to render a named reference without its `@`";
+      keywordName = refusal "refusing to render a name that nft's text lexer reads as the keyword";
       barePrefix = refusal "refusing to render a bare string containing `/`[^\n]*which `dsl\\.expr\\.prefix` builds";
       unidentified = refusal "refusing to render a string that nft's text would misread";
       noTextSpelling = refusal "refusing to render a value that nft's text has no spelling for";

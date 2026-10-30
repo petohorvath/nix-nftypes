@@ -26,8 +26,10 @@ let
   /*
     The chain parser unpacks `type`, `hook`, and `prio` as one optional
     group, so a chain with only some of them (`placement`) loads as a
-    regular chain that sees no packets. The schema takes all three or
-    none.
+    regular chain that sees no packets. The parser reads `dev` and
+    `policy` only in that group, so JSON drops them from a regular chain.
+    The schema takes all three or none, and `dev` and `policy` only with
+    them.
   */
   partialChainCase = name: placement: {
     inherit name;
@@ -216,6 +218,38 @@ let
       subject.out || true
   '';
 
+  /*
+    A name that nft's lexer reads as a keyword where it goes fails to
+    parse in text, quoted or not, while JSON loads it, so text refuses it
+    (lib/text/keywords.nix). Checks the text line `text` with `nft -c`
+    after `ruleset`, and prints its exit status and the token nft didn't
+    expect, the name `keyword`; nftables 1.1.6 also lists the tokens it
+    did.
+  */
+  keywordNameCase = name: keyword: ruleset: text: {
+    inherit name ruleset;
+    knownDifference = "docs/text-coverage.md";
+    inspect = ''
+      cat > subject.nft <<'EOF'
+      ${text}
+      EOF
+      status=0
+      nft -c -f subject.nft > subject.out 2>&1 || status=$?
+      echo "exit status $status"
+      grep -m 1 -o 'Error: syntax error, unexpected [^,]*' subject.out || true
+    '';
+    misbehaviour = "exit status 1\nError: syntax error, unexpected ${keyword}\n";
+  };
+
+  ipTable.nftables = [
+    {
+      add.table = {
+        family = "ip";
+        name = "t";
+      };
+    }
+  ];
+
   # For delete, list, and destroy, the JSON object-command path passes the
   # kernel object number as nft's command object type: a ct expectation (9)
   # is a table and a ct timeout (7) a chain.
@@ -286,6 +320,71 @@ let
 in
 {
   cases = [
+    # An element outside a set, as a match's right side: nftables 1.1.6
+    # aborts, and 1.1.7 rejects it. The schema rejects it.
+    {
+      name = "match-right-element-aborts";
+      knownDifference = "docs/spec-coverage.md";
+      ruleset.nftables = [
+        { add.table = table; }
+        {
+          add.chain = table // {
+            table = "t";
+            name = "c";
+          };
+        }
+      ];
+      subject.nftables = [
+        {
+          add.rule = {
+            family = "inet";
+            table = "t";
+            chain = "c";
+            expr = [
+              {
+                match = {
+                  op = "==";
+                  left.payload = {
+                    protocol = "tcp";
+                    field = "dport";
+                  };
+                  right.elem.val = 22;
+                };
+              }
+            ];
+          };
+        }
+      ];
+      inspect = loadSubject;
+      misbehaviour = "exit status 134\nBUG: invalid expression type set element\nexpr_evaluate_relational: Assertion `0' failed\n";
+      fixedFrom = "1.1.7";
+      fixed = "exit status 1\nError: Right hand side of relational expression (==) must be constant\n";
+    }
+    (keywordNameCase "keyword-map-name-fails-in-text" "fwd" ipTable
+      "add map ip t fwd { type inet_service : ipv4_addr; }"
+    )
+    (keywordNameCase "counter-keyword-counter-name-fails-in-text" "packets" ipTable
+      "add counter ip t packets"
+    )
+    (keywordNameCase "at-keyword-set-reference-fails-in-text" "ll" {
+      nftables = ipTable.nftables ++ [
+        {
+          add.chain = {
+            family = "ip";
+            table = "t";
+            name = "c";
+          };
+        }
+        {
+          add.set = {
+            family = "ip";
+            table = "t";
+            name = "ll";
+            type = "ipv4_addr";
+          };
+        }
+      ];
+    } "add rule ip t c ip saddr @ll")
     (partialChainCase "chain-hook-without-type" { hook = "input"; })
     (partialChainCase "chain-type-without-hook" { type = "filter"; })
     (partialChainCase "chain-prio-without-hook" { prio = 0; })
@@ -301,6 +400,8 @@ in
       type = "filter";
       prio = 0;
     })
+    (partialChainCase "chain-policy-without-hook" { policy = "drop"; })
+    (partialChainCase "chain-dev-without-hook" { dev = "lo"; })
     # The set parser never reads `comment`, so JSON loads a commented set
     # or map without it. nft lists the comment of one loaded through text,
     # so the schema accepts it and text refuses it.

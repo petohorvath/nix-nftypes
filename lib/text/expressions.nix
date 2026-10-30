@@ -65,6 +65,10 @@ let
             value = v;
           }
           "refusing to render a scalar string at expression position that contains a character unsafe for nft's bare-token grammar (any of: whitespace, ',', ';', '{', '}', '\"', '\\', '#', control character, byte above 0x7F). The renderer emits the value verbatim, so an unsafe byte either splits the token or breaks the parser context — at rule scope a newline + statement payload silently appends attacker-controlled commands."
+      # A `@name` reference's name may hold a `/`, as nft's text and
+      # JSON read it; any other string with one would load as a prefix.
+      else if lib.hasPrefix "@" v then
+        "@${primitives.assertNotKeyword "reference" "expression" (lib.removePrefix "@" v)}"
       else if lib.hasInfix "/" v then
         primitives.refuseBarePrefix "expression" v
       else
@@ -167,16 +171,16 @@ let
     else
       lib.optional (builtins.isString v) v;
 
-  # A value of `slot` that isn't quoted. A bare string with a
-  # `/` would load as a prefix, so it is refused. In an unidentified slot,
-  # so is a string nft's lexer reads as something else.
+  # A value of `slot` that isn't quoted. A bare string with a `/`, but a
+  # `@name` reference, would load as a prefix, so it is refused. In an
+  # unidentified slot, so is a string nft's lexer reads as something else.
   renderUnquotedIn =
     slot: ctx: v:
     let
       rendered = renderExpression ctx v;
       misreadString = lib.findFirst (s: !(primitives.isWrittenSymbol s)) null (literalStrings v);
     in
-    if builtins.isString v && lib.hasInfix "/" v then
+    if builtins.isString v && !(lib.hasPrefix "@" v) && lib.hasInfix "/" v then
       primitives.refuseBarePrefix slot.field v
     else if (slot.identified or true) || misreadString == null then
       rendered
@@ -513,12 +517,12 @@ let
 
   renderElem = renderElemIn plainSlot;
 
-  # Verdict target is a chain name; route through identQuote so the
+  # Verdict target is a chain name; route through `primitives.safeName` so the
   # renderer's `assertSafeString` assert catches the parser-meta injection set
   # ('"', '\', control chars) and other invalid bytes land in the
   # quoted-form fallback that nft rejects in identifier position.
-  renderJump = _ctx: { target }: "jump ${primitives.identQuote "jump target" target}";
-  renderGoto = _ctx: { target }: "goto ${primitives.identQuote "goto target" target}";
+  renderJump = _ctx: { target }: "jump ${primitives.safeName "identifier" "jump target" target}";
+  renderGoto = _ctx: { target }: "goto ${primitives.safeName "identifier" "goto target" target}";
 
   # Bare verdicts as expressions (vmap data position).
   renderVerdict =

@@ -22,7 +22,7 @@ if builtins.isAttrs body && builtins.isString (body.prio or null) then
     at = within location [ "prio" ];
   in
   if builtins.isString family && builtins.isString (body.hook or null) then
-    body // { prio = compatibility.resolvePriority (fail at) family body.hook body.prio; }
+    body // { prio = compatibility.priorityValueWith (fail at) family body.hook body.prio; }
   else
     fail at "a Symbolic priority resolves for the chain's family and hook; give both, or an int priority"
 else

@@ -537,7 +537,7 @@ let
         };
       };
 
-      binaryOpBody = listOfMinLen 2 expression;
+      binaryOperationBody = listOfMinLen 2 expression;
 
       /*
         Map of tag → body type. Single source of truth for the private
@@ -580,36 +580,46 @@ let
         jump = verdictTargetBody;
         goto = verdictTargetBody;
         # Binary operators
-        "|" = binaryOpBody;
-        "^" = binaryOpBody;
-        "&" = binaryOpBody;
-        "<<" = binaryOpBody;
-        ">>" = binaryOpBody;
+        "|" = binaryOperationBody;
+        "^" = binaryOperationBody;
+        "&" = binaryOperationBody;
+        "<<" = binaryOperationBody;
+        ">>" = binaryOperationBody;
       };
 
       # Tagged union of everything represented as `{ <key>: <body> }`.
       taggedExpression = taggedUnion bodiesByTag;
+
+      /*
+        A string expression. nft's JSON parser reads `10.0.0.0/8` as a
+        hostname and rejects it, while text loads it as a prefix, so a
+        string takes no `/` unless it is a `@name` reference, whose name
+        may contain one. A prefix is a prefix expression.
+      */
+      expressionString = types.addCheck types.str (s: lib.hasPrefix "@" s || !lib.hasInfix "/" s) // {
+        description = "string without `/`";
+      };
 
       # The generated description names each branch's description, and
       # the list branch's names `expression` again, so a type error on a
       # wrong value recursed without end; this one stops there.
       expression =
         types.oneOf [
-          types.str
+          expressionString
           types.int
           types.bool
           (types.listOf expression)
           taggedExpression
         ]
         // {
-          description = "nft expression (string, integer, boolean, list of expressions, or tagged expression)";
+          description = "nft expression (string without `/`, integer, boolean, list of expressions, or tagged expression; write a prefix as { prefix = { addr; len; }; }, which dsl.expr.prefix builds)";
         };
 
       # The data of a map lookup or a vmap: an expression, but not a bare
       # list, which nft rejects there ("invalid mapping expression list").
       mapDataExpression =
         types.oneOf [
-          types.str
+          expressionString
           types.int
           types.bool
           taggedExpression
@@ -671,6 +681,7 @@ in
     "elemOptions"
     "expression"
     "expressionOf"
+    "expressionString"
     "mapDataExpression"
     "taggedExpression"
   ];

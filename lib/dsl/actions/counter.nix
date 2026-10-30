@@ -22,7 +22,7 @@ in
     statement, and throws when its body doesn't validate.
   */
   counter =
-    variant
+    variant "counter"
       (statement.fromFields {
         name = "counter";
         prepare =

@@ -381,7 +381,7 @@ let
       }
     );
 
-  chainPlacementDescription = "chain body with type, hook and prio all set (a base chain) or all unset";
+  chainPlacementDescription = "chain body with type, hook and prio all set (a base chain) or all unset, and dev and policy only on a base chain";
 
   bodies = rec {
     tableBody = inputBody "table" {
@@ -402,19 +402,30 @@ let
       group: a chain missing any of them loads as a regular chain whose
       rules never see packets. So a chain sets all three (a base chain) or
       none, which is stricter than the parser: a Known difference (ADR
-      0010).
+      0010). The parser reads `dev` and `policy` only in that group, so
+      JSON loads a regular chain without them, while text fails; they
+      take a base chain too.
     */
     chainBody = inputBody "chain" {
       extraCheck =
         body:
         let
-          setPlacementFields = builtins.filter (field: (body.${field} or null) != null) [
+          setFields = builtins.filter (field: (body.${field} or null) != null);
+          setPlacementFields = setFields [
             "type"
             "hook"
             "prio"
           ];
         in
-        setPlacementFields == [ ] || builtins.length setPlacementFields == 3;
+        builtins.length setPlacementFields == 3
+        || (
+          setPlacementFields == [ ]
+          &&
+            setFields [
+              "dev"
+              "policy"
+            ] == [ ]
+        );
       description = chainPlacementDescription;
       options =
         namedInTableOptions

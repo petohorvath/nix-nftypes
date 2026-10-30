@@ -15,7 +15,7 @@ in
     synproxy statement; `synproxy { … }` and `synproxy.ref` throw when their
     body doesn't validate.
   */
-  synproxy = variant (statement.fromFields { name = "synproxy"; }) {
+  synproxy = variant "synproxy" (statement.fromFields { name = "synproxy"; }) {
     auto = {
       synproxy = null;
     };

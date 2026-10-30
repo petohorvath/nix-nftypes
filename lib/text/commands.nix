@@ -52,11 +52,13 @@ let
     _ctx:
     { chain }:
     let
-      prefix = "rename chain ${primitives.safeToken "rename family" chain.family} ${primitives.identQuote "table name" chain.table} ${primitives.identQuote "chain name" chain.name}";
+      prefix = "rename chain ${primitives.safeToken "rename family" chain.family} ${
+        primitives.safeName "identifier" "table name" chain.table
+      } ${primitives.safeName "identifier" "chain name" chain.name}";
       newname =
         if (chain.newname or null) == null then fail "rename.chain requires `newname`" else chain.newname;
     in
-    "${prefix} ${primitives.identQuote "chain newname" newname}";
+    "${prefix} ${primitives.safeName "identifier" "chain newname" newname}";
 
   # `create` for counter/quota/limit/synproxy/secmark: positional body, no
   # braces.

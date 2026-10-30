@@ -74,7 +74,7 @@ let
     name:
     dsl.ruleset [
       (dsl.table "inet" "fw" {
-        chains.fwd = {
+        chains.c = {
           type = "filter";
           hook = "forward";
           prio = 0;

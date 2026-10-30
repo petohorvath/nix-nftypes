@@ -199,7 +199,7 @@ in
   testExpressionBodyExports = {
     expr = builtins.attrNames types.expressionBodies;
     expected = [
-      "binaryOpBody"
+      "binaryOperationBody"
       "concatBody"
       "ctBody"
       "dccpOptionBody"
@@ -250,7 +250,7 @@ in
       "matchBody"
       "meterBody"
       "natBody"
-      "objectRefBody"
+      "objectReferenceBody"
       "queueBody"
       "quotaBody"
       "rejectBody"

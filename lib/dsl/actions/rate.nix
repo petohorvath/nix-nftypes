@@ -19,7 +19,7 @@ in
     `counter.ref` does. Each returns a limit statement, and throws when its
     body doesn't validate.
   */
-  limit = variant (statement.fromFields { name = "limit"; }) {
+  limit = variant "limit" (statement.fromFields { name = "limit"; }) {
     ref = statement.ref { name = "limit"; };
   };
 
@@ -32,7 +32,7 @@ in
     does. Each returns a quota statement, and throws when its body doesn't
     validate.
   */
-  quota = variant (statement.fromFields { name = "quota"; }) {
+  quota = variant "quota" (statement.fromFields { name = "quota"; }) {
     ref = statement.ref { name = "quota"; };
   };
 }

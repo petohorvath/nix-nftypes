@@ -170,14 +170,17 @@ let
     setElem = {
       build = fixtures.ifnameRulesets.setElem;
       field = "set element";
+      expression = true;
     };
     setElemWithOptions = {
       build = fixtures.ifnameRulesets.setElemWithOptions;
       field = "set element";
+      expression = true;
     };
     mapKey = {
       build = fixtures.ifnameRulesets.mapKey;
       field = "map element";
+      expression = true;
     };
     chainDev = {
       build = v: rawChainDev [ v ];
@@ -298,14 +301,21 @@ let
     ) goodIfnames
   ) textSurfaces;
 
+  # An element is an expression, which takes no `/` outside a `@name`
+  # reference, so the schema rejects a name with one before text sees it.
   textRefusalTests = lib.concatMapAttrs (
     surface:
-    { build, field }:
+    {
+      build,
+      field,
+      expression ? false,
+    }:
     lib.mapAttrs' (
       badName: badValue:
       lib.nameValuePair "testTextRefuses_${surface}_${badName}" {
         expr = toTextPretty (build badValue);
-        expectedError.msg = refusals.ifname field;
+        expectedError.msg =
+          if expression && lib.hasInfix "/" badValue then "string without `/`" else refusals.ifname field;
       }
     ) badIfnames
   ) textSurfaces;

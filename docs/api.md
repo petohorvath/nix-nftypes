@@ -44,7 +44,8 @@ with `dsl.ruleset [ … ]`.
 nested lists of these. Table trees are expanded and validated, and a ruleset's
 commands are spliced in place, so `dsl.ruleset [ base extra ]` composes two
 rulesets; raw command attrsets are deliberately passed through as an escape
-hatch. A non-list argument or any other child throws, naming what it got. Only
+hatch. A non-list argument or any other child throws, naming what it got; a
+builder not yet called, such as `dsl.flush.ruleset`, throws asking to call it. Only
 the order of the commands is checked: a reset that nft would ignore throws (see
 [Commands](#commands)). A statement that a builder or match operator made is
 validated by it, inside a raw command too.
@@ -82,7 +83,7 @@ it ends with `Field: <label>.` ([ADR 0004](adr/0004-refuse-unsafe-text.md)).
 | `createObject`   | add-object tags except `rule`                                                                                                                    |
 | `deleteObject`   | add-object tags except `ct count`, `ct timeout`, and `ct expectation`; a named object by `name` or `handle`, but a ct helper by `name` only      |
 | `destroyObject`  | the same tags as `deleteObject`; a named object by `name`                                                                                        |
-| `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, or meter                                                                      |
+| `listObject`     | table, chain, set, map, counter, quota, limit, ct helper, secmark, meter, or ruleset                                                             |
 | `readBackObject` | a bare listed object, as `nft -j list` emits: add-object tags plus `metainfo`, `meter`, and the Read-back-only `tunnel`; each keeps its `handle` |
 | `flushObject`    | table, chain, set, map, meter, or ruleset                                                                                                        |
 | `resetObject`    | counter, quota, rule, set, map, or element                                                                                                       |
@@ -109,7 +110,7 @@ command's union, such as `types.addObject` or `types.readBackObject`.
 `types.statementBodies` holds the body of each statement tag that takes more
 than `null`, the same type `types.statement` takes for that tag:
 `statementBodies.logBody` accepts `null` as `{ log = null; }` does. `ct helper`,
-`ct timeout`, `ct expectation`, `secmark`, and `tunnel` share `objectRefBody`,
+`ct timeout`, `ct expectation`, `secmark`, and `tunnel` share `objectReferenceBody`,
 a Reference: the object's name, such as `"ftp"`, or a map expression that
 selects it. Every stateful statement's Reference, a counter's or a synproxy's
 included, takes only these two forms, so a number or a boolean fails.
@@ -284,7 +285,9 @@ that build one form of a body take that form only: `expr.payloadRaw`,
 checks its name itself.
 
 `expr.elem` takes `val`, `timeout`, `expires`, and `comment`, the fields of
-`types.expressionBodies.elemBody`. nft lists an element's `counter`, `quota`,
+`types.expressionBodies.elemBody`. An element goes in a set, as a member or in
+a map member's pair, or in `setStmt` and `mapStmt`; anywhere else in a match's
+right side or a mangle value it throws, since nft aborts or fails on one there. nft lists an element's `counter`, `quota`,
 `limit`, or `last` beside its value, but its JSON parser ignores them, so
 `expr.elem` rejects them as unknown options.
 
@@ -293,7 +296,7 @@ Top-level match helpers include:
 - `eq`, `ne`, `lt`, `gt`, `le`, `ge`;
 - `inSet`, `notInSet`;
 - `hasAnyFlag`, nft's `in` operator, which matches when any of the given flags
-  is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn,ack`.
+  is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn, ack`.
 
 Together they cover nft's seven match operators. Each validates its match
 statement when called, as the statement builders do (see
@@ -301,9 +304,31 @@ statement when called, as the statement builders do (see
 `dsl.eq.left`. A caller that computes the operator writes the raw
 `{ match = { op; left; right; }; }`, which rule validation checks.
 
+A match's left side is a key, an expression that reads the packet or its
+metadata, such as a Field leaf, an operation on one, such as
+`expr.bitAnd fields.meta.mark 255`, or a concatenation of them. Its right side
+is a value, with no key and no map lookup inside. nft refuses either swapped,
+so `eq 22 fields.tcp.dport` throws, asking to swap the sides, and `validate`
+rejects the raw match. `mangle key value`
+takes a payload, meta, ct, or header-option key, the ones nft changes, so
+`mangle 42 fields.meta.mark` throws too.
+
+The comparisons `eq`, `ne`, `lt`, `gt`, `le`, and `ge` throw on a list.
+nft reads a list there as one combination of flags, not as a set:
+`eq ct.state [ "established" "related" ]` compares the state with both flags
+at once and never matches, and `eq tcp.dport [ 22 80 ]` fails to load. Match
+any of the values with `inSet`, any of the flags with `hasAnyFlag`, and the
+exact combination with `expr.bitOr`, as in
+`eq tcp.flags (expr.bitOr "syn" "ack")`.
+
 `inSet` and `notInSet` take a list, a set expression, or a named-set
 reference such as `"@trusted"`. A string without `@` throws and points to
 `expr.setRef`: nft would match it as one value, such as a hostname.
+
+A string expression takes no `/`, in a match, a set or map element, or a
+statement such as `dnat`: nft's JSON parser reads `"10.0.0.0/8"` as a
+hostname and rejects it, while text loads it as a prefix. Write a prefix with
+`expr.prefix "10.0.0.0" 8`. A `@name` reference keeps a `/` in its name.
 
 `expr.set [ ... ]` creates an anonymous set. `expr.setRef "name"` returns the
 reference string `"@name"`, the shape nft lists, for the right side of a
@@ -311,7 +336,8 @@ match. The map lookup is `expr.map key data`. Its data is a named map's name,
 with or without its `@`, or an anonymous map. A list of key-value pairs
 becomes the anonymous map `{ set = [ ... ]; }`, as `inSet` wraps a list in an
 anonymous set, because nft rejects a bare list there. `vmap key data` takes
-its data the same way:
+its data the same way, and throws on any other attribute set, such as
+`{ eth0 = accept; }`, listing the forms it takes:
 
 ```nix
 expr.map fields.tcp.dport "ports"
@@ -372,7 +398,9 @@ limit { rate = 10; per = "minute"; burst = 5; }
 ```
 
 `.ref name` references a named object, by its name or by a map expression
-that selects one by key; it throws for any other attribute set. `ctHelper`,
+that selects one by key; it throws for any other attribute set. A name given
+to the statement itself, as in `counter "c"`, throws and points to
+`counter.ref "c"`. `ctHelper`,
 `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` have no other form, so
 calling one directly throws and points to its `.ref`. `.auto` is the
 null-body form, such as `{ counter = null; }`, that `nft -j list --stateless`
@@ -415,6 +443,11 @@ Other top-level constructors include `snat`, `dnat`, `masquerade`, `redirect`,
 `queue`, `synproxy`, `flow`, `meter`, `vmap`, `mangle`, `tproxy`, `fwd`, `dup`,
 `last`, and `notrack`, which exempts the packet from connection tracking.
 `notrack` is a statement, not a verdict: a `vmap` rejects it as data.
+
+In an `inet` table, give `snat`, `dnat`, and `tproxy` a `family`, `"ip"` or
+`"ip6"`, with an address: nft fails without one unless an earlier match in the
+rule, such as `fields.ip.saddr`, fixes the family, and the DSL leaves that to
+nft ([`spec-coverage.md`](spec-coverage.md#2-schema-intentionally-more-permissive)).
 
 `snat`, `dnat`, and `tproxy` take `addr`, `port`, or both: the kernel refuses
 an snat or dnat with neither, and nft an empty tproxy, so `snat { }` and
@@ -660,6 +693,8 @@ when the body lacks a field nft requires for the verb, naming the field:
 - A chain sets `type`, `hook`, and `prio` together (a base chain) or none of
   them, in every builder and in a table tree's `chains`. nft loads a chain
   with only some of them as a regular chain whose rules never see packets.
+  `policy` and `dev` take a base chain too: nft's JSON loads a regular chain
+  without them, and its text rejects one.
 
 - `add.flowtable` and `create.flowtable` require `hook` and `prio`. The hook
   is `ingress`, the only one nft accepts for a flowtable in any family

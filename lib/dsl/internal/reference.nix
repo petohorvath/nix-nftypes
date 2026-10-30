@@ -13,8 +13,9 @@
     a set or map, such as `setStmt`'s `set`. Returns the body.
   - `mapData location data`: the data of a map lookup or a vmap. A name
     becomes `"@<name>"` as for `atReference`, a list becomes the anonymous
-    map `{ set = data; }`, since nft rejects a bare list there, and any
-    other expression passes through.
+    map `{ set = data; }`, since nft rejects a bare list there, an
+    anonymous map passes through, and any other attrset, such as
+    `{ eth0 = accept; }`, throws.
   - `objectReference location ref`: a stateful object reference, such as
     a counter's. Returns the bare name, which nft looks up as written, so
     `"@c"` names no object; a map expression, which selects the object by
@@ -68,6 +69,8 @@ let
       atReference location data
     else if builtins.isList data then
       { set = data; }
+    else if builtins.isAttrs data && builtins.attrNames data != [ "set" ] then
+      fail location "the data is a map name, a list of [ key value ] pairs, or an anonymous map { set = [ … ]; }, not an attribute set with ${lib.concatStringsSep ", " (builtins.attrNames data)}"
     else
       data;
 in

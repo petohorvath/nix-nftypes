@@ -8,18 +8,45 @@
   pass a named-set reference (`"@name"`) through unchanged. `hasAnyFlag`
   is the nftables `in` operator, which tests flag bits.
 */
-{ lib, statement }:
+{
+  isMatchKey,
+  lib,
+  statement,
+}:
 
 let
   location = import ./internal/location.nix { inherit lib; };
 
-  # The match statement `left <op> right` of the operator `dsl.<name>`.
+  /*
+    The match statement `left <op> right` of the operator `dsl.<name>`.
+    nft takes a key, such as a Field leaf, on the left only, so a value
+    on the left with a key on the right throws, asking to swap them.
+  */
   mkMatch =
     name: op: left: right:
-    statement.tagged {
-      inherit name;
-      tag = "match";
-    } { inherit op left right; };
+    if isMatchKey right && !(isMatchKey left) then
+      location.fail (location.builder [ name ])
+        "the right side is a key, such as a Field leaf, and the left side is not; nft takes the key on the left, so swap the sides, as in `${name} fields.tcp.dport 22`"
+    else
+      statement.tagged {
+        inherit name;
+        tag = "match";
+      } { inherit op left right; };
+
+  /*
+    The comparison operator `dsl.<name>`. A list on its right is nft's
+    flag combination, not a set: nft rejects it for a non-flag field and
+    compares a flag field with every flag at once, so
+    `eq ct.state [ "established" "related" ]` never matches. It throws
+    instead, naming the operator that says what the caller means.
+  */
+  mkComparison =
+    name: op: left: right:
+    if builtins.isList right then
+      location.fail (location.builder [ name ])
+        "the right side is a list, which nft reads as one combination of flags, not as a set of values; match any of the values with `inSet`, any of the flags with `hasAnyFlag`, or the exact combination of flags with `expr.bitOr`"
+    else
+      mkMatch name op left right;
 
   /*
     Wrap a right-hand side for set membership: list → anonymous set
@@ -41,44 +68,44 @@ let
   /*
     Match `left == right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
-    when it doesn't validate.
+    when it doesn't validate or `right` is a list.
   */
-  eq = mkMatch "eq" "==";
+  eq = mkComparison "eq" "==";
 
   /*
     Match `left != right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
-    when it doesn't validate.
+    when it doesn't validate or `right` is a list.
   */
-  ne = mkMatch "ne" "!=";
+  ne = mkComparison "ne" "!=";
 
   /*
     Match `left < right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
-    when it doesn't validate.
+    when it doesn't validate or `right` is a list.
   */
-  lt = mkMatch "lt" "<";
+  lt = mkComparison "lt" "<";
 
   /*
     Match `left > right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
-    when it doesn't validate.
+    when it doesn't validate or `right` is a list.
   */
-  gt = mkMatch "gt" ">";
+  gt = mkComparison "gt" ">";
 
   /*
     Match `left <= right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
-    when it doesn't validate.
+    when it doesn't validate or `right` is a list.
   */
-  le = mkMatch "le" "<=";
+  le = mkComparison "le" "<=";
 
   /*
     Match `left >= right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
-    when it doesn't validate.
+    when it doesn't validate or `right` is a list.
   */
-  ge = mkMatch "ge" ">=";
+  ge = mkComparison "ge" ">=";
 
   /*
     Match membership without spelling out the set wrapper. `left` is the

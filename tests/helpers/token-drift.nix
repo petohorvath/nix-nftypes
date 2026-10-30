@@ -1,16 +1,17 @@
 /*
   Compares the tokens tooling/extract-upstream-tokens.py reads from the
   patched nftables source with the model's token lists: the enums, the
-  ct keys that take a direction, the statement and expression tags, and
-  the payload fields, each as `<protocol> <field>`. Takes the model lists
-  and the extracted tables, `{ <table> = [ <token> … ]; }`, and returns
-  per model list the tokens only one side has, beyond the documented
-  `modelOnly` and `sourceOnly` extras. Every list is empty when the model
-  and the source agree.
+  ct keys that take a direction, the statement and expression tags, the
+  payload fields, each as `<protocol> <field>`, and the text lexer's
+  keywords. Takes the model lists and the extracted tables,
+  `{ <table> = [ <token> … ]; }`, and returns per model list the tokens
+  only one side has, beyond the documented `modelOnly` and `sourceOnly`
+  extras. Every list is empty when the model and the source agree.
 */
 { lib, nftlib }:
 let
   tagsOf = import ./tags-of.nix;
+  keywords = import ../../lib/text/keywords.nix;
 
   # The ct keys the ct body takes a direction for, as the schema decides.
   ctDirKeys = builtins.filter (
@@ -42,7 +43,30 @@ let
       ) nftlib.enums.payloadFieldsByProtocol
     );
     statementTag = tagsOf nftlib.types.statement;
+    textKeyword = keywords.global;
+    textKeywordAt = keywords.at;
+    textKeywordCounter = keywords.counter;
+    textKeywordCt = keywords.ct;
+    textKeywordLimit = keywords.limit;
+    textKeywordQuota = keywords.quota;
+    textKeywordSynproxy = keywords.synproxy;
   };
+
+  /*
+    Model lists that hold every tested release's tokens, so a token one
+    release lacks is no Drift: the text renderer refuses a name that is a
+    keyword in any of them. A token the source holds and the model lacks
+    still is.
+  */
+  unionLists = [
+    "textKeyword"
+    "textKeywordAt"
+    "textKeywordCounter"
+    "textKeywordCt"
+    "textKeywordLimit"
+    "textKeywordQuota"
+    "textKeywordSynproxy"
+  ];
 
   # The source table a model list is compared with, where it has another
   # name: a limit's rate units are `packets` and data_unit's byte units, so
@@ -110,7 +134,8 @@ let
       else
         {
           missingFromModel = lib.subtractLists (model ++ omitted) source;
-          missingFromSource = lib.subtractLists (source ++ extras) model;
+          missingFromSource =
+            if builtins.elem name unionLists then [ ] else lib.subtractLists (source ++ extras) model;
           staleModelOnly = lib.intersectLists extras source;
           staleSourceOnly = lib.subtractLists source omitted;
         }
@@ -123,5 +148,6 @@ in
     modelOnly
     sourceOnly
     tables
+    unionLists
     ;
 }

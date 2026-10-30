@@ -16,6 +16,7 @@
   objects,
   selectBodiesByTag,
   expandTable,
+  isMatchKey,
   resetOrder,
   statementBodiesByTag,
   expressionBodiesByTag,
@@ -40,7 +41,7 @@ let
   };
 
   fields = import ./fields { inherit lib; };
-  ops = import ./ops.nix { inherit lib statement; };
+  ops = import ./ops.nix { inherit isMatchKey lib statement; };
   verdicts = import ./verdicts.nix { inherit statement; };
   exprs = import ./exprs.nix {
     inherit
