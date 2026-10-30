@@ -1109,6 +1109,9 @@ let
 
   readBackObject = taggedUnion readBackObjectBodies;
 
+  # The tags of a bare listed object, for the renderers' entry check.
+  readBackTags = builtins.attrNames readBackObjectBodies;
+
   /*
     The `list` command (parser_json.c, json_parse_cmd_list): the listed
     kinds (`meter` is singular; the plural list forms are not modelled, see
@@ -1185,6 +1188,7 @@ in
     insertObject
     listObject
     readBackObject
+    readBackTags
     renameObject
     replaceObject
     resetObject

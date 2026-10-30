@@ -774,7 +774,15 @@ Every renderer cleans its input before rendering it ([Cleaning](#cleaning)),
 and names itself in its errors, as in `nix-nftypes: toTextBlock: `.
 
 `toJson`, `toText`, and `toTextPretty` take only a ruleset,
-`{ nftables = [ … ]; }`, and throw on anything else. A lone command throws, and
+`{ nftables = [ … ]; }`, and throw on anything else. Each entry is one
+command, a verb holding one object kind, such as `{ add.table = …; }`, or one
+listed object, such as `{ table = …; }`. nft's JSON parser runs only the first
+verb or kind of an entry with several and still exits 0, so the renderers and
+`dsl.ruleset` throw for one, and for a statement, an empty attrset, or a Table
+tree's body without `dsl.table`, naming the entry, as in
+``nix-nftypes: toJson: nftables.1: `add` holds chain, table, but nft runs only the first; give each its own command``.
+They don't check the kind's name, so a raw command can reach a form the
+schema leaves out. A lone command throws, and
 so does a `dsl.table` value passed alone or among the `nftables` commands, and
 a ruleset nested among them, which nft rejects; each error asks for
 `dsl.ruleset`. Build a ruleset with `dsl.ruleset [ … ]`, which takes commands,

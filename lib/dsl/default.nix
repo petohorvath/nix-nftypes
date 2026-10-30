@@ -18,6 +18,7 @@
   expandTable,
   isMatchKey,
   resetOrder,
+  rulesetEntry,
   statementBodiesByTag,
   expressionBodiesByTag,
   expressionBodies,
@@ -60,7 +61,14 @@ let
       ;
   };
   actions = import ./actions { inherit lib statement; };
-  ruleset = import ./structure/ruleset.nix { inherit expandTable lib resetOrder; };
+  ruleset = import ./structure/ruleset.nix {
+    inherit
+      expandTable
+      lib
+      resetOrder
+      rulesetEntry
+      ;
+  };
   table = import ./structure/table.nix { inherit lib; };
   commands = import ./structure/commands.nix {
     inherit

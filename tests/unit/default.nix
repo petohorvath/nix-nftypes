@@ -26,6 +26,7 @@ in
   priority-safety = import ./priority-safety.nix testContext;
   public-surface = import ./public-surface.nix testContext;
   reach = import ./reach.nix testContext;
+  ruleset-entries = import ./ruleset-entries.nix testContext;
   restricted-types = import ./restricted-types.nix testContext;
   schema = import ./schema.nix testContext;
   schema-option-tree = import ./schema-option-tree.nix testContext;

@@ -1,13 +1,14 @@
 /*
   Ruleset envelope. For command builders (add, create, delete, destroy,
-  flush, list, rename, reset, replace, insert) see ./commands.nix. The
-  ruleset renderer passes any bare command attrset through unchanged, so
-  users can always drop to raw JSON if needed.
+  flush, list, rename, reset, replace, insert) see ./commands.nix. A raw
+  command passes through unvalidated, so users can always drop to raw JSON
+  if needed; only its shape is checked (../../ruleset-entry.nix).
 */
 {
   expandTable,
   lib,
   resetOrder,
+  rulesetEntry,
 }:
 
 let
@@ -30,6 +31,8 @@ let
     path: child:
     let
       moduleProperty = findModuleProperty child;
+      entryProblem = rulesetEntry.entryProblem child;
+      at = lib.concatStringsSep "." path;
     in
     if isTableTree child then
       expandTable child
@@ -47,6 +50,8 @@ let
       fail "${
         lib.concatStringsSep "." (path ++ moduleProperty.path)
       }: ${modulePropertyMessage moduleProperty}"
+    else if builtins.isAttrs child && entryProblem != null then
+      fail "${at}: ${entryProblem}"
     else if builtins.isAttrs child then
       [ child ]
     else

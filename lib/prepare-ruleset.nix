@@ -3,7 +3,8 @@
   only a ruleset. None of its parts is validation (ADR 0003): the commands
   inside go unchecked.
 
-  - Its shape is checked: an attrset with just an `nftables` list, and no
+  - Its shape is checked: an attrset with just an `nftables` list, each
+    entry one command or listed object (./ruleset-entry.nix), and no
     module property such as `lib.mkIf` anywhere (./module-property.nix).
   - It is cleaned (./clean.nix).
   - A rule body without `expr`, listed or under a command verb, gets
@@ -13,7 +14,11 @@
     fields given, so without this part a raw `destroy.rule` would load as
     text but not as JSON.
 */
-{ lib, clean }:
+{
+  clean,
+  lib,
+  rulesetEntry,
+}:
 
 let
   inherit (import ./ruleset-shape.nix { }) isRuleset;
@@ -21,6 +26,20 @@ let
   inherit (import ./describe.nix { inherit lib; }) describe;
   fail = import ./fail.nix { };
   inherit (import ./module-property.nix { inherit lib; }) findModuleProperty modulePropertyMessage;
+
+  # Each entry's shape problem, as `nftables.<index>: <message>`.
+  entryProblems =
+    value:
+    lib.pipe value.nftables [
+      (lib.imap0 (
+        index: entry: {
+          inherit index;
+          problem = rulesetEntry.entryProblem entry;
+        }
+      ))
+      (builtins.filter (found: found.problem != null))
+      (map (found: "nftables.${toString found.index}: ${found.problem}"))
+    ];
 
   withExpr = body: if builtins.isAttrs body && !(body ? expr) then body // { expr = [ ]; } else body;
 
@@ -62,6 +81,8 @@ else if findModuleProperty value != null then
     found = findModuleProperty value;
   in
   fail api "${lib.concatStringsSep "." found.path}: ${modulePropertyMessage found}"
+else if entryProblems value != [ ] then
+  fail api (builtins.head (entryProblems value))
 else
   let
     cleaned = clean value;

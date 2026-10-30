@@ -61,7 +61,12 @@ let
   };
   commands = import ./schema/commands.nix { inherit internal lib objects; };
   clean = import ./clean.nix { inherit lib; };
-  prepareRuleset = import ./prepare-ruleset.nix { inherit clean lib; };
+  rulesetEntry = import ./ruleset-entry.nix {
+    inherit lib;
+    inherit (commands) verbs;
+    inherit (objects) readBackTags;
+  };
+  prepareRuleset = import ./prepare-ruleset.nix { inherit clean lib rulesetEntry; };
   json = import ./json { inherit prepareRuleset; };
   text = import ./text {
     inherit
@@ -88,6 +93,7 @@ let
     expressionBodies = expressions.all;
     inherit payloadFieldsByProtocol;
     inherit (commands) resetOrder;
+    inherit rulesetEntry;
     inherit (tables) expandTable;
   };
   compatibility = import ./compatibility.nix {

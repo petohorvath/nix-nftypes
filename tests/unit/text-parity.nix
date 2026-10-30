@@ -2121,7 +2121,7 @@ in
   # listed object such as `nft -j list` emits.
   testUnknownCommandThrows = {
     expr = one { ad.table = { }; };
-    expectedError.msg = "^nix-nftypes: toText: unknown command or listed object 'ad'$";
+    expectedError.msg = "^nix-nftypes: toText: nftables\\.0: expected a command, a verb such as `add` holding one object kind, or a listed object, such as `table`, got an attribute set with ad$";
   };
 
   # nft has no command that takes a metainfo: text and JSON both reject

@@ -17,7 +17,7 @@ let
   # direct form (verified with `nft -c -j -f`), so we use the single-tag
   # unions `objects.insertObject`, `objects.replaceObject`, and
   # `objects.renameObject` here.
-  command = taggedUnion {
+  commandBodies = {
     add = objects.addObject;
     replace = objects.replaceObject;
     # parser_json.c rejects `create rule`; the object union deliberately
@@ -31,6 +31,7 @@ let
     flush = objects.flushObject;
     rename = objects.renameObject;
   };
+  command = taggedUnion commandBodies;
 
   /*
     In one batch, nft (1.1.6 and 1.1.7, JSON and text) runs a reset of a
@@ -64,6 +65,9 @@ let
 in
 {
   inherit command resetOrder;
+
+  # The command verbs, for the renderers' entry check.
+  verbs = builtins.attrNames commandBodies;
 
   ruleset = discriminatedSubmodule {
     extraCheck =

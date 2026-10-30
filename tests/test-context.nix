@@ -8,6 +8,7 @@
 let
   inherit (nixpkgs) lib;
   nftlib = import ../lib { inherit lib; };
+  tagsOf = import ./helpers/tags-of.nix;
   helpers = import ./helpers { inherit lib nftlib; };
 
   nftSafeIfname = import ../lib/nft-safe-ifname.nix { };
@@ -25,7 +26,14 @@ let
       nftSafeString
       ;
     nftSafeLogPrefix = import ../lib/nft-safe-log-prefix.nix { inherit nftSafeString; };
-    prepareRuleset = import ../lib/prepare-ruleset.nix { inherit clean lib; };
+    prepareRuleset = import ../lib/prepare-ruleset.nix {
+      inherit clean lib;
+      rulesetEntry = import ../lib/ruleset-entry.nix {
+        inherit lib;
+        readBackTags = tagsOf nftlib.types.readBackObject;
+        verbs = tagsOf nftlib.types.command;
+      };
+    };
   };
 
   testContext = {
