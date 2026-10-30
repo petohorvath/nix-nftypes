@@ -2994,6 +2994,51 @@ textDriftTests
       ];
     };
 
+  /*
+    nft ignores an index beside a handle: `insert rule` inserts before the
+    rule with the handle, and `replace rule` replaces it in place. Handle 0
+    on `insert` is none, so the rule went first.
+  */
+  testRulePositions =
+    let
+      rule =
+        extra:
+        {
+          family = "inet";
+          table = "t";
+          chain = "c";
+          expr = [ { accept = null; } ];
+        }
+        // extra;
+      command = verb: extra: helpers.validates nftlib.types.command { ${verb}.rule = rule extra; };
+    in
+    {
+      expr = [
+        (command "insert" { handle = 4; })
+        (command "insert" { index = 0; })
+        (command "insert" { })
+        (command "insert" {
+          handle = 4;
+          index = 0;
+        })
+        (command "insert" { handle = 0; })
+        (command "replace" { handle = 3; })
+        (command "replace" {
+          handle = 3;
+          index = 2;
+        })
+      ];
+      expected = [
+        true
+        true
+        true
+        false
+        false
+        true
+        false
+      ];
+    };
+
   # nftables 1.1.7 lists a set's or map's `count`, its number of
   # elements, beside a `size`; its parser reads no `count` on input.
   testListedSetCount =

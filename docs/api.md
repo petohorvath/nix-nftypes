@@ -754,7 +754,11 @@ when the body lacks a field nft requires for the verb, naming the field:
   to Read-back, as in `nix-nftypes: dsl.add.table: handle: nft ignores a
 handle on add, create, and rename, …`; `validate` rejects one in those
   commands. nft ignores the handle there, so JSON kept it and text dropped it.
-- `replace.rule` requires the `handle` of the rule it replaces.
+- `replace.rule` requires the positive `handle` of the rule it replaces, and
+  takes no `index`: nft replaces the rule in place and ignores one.
+- `insert.rule` takes at most one of a positive `handle`, which puts the rule
+  before the rule with it, and an `index`. nft ignores an index beside a
+  handle, and takes handle 0 as none, inserting the rule first.
 - On `add rule`, nftables 1.1.6's JSON parser ignores a handle and appends the
   rule, while 1.1.7 and text place the rule after the rule with that handle.
   Place a rule with `index`, or with `insert.rule`, whose `handle` puts it

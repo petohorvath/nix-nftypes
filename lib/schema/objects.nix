@@ -493,10 +493,23 @@ let
       options = ruleOptions;
     };
 
-    # `insert rule` puts the rule before the rule with `handle`, at `index`,
-    # or, with neither, first in the chain.
-    insertRuleBody = submodule {
-      options = ruleOptions;
+    /*
+      `insert rule` puts the rule before the rule with `handle`, at `index`,
+      or, with neither, first in the chain. nft reads the handle and
+      ignores an index beside it, and takes handle 0 as none, inserting
+      the rule first, so a body takes at most one of them, and a positive
+      handle.
+    */
+    insertRuleBody = discriminatedSubmodule {
+      options = ruleOptions // {
+        handle = mkOption {
+          type = types.nullOr types.ints.positive;
+          default = null;
+          description = "handle of the rule to insert before";
+        };
+      };
+      invariant = body: (body.handle or null) == null || (body.index or null) == null;
+      description = "insert rule body with at most one of handle and index";
     };
 
     # `add rule` takes no handle: nft 1.1.6's JSON parser ignores one and
@@ -506,11 +519,14 @@ let
       options = ruleOptions;
     };
 
-    # `replace rule` (parser_json.c, json_parse_cmd_replace) needs the
-    # handle of the rule it replaces, and takes handle 0 as missing ("Handle
-    # is required when replacing a rule.").
+    /*
+      `replace rule` (parser_json.c, json_parse_cmd_replace) needs the
+      handle of the rule it replaces, and takes handle 0 as missing
+      ("Handle is required when replacing a rule."). It replaces the rule
+      in place and ignores an index, so the body takes none.
+    */
     replaceRuleBody = submodule {
-      options = ruleOptions // {
+      options = removeAttrs ruleOptions [ "index" ] // {
         handle = mkOption {
           type = types.ints.positive;
           description = "handle of the rule to replace";
