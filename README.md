@@ -21,7 +21,7 @@ inputs.nix-nftypes.url = "github:petohorvath/nix-nftypes/v0.2.0";
 inputs.nix-nftypes.inputs.nixpkgs.follows = "nixpkgs";
 ```
 
-The `follows` line makes nix-nftypes use the consuming flake's nixpkgs, so the lock file records one nixpkgs. [`CHANGELOG.md`](CHANGELOG.md) lists each release's changes; its 0.2.0 section opens with a table for upgrading from 0.1.0.
+The `follows` line makes nix-nftypes use the consuming flake's nixpkgs, so the lock file records one nixpkgs. The public API is the `lib` output; `packages.<system>.nftables-source` is the nftables source the test suites build, and may change or go in any release. [`CHANGELOG.md`](CHANGELOG.md) lists each release's changes; its 0.2.0 section opens with a table for upgrading from 0.1.0.
 
 ## Usage
 

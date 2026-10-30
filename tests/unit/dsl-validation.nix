@@ -1891,10 +1891,11 @@ let
 
   /*
     A name that declares or selects an object is no Reference (ADR 0009):
-    nft looks up `"@s"` there as a set literally named `@s`. The builders
-    take the name with or without its `@` and emit the bare name; a Table
-    tree's object key, which no builder spells, throws on a leading `@`.
-    The schema takes a raw name as written.
+    nft looks up `"@s"` there as a set literally named `@s`. A builder
+    whose name selects an object takes it with or without its `@` and
+    emits the bare name; a name that declares one, in `add`, `create`, or
+    a Table tree's object key, throws on a leading `@`. The schema takes a
+    raw name as written.
   */
   namePositionTests =
     let
@@ -1953,8 +1954,29 @@ let
           statement = dsl.counter.auto;
         };
       tree = body: dsl.ruleset [ (dsl.table "inet" "fw" body) ];
+      # Every named object `add` and `create` declare: each kind of theirs
+      # but the table, chain, and rule, which no Reference names, and the
+      # element, whose `name` selects a set.
+      declaringBuilders = lib.concatMapAttrs (
+        verb: _:
+        lib.mapAttrs' (kind: build: lib.nameValuePair "${verb}_${kind}" { inherit verb kind build; }) (
+          removeAttrs dsl.${verb} [
+            "table"
+            "chain"
+            "rule"
+            "element"
+          ]
+        )
+      ) (lib.genAttrs [ "add" "create" ] lib.id);
     in
-    {
+    lib.mapAttrs' (
+      name: case:
+      lib.nameValuePair "testDeclaredNameWithAtThrows_${name}" {
+        expr = commandJson (case.build (scope // { name = "@s"; }));
+        expectedError.msg = "^nix-nftypes: dsl\\.${case.verb}\\.${case.kind}: name: a declared object takes its bare name; drop the leading `@`, which only a Reference adds$";
+      }
+    ) declaringBuilders
+    // {
       testAddElementTakesBareName = {
         expr = {
           add = namesFor (name: dsl.add.element (selectorBody "element" name));

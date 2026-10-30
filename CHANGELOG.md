@@ -4,7 +4,7 @@ All notable changes to nix-nftypes will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-10-29
+## [0.2.0] - 2026-10-30
 
 The schema accepts what nft loads as written and rejects what it loads as something else ([ADR 0010](docs/adr/0010-accept-what-nft-loads-as-written.md)), the text renderer writes text that loads the same ruleset as the JSON form, or raises a Refusal, and the DSL follows one set of naming and argument conventions ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). Many of these changes break callers of the DSL, the schema types, and the text renderer.
 
@@ -174,9 +174,9 @@ Renderers and validation:
   - A module-system error inside a tree starts its option path with the tree, as in ``A definition for option `"dsl.table inet.fw".chains.input.prio' is not of type …``. It started `chains.input.prio`, which named no table.
   - An unknown key lists the keys a tree takes, and a kind's singular name points to its plural: ``unsupported key(s): set; a Table tree takes flags, comment, chains, …; write `sets` for `set` ``.
   - A quota object's `val`, the quota statement's word, throws and points to `bytes`, in a tree's `quotas` and in `add.quota` and `create.quota`. It failed as an option that does not exist.
-- `expr.map key data` and `expr.payload protocol field` take positional arguments, like `vmap key data`.
+- `expr.map key data` takes positional arguments, like `vmap key data`.
 - `flow` takes the flowtable name alone, with or without its `@`: write `flow "ft"` for `flow { flowtable = "ft"; }`. Its `op` had one legal value, `add`, which the statement still emits.
-- `payload`, `payloadRaw`, and `payloadTunnel` sit under `expr` with the other expression constructors: write `expr.payload "tcp" "dport"` for `payload "tcp" "dport"`.
+- `payloadRaw` and `payloadTunnel` sit under `expr` with the other expression constructors: write `expr.payloadRaw` for `payloadRaw`. A `payload` call becomes its Field leaf, such as `fields.tcp.dport` for `payload "tcp" "dport"`.
 - `insert` and `replace` are `<verb>.<kind>` namespaces like the other verbs, `rename` included: write `insert.rule` and `replace.rule` for `insert` and `replace`. Their errors name `dsl.insert.rule` and `dsl.replace.rule`.
 - The reset statement is `resetStmt`, like `setStmt` and `mapStmt`, and `reset` holds only the `reset.<kind>` command builders: write `resetStmt (expr.tcpOption { … })` for `reset (expr.tcpOption { … })`.
 - `last` is a variant namespace like `counter`: write `last.auto` for the bare `last`, and `last { used = …; }` for `lastUsed …`. `last { }` throws and points to `last.auto`, because nft rejects an empty body.
@@ -210,7 +210,7 @@ Renderers and validation:
   - The `.ref` of `counter`, `quota`, `limit`, `synproxy`, and `ctCount` drops a leading `@`. It passed `"@c"` through, which names no object, so the rule failed to load with "No such file or directory".
   - `vmap` and `expr.map` add the `@` to a bare map name, which nft's JSON parser read as a hostname.
   - A `.ref` throws on a value that is neither a name nor a map expression, naming the builder.
-- A name that declares or selects an object takes the bare name ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). `add.element`'s and `create.element`'s `name`, a Selector's `name`, and `meter`'s `name` drop a leading `@`, so `dsl.add.element { …; name = "@s"; }` adds to set `s`. They passed `"@s"` through, and nft looked up a set literally named `@s`, failing with "No such file or directory". A Table tree's object key that starts with `@`, such as `sets."@s"`, throws naming the key: `nix-nftypes: dsl.table inet.t: sets.@s: a Table tree declares an object by its bare name; …`. `validate` and the schema take a raw name as written.
+- A name that declares or selects an object takes the bare name ([ADR 0009](docs/adr/0009-dsl-naming-and-argument-conventions.md)). `add.element`'s and `create.element`'s `name`, a Selector's `name`, and `meter`'s `name` drop a leading `@`, so `dsl.add.element { …; name = "@s"; }` adds to set `s`. They passed `"@s"` through, and nft looked up a set literally named `@s`, failing with "No such file or directory". A Table tree's object key that starts with `@`, such as `sets."@s"`, throws naming the key: `nix-nftypes: dsl.table inet.t: sets.@s: a Table tree declares an object by its bare name; …`. So does the `name` of a set, map, flowtable, or stateful object that `add` or `create` declares, which they passed through: `nix-nftypes: dsl.add.set: name: a declared object takes its bare name; …`. `validate` and the schema take a raw name as written.
 - `ctHelper`, `ctTimeout`, `ctExpectation`, `secmark`, and `tunnel` reference their object through `.ref`, as `counter.ref` does: `ctHelper.ref "ftp"`. Calling one directly throws and points to its `.ref`.
 - Text refuses a map with a datatype key and a typeof value, which nft's text grammar can't declare.
 - Text refuses a comment on a `create` of a counter, quota, limit, or synproxy, naming the field (`create quota comment`). Those commands take their values positionally, with no comment clause, so text dropped a comment that JSON loads.
@@ -257,6 +257,7 @@ Renderers and validation:
 - Every Refusal ends with `Field: <label>.`. The Refusals of a non-integer chain or flowtable priority (`chain prio`, `flowtable prio`), an unsafe set or map datatype (`set type`, `map type`, `map value type`), an unsafe expression string (`expression`), and a `{ set = …; }` body that is neither a list nor a reference (`set expression`) named no field.
 - Schema submodules take only an attrset of fields: they reject a module function, a path, and a `_module` key. A path-like string such as `{ synproxy = "/sp1"; }` is a synproxy name; it was imported as a module file, which aborted evaluation.
 - The `tests` flake output comes from nix-unit's flake-parts module: the evaluation-only suites are `tests.systems.<system>.unit`, with kebab-case suite names, instead of top-level suites. Run `nix-unit --flake .#tests.systems.<system>.unit`.
+- `packages.<system>.nftables-source`, the patched source the test suites and the source watch build, is test tooling outside the public API, which is the `lib` output. It may change or go in any release.
 - The flake has a `nix-unit` input, which provides that module. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.nix-unit.follows = "";`.
 - The flake has a `treefmt-nix` input, which formats and lints the repo through `nix fmt` and the `treefmt` check. Its `nixpkgs` follows the flake's, so consumers lock no second nixpkgs; a consumer can drop it with `inputs.<name>.inputs.treefmt-nix.follows = "";`.
 - The MIT license names the nix-nftypes contributors as the copyright holder, as every devnix-labs repository names its own contributors. It named Peter Horvath and the nix-nftypes contributors.
