@@ -8,18 +8,30 @@
   pass a named-set reference (`"@name"`) through unchanged. `hasAnyFlag`
   is the nftables `in` operator, which tests flag bits.
 */
-{ lib, statement }:
+{
+  isMatchKey,
+  lib,
+  statement,
+}:
 
 let
   location = import ./internal/location.nix { inherit lib; };
 
-  # The match statement `left <op> right` of the operator `dsl.<name>`.
+  /*
+    The match statement `left <op> right` of the operator `dsl.<name>`.
+    nft takes a key, such as a Field leaf, on the left only, so a value
+    on the left with a key on the right throws, asking to swap them.
+  */
   mkMatch =
     name: op: left: right:
-    statement.tagged {
-      inherit name;
-      tag = "match";
-    } { inherit op left right; };
+    if isMatchKey right && !(isMatchKey left) then
+      location.fail (location.builder [ name ])
+        "the right side is a key, such as a Field leaf, and the left side is not; nft takes the key on the left, so swap the sides, as in `${name} fields.tcp.dport 22`"
+    else
+      statement.tagged {
+        inherit name;
+        tag = "match";
+      } { inherit op left right; };
 
   /*
     The comparison operator `dsl.<name>`. A list on its right is nft's

@@ -117,11 +117,11 @@ let
   # left side, while it is a right side, so `matchRight` keeps `expr`'s.
   matchLeft = types.addCheck expr isKeySide // {
     name = "matchLeft";
-    description = "match left side: a key such as a payload, meta, or ct expression, an operation on one, or a concatenation of them (did you swap the left and right sides?)";
+    description = "match left side: a key such as a payload, meta, or ct expression, an operation on one, or a concatenation of them";
   };
 
   matchRight = types.addCheck expr (v: !(holdsKey v)) // {
-    description = "match right side: a value, with no payload, meta, ct, or other key and no map lookup (did you swap the left and right sides?)";
+    description = "match right side: a value, with no payload, meta, ct, or other key and no map lookup";
   };
 
   # nft's parser takes these keys in a mangle statement (CTX_F_MANGLE);
@@ -697,6 +697,8 @@ let
 in
 {
   inherit (bodies) bodiesByTag statement statementOf;
+  # The DSL's match operators tell a swapped match apart with it.
+  inherit isKeySide;
   all = removeAttrs bodies [
     "bodiesByTag"
     "statement"

@@ -83,6 +83,7 @@ let
     objects = objects.all;
     inherit (objects) deleteBodiesByTag selectBodiesByTag;
     statementBodiesByTag = statements.bodiesByTag;
+    isMatchKey = statements.isKeySide;
     expressionBodiesByTag = expressions.bodiesByTag;
     expressionBodies = expressions.all;
     inherit payloadFieldsByProtocol;

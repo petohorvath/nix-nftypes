@@ -306,8 +306,8 @@ A match's left side is a key, an expression that reads the packet or its
 metadata, such as a Field leaf, an operation on one, such as
 `expr.bitAnd fields.meta.mark 255`, or a concatenation of them. Its right side
 is a value, with no key and no map lookup inside. nft refuses either swapped,
-so `eq 22 fields.tcp.dport` throws, naming `dsl.eq.right` and asking whether
-the sides are swapped, and `validate` rejects the raw match. `mangle key value`
+so `eq 22 fields.tcp.dport` throws, asking to swap the sides, and `validate`
+rejects the raw match. `mangle key value`
 takes a payload, meta, ct, or header-option key, the ones nft changes, so
 `mangle 42 fields.meta.mark` throws too.
 

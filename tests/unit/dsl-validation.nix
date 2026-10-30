@@ -137,9 +137,15 @@ let
       value = dsl.expr.map dsl.fields.tcp.dport { "22" = 1; };
       msg = "^nix-nftypes: dsl\\.expr\\.map: the data is a map name";
     };
+    # A value on the left with a key on the right asks to swap the sides;
+    # a key on both sides fails the schema's right-side check.
     swappedMatch = {
       value = dsl.eq 22 dsl.fields.tcp.dport;
-      msg = "dsl\\.eq\\.right' is not of type `match right side.*did you swap the left and right sides";
+      msg = "^nix-nftypes: dsl\\.eq: the right side is a key, such as a Field leaf, and the left side is not; .*swap the sides";
+    };
+    keyOnBothSides = {
+      value = dsl.eq dsl.fields.meta.mark dsl.fields.ct.mark;
+      msg = "dsl\\.eq\\.right' is not of type `match right side: a value";
     };
     swappedMangle = {
       value = dsl.mangle 42 dsl.fields.meta.mark;
