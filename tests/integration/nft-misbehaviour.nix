@@ -41,6 +41,7 @@ lib.listToAttrs (
     expected = [
       "add-handle-ignored"
       "add-rule-handle-ignored-on-json"
+      "at-keyword-set-reference-fails-in-text"
       "chain-dev-without-hook"
       "chain-hook-without-type"
       "chain-policy-without-hook"
@@ -49,6 +50,7 @@ lib.listToAttrs (
       "chain-without-hook"
       "chain-without-prio"
       "chain-without-type"
+      "counter-keyword-counter-name-fails-in-text"
       "delete-ct-count-aborts"
       "delete-ct-expectation-deletes-table"
       "delete-ct-timeout-fails"
@@ -61,6 +63,7 @@ lib.listToAttrs (
       "destroy-rule-handle-zero-deletes-every-rule"
       "destroy-tunnel-aborts"
       "element-statements-ignored-on-json"
+      "keyword-map-name-fails-in-text"
       "list-ct-expectation-lists-table"
       "list-ct-timeout-aborts"
       "list-tunnel-aborts"

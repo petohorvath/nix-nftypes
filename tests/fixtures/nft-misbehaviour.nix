@@ -218,6 +218,38 @@ let
       subject.out || true
   '';
 
+  /*
+    A name that nft's lexer reads as a keyword where it goes fails to
+    parse in text, quoted or not, while JSON loads it, so text refuses it
+    (lib/text/keywords.nix). Checks the text line `text` with `nft -c`
+    after `ruleset`, and prints its exit status and the token nft didn't
+    expect, the name `keyword`; nftables 1.1.6 also lists the tokens it
+    did.
+  */
+  keywordNameCase = name: keyword: ruleset: text: {
+    inherit name ruleset;
+    knownDifference = "docs/text-coverage.md";
+    inspect = ''
+      cat > subject.nft <<'EOF'
+      ${text}
+      EOF
+      status=0
+      nft -c -f subject.nft > subject.out 2>&1 || status=$?
+      echo "exit status $status"
+      grep -m 1 -o 'Error: syntax error, unexpected [^,]*' subject.out || true
+    '';
+    misbehaviour = "exit status 1\nError: syntax error, unexpected ${keyword}\n";
+  };
+
+  ipTable.nftables = [
+    {
+      add.table = {
+        family = "ip";
+        name = "t";
+      };
+    }
+  ];
+
   # For delete, list, and destroy, the JSON object-command path passes the
   # kernel object number as nft's command object type: a ct expectation (9)
   # is a table and a ct timeout (7) a chain.
@@ -288,6 +320,31 @@ let
 in
 {
   cases = [
+    (keywordNameCase "keyword-map-name-fails-in-text" "fwd" ipTable
+      "add map ip t fwd { type inet_service : ipv4_addr; }"
+    )
+    (keywordNameCase "counter-keyword-counter-name-fails-in-text" "packets" ipTable
+      "add counter ip t packets"
+    )
+    (keywordNameCase "at-keyword-set-reference-fails-in-text" "ll" {
+      nftables = ipTable.nftables ++ [
+        {
+          add.chain = {
+            family = "ip";
+            table = "t";
+            name = "c";
+          };
+        }
+        {
+          add.set = {
+            family = "ip";
+            table = "t";
+            name = "ll";
+            type = "ipv4_addr";
+          };
+        }
+      ];
+    } "add rule ip t c ip saddr @ll")
     (partialChainCase "chain-hook-without-type" { hook = "input"; })
     (partialChainCase "chain-type-without-hook" { type = "filter"; })
     (partialChainCase "chain-prio-without-hook" { prio = 0; })

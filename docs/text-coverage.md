@@ -102,8 +102,11 @@ nftables 1.1.6 and 1.1.7 decide them:
 | a counter, quota, or ct helper name                                                                    | the first row's, and the keywords of the object's scanner state, such as a counter's `packets` |
 | a limit, synproxy, ct timeout, ct expectation, or ct count name                                        | every scanner state's keyword, `last` included, and those of the object's scanner state        |
 
-A reference to a stateful object in a statement, as in `counter name "c"`, is
-quoted, which nft parses whatever the name. The text grammar also reserves
+The three `*-fails-in-text` cases of `integration-nft-misbehaviour` assert that
+nft still rejects a keyword as a map name, as a counter name, and after `@`, so
+a fixed nft fails them and the refusal can be lifted. A reference to a stateful
+object in a statement, as in `counter name "c"`, is quoted, which nft parses
+whatever the name. The text grammar also reserves
 `offload` in the flowtable-name and flowtable-reference positions, so a
 flowtable named `offload` loads only through JSON.
 
