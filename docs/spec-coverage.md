@@ -270,10 +270,11 @@ accept the resulting ruleset. Live-parser and real-load tests remain necessary.
 
 ### 3. Read-back/input asymmetries
 
-`xt` is modelled because listed legacy rules can contain it, but the JSON parser
-rejects `xt` as new input and instructs callers to use `iptables-nft`. No
-Integration case can load it, so the reach check names the `xt` statement as a
-Named exclusion. The DSL has no `xt` builder.
+`xt` is a Read-back shape: nft lists it for a rule an xtables tool added, but
+its JSON parser rejects it as input and instructs callers to use `iptables-nft`.
+A listed rule takes it, through `types.statementBodies.xtBody`, while
+`types.statement` and every input command reject it. The DSL has no `xt`
+builder.
 
 A set or map `comment` is a Read-back shape: nft lists it, but its JSON parser
 ignores it on input, in nftables 1.1.6 and 1.1.7. The schema accepts it, JSON

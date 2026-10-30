@@ -43,7 +43,6 @@ let
     queue = "queueBody";
     vmap = "vmapBody";
     "ct count" = "ctCountBody";
-    xt = "xtBody";
     last = "lastBody";
     flow = "flowBody";
     tproxy = "tproxyBody";
@@ -169,6 +168,38 @@ let
   comparisons = lib.concatMap (tag: map (compare tag) samples) tags;
 in
 {
+  # nft lists `xt` for a rule an xtables tool added, but its JSON parser
+  # rejects one as input: `xtBody` types the Read-back, and only a listed
+  # rule takes it.
+  testXtIsReadBackOnly =
+    let
+      xt.xt = {
+        type = "match";
+        name = "conntrack";
+      };
+      rule = {
+        family = "ip";
+        table = "t";
+        chain = "c";
+        handle = 2;
+        expr = [ xt ];
+      };
+    in
+    {
+      expr = [
+        (validates types.statementBodies.xtBody xt.xt)
+        (validates types.readBackObject { inherit rule; })
+        (validates types.statement xt)
+        (validates types.command { add.rule = removeAttrs rule [ "handle" ]; })
+      ];
+      expected = [
+        true
+        true
+        false
+        false
+      ];
+    };
+
   testEveryStatementTagHasABodyOrTakesOnlyNull = {
     expr = lib.sort lib.lessThan (builtins.attrNames bodyNameByTag ++ nullBodyTags);
     expected = tags;

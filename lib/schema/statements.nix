@@ -1,8 +1,14 @@
+/*
+  The statement schema. `readBack` builds the statements Read-back lists,
+  over `expressions` that do the same: they add `xt`, which nft lists for
+  a rule an xtables tool added but its JSON parser rejects as input.
+*/
 {
   lib,
   internal,
   primitives,
   expressions,
+  readBack ? false,
 }:
 
 let
@@ -757,7 +763,6 @@ let
       queue = queueBody;
       vmap = vmapBody;
       "ct count" = ctCountBody;
-      xt = xtBody;
       # Statements found in parser_json.c but absent from the in-repo adoc:
       last = lastBody;
       flow = flowBody;
@@ -766,7 +771,8 @@ let
       reset = resetBody;
       secmark = objectReferenceBody;
       tunnel = objectReferenceBody;
-    };
+    }
+    // lib.optionalAttrs readBack { xt = xtBody; };
 
     statement = taggedUnion bodiesByTag;
 

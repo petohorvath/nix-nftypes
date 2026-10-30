@@ -301,7 +301,7 @@ Renderers and validation:
 - `match.raw`, and the `match` namespace with it. The top-level operators cover nft's seven match operators; for an operator computed at evaluation, write the raw `{ match = { op; left; right; }; }`, which rule validation checks.
 - `expr.mapRef`. `expr.map` and `vmap` add the `@` to a bare map name: write `expr.map key "m"` for `expr.map key (expr.mapRef "m")`. It returned `{ map = "@name"; }`, which nft parses nowhere.
 - `reject.icmp`, `reject.icmpv6`, `reject.icmpx`, and `reject.tcpReset`, second forms of `reject { type; code?; }`: write `reject { type = "icmpx"; code = "admin-prohibited"; }` for `reject.icmpx "admin-prohibited"`, and `reject { type = "tcp reset"; }` for `reject.tcpReset`.
-- `xt`, which built a statement nft rejects as JSON input. `types.statementBodies.xtBody` still types its Read-back.
+- `xt`, which built a statement nft rejects as JSON input. `types.statement`, `types.statementOf`, and every input command reject an `xt` statement too; a listed rule in Read-back takes one, and `types.statementBodies.xtBody` still types it. `toText` wrote `xt match "conntrack"`, which nft rejects too.
 - A table tree's top-level `elements` key, which named each set twice, as `elements.s = { elements = [ … ]; }`, and block form's `table elements` Refusal with it. Give a set or map its elements in its body, as `sets.s.elements = [ … ]`, or add them to a set defined elsewhere with `add.element` in a `dsl.ruleset`.
 - `types.matchStatement`, a second name for `types.statementOf [ "match" ]`. Use `statementOf [ "match" ]`, which builds the same type.
 - `types.taggedExpression`, a second name for `expressionOf` over every expression tag. Use `types.expression`, or `types.expressionOf` for selected tags.

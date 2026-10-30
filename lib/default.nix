@@ -48,6 +48,7 @@ let
   readBackStatements = import ./schema/statements.nix {
     inherit internal lib primitives;
     expressions = expressions.readBack;
+    readBack = true;
   };
   objects = import ./schema/objects.nix {
     inherit

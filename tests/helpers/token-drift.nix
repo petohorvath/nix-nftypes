@@ -92,12 +92,9 @@ let
       "obriport"
       "secpath"
     ];
-    # json_parse_stmt handles `vmap` before the table and rejects `xt` as
-    # input; the model keeps `xt` for Read-back.
-    statementTag = [
-      "vmap"
-      "xt"
-    ];
+    # json_parse_stmt handles `vmap` before the table. It rejects `xt` as
+    # input, which `types.statement` leaves to Read-back too.
+    statementTag = [ "vmap" ];
   };
 
   # Tokens the source table holds that the model lacks, because nft does

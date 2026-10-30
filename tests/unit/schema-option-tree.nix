@@ -168,10 +168,10 @@ generatedTests
       fields = builtins.length fields;
     };
     expected = {
-      fields = 713;
+      fields = 712;
       body = 104;
-      wrongType = 713;
-      accepted = 230;
+      wrongType = 712;
+      accepted = 229;
       omitted = 241;
       lowest = 115;
       belowLowest = 115;

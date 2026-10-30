@@ -23,7 +23,6 @@ _: {
     statements = {
       # docs/spec-coverage.md, Known differences.
       secmark = "a secmark object loads only on an SELinux kernel, which the test VMs lack, so no rule can reference one";
-      xt = "xt is a Read-back shape: nft's JSON parser refuses it as input";
     };
     expressions = {
       # docs/spec-coverage.md, Known differences.

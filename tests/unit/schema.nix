@@ -85,7 +85,10 @@ let
       # the offenders verbatim, which makes the failure output
       # self-explanatory.
       missing = xs: ys: lib.subtractLists ys xs;
-      statementTags = builtins.attrNames nftlib.types.statement.functor.payload.tags;
+      # The statement a listed rule takes, which adds the Read-back-only
+      # `xt` to `types.statement`'s tags; text renders a listed rule too.
+      listedRule = (nftlib.types.readBackObject.getSubOptions [ ]).rule.type;
+      statementTags = helpers.tagsOf (listedRule.getSubOptions [ ]).expr.type.nestedTypes.elemType;
       expressionTags = helpers.tagsOf nftlib.types.expression;
       # Renderable object kinds: every union tag in addObject ∪
       # readBackObject (the latter adds `metainfo`, `meter`, and the

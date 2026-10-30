@@ -531,8 +531,11 @@ mapStmt { op = "update"; key = fields.ip.saddr; data = 1; map = "marks"; }
 flow "ft"
 ```
 
-The DSL has no `xt` builder; `types.statementBodies.xtBody` types the
-Read-back ([`spec-coverage.md`](spec-coverage.md#3-read-backinput-asymmetries)).
+The DSL has no `xt` builder, and `types.statement` rejects an `xt` statement,
+which nft's JSON parser refuses as input. nft lists one for a rule an xtables
+tool added, so a listed rule in Read-back takes it, and
+`types.statementBodies.xtBody` types it
+([`spec-coverage.md`](spec-coverage.md#3-read-backinput-asymmetries)).
 
 ### Declarative table tree
 
