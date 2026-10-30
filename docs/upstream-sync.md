@@ -130,7 +130,8 @@ fields from the patched C source. Each
 byte units and a limit's rate units both check the `data_unit` table. The ct
 keys that take a direction, which the schema's ct body decides, check
 `ct_dir_keys`, the keys nft's JSON parser reads a direction for. The payload
-fields, `enums.payloadFieldsByProtocol` as `<protocol> <field>` tokens, check
+fields that the Field leaves cover, `lib/schema/payload-fields.nix` as
+`<protocol> <field>` tokens, check
 the protocols in `proto_lookup_byname`'s table and each protocol's templates in
 `src/proto.c`. The text lexer's keywords, `lib/text/keywords.nix`, check the
 rules of `src/scanner.l`: the keywords of every scanner state, and those of each

@@ -1,7 +1,7 @@
 /*
   Public entry point for the `dsl` layer — a declarative DSL emphasizing:
-    - Path-based field access (`fields.tcp.dport` instead of
-      `expr.payload "tcp" "dport"`)
+    - Path-based field access (`fields.tcp.dport`), one Field leaf per
+      key nft loads as written
     - Top-level operator functions (`eq`, `ne`, `inSet`, `notInSet`, …)
     - Variant namespaces via `__functor` (`counter {…}` vs `counter.auto`)
     - Table trees (`chains.<name>.rules = [...]`) in place of
@@ -22,7 +22,6 @@
   statementBodiesByTag,
   expressionBodiesByTag,
   expressionBodies,
-  payloadFieldsByProtocol,
 }:
 
 let
@@ -52,14 +51,7 @@ let
       lib
       ;
   };
-  payload = import ./payload.nix {
-    inherit
-      expression
-      expressionBodies
-      lib
-      payloadFieldsByProtocol
-      ;
-  };
+  payload = import ./payload.nix { inherit expression expressionBodies; };
   actions = import ./actions { inherit lib statement; };
   ruleset = import ./structure/ruleset.nix {
     inherit

@@ -4,8 +4,10 @@
 
   Attribute names use camelCase; the emitted JSON `field` string uses the
   hyphenated form that libnftables expects (e.g. `fragOff` → `"frag-off"`).
-  For protocols or fields not covered here, fall back to
-  `dsl.expr.payload protocol field` in lib/dsl/payload.nix.
+  Every field nft's JSON parser loads as written has a leaf
+  (../../schema/payload-fields.nix), but `vlan cfi`, nft's alias of `dei`.
+  For other bits, `dsl.expr.payloadRaw` and `dsl.expr.payloadTunnel` in
+  ../payload.nix build the payload.
 */
 { lib }:
 
@@ -155,6 +157,9 @@ in
         "id"
         "sequence"
         "mtu"
+        # A neighbour discovery message's target and destination address.
+        "taddr"
+        "daddr"
       ]
       {
         paramProblem = "parameter-problem";

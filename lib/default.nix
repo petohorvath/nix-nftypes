@@ -92,7 +92,6 @@ let
     isMatchKey = statements.isKeySide;
     expressionBodiesByTag = expressions.bodiesByTag;
     expressionBodies = expressions.all;
-    inherit payloadFieldsByProtocol;
     inherit (commands) resetOrder;
     inherit rulesetEntry;
     inherit (tables) expandTable;
@@ -101,7 +100,6 @@ let
     enums = primitives.enumValues;
     inherit lib;
   };
-  payloadFieldsByProtocol = import ./schema/payload-fields.nix { };
 in
 {
   /*
@@ -156,12 +154,8 @@ in
     binding the `types.enum` definitions read. Useful for downstream
     consumers (zone libraries, validators, doc generators) that want
     the raw list without reaching into `types.<x>.functor.payload.values`.
-    `payloadFieldsByProtocol` is the one table among them: the fields
-    `dsl.expr.payload` takes for each protocol.
   */
-  enums = primitives.enumValues // {
-    inherit payloadFieldsByProtocol;
-  };
+  enums = primitives.enumValues;
 
   /*
     Kernel/man reference data — family×hook compatibility, chain-type

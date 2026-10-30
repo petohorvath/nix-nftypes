@@ -256,9 +256,9 @@ supported`. The reach check names the `dccp option` expression as a Named
   Depending on the order, a set or map lists without its elements, as after
   `list chain`, or a `list set` before a `list map` fails with `No such file
 or directory`. Give each `list` whose output matters a ruleset of its own;
-- a named payload body takes any protocol and field string. `expr.payload`
-  takes only those of `enums.payloadFieldsByProtocol`, which leaves out two
-  forms nft's parser takes: `l4proto` on `ip`, `ip6`, `gre`, and `gretap`,
+- a named payload body takes any protocol and field string. The Field leaves
+  cover the fields nft loads as written, which leaves out two forms nft's
+  parser takes: `l4proto` on `ip`, `ip6`, `gre`, and `gretap`,
   which loads as the header bits at offset 0, so `ip l4proto 6` loads as
   `ip version 0 ip hdrlength 6`, and the `vxlan` and `geneve` fields, which
   load only in the tunnel form. The `payload-l4proto-loads-header-field` case

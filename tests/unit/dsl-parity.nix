@@ -351,11 +351,26 @@ in
   # Escape hatches
   # =========================================================================
 
-  testPayloadEscape = pe (dsl.expr.payload "tcp" "dport") {
-    payload = {
-      protocol = "tcp";
-      field = "dport";
-    };
+  # nft's neighbour discovery target and destination addresses.
+  testIcmpv6NeighbourAddressLeaves = {
+    expr = [
+      dsl.fields.icmpv6.taddr
+      dsl.fields.icmpv6.daddr
+    ];
+    expected = [
+      {
+        payload = {
+          protocol = "icmpv6";
+          field = "taddr";
+        };
+      }
+      {
+        payload = {
+          protocol = "icmpv6";
+          field = "daddr";
+        };
+      }
+    ];
   };
 
   testPayloadRaw =

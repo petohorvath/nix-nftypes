@@ -148,11 +148,13 @@ in
       icmpv6 = [
         "checksum"
         "code"
+        "daddr"
         "id"
         "maxDelay"
         "mtu"
         "paramProblem"
         "sequence"
+        "taddr"
         "type"
       ];
       igmp = [

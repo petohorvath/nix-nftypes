@@ -886,7 +886,7 @@ in
       The payload parser looks a field up among all of a protocol's
       templates, the `meta l4proto` dependency's included, so `ip l4proto`
       loads as the header bits at offset 0: `ip version` and `ip
-      hdrlength`. `expr.payload` takes only the fields nft loads as
+      hdrlength`. The Field leaves cover only the fields nft loads as
       written (lib/schema/payload-fields.nix).
     */
     {

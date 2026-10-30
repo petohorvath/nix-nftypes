@@ -12,6 +12,7 @@
 let
   tagsOf = import ./tags-of.nix;
   keywords = import ../../lib/text/keywords.nix;
+  payloadFieldsByProtocol = import ../../lib/schema/payload-fields.nix { };
 
   # The ct keys the ct body takes a direction for, as the schema decides.
   ctDirKeys = builtins.filter (
@@ -38,9 +39,7 @@ let
     ctDirKey = ctDirKeys;
     expressionTag = tagsOf nftlib.types.expression;
     payloadField = lib.concatLists (
-      lib.mapAttrsToList (
-        protocol: map (field: "${protocol} ${field}")
-      ) nftlib.enums.payloadFieldsByProtocol
+      lib.mapAttrsToList (protocol: map (field: "${protocol} ${field}")) payloadFieldsByProtocol
     );
     statementTag = tagsOf nftlib.types.statement;
     textKeyword = keywords.global;

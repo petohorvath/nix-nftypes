@@ -49,6 +49,9 @@ let
         inherit lib;
         objects = nftlib.types.objectBodies;
       };
+      # The payload fields nft loads as written, which the Field leaves
+      # cover.
+      payloadFieldsByProtocol = import ../lib/schema/payload-fields.nix { };
       textBlockFields = text.blockFields;
       textDispatch = text.dispatch;
       textPrimitives = text.primitives;

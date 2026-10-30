@@ -251,25 +251,22 @@ nix-nftypes: dsl.expr.ct: `expr.ct` builds a ct expression with a refinement; wi
 
 `fields.meta` has no leaf for `ibriport`, `obriport`, or `secpath`, nft's
 aliases for `ibrname`, `obrname`, and `ipsec`. `types.metaKey` accepts them,
-so `validate` takes them as raw input.
+so `validate` takes them as raw input. Likewise `fields.vlan` has no leaf for
+`cfi`, nft's alias for `dei`.
 
 `validate` checks raw input against the same rules. A ct expression has no
 `family` field: nft's JSON parser ignores one, and a key such as `ip saddr`
 names its family. The text renderer refuses a raw ct `family`.
 
-Use `expr.payload protocol field`, `expr.payloadRaw`, and
-`expr.payloadTunnel` when no pre-built leaf exists. `expr.payload` takes a
-protocol and field from `enums.payloadFieldsByProtocol`, in nft's spelling
-(`expr.payload "ip" "frag-off"`), and throws for any other, listing the valid
-ones:
-
-```text
-nix-nftypes: dsl.expr.payload: unknown ip field 'fragOff'. Valid ip fields: version, hdrlength, dscp, ecn, length, id, frag-off, ttl, protocol, checksum, saddr, daddr.
-```
-
-The table leaves out `l4proto`, which nft loads as other header bits, and the
-`vxlan` and `geneve` fields, which load only through `expr.payloadTunnel`.
-`expr.payloadRaw` reaches any bits. The other `dsl.expr` builders are:
+Every payload field nft's JSON parser loads as written has a leaf, in
+camelCase, such as `fields.ip.fragOff` for nft's `ip frag-off`, so there is no
+`expr` constructor for a named payload field. A field computed at evaluation
+is `fields.${protocol}.${field}`. Two payload forms have their constructors,
+because no leaf expresses them: `expr.payloadRaw` reaches any bits under a
+header layer, and `expr.payloadTunnel` a field of a tunnel's inner header, as
+the `vxlan` and `geneve` fields load only that way. nft also takes `l4proto`
+on `ip`, `ip6`, and `gre`, but loads it as other header bits, so it has no
+leaf. The other `dsl.expr` builders are:
 
 - header options and extension headers: `expr.tcpOption`, `expr.tcpOptionRaw`,
   `expr.ipOption`, `expr.sctpChunk`, `expr.dccpOption`, which takes the option
@@ -692,8 +689,7 @@ nix-nftypes: dsl.log: prefix: got lib.mkIf, which only the module system resolve
 
 A builder takes positional arguments only when every argument is required and
 there are at most two, as in `eq left right`, `vmap key data`, `expr.map key
-data`, `expr.payload protocol field`, `expr.prefix addr len`, and
-`counter.ref name`. Every other builder takes one attrset.
+data`, `expr.prefix addr len`, and `counter.ref name`. Every other builder takes one attrset.
 `dsl.table family name body` is the exception; it mirrors nftables'
 `table inet filter { … }` syntax. The rule covers `dsl` builders: the
 compatibility helpers look values up in the compatibility tables and take
@@ -899,11 +895,6 @@ one hook nft accepts for a flowtable, `ingress`. `byteUnit` holds nft's byte
 units, `bytes`, `kbytes`, and `mbytes`, which type a limit's `burst_unit` and a
 quota's `val_unit` and `used_unit`; `limitRateUnit`, which types a limit's
 `rate_unit`, adds `packets`.
-
-`enums.payloadFieldsByProtocol` is a table rather than a list: it maps each
-payload protocol nft's JSON parser knows to the fields it loads as written, in
-nft's spelling, such as `payloadFieldsByProtocol.ip`, which holds `"frag-off"`.
-`dsl.expr.payload` checks against it, and no type reads it.
 
 `nftlib.compatibility` holds the static tables and the helpers that look
 placements and priorities up in them. It holds only what nft accepts on load;
