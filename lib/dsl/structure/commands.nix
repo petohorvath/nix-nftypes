@@ -314,8 +314,8 @@ let
   );
 
   /*
-    `kinds`, whose named objects, the kinds a Table tree declares, throw
-    for a `name` with a leading `@`, as in `add` and `create`. Their `name`
+    `kinds`, with each Named object kind, the kinds a Table tree declares,
+    throwing on a `name` that starts with `@`, as in `add` and `create`. Their `name`
     declares the object, so it is the bare name: `add.set { name = "@s"; }`
     would declare a set no Reference could name without ambiguity, as a
     Table tree's `sets."@s"` would (ADR 0009).
