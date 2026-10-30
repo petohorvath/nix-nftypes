@@ -301,6 +301,14 @@ statement when called, as the statement builders do (see
 `dsl.eq.left`. A caller that computes the operator writes the raw
 `{ match = { op; left; right; }; }`, which rule validation checks.
 
+The comparisons `eq`, `ne`, `lt`, `gt`, `le`, and `ge` throw on a list.
+nft reads a list there as one combination of flags, not as a set:
+`eq ct.state [ "established" "related" ]` compares the state with both flags
+at once and never matches, and `eq tcp.dport [ 22 80 ]` fails to load. Match
+any of the values with `inSet`, any of the flags with `hasAnyFlag`, and the
+exact combination with `expr.bitOr`, as in
+`eq tcp.flags (expr.bitOr "syn" "ack")`.
+
 `inSet` and `notInSet` take a list, a set expression, or a named-set
 reference such as `"@trusted"`. A string without `@` throws and points to
 `expr.setRef`: nft would match it as one value, such as a hostname.

@@ -111,6 +111,27 @@ let
       value = dsl.notInSet dsl.fields.ip.saddr "blocked";
       msg = "notInSet: .*\"blocked\".*expr\\.setRef";
     };
+    # A list is nft's flag combination: `ct state == established|related`
+    # loads and never matches, and `tcp dport == 22,80` fails to load.
+    eqList = {
+      value = dsl.eq dsl.fields.ct.state [
+        "established"
+        "related"
+      ];
+      msg = "^nix-nftypes: dsl\\.eq: the right side is a list.*`inSet`.*`hasAnyFlag`.*`expr\\.bitOr`";
+    };
+  }
+  // lib.genAttrs' [ "ne" "lt" "gt" "le" "ge" ] (op: {
+    name = "${op}List";
+    value = {
+      value = dsl.${op} dsl.fields.tcp.dport [
+        22
+        80
+      ];
+      msg = "^nix-nftypes: dsl\\.${op}: the right side is a list";
+    };
+  })
+  // {
     treeSetGcIntervalJsonSpelling = {
       value = dsl.ruleset [
         (dsl.table "inet" "t" {

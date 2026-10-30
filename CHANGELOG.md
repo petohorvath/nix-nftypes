@@ -234,6 +234,7 @@ Renderers and validation:
 - Log prefixes have their own type, `types.logPrefix`: 1 to 127 bytes with no `$`, besides the quoted-string rules. The schema accepted 0 and 128 bytes, which nft rejects, and `$`, which nft's text expands from a `define` (`"$x"` fails without one) while JSON loads it literally. Text refuses such a prefix in a raw attrset, naming the field; give a literal `$` through raw JSON.
 - The DSL throws, naming the field, instead of dropping or misreading input:
   - `inSet` and `notInSet` with a string without `@`, such as `"blocked"`, which they matched as one value. The error points to `expr.setRef`.
+  - `eq`, `ne`, `lt`, `gt`, `le`, and `ge` with a list on the right, which nft reads as one combination of flags: `eq ct.state [ "established" "related" ]` loaded and never matched, and `eq tcp.dport [ 22 80 ]` failed to load. The error points to `inSet`, `hasAnyFlag`, and `expr.bitOr`.
   - A `dsl.table` body whose `family` or `name` differs from the positional arguments, a scope conflict. The body's values were ignored.
   - Module keys in a body, such as `imports`, `key`, or `freeformType`, which the module system consumed, and `_module`, which could turn off the unknown-field check.
   - A body that isn't an attrset, such as `create.counter "c1"`, which was imported as a module file and failed with a path error.
