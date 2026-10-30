@@ -111,6 +111,14 @@ let
       value = dsl.notInSet dsl.fields.ip.saddr "blocked";
       msg = "notInSet: .*\"blocked\".*expr\\.setRef";
     };
+    swappedMatch = {
+      value = dsl.eq 22 dsl.fields.tcp.dport;
+      msg = "dsl\\.eq\\.right' is not of type `match right side.*did you swap the left and right sides";
+    };
+    swappedMangle = {
+      value = dsl.mangle 42 dsl.fields.meta.mark;
+      msg = "dsl\\.mangle\\.key";
+    };
     # A list is nft's flag combination: `ct state == established|related`
     # loads and never matches, and `tcp dport == 22,80` fails to load.
     eqList = {

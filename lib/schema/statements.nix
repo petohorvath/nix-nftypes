@@ -31,6 +31,107 @@ let
     ;
   expr = expressions.expression;
 
+  /*
+    The tags of an expression that reads the packet or its metadata, a
+    key, which nft takes on the left of a match and never on the right.
+    nft refuses a match whose left side holds no key ("No symbol type
+    information", "has constant value") and one whose right side holds a
+    key or a map lookup ("not allowed in context (RHS)", "must be
+    constant"), so a swapped match fails to load.
+  */
+  keyTags = [
+    "ct"
+    "dccp option"
+    "exthdr"
+    "fib"
+    "ip option"
+    "ipsec"
+    "jhash"
+    "meta"
+    "numgen"
+    "osf"
+    "payload"
+    "rt"
+    "sctp chunk"
+    "socket"
+    "symhash"
+    "tcp option"
+    "tunnel"
+  ];
+
+  binaryOperatorTags = [
+    "|"
+    "^"
+    "&"
+    "<<"
+    ">>"
+  ];
+
+  # The one tag of a tagged expression, or null for any other value.
+  tagOf =
+    v:
+    if builtins.isAttrs v && builtins.length (builtins.attrNames v) == 1 then
+      builtins.head (builtins.attrNames v)
+    else
+      null;
+
+  /*
+    Whether `v` is a match's left side as nft loads it: a key, a binary
+    operation on one, such as `meta mark & 255`, or a concatenation of
+    such sides.
+  */
+  isKeySide =
+    v:
+    let
+      tag = tagOf v;
+      body = v.${tag};
+    in
+    tag != null
+    && (
+      builtins.elem tag keyTags
+      || (
+        builtins.elem tag binaryOperatorTags
+        && builtins.isList body
+        && body != [ ]
+        && isKeySide (builtins.head body)
+      )
+      || (tag == "concat" && builtins.isList body && body != [ ] && lib.all isKeySide body)
+    );
+
+  # Whether `v` holds a key or a map lookup at any depth.
+  holdsKey =
+    v:
+    let
+      tag = tagOf v;
+      holdsKeyIn =
+        body:
+        lib.any holdsKey (if builtins.isAttrs body then builtins.attrValues body else lib.toList body);
+    in
+    if builtins.isList v then
+      lib.any holdsKey v
+    else
+      tag != null && (builtins.elem tag (keyTags ++ [ "map" ]) || holdsKeyIn v.${tag});
+
+  matchLeft = types.addCheck expr isKeySide // {
+    name = "matchLeft";
+    description = "match left side: a key such as a payload, meta, or ct expression, an operation on one, or a concatenation of them (did you swap the left and right sides?)";
+  };
+
+  matchRight = types.addCheck expr (v: !(holdsKey v)) // {
+    description = "match right side: a value, with no payload, meta, ct, or other key and no map lookup (did you swap the left and right sides?)";
+  };
+
+  # nft's parser takes these keys in a mangle statement (CTX_F_MANGLE);
+  # any other fails with "Invalid mangle statement key".
+  mangleKey = expressions.expressionOf [
+    "ct"
+    "ip option"
+    "meta"
+    "payload"
+    "sctp chunk"
+    "tcp option"
+  ];
+
   # A reference to a named stateful object: its name, or a map expression
   # that selects the name (`quota name tcp dport map { … }`).
   objectRef = types.either types.str (expressions.expressionOf [ "map" ]);
@@ -92,11 +193,11 @@ let
     matchBody = submodule {
       options = {
         left = mkOption {
-          type = expr;
+          type = matchLeft;
           description = "left-hand expression";
         };
         right = mkOption {
-          type = expr;
+          type = matchRight;
           description = "right-hand expression";
         };
         op = mkOption {
@@ -138,7 +239,7 @@ let
     mangleBody = submodule {
       options = {
         key = mkOption {
-          type = expr;
+          type = mangleKey;
           description = "payload/meta/ct field to change";
         };
         value = mkOption {

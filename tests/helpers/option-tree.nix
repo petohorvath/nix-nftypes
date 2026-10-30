@@ -105,12 +105,13 @@ let
       builtins.match "integer between (-?[0-9]+) and (-?[0-9]+) \\(both inclusive\\)" type.description
     );
 
-  # Strings that the custom option types of lib/schema/primitives.nix
-  # accept (sample) and refuse (wrong value).
+  # Values that the custom option types of lib/schema/primitives.nix and
+  # a match's left side accept (sample) and refuse (wrong value).
   customSamples = {
     comment = "x";
     ifname = "eth0";
     logPrefix = "x";
+    matchLeft.meta.key = "mark";
     namedReference = "@x";
     inherit null;
   };
@@ -118,6 +119,7 @@ let
     comment = "a\"b";
     ifname = "";
     logPrefix = "";
+    matchLeft = 1;
     namedReference = "x";
     null = "null";
   };

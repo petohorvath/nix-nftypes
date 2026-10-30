@@ -4153,6 +4153,108 @@ textDriftTests
   # A wrong value in an expression field is a type error naming the
   # field. The recursive `expression` type's description used to recurse
   # without end, so the error was "infinite recursion encountered".
+  /*
+    nft refuses a match whose left side holds no key and one whose right
+    side holds a key or a map lookup, so a swapped match fails to load,
+    and takes only payload, meta, ct, and header-option keys in a mangle
+    statement. The Read-back shapes, a key, an operation on one, or a
+    concatenation of them on the left, still validate.
+  */
+  testSwappedOperandsRejected =
+    let
+      mark.meta.key = "mark";
+      ctMark.ct.key = "mark";
+      dport.payload = {
+        protocol = "tcp";
+        field = "dport";
+      };
+      match = left: right: {
+        match = {
+          op = "==";
+          inherit left right;
+        };
+      };
+      mangle = key: value: { mangle = { inherit key value; }; };
+    in
+    {
+      expr = map (helpers.validates nftlib.types.statement) [
+        (match 22 dport)
+        (match "@s" dport)
+        (match { set = [ 1 ]; } 1)
+        (match {
+          "&" = [
+            255
+            mark
+          ];
+        } 3)
+        (match mark ctMark)
+        (match mark { set = [ ctMark ]; })
+        (match mark {
+          map = {
+            key = dport;
+            data = "@m";
+          };
+        })
+        (mangle 42 mark)
+        (mangle { rt.key = "mtu"; } 1)
+        (match dport 22)
+        (match {
+          "&" = [
+            mark
+            255
+          ];
+        } 3)
+        (match
+          {
+            concat = [
+              mark
+              ctMark
+            ];
+          }
+          {
+            set = [
+              {
+                concat = [
+                  1
+                  2
+                ];
+              }
+            ];
+          }
+        )
+        (match mark {
+          "|" = [
+            1
+            2
+          ];
+        })
+        (mangle mark ctMark)
+        (mangle {
+          "tcp option" = {
+            name = "maxseg";
+            field = "size";
+          };
+        } { rt.key = "mtu"; })
+      ];
+      expected = [
+        false
+        false
+        false
+        false
+        false
+        false
+        false
+        false
+        false
+        true
+        true
+        true
+        true
+        true
+        true
+      ];
+    };
+
   testWrongExpressionIsATypeError = {
     expr = builtins.deepSeq (helpers.validate nftlib.types.statement {
       match = {
@@ -4163,7 +4265,7 @@ textDriftTests
     }) true;
     expectedError = {
       type = "ThrownError";
-      msg = "validate\\.match\\.left' is not of type `nft expression";
+      msg = "validate\\.match\\.left' is not of type `match left side";
     };
   };
 
