@@ -347,6 +347,17 @@ let
       inherit bodiesByTag;
     } (builtins.attrNames bodiesByTag);
 
+  # A vmap's data: a named map, or an anonymous map whose values are
+  # verdicts.
+  vmapData =
+    types.addCheck expressions.mapDataExpression (
+      data:
+      !(builtins.isAttrs data && builtins.isList (data.set or null)) || expressions.verdictPairs data.set
+    )
+    // {
+      description = "verdict map data (a named map's \"@name\", or an anonymous map { set = [ [ key verdict ] … ]; } whose values are verdicts, such as { accept = null; })";
+    };
+
   bodies = rec {
     # jump and goto take the same body as the verdict expressions.
     inherit (expressions) verdictTargetBody;
@@ -617,7 +628,7 @@ let
           description = "map key";
         };
         data = mkOption {
-          type = expressions.mapDataExpression;
+          type = vmapData;
           description = "key → verdict mapping expression";
         };
       };

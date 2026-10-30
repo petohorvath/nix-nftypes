@@ -42,15 +42,28 @@ in
 
   /*
     Choose a verdict by looking up a key. `key` is the lookup expression and
-    `data` a list of key-verdict pairs, another verdict map expression, or a
-    named map's name with or without its leading `@`. Returns a vmap
-    statement whose data is the anonymous map `{ set = data; }` for a list
-    and `"@<name>"` for a name, and throws when its body doesn't validate.
+    `data` a list of `[ key verdict ]` pairs, an anonymous map
+    `{ set = [ … ]; }`, or a named map's name with or without its leading
+    `@`. Returns a vmap statement whose data is the anonymous map
+    `{ set = data; }` for a list and `"@<name>"` for a name, and throws
+    when its body doesn't validate. A verdict written as a string, such as
+    `"accept"`, which nft's JSON parser rejects, throws and points to the
+    verdict's builder.
   */
   vmap =
     key: data:
-    statement.tagged { name = "vmap"; } {
-      inherit key;
-      data = reference.mapData (location.builder [ "vmap" ]) data;
-    };
+    let
+      stringVerdict = lib.findFirst (
+        pair:
+        builtins.isList pair && builtins.length pair == 2 && builtins.isString (builtins.elemAt pair 1)
+      ) null (if builtins.isList data then data else [ ]);
+    in
+    if stringVerdict != null then
+      location.fail (location.builder [ "vmap" ])
+        "the value ${builtins.toJSON (builtins.elemAt stringVerdict 1)} for the key ${builtins.toJSON (builtins.head stringVerdict)} is a string, which nft's JSON parser rejects; write a verdict, such as `dsl.accept` or `dsl.jump \"chain\"`"
+    else
+      statement.tagged { name = "vmap"; } {
+        inherit key;
+        data = reference.mapData (location.builder [ "vmap" ]) data;
+      };
 }

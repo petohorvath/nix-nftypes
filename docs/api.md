@@ -394,7 +394,11 @@ return
 ```
 
 `jump target` and `goto target` carry a chain target. A verdict is also the
-data of a `vmap`.
+data of a `vmap`: each pair of an anonymous verdict map, and each element of a
+map with `dataType = "verdict"`, takes a verdict value. nft's JSON parser
+rejects a verdict written as a string, such as `"accept"`, which text loads as
+the verdict, so `vmap` throws on one and points to `dsl.accept`, and the schema
+rejects it.
 
 Most statement builders are Variant namespaces: callable for the common form,
 with named variants for the others. Examples:

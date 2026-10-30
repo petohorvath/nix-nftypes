@@ -237,6 +237,16 @@ let
     };
   };
 
+  # A verdict map's elements map each key to a verdict.
+  verdictMap = {
+    invariant =
+      body:
+      (body.map or null) != "verdict"
+      || (body.elem or null) == null
+      || expressions.verdictPairs body.elem;
+    description = "map body whose elements, for a verdict map, are [ key verdict ] pairs";
+  };
+
   mapOptions = setMapCommonOptions // {
     # Override `type`'s description: same shape, slightly different intent.
     type = mkOption {
@@ -513,6 +523,7 @@ let
     };
 
     mapBody = inputBody "map" {
+      inherit (verdictMap) invariant description;
       options = mapOptions;
     };
 
@@ -1074,6 +1085,7 @@ let
       );
       map = listedBody null (
         inputBody "map" {
+          inherit (verdictMap) invariant description;
           options = withReadBackElements mapOptions;
         }
       );

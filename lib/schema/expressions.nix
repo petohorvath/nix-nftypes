@@ -660,10 +660,40 @@ let
       };
     };
 
+  # The verdicts, the values a verdict map holds.
+  verdictTags = [
+    "accept"
+    "drop"
+    "continue"
+    "return"
+    "jump"
+    "goto"
+  ];
+
+  /*
+    Whether `elements`, a verdict map's, is a list of `[ key verdict ]`
+    pairs. nft's JSON parser rejects any other value, such as the string
+    "accept", which text loads as the verdict ("Could not parse netfilter
+    verdict").
+  */
+  verdictPairs =
+    elements:
+    builtins.isList elements
+    && builtins.all (
+      element:
+      builtins.isList element
+      && builtins.length element == 2
+      && builtins.isAttrs (builtins.elemAt element 1)
+      && builtins.attrNames (builtins.elemAt element 1) != [ ]
+      && builtins.length (builtins.attrNames (builtins.elemAt element 1)) == 1
+      && builtins.elem (builtins.head (builtins.attrNames (builtins.elemAt element 1))) verdictTags
+    ) elements;
+
   exprs = exprsWith { readBack = false; };
   readBackExprs = exprsWith { readBack = true; };
 in
 {
+  inherit verdictPairs;
   inherit (exprs)
     bodiesByTag
     expression
@@ -674,6 +704,7 @@ in
   # Internal: the expressions Read-back lists, whose elements take
   # `elemReadBackBody`, for the Read-back statements and objects.
   readBack = {
+    inherit verdictPairs;
     inherit (readBackExprs)
       bodiesByTag
       expression
