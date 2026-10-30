@@ -2994,6 +2994,41 @@ textDriftTests
       ];
     };
 
+  # nftables 1.1.7 lists a set's or map's `count`, its number of
+  # elements, beside a `size`; its parser reads no `count` on input.
+  testListedSetCount =
+    let
+      set = {
+        family = "inet";
+        table = "t";
+        name = "s";
+        type = "ipv4_addr";
+        size = 10;
+        count = 2;
+      };
+    in
+    {
+      expr = map (value: helpers.validates nftlib.types.ruleset { nftables = [ value ]; }) [
+        {
+          set = set // {
+            handle = 1;
+          };
+        }
+        {
+          map = set // {
+            handle = 2;
+            map = "mark";
+          };
+        }
+        { add = { inherit set; }; }
+      ];
+      expected = [
+        true
+        true
+        false
+      ];
+    };
+
   /*
     A range written as a string, two numbers or two addresses joined by
     `-`, loads as a range in text, while nft's JSON parser rejects it as a

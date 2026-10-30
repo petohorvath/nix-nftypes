@@ -292,6 +292,10 @@ renderer refuses them. Set-level statements load identically through JSON and
 text, and give each element its own instance. The `element-statements-ignored-on-json` case of
 `integration-nft-misbehaviour` asserts that nft still ignores them.
 
+A set's or map's `count` is a Read-back shape: nftables 1.1.7 lists the number
+of elements beside a `size`, and its JSON parser never reads one. Read-back
+sets and maps accept it, and input commands reject it.
+
 A ct expression's `family` is not a Read-back shape: nft's JSON parser
 ignores it on input and its printer never writes it (`json_parse_ct_expr` and
 `ct_expr_json`, nftables 1.1.6). nft lists `ct original ip saddr` as the key

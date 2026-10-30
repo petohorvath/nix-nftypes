@@ -1068,25 +1068,33 @@ let
   */
   readBackHolderBodies =
     let
-      withReadBackElements =
+      # A listed set's or map's options: its elements take the statements
+      # nft lists beside each value, and nftables 1.1.7 lists `count`, the
+      # number of elements, beside a `size`. nft's parser reads neither.
+      listedSetOptions =
         options:
         options
         // {
           elem = options.elem // {
             type = types.nullOr readBackSetElem;
           };
+          count = mkOption {
+            type = types.nullOr types.ints.unsigned;
+            default = null;
+            description = "number of elements, which nft lists beside size";
+          };
         };
     in
     {
       set = listedBody null (
         inputBody "set" {
-          options = withReadBackElements setMapCommonOptions;
+          options = listedSetOptions setMapCommonOptions;
         }
       );
       map = listedBody null (
         inputBody "map" {
           inherit (verdictMap) invariant description;
-          options = withReadBackElements mapOptions;
+          options = listedSetOptions mapOptions;
         }
       );
       element = submodule {
