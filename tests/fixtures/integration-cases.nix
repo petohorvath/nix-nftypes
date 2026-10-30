@@ -76,7 +76,8 @@ let
     }
   '';
 
-  # `==` matches on every right-hand shape except a bitmask.
+  # `==` matches on every right-hand shape except a bitmask; `inSet`
+  # writes it for a set.
   shapeMatches =
     let
       inherit (dsl.expr)
@@ -91,12 +92,12 @@ let
       (dsl.eq tcp.dport 22)
       (dsl.eq ip.saddr (prefix "10.0.0.0" 8))
       (dsl.eq tcp.dport (range 1024 65535))
-      (dsl.eq tcp.dport (set [
+      (dsl.inSet tcp.dport (set [
         22
         80
       ]))
-      (dsl.eq ip.saddr (setRef "allowed"))
-      (dsl.eq
+      (dsl.inSet ip.saddr (setRef "allowed"))
+      (dsl.inSet
         (concat [
           ip.saddr
           tcp.dport
@@ -1348,11 +1349,11 @@ rec {
               ]) (ifnameValues ++ [ "eth*" ])
               ++ [
                 [
-                  (dsl.ne meta.oifname (dsl.expr.set ifnameValues))
+                  (dsl.notInSet meta.oifname (dsl.expr.set ifnameValues))
                   accept
                 ]
                 [
-                  (dsl.eq (dsl.expr.concat [
+                  (dsl.inSet (dsl.expr.concat [
                     meta.iifname
                     ip.saddr
                   ]) (dsl.expr.set ifnameAddressPairs))
@@ -1612,7 +1613,7 @@ rec {
                   (tcpRule (dsl.ctHelper.ref (reference "ftpHelper")))
                   (tcpRule (dsl.ctTimeout.ref (reference "shortTcp")))
                   (tcpRule (dsl.ctExpectation.ref (reference "sshExpectation")))
-                  [ (dsl.eq ip.saddr (dsl.expr.setRef (reference "allowed"))) ]
+                  [ (dsl.inSet ip.saddr (dsl.expr.setRef (reference "allowed"))) ]
                   [ (dsl.mangle meta.mark (dsl.expr.map ip.saddr (reference "marks"))) ]
                   [ (dsl.vmap ip.saddr (reference "verdicts")) ]
                 ])
@@ -1838,7 +1839,7 @@ rec {
               (dsl.eq (dsl.expr.exthdr { name = "dst"; }) true)
               (dsl.eq (dsl.expr.exthdr { name = "mh"; }) true)
               (dsl.eq meta.mark (-1))
-              (dsl.eq meta.mark (
+              (dsl.inSet meta.mark (
                 dsl.expr.set [
                   (-2)
                   3

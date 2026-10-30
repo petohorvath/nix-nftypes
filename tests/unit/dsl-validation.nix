@@ -135,6 +135,29 @@ let
       value = dsl.limit (dsl.expr.map dsl.fields.tcp.dport "l");
       msg = "^nix-nftypes: dsl\\.limit: a map expression selects";
     };
+    # A set on the right of `eq` or `ne` is a membership test, which
+    # `inSet` or `notInSet` names, and one value on the right of `inSet`
+    # or `notInSet` a comparison, which `eq` or `ne` names.
+    eqNamedSet = {
+      value = dsl.eq dsl.fields.ip.saddr "@trusted";
+      msg = "^nix-nftypes: dsl\\.eq: the right side is a set, which makes the match a membership test; write `inSet`";
+    };
+    eqAnonymousSet = {
+      value = dsl.eq dsl.fields.tcp.dport (dsl.expr.set [ 22 ]);
+      msg = "^nix-nftypes: dsl\\.eq: the right side is a set, .*write `inSet`";
+    };
+    neNamedSet = {
+      value = dsl.ne dsl.fields.ip.saddr "@trusted";
+      msg = "^nix-nftypes: dsl\\.ne: the right side is a set, .*write `notInSet`";
+    };
+    inSetOneValue = {
+      value = dsl.inSet dsl.fields.tcp.dport 22;
+      msg = "^nix-nftypes: dsl\\.inSet: the right side is one value, not a set; compare with it using `eq`";
+    };
+    notInSetOneValue = {
+      value = dsl.notInSet dsl.fields.ip.saddr (dsl.expr.prefix "10.0.0.0" 8);
+      msg = "^nix-nftypes: dsl\\.notInSet: the right side is one value, not a set; compare with it using `ne`";
+    };
     rulesetUncalledBuilder = {
       value = dsl.ruleset [ dsl.flush.ruleset ];
       msg = "^nix-nftypes: dsl\\.ruleset: .*got a function, such as a builder not yet called; call it";
@@ -1359,6 +1382,19 @@ let
     "notInSet"
   ];
 
+  # `inSet` and `notInSet` take a set on the right, which wraps `value`.
+  membershipValue =
+    name: value:
+    if
+      builtins.elem name [
+        "inSet"
+        "notInSet"
+      ]
+    then
+      [ value ]
+    else
+      value;
+
   # Each match operator validates both sides, naming the operator and the
   # side.
   matchOperatorTests =
@@ -1368,14 +1404,14 @@ let
         lib.genAttrs' matchOperators (
           name:
           lib.nameValuePair "testMatchOperatorWrongSideThrows_${name}_${side}" {
-            expr = force (build dsl.${name});
-            expectedError.msg = "`dsl\\.${name}\\.${side}' is not of type";
+            expr = force (build name);
+            expectedError.msg = "`dsl\\.${name}\\.${side}(\\.[^']*)?' is not of type";
           }
         )
       )
       {
-        left = operator: operator notAnExpression 1;
-        right = operator: operator expression notAnExpression;
+        left = name: dsl.${name} notAnExpression (membershipValue name 1);
+        right = name: dsl.${name} expression (membershipValue name notAnExpression);
       };
 
   # The imperative renderers, each of which names itself in its errors

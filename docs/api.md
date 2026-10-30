@@ -303,6 +303,13 @@ Top-level match helpers include:
 - `hasAnyFlag`, nft's `in` operator, which matches when any of the given flags
   is set: `hasAnyFlag tcp.flags [ "syn" "ack" ]` is `tcp flags syn, ack`.
 
+Each family has one job. `eq` and `ne` compare with one value, and
+`inSet` and `notInSet` test membership in a list, a set expression, or a named
+set's `"@name"`, though nft writes both as `==` or `!=`. So `eq` with a set
+throws and points to `inSet`, as `ne` does to `notInSet`, and `inSet` with one
+value throws and points to `eq`, as `notInSet` does to `ne`. The schema takes
+either shape, as `nft -j list` writes them.
+
 Together they cover nft's seven match operators. Each validates its match
 statement when called, as the statement builders do (see
 [Statements](#statements)), so `eq { bogus = 1; } 2` throws naming

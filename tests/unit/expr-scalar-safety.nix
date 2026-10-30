@@ -34,6 +34,7 @@ let
   # Surface 1: match RHS as a bare scalar string against a non-ifname
   # LHS. ifname LHSs route through `isIfnameLhs` and quote the value;
   # non-ifname LHSs (ct.state, mark, etc.) fall through to renderScalar.
+  # A named set's `@name` is a membership test, which `inSet` builds.
   rulesetWithMatchRhs =
     rhs:
     dsl.ruleset [
@@ -44,7 +45,7 @@ let
           prio = 0;
           rules = [
             [
-              (dsl.eq dsl.fields.ct.state rhs)
+              ((if lib.hasPrefix "@" rhs then dsl.inSet else dsl.eq) dsl.fields.ct.state rhs)
               dsl.accept
             ]
           ];

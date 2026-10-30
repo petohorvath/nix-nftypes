@@ -34,30 +34,43 @@ let
         tag = "match";
       } { inherit op left right; };
 
+  # Whether `right` is a set: an anonymous set or a named set's `@name`.
+  isSet =
+    right:
+    builtins.isAttrs right && builtins.attrNames right == [ "set" ]
+    || builtins.isString right && lib.hasPrefix "@" right;
+
   /*
     The comparison operator `dsl.<name>`. A list on its right is nft's
     flag combination, not a set: nft rejects it for a non-flag field and
     compares a flag field with every flag at once, so
     `eq ct.state [ "established" "related" ]` never matches. It throws
-    instead, naming the operator that says what the caller means.
+    instead, naming the operator that says what the caller means. A set
+    on its right is membership, which `inSet` or `notInSet` names, so it
+    throws too and points there; `member` names that operator, or is
+    null for an ordering comparison, which nft refuses with a set.
   */
   mkComparison =
-    name: op: left: right:
+    name: member: op: left: right:
     if builtins.isList right then
       location.fail (location.builder [ name ])
         "the right side is a list, which nft reads as one combination of flags, not as a set of values; match any of the values with `inSet`, any of the flags with `hasAnyFlag`, or the exact combination of flags with `expr.bitOr`"
+    else if member != null && isSet right then
+      location.fail (location.builder [ name ])
+        "the right side is a set, which makes the match a membership test; write `${member}`, which takes a list, a set expression, or a named set's \"@name\""
     else
       mkMatch name op left right;
 
   /*
     Wrap a right-hand side for set membership: list → anonymous set
-    expression; anything else ("@name" references, pre-built set
-    expressions, flag values, …) passes through. A string without `@` would
-    be matched as one value, such as a hostname, so it throws, as does an
-    empty list, which nft rejects; `name` names the operator in the error.
+    expression; a set expression or a `"@name"` reference passes through.
+    A string without `@` would be matched as one value, such as a
+    hostname, so it throws, as does an empty list, which nft rejects, and
+    any other value, which `comparison`, `eq` or `ne`, matches; `name`
+    names the operator in the error.
   */
   wrapSet =
-    name: rhs:
+    name: comparison: rhs:
     if rhs == [ ] then
       reference.failEmptyList (location.builder [ name ]) "the right side"
     else if builtins.isList rhs then
@@ -65,6 +78,9 @@ let
     else if builtins.isString rhs && !(lib.hasPrefix "@" rhs) then
       location.fail (location.builder [ name ])
         "the right side ${builtins.toJSON rhs} is a bare string, which nft matches as one value, not as a set; reference a named set with `expr.setRef ${builtins.toJSON rhs}` (or \"@${rhs}\")"
+    else if !(isSet rhs) then
+      location.fail (location.builder [ name ])
+        "the right side is one value, not a set; compare with it using `${comparison}`, or give a list, a set expression, or a named set's \"@name\""
     else
       rhs;
 
@@ -73,42 +89,42 @@ let
     the value to compare against. Returns a match statement, and throws
     when it doesn't validate or `right` is a list.
   */
-  eq = mkComparison "eq" "==";
+  eq = mkComparison "eq" "inSet" "==";
 
   /*
     Match `left != right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
     when it doesn't validate or `right` is a list.
   */
-  ne = mkComparison "ne" "!=";
+  ne = mkComparison "ne" "notInSet" "!=";
 
   /*
     Match `left < right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
     when it doesn't validate or `right` is a list.
   */
-  lt = mkComparison "lt" "<";
+  lt = mkComparison "lt" null "<";
 
   /*
     Match `left > right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
     when it doesn't validate or `right` is a list.
   */
-  gt = mkComparison "gt" ">";
+  gt = mkComparison "gt" null ">";
 
   /*
     Match `left <= right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
     when it doesn't validate or `right` is a list.
   */
-  le = mkComparison "le" "<=";
+  le = mkComparison "le" null "<=";
 
   /*
     Match `left >= right`. `left` is the expression under test and `right`
     the value to compare against. Returns a match statement, and throws
     when it doesn't validate or `right` is a list.
   */
-  ge = mkComparison "ge" ">=";
+  ge = mkComparison "ge" null ">=";
 
   /*
     Match membership without spelling out the set wrapper. `left` is the
@@ -117,14 +133,14 @@ let
     statement, and throws when it doesn't validate or `right` is a string
     without `@`.
   */
-  inSet = left: right: mkMatch "inSet" "==" left (wrapSet "inSet" right);
+  inSet = left: right: mkMatch "inSet" "==" left (wrapSet "inSet" "eq" right);
 
   /*
     Negated `inSet`. `left` is the expression under test; `right` is a list
     or other set expression, as for `inSet`. Returns a match statement, and
     throws as `inSet` does.
   */
-  notInSet = left: right: mkMatch "notInSet" "!=" left (wrapSet "notInSet" right);
+  notInSet = left: right: mkMatch "notInSet" "!=" left (wrapSet "notInSet" "ne" right);
 
   /*
     Match when any of `flags` is set in `left`, with the nftables `in`

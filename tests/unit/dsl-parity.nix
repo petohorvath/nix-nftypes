@@ -513,7 +513,7 @@ in
 
   # Named-set reference: the name with or without its `@` becomes the
   # reference string `"@<name>"`, the shape nft lists.
-  testExprSetRef = ps (dsl.eq dsl.fields.ip.saddr (dsl.expr.setRef "trusted_v4")) {
+  testExprSetRef = ps (dsl.inSet dsl.fields.ip.saddr (dsl.expr.setRef "trusted_v4")) {
     match = {
       op = "==";
       left.payload = {
@@ -2818,7 +2818,7 @@ in
             policy = "drop";
             rules = [
               [
-                (dsl.eq dsl.fields.ip.saddr "@blocklist")
+                (dsl.inSet dsl.fields.ip.saddr "@blocklist")
                 dsl.drop
               ]
             ];

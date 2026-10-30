@@ -288,6 +288,7 @@ Renderers and validation:
 - `counter`, `quota`, `limit`, `synproxy`, and `ctCount` given a map expression, such as `quota (expr.map fields.tcp.dport "q")`, throw and point to `.ref`, as a string does. `quota`, `limit`, `synproxy`, and `ctCount` took it as a second spelling of `.ref`, and `counter` failed asking for packets and bytes.
 - A set's or map's `comment` is Read-back only: `add.set`, `create.set`, `add.map`, `create.map`, a Table tree's `sets` and `maps`, and input commands reject one, while a listed set or map takes it. nft's JSON parser drops the comment, so JSON loaded the set without it while text refused it, as it does for every other field nft's parser ignores on input.
 - A log statement's `group` excludes `level` and `flags`, a reject statement's `tcp reset` takes no `code` (the JSON `expr`), and a concatenation takes two or more expressions, in the schema and the DSL. They validated, and nft rejected each: "level and group are mutually exclusive", "flags and group are mutually exclusive", "No symbol type information", and "Expected concatenation" or "Invalid set elem".
+- `eq` and `ne` throw on a set on the right, an anonymous set or a named set's `"@name"`, and point to `inSet` and `notInSet`, while `inSet` and `notInSet` throw on one value and point to `eq` and `ne`. Each pair was a second name for the other's form: `eq tcp.dport "@s"` built the match `inSet tcp.dport "@s"` builds, and `inSet tcp.dport 22` the one `eq tcp.dport 22` builds. The schema still takes either shape, which `nft -j list` writes as `==`.
 
 ### Removed
 
